@@ -1,10 +1,7 @@
 use std::{
     collections::HashMap,
-    io::{self, BufRead},
-    mem,
+    io::{BufRead},
     num::ParseIntError,
-    ops::Deref,
-    string::ParseError,
 };
 
 use thiserror::Error;
@@ -127,7 +124,7 @@ impl DistributionLoader {
 
             if parts.get(0).unwrap().eq_ignore_ascii_case("BEGIN") {
                 let name = parts.get(1).unwrap().to_string();
-                let mut value = Self::load_distribution(name.as_str(), &mut lines);
+                let value = Self::load_distribution(name.as_str(), &mut lines);
                 let distribution = value?;
                 distributions.insert(name, distribution);
             }

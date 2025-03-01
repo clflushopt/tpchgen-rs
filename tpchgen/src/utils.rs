@@ -1,6 +1,4 @@
 pub mod strings {
-    use std::{cmp::min, str::FromStr};
-
     const COLUMN_SEPARATOR: &'static str = "|";
 
     pub fn pad_with_zeroes(value: i64, length: usize) -> String {
