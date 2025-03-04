@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    io::{BufRead},
-    num::ParseIntError,
-};
+use std::{collections::HashMap, io::BufRead, num::ParseIntError};
 
 use thiserror::Error;
 
