@@ -144,7 +144,7 @@ impl TpchLongRng {
             if count % 2 != 0 {
                 self.seed = (multiplier * self.seed) % Self::MODULUS_32;
             }
-            count = count / 2;
+            count /= 2;
             multiplier = (multiplier * multiplier) % Self::MODULUS_32;
         }
     }
@@ -221,7 +221,7 @@ impl TpchAlphanumRng {
     /// Returns the next random string.
     pub fn next_value(&mut self) -> String {
         let size = self.rng.next_int(self.min_len as i32, self.max_len as i32);
-        let mut buf = vec![' ' as char; size as usize];
+        let mut buf = vec![' '; size as usize];
 
         let mut index = 0;
         for i in 0..size {
@@ -232,7 +232,7 @@ impl TpchAlphanumRng {
             index >>= 6;
         }
 
-        return buf.iter().cloned().collect::<String>();
+        buf.iter().cloned().collect::<String>()
     }
 }
 
@@ -247,8 +247,8 @@ impl TpchBoundedIntRng {
     /// Create a new bounded random number genereator.
     pub fn new(seed: i64, lower_bound: i32, upper_bound: i32, expected_row_count: i32) -> Self {
         Self {
-            lower_bound: lower_bound,
-            upper_bound: upper_bound,
+            lower_bound,
+            upper_bound,
             rng: TpchRng::new(seed, expected_row_count as i64),
         }
     }

@@ -118,7 +118,7 @@ impl DistributionLoader {
                 continue;
             }
 
-            if parts.get(0).unwrap().eq_ignore_ascii_case("BEGIN") {
+            if parts.first().unwrap().eq_ignore_ascii_case("BEGIN") {
                 let name = parts.get(1).unwrap().to_string();
                 let value = Self::load_distribution(name.as_str(), &mut lines);
                 let distribution = value?;
@@ -134,7 +134,7 @@ impl DistributionLoader {
         name: &str,
         lines: T,
     ) -> Result<Distribution, DistributionLoaderError> {
-        let mut count = -1 as i32;
+        let mut count = -1_i32;
         let mut members = HashMap::new();
 
         for line in lines {
@@ -166,7 +166,7 @@ impl DistributionLoader {
                 line
             );
 
-            let value = parts.get(0).unwrap().to_string();
+            let value = parts.first().unwrap().to_string();
             let weight = i32::from_str_radix(parts.get(1).unwrap(), 10)?;
 
             if value.eq_ignore_ascii_case("count") {
@@ -186,8 +186,7 @@ impl DistributionLoader {
             .filter(|s| !s.is_empty())
             .collect::<Vec<&str>>();
 
-        if parts
-            .get(0)
+        if parts.first()
             .is_some_and(|part| part.eq_ignore_ascii_case("END"))
         {
             debug_assert!(
