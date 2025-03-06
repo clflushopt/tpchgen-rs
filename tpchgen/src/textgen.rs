@@ -90,6 +90,7 @@ impl Distribution {
 }
 
 /// Container for all the distributions used in TPC-H
+#[derive(Debug)]
 pub struct Distributions {
     grammars: Distribution,
     noun_phrase: Distribution,
@@ -2630,5 +2631,11 @@ mod tests {
         let nations = generator.generate();
         assert_eq!(nations.len(), 25);
         println!("{:?}", nations);
+    }
+
+    #[test]
+    fn can_load_distributions() {
+        let distributions = load_distributions(DISTS_SEED);
+        println!("{:#?}", distributions);
     }
 }
