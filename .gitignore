@@ -1,4 +1,4 @@
 debug/
 target/
-tpchgen/__old/
+__old/
 Cargo.lock
