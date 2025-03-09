@@ -1,14 +1,13 @@
-use std::{collections::HashMap, io::BufRead, num::ParseIntError, sync::{Arc, Once}};
+use std::collections::HashMap;
+use std::hash::Hash;
 
-use thiserror::Error;
-
-use crate::{rng::TpchRng, textgen::RandomInt};
+use crate::random::RowRandomInt;
 
 /// TPC-H distributions seed file.
 pub(crate) const DISTS_SEED: &str = include_str!("dists.dss");
 
-
-/// A mapping of values to weights for random selection
+/// Distribution represents a weighted collection of string values from the TPC-H specification.
+/// It provides methods to access values by index or randomly based on their weights.
 #[derive(Debug, Clone)]
 pub struct Distribution {
     name: String,
@@ -19,391 +18,485 @@ pub struct Distribution {
 }
 
 impl Distribution {
-    pub fn new(name: String, distribution_map: HashMap<String, i32>) -> Self {
+    /// Creates a new Distribution with the given name and weighted values.
+    pub fn new(name: String, distribution: BTreeMap<String, i32>) -> Self {
         let mut values = Vec::new();
-        let mut weights = Vec::new();
+        let mut weights = Vec::with_capacity(distribution.len());
 
         let mut running_weight = 0;
         let mut is_valid_distribution = true;
 
-        for (key, weight) in distribution_map {
-            values.push(key);
+        // Process each value and its weight
+        for (value, weight) in &distribution {
+            values.push(value.clone());
+
             running_weight += weight;
             weights.push(running_weight);
 
-            is_valid_distribution &= weight > 0;
+            // A valid distribution requires all weights to be positive
+            is_valid_distribution &= *weight > 0;
         }
 
-        // Create distribution array for valid distributions
-        let distribution = if is_valid_distribution && !values.is_empty() {
-            let max_weight = weights[weights.len() - 1];
-            let mut dist = vec![String::new(); max_weight as usize];
+        // Only create the full distribution array for valid distributions
+        // "nations" is a special case that's not a valid distribution
+        let (distribution_array, max_weight) = if is_valid_distribution {
+            let max = weights[weights.len() - 1];
+            let mut dist = vec![String::new(); max as usize];
 
-            let mut value_index = 0;
-            for i in 0..max_weight {
-                if i >= weights[value_index] {
-                    value_index += 1;
+            let mut index = 0;
+            for (value_index, value) in values.iter().enumerate() {
+                let count = if value_index == 0 {
+                    weights[0]
+                } else {
+                    weights[value_index] - weights[value_index - 1]
+                };
+
+                for _ in 0..count {
+                    dist[index] = value.clone();
+                    index += 1;
                 }
-                dist[i as usize] = values[value_index].clone();
             }
 
-            Some(dist)
+            (Some(dist), max)
         } else {
-            None
+            (None, -1)
         };
 
-        let max_weight = if weights.is_empty() {
-            0
-        } else {
-            weights[weights.len() - 1]
-        };
-
-        Self {
+        Distribution {
             name,
             values,
             weights,
-            distribution,
+            distribution: distribution_array,
             max_weight,
         }
     }
 
-    /// Get the value at the specified index
+    /// Gets a value at the specified index.
     pub fn get_value(&self, index: usize) -> &str {
         &self.values[index]
     }
 
-    /// Get the weight at the specified index
+    /// Gets all values in this distribution.
+    pub fn get_values(&self) -> &[String] {
+        &self.values
+    }
+
+    /// Gets the cumulative weight at the specified index.
     pub fn get_weight(&self, index: usize) -> i32 {
         self.weights[index]
     }
 
-    /// Get the size of the distribution
+    /// Gets the number of distinct values in this distribution.
     pub fn size(&self) -> usize {
         self.values.len()
     }
 
-    /// Get a random value from the distribution
-    pub fn random_value(&self, random: &mut RandomInt) -> &str {
-        match &self.distribution {
-            Some(dist) => {
-                let random_value = random.next_int(0, self.max_weight - 1) as usize;
-                &dist[random_value]
-            }
-            None => panic!("{} does not have a distribution", self.name),
+    /// Gets a random value from this distribution using the provided random number.
+    pub fn random_value(&self, random: &mut RowRandomInt) -> &str {
+        if let Some(dist) = &self.distribution {
+            let random_value = random.next_int(0, self.max_weight - 1);
+            return &dist[random_value as usize];
         }
+        unreachable!("Cannot get random value from an invalid distribution")
     }
 }
 
-/// Container for all the distributions used in TPC-H
-#[derive(Debug)]
+use std::collections::BTreeMap;
+use std::io::{self, BufRead};
+
+use regex::Regex;
+
+/// DistributionLoader provides functionality to load TPC-H distributions from a text format.
+pub struct DistributionLoader;
+
+impl DistributionLoader {
+    /// Loads distributions from a stream of lines.
+    ///
+    /// The format is expected to follow the TPC-H specification format where:
+    /// - Lines starting with "#" are comments
+    /// - Distributions start with "BEGIN <name>"
+    /// - Distribution entries are formatted as "value|weight"
+    /// - Distributions end with "END"
+    pub fn load_distributions<I>(lines: I) -> io::Result<BTreeMap<String, Distribution>>
+    where
+        I: Iterator<Item = io::Result<String>>,
+    {
+        let filtered_lines = lines.filter_map(|line_result| {
+            line_result.ok().and_then(|line| {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                    Some(trimmed.to_string())
+                } else {
+                    None
+                }
+            })
+        });
+
+        Self::load_distributions_from_filtered_lines(filtered_lines)
+    }
+
+    /// Internal method to load distributions from pre-filtered lines.
+    fn load_distributions_from_filtered_lines<I>(
+        lines: I,
+    ) -> io::Result<BTreeMap<String, Distribution>>
+    where
+        I: Iterator<Item = String>,
+    {
+        let mut distributions = BTreeMap::new();
+        let mut lines_iter = lines.peekable();
+
+        while let Some(line) = lines_iter.next() {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() == 2 && parts[0].eq_ignore_ascii_case("BEGIN") {
+                let name = parts[1].to_string();
+                let distribution = Self::load_distribution(&mut lines_iter, &name)?;
+                distributions.insert(name, distribution);
+            }
+        }
+
+        Ok(distributions)
+    }
+
+    /// Loads a single distribution until its END marker.
+    fn load_distribution<I>(
+        lines: &mut std::iter::Peekable<I>,
+        name: &str,
+    ) -> io::Result<Distribution>
+    where
+        I: Iterator<Item = String>,
+    {
+        let regex_separator = Regex::new(r"\|").unwrap();
+        let mut members = BTreeMap::new();
+        let mut count = -1;
+
+        while let Some(line) = lines.next() {
+            if Self::is_end(&line) {
+                return Ok(Distribution::new(name.to_string(), members));
+            }
+
+            let parts: Vec<&str> = regex_separator.split(&line).collect();
+            if parts.len() < 2 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!("Invalid distribution line format: {}", line),
+                ));
+            }
+
+            let value = parts[0].to_string();
+            let weight = match parts[1].trim().parse::<i32>() {
+                Ok(w) => w,
+                Err(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        format!(
+                            "Invalid distribution {}: invalid weight on line {}",
+                            name, line
+                        ),
+                    ));
+                }
+            };
+
+            if value.eq_ignore_ascii_case("count") {
+                count = weight;
+            } else {
+                members.insert(value, weight);
+            }
+        }
+
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            format!("Invalid distribution {}: no end statement", name),
+        ))
+    }
+
+    /// Checks if a line is an END marker.
+    fn is_end(line: &str) -> bool {
+        let parts: Vec<&str> = line.split_whitespace().collect();
+        parts
+            .get(0)
+            .map_or(false, |p| p.eq_ignore_ascii_case("END"))
+    }
+}
+
+/// Distributions wraps all TPC-H distributions and provides methods to access them.
+#[derive(Debug, Clone)]
 pub struct Distributions {
-    grammars: Distribution,
-    noun_phrase: Distribution,
-    verb_phrase: Distribution,
-    prepositions: Distribution,
-    nouns: Distribution,
-    verbs: Distribution,
-    articles: Distribution,
-    adjectives: Distribution,
-    adverbs: Distribution,
-    auxiliaries: Distribution,
-    terminators: Distribution,
-    order_priorities: Distribution,
-    ship_instructions: Distribution,
-    ship_modes: Distribution,
-    return_flags: Distribution,
-    part_containers: Distribution,
-    part_colors: Distribution,
-    part_types: Distribution,
-    market_segments: Distribution,
-    nations: Distribution,
-    regions: Distribution,
+    distributions: BTreeMap<String, Distribution>,
 }
 
 impl Distributions {
-    /// Create a new Distributions instance from a map of named distributions
-    pub fn new(distributions: HashMap<String, Distribution>) -> Self {
-        // Helper to get distribution or panic if not found
-        let get_dist = |name: &str| -> Distribution {
-            distributions
-                .get(name)
-                .cloned()
-                .unwrap_or_else(|| panic!("Distribution {} does not exist", name))
-        };
-
-        Self {
-            grammars: get_dist("grammar"),
-            noun_phrase: get_dist("np"),
-            verb_phrase: get_dist("vp"),
-            prepositions: get_dist("prepositions"),
-            nouns: get_dist("nouns"),
-            verbs: get_dist("verbs"),
-            articles: get_dist("articles"),
-            adjectives: get_dist("adjectives"),
-            adverbs: get_dist("adverbs"),
-            auxiliaries: get_dist("auxillaries"),
-            terminators: get_dist("terminators"),
-            order_priorities: get_dist("o_oprio"),
-            ship_instructions: get_dist("instruct"),
-            ship_modes: get_dist("smode"),
-            return_flags: get_dist("rflag"),
-            part_containers: get_dist("p_cntr"),
-            part_colors: get_dist("colors"),
-            part_types: get_dist("p_types"),
-            market_segments: get_dist("msegmnt"),
-            nations: get_dist("nations"),
-            regions: get_dist("regions"),
-        }
+    /// Creates a new distributions wrapper.
+    pub fn new(distributions: BTreeMap<String, Distribution>) -> Self {
+        Distributions { distributions }
     }
 
-    // Getter methods for each distribution
-    pub fn get_grammars(&self) -> &Distribution {
-        &self.grammars
+    /// Loads the default distributions from `DISTS_SEED`.
+    pub fn load_default() -> Self {
+        let cursor = io::Cursor::new(DISTS_SEED);
+        let lines = cursor.lines();
+        let distributions = DistributionLoader::load_distributions(lines).unwrap();
+        Distributions::new(distributions)
     }
 
-    pub fn get_noun_phrase(&self) -> &Distribution {
-        &self.noun_phrase
+    /// Returns the `adjectives` distribution.
+    pub fn adjectives(&self) -> &Distribution {
+        self.get("adjectives")
     }
 
-    pub fn get_verb_phrase(&self) -> &Distribution {
-        &self.verb_phrase
+    /// Returns the `adverbs` distribution.
+    pub fn adverbs(&self) -> &Distribution {
+        self.get("adverbs")
     }
 
-    pub fn get_prepositions(&self) -> &Distribution {
-        &self.prepositions
+    /// Returns the `articles` distribution.
+    pub fn articles(&self) -> &Distribution {
+        self.get("articles")
     }
 
-    pub fn get_nouns(&self) -> &Distribution {
-        &self.nouns
+    /// Returns the `auxillaries` distribution.
+    ///
+    /// P.S: The correct spelling is `auxiliaries` which is what we use.
+    pub fn auxiliaries(&self) -> &Distribution {
+        self.get("auxillaries")
     }
 
-    pub fn get_verbs(&self) -> &Distribution {
-        &self.verbs
+    /// Returns the `grammar` distribution.
+    pub fn grammar(&self) -> &Distribution {
+        self.get("grammar")
     }
 
-    pub fn get_articles(&self) -> &Distribution {
-        &self.articles
+    /// Returns the `category` distribution.
+    pub fn category(&self) -> &Distribution {
+        self.get("category")
     }
 
-    pub fn get_adjectives(&self) -> &Distribution {
-        &self.adjectives
+    /// Returns the `msegmnt` distribution.
+    pub fn market_segments(&self) -> &Distribution {
+        self.get("msegmnt")
     }
 
-    pub fn get_adverbs(&self) -> &Distribution {
-        &self.adverbs
+    /// Returns the `nations` distribution.
+    pub fn nations(&self) -> &Distribution {
+        self.get("nations")
     }
 
-    pub fn get_auxiliaries(&self) -> &Distribution {
-        &self.auxiliaries
+    /// Returns the `noun_phrases` distribution.
+    pub fn noun_phrase(&self) -> &Distribution {
+        self.get("np")
     }
 
-    pub fn get_terminators(&self) -> &Distribution {
-        &self.terminators
+    /// Returns the `nouns` distribution.
+    pub fn nouns(&self) -> &Distribution {
+        self.get("nouns")
     }
 
-    pub fn get_order_priorities(&self) -> &Distribution {
-        &self.order_priorities
+    /// Returns the `orders_priority` distribution.
+    pub fn order_priority(&self) -> &Distribution {
+        self.get("o_oprio")
     }
 
-    pub fn get_ship_instructions(&self) -> &Distribution {
-        &self.ship_instructions
+    /// Returns the `part_colors` distribution.
+    pub fn part_colors(&self) -> &Distribution {
+        self.get("colors")
     }
 
-    pub fn get_ship_modes(&self) -> &Distribution {
-        &self.ship_modes
+    /// Returns the `part_containers` distribution.
+    pub fn part_containers(&self) -> &Distribution {
+        self.get("p_cntr")
     }
 
-    pub fn get_return_flags(&self) -> &Distribution {
-        &self.return_flags
+    /// Returns the `part_types` distribution.
+    pub fn part_types(&self) -> &Distribution {
+        self.get("p_types")
     }
 
-    pub fn get_part_containers(&self) -> &Distribution {
-        &self.part_containers
+    /// Returns the `prepositions` distribution.
+    pub fn prepositions(&self) -> &Distribution {
+        self.get("prepositions")
     }
 
-    pub fn get_part_colors(&self) -> &Distribution {
-        &self.part_colors
+    /// Returns the `regions` distribution.
+    pub fn regions(&self) -> &Distribution {
+        self.get("regions")
     }
 
-    pub fn get_part_types(&self) -> &Distribution {
-        &self.part_types
+    /// Returns the `return_flags` distribution.
+    pub fn return_flags(&self) -> &Distribution {
+        self.get("rflag")
     }
 
-    pub fn get_market_segments(&self) -> &Distribution {
-        &self.market_segments
+    /// Returns the `ship_instructions` distribution.
+    pub fn ship_instructions(&self) -> &Distribution {
+        self.get("instruct")
     }
 
-    pub fn get_nations(&self) -> &Distribution {
-        &self.nations
+    /// Returns the `ship_modes` distribution.
+    pub fn ship_modes(&self) -> &Distribution {
+        self.get("smode")
     }
 
-    pub fn get_regions(&self) -> &Distribution {
-        &self.regions
+    /// Returns the `terminators` distribution.
+    pub fn terminators(&self) -> &Distribution {
+        self.get("terminators")
     }
 
-    /// Load the default distributions from the embedded resource
-    pub fn get_default_distributions() -> Arc<Self> {
-        static INSTANCE: Once = Once::new();
-        static mut DEFAULT_DISTRIBUTIONS: Option<Arc<Distributions>> = None;
-
-        INSTANCE.call_once(|| {
-            // Load distributions from embedded dists.dss
-            let distributions = load_distributions(DISTS_SEED);
-
-            unsafe {
-                DEFAULT_DISTRIBUTIONS = Some(Arc::new(distributions));
-            }
-        });
-
-        unsafe { DEFAULT_DISTRIBUTIONS.as_ref().unwrap().clone() }
-    }
-}
-/// Represents a parsed distribution for use in text generation
-pub struct ParsedDistribution {
-    /// Tokens for each distribution entry
-    parsed_distribution: Vec<Vec<char>>,
-    /// Bonus text for each distribution entry
-    bonus_text: Vec<String>,
-    /// Random selection table
-    random_table: Vec<usize>,
-}
-
-impl ParsedDistribution {
-    /// Create a new ParsedDistribution from a Distribution
-    pub fn new(distribution: &Distribution) -> Self {
-        let size = distribution.size();
-        let mut parsed_distribution = Vec::with_capacity(size);
-        let mut bonus_text = Vec::with_capacity(size);
-
-        for i in 0..size {
-            let value = distribution.get_value(i);
-            let tokens: Vec<&str> = value.split_whitespace().collect();
-
-            let mut tokens_chars = Vec::with_capacity(tokens.len());
-            let mut bonuses = Vec::with_capacity(tokens.len());
-
-            for token in tokens {
-                tokens_chars.push(token.chars().next().unwrap());
-                if token.len() > 1 {
-                    bonuses.push(&token[1..]);
-                } else {
-                    bonuses.push("");
-                }
-            }
-
-            parsed_distribution.push(tokens_chars);
-            bonus_text.push(bonuses.join(""));
-        }
-
-        // Create random table
-        let max_weight = distribution.get_weight(size - 1);
-        let mut random_table = Vec::with_capacity(max_weight as usize);
-
-        let mut value_index = 0;
-        for i in 0..max_weight {
-            if i >= distribution.get_weight(value_index) {
-                value_index += 1;
-            }
-            random_table.push(value_index);
-        }
-
-        Self {
-            parsed_distribution,
-            bonus_text,
-            random_table,
-        }
+    // Returns the `verb_phrases` distribution.
+    pub fn verb_phrase(&self) -> &Distribution {
+        self.get("vp")
     }
 
-    /// Get a random index into the distribution
-    pub fn get_random_index(&self, random: &mut RandomInt) -> usize {
-        let random_index = random.next_int(0, (self.random_table.len() - 1) as i32) as usize;
-        self.random_table[random_index]
+    /// Returns the `verbs` distribution.
+    pub fn verbs(&self) -> &Distribution {
+        self.get("verbs")
     }
 
-    /// Get the tokens for a given index
-    pub fn get_tokens(&self, index: usize) -> &[char] {
-        &self.parsed_distribution[index]
+    /// Returns the distribution with the specified name.
+    ///
+    /// # Panics
+    ///  Panics if the distribution does not exist.
+    pub fn get(&self, name: &str) -> &Distribution {
+        self.distributions
+            .get(name)
+            .unwrap_or_else(|| panic!("Distribution not found: {}", name))
     }
-
-    /// Get the bonus text for a given index
-    pub fn get_bonus_text(&self, index: usize) -> &str {
-        &self.bonus_text[index]
-    }
-}
-
-/// Load distributions from a string containing dists.dss content
-fn load_distributions(content: &str) -> Distributions {
-    let mut distributions = HashMap::new();
-    let mut current_name = None;
-    let mut current_members = HashMap::new();
-    let mut count = -1;
-
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() || line.starts_with('#') {
-            continue;
-        }
-
-        // Check for begin/end markers
-        if line.to_uppercase().starts_with("BEGIN") {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() == 2 {
-                current_name = Some(parts[1].to_string());
-                current_members = HashMap::new();
-                count = -1;
-            }
-            continue;
-        }
-
-        if let Some(name) = &current_name {
-            if line.to_uppercase().starts_with("END") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() == 2 && parts[1] == name {
-                    // Finish the current distribution
-                    if count >= 0 && count as usize == current_members.len() {
-                        distributions.insert(
-                            name.to_lowercase(),
-                            Distribution::new(name.clone(), current_members.clone()),
-                        );
-                    } else {
-                        eprintln!(
-                            "Warning: Expected {} entries in distribution {}, but found {}",
-                            count,
-                            name,
-                            current_members.len()
-                        );
-                    }
-
-                    current_name = None;
-                }
-                continue;
-            }
-
-            // Parse a distribution line
-            let parts: Vec<&str> = line.split('|').map(|s| s.trim()).collect();
-            if parts.len() == 2 {
-                let value = parts[0];
-                let weight: i32 = parts[1].parse().unwrap_or(0);
-
-                if value.eq_ignore_ascii_case("count") {
-                    count = weight;
-                } else {
-                    current_members.insert(value.to_string(), weight);
-                }
-            }
-        }
-    }
-
-    Distributions::new(distributions)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Cursor;
 
     #[test]
-    fn can_load_distributions() {
-        let distributions = crate::distribution::load_distributions(DISTS_SEED);
+    fn test_load_empty() {
+        let input = "";
+        let cursor = Cursor::new(input);
+        let lines = cursor.lines();
+        let distributions = DistributionLoader::load_distributions(lines).unwrap();
+        assert!(distributions.is_empty());
+    }
+
+    #[test]
+    fn test_load_simple_distribution() {
+        let input = "
+            # Comment line
+            BEGIN test
+            value1|10
+            value2|20
+            END
+        ";
+        let cursor = Cursor::new(input);
+        let lines = cursor.lines();
+        let distributions = DistributionLoader::load_distributions(lines).unwrap();
+
+        assert_eq!(distributions.len(), 1);
+        assert!(distributions.contains_key("test"));
+
+        let test_dist = distributions.get("test").unwrap();
+        assert_eq!(test_dist.size(), 2);
+        assert_eq!(test_dist.get_value(0), "value1");
+        assert_eq!(test_dist.get_value(1), "value2");
+        assert_eq!(test_dist.get_weight(0), 10);
+        assert_eq!(test_dist.get_weight(1), 30); // Cumulative weight
+    }
+
+    #[test]
+    fn test_load_multiple_distributions() {
+        let input = "
+            BEGIN first
+            a|5
+            b|10
+            END
+
+            BEGIN second
+            x|2
+            y|3
+            z|4
+            END
+        ";
+        let cursor = Cursor::new(input);
+        let lines = cursor.lines();
+        let distributions = DistributionLoader::load_distributions(lines).unwrap();
+
+        assert_eq!(distributions.len(), 2);
+        assert!(distributions.contains_key("first"));
+        assert!(distributions.contains_key("second"));
+
+        let first_dist = distributions.get("first").unwrap();
+        assert_eq!(first_dist.size(), 2);
+
+        let second_dist = distributions.get("second").unwrap();
+        assert_eq!(second_dist.size(), 3);
+    }
+
+    #[test]
+    fn test_error_on_invalid_weight() {
+        let input = "
+            BEGIN test
+            value|invalid
+            END
+        ";
+        let cursor = Cursor::new(input);
+        let lines = cursor.lines();
+        let result = DistributionLoader::load_distributions(lines);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_error_on_missing_end() {
+        let input = "
+            BEGIN test
+            value|10
+        ";
+        let cursor = Cursor::new(input);
+        let lines = cursor.lines();
+        let result = DistributionLoader::load_distributions(lines);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_with_default_seeds_file() {
+        let expected_distributions = vec![
+            "category",
+            "p_cntr",
+            "instruct",
+            "msegmnt",
+            "p_names",
+            "nations",
+            "nations2",
+            "regions",
+            "o_oprio",
+            "regions",
+            "rflag",
+            "smode",
+            "p_types",
+            "colors",
+            "articles",
+            "nouns",
+            "verbs",
+            "adjectives",
+            "adverbs",
+            "auxillaries",
+            "prepositions",
+            "terminators",
+            "grammar",
+            "np",
+            "vp",
+            "Q13a",
+            "Q13b",
+        ];
+
+        let cursor = Cursor::new(DISTS_SEED);
+        let lines = cursor.lines();
+        let distributions = DistributionLoader::load_distributions(lines).unwrap();
+        assert_eq!(distributions.len(), 26);
+
+        for name in expected_distributions {
+            assert!(
+                distributions.contains_key(name),
+                "missing distribution: {}",
+                name
+            );
+        }
         println!("{:#?}", distributions);
     }
 }
