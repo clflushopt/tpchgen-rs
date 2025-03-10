@@ -10,12 +10,16 @@ compatible with DuckDB's `dbgen` extension.
 For example the following command generates 1GB worth of data of the specified
 tables and writes it as Parquet files to the specified directory.
 
+**THIS IS MOSTLY WHAT I THINK THE API WILL END UP LOOKING LIKE**
+
 ```rust
 tpchgen --scale 1 --tables "p,c,s,o" --output ./dir
 ```
 
 `tpchgen` is the library that implements the data generation logic for TPC-H
 it can be used to extend or embed data generation logic.
+
+**THIS IS MOSTLY WHAT I THINK THE API WILL END UP LOOKING LIKE**
 
 ```rust
 
@@ -42,5 +46,5 @@ The project is licensed under the [APACHE 2.0](LICENSE) license.
 
 ## References
 
-* The TPC-H Specification, see the specification [page](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp).
-* The Original `dbgen` Implementation you must submit an official request to access the software `dbgen` at their official [website](https://www.tpc.org/tpch/)
+- The TPC-H Specification, see the specification [page](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp).
+- The Original `dbgen` Implementation you must submit an official request to access the software `dbgen` at their official [website](https://www.tpc.org/tpch/)
