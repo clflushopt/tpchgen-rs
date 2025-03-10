@@ -921,7 +921,7 @@ impl CustomerGeneratorIterator {
             CustomerGenerator::ACCOUNT_BALANCE_MAX,
         );
         let mut market_segment_random =
-            RandomString::new(1140279430, &distributions.market_segments());
+            RandomString::new(1140279430, distributions.market_segments());
         let mut comment_random = RandomText::new(
             1335826707,
             &text_pool,
@@ -1388,7 +1388,7 @@ impl OrderGeneratorIterator {
             RandomBoundedLong::new(851767375, scale_factor >= 30000.0, 1, max_customer_key);
 
         let mut order_priority_random =
-            RandomString::new(591449447, &distributions.order_priority());
+            RandomString::new(591449447, distributions.order_priority());
 
         let max_clerk = (scale_factor * OrderGenerator::CLERK_SCALE_BASE as f64)
             .max(OrderGenerator::CLERK_SCALE_BASE as f64) as i32;
@@ -1447,7 +1447,7 @@ impl OrderGeneratorIterator {
         let order_date = self.order_date_random.next_value();
 
         // generate customer key, taking into account customer mortality rate
-        let mut customer_key = self.customer_key_random.next_value() as i64;
+        let mut customer_key = self.customer_key_random.next_value();
         let mut delta = 1;
         while customer_key % OrderGenerator::CUSTOMER_MORTALITY as i64 == 0 {
             customer_key += delta;
@@ -1464,7 +1464,7 @@ impl OrderGeneratorIterator {
             let discount = self.line_discount_random.next_value();
             let tax = self.line_tax_random.next_value();
 
-            let part_key = self.line_part_key_random.next_value() as i64;
+            let part_key = self.line_part_key_random.next_value();
 
             let part_price = PartGeneratorIterator::calculate_part_price(part_key);
             let extended_price = part_price * quantity as i64;
@@ -1923,7 +1923,7 @@ impl LineItemGeneratorIterator {
             l_orderkey: order_key,
             l_partkey: part_key,
             l_suppkey: supplier_key,
-            l_linenumber: (self.line_number + 1) as i32,
+            l_linenumber: (self.line_number + 1),
             l_quantity: quantity as f64,
             l_extendedprice: extended_price as f64 / 100.0,
             l_discount: discount as f64 / 100.0,
@@ -2220,7 +2220,7 @@ mod tests {
     fn test_make_order_key() {
         // Test order key generation logic
         assert_eq!(OrderGenerator::make_order_key(1), 1); // Low values are preserved
-        assert_eq!(OrderGenerator::make_order_key(8), 32 + 0); // 8 becomes 1000000
+        assert_eq!(OrderGenerator::make_order_key(8), 32); // 8 becomes 1000000
         assert_eq!(OrderGenerator::make_order_key(9), 32 + 1); // 9 becomes 1000001
         assert_eq!(OrderGenerator::make_order_key(10), 32 + 2); // 10 becomes 1000010
     }
@@ -2276,7 +2276,7 @@ mod tests {
         let line_statuses: std::collections::HashSet<_> =
             line_items.iter().map(|l| &l.l_linestatus).collect();
 
-        assert!(line_statuses.len() > 0);
+        assert!(!line_statuses.is_empty());
 
         // Print the first 5 rows.
         for line_item in line_items.iter().take(5) {

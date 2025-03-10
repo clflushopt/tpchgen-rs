@@ -156,7 +156,7 @@ impl RowRandomLong {
         }
 
         // Advance the seed
-        self.advance_seed_32((self.seeds_per_row as i64) * (row_count as i64));
+        self.advance_seed_32((self.seeds_per_row as i64) * row_count);
     }
 
     // TPC-H uses this 32-bit method even for 64-bit numbers
