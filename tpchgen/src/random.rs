@@ -135,7 +135,7 @@ impl RowRandomLong {
 
     /// Instantiates a new seed for the next random value.
     fn next_rand(&mut self) -> i64 {
-        self.seed = (self.seed * Self::MULTIPLIER) + Self::INCREMENT;
+        self.seed = (self.seed.wrapping_mul(Self::MULTIPLIER)) + Self::INCREMENT;
         self.usage += 1;
         self.seed
     }
@@ -149,7 +149,7 @@ impl RowRandomLong {
     }
 
     /// Advances the seed by the specified number of rows
-    pub fn advance_rows(&mut self, row_count: usize) {
+    pub fn advance_rows(&mut self, row_count: i64) {
         // Finish current row if needed
         if self.usage != 0 {
             self.row_finished();
@@ -220,6 +220,77 @@ impl RandomBoundedInt {
 
     pub fn row_finished(&mut self) {
         self.random_int.row_finished();
+    }
+}
+
+/// Random number generator for bounded 64-bit values.
+#[derive(Default, Debug, Clone, Copy)]
+pub struct RandomBoundedLong {
+    use_64bits: bool,
+    lower_bound: i64,
+    upper_bound: i64,
+    // 64-bit values.
+    random_long: RowRandomLong,
+    // 32-bit values.
+    random_int: RowRandomInt,
+}
+
+impl RandomBoundedLong {
+    /// Creates a new random number generator with the given seed and lower and upper bounds.
+    pub fn new(seed: i64, use_64bits: bool, lower_bound: i64, upper_bound: i64) -> Self {
+        Self {
+            lower_bound,
+            use_64bits,
+            upper_bound,
+            random_long: RowRandomLong::new(seed, 1),
+            random_int: RowRandomInt::new(seed, 1),
+        }
+    }
+
+    /// Creates a new random number generator with the given seed and lower and upper bounds
+    /// and the number of random values per row.
+    pub fn new_with_seeds_per_row(
+        seed: i64,
+        use_64bits: bool,
+        lower_bound: i64,
+        upper_bound: i64,
+        seeds_per_row: i32,
+    ) -> Self {
+        Self {
+            use_64bits,
+            lower_bound,
+            upper_bound,
+            random_long: RowRandomLong::new(seed, seeds_per_row),
+            random_int: RowRandomInt::new(seed, seeds_per_row),
+        }
+    }
+
+    /// Returns a random value between the lower and upper bounds (both inclusive).
+    pub fn next_value(&mut self) -> i64 {
+        if self.use_64bits {
+            self.random_long
+                .next_long(self.lower_bound, self.upper_bound)
+        } else {
+            self.random_int
+                .next_int(self.lower_bound as i32, self.upper_bound as i32) as i64
+        }
+    }
+
+    /// Advance the inner random number generator by the specified number of rows.
+    pub fn advance_rows(&mut self, row_count: i64) {
+        if self.use_64bits {
+            self.random_long.advance_rows(row_count);
+        } else {
+            self.random_int.advance_rows(row_count);
+        }
+    }
+
+    pub fn row_finished(&mut self) {
+        if self.use_64bits {
+            self.random_long.row_finished();
+        } else {
+            self.random_int.row_finished();
+        }
     }
 }
 
