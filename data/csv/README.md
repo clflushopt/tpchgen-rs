@@ -50,10 +50,10 @@ The CSV files are all named after the tables they represent.
 | SUPPLIER (S_)   |       | CUSTOMER (C_)     |    |  | RECEIPTDATE        |                |
 | SF*10,000       |       | SF*150,000        |    |  | SHIPINSTRUCT       |                |
 +-----------------+       +-------------------+    |  | SHIPMODE           |                |
-| SUPPKEY    PK   |---.   | CUSTKEY     PK    |---+->| COMMENT             |                |
-| NAME            |   |   | NAME              |      +--------------------+               |
-| ADDRESS         |   |   | ADDRESS           |                                           |
-| NATIONKEY  FK   |---+-->| NATIONKEY    FK   |------------------------------------------+
+| SUPPKEY    PK   |---.   | CUSTKEY     PK    |----+->| COMMENT            |                |
+| NAME            |   |   | NAME              |       +--------------------+                |
+| ADDRESS         |   |   | ADDRESS           |                                             |
+| NATIONKEY  FK   |---+-->| NATIONKEY    FK   |---------------------------------------------+
 | PHONE           |       | PHONE             |
 | ACCTBAL         |       | ACCTBAL           |
 | COMMENT         |       | MKTSEGMENT        |
