@@ -1,0 +1,538 @@
+diff --git a/src/main/java/io/trino/tpch/Customer.java b/src/main/java/io/trino/tpch/Customer.java
+index b71ab9e..f62e25c 100644
+--- a/src/main/java/io/trino/tpch/Customer.java
++++ b/src/main/java/io/trino/tpch/Customer.java
+@@ -27,10 +27,8 @@ public record Customer(
+         long accountBalanceInCents,
+         String marketSegment,
+         String comment)
+-        implements TpchEntity
+-{
+-    public Customer
+-    {
++        implements TpchEntity {
++    public Customer {
+         requireNonNull(name, "name is null");
+         requireNonNull(address, "address is null");
+         requireNonNull(phone, "phone is null");
+@@ -38,14 +36,26 @@ public record Customer(
+         requireNonNull(comment, "comment is null");
+     }
+ 
+-    public double accountBalance()
+-    {
++    public double accountBalance() {
+         return accountBalanceInCents / 100.0;
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
+-        return buildLine(customerKey, name, address, nationKey, phone, formatMoney(accountBalanceInCents), marketSegment, comment);
++    public String toCsv() {
++        return String.join(",",
++                String.valueOf(customerKey),
++                name,
++                address,
++                String.valueOf(nationKey),
++                phone,
++                formatMoney(accountBalanceInCents),
++                marketSegment,
++                comment);
++    }
++
++    @Override
++    public String toLine() {
++        return buildLine(customerKey, name, address, nationKey, phone, formatMoney(accountBalanceInCents),
++                marketSegment, comment);
+     }
+ }
+diff --git a/src/main/java/io/trino/tpch/LineItem.java b/src/main/java/io/trino/tpch/LineItem.java
+index f3a23bb..e4b65a3 100644
+--- a/src/main/java/io/trino/tpch/LineItem.java
++++ b/src/main/java/io/trino/tpch/LineItem.java
+@@ -36,10 +36,8 @@ public record LineItem(
+         String shipInstructions,
+         String shipMode,
+         String comment)
+-        implements TpchEntity
+-{
+-    public LineItem
+-    {
++        implements TpchEntity {
++    public LineItem {
+         requireNonNull(returnFlag, "returnFlag is null");
+         requireNonNull(status, "status is null");
+         requireNonNull(shipInstructions, "shipInstructions is null");
+@@ -47,24 +45,41 @@ public record LineItem(
+         requireNonNull(comment, "comment is null");
+     }
+ 
+-    public double extendedPrice()
+-    {
++    public double extendedPrice() {
+         return extendedPriceInCents / 100.0;
+     }
+ 
+-    public double discount()
+-    {
++    public double discount() {
+         return discountPercent / 100.0;
+     }
+ 
+-    public double tax()
+-    {
++    public double tax() {
+         return taxPercent / 100.0;
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
++    public String toCsv() {
++        return String.join(",",
++                String.valueOf(orderKey),
++                String.valueOf(partKey),
++                String.valueOf(supplierKey),
++                String.valueOf(lineNumber),
++                String.valueOf(quantity),
++                formatMoney(extendedPriceInCents),
++                formatMoney(discountPercent),
++                formatMoney(taxPercent),
++                returnFlag,
++                status,
++                formatDate(shipDate),
++                formatDate(commitDate),
++                formatDate(receiptDate),
++                shipInstructions,
++                shipMode,
++                comment);
++    }
++
++    @Override
++    public String toLine() {
+         return buildLine(
+                 orderKey,
+                 partKey,
+diff --git a/src/main/java/io/trino/tpch/Nation.java b/src/main/java/io/trino/tpch/Nation.java
+index ba044a6..126d352 100644
+--- a/src/main/java/io/trino/tpch/Nation.java
++++ b/src/main/java/io/trino/tpch/Nation.java
+@@ -22,17 +22,19 @@ public record Nation(
+         String name,
+         long regionKey,
+         String comment)
+-        implements TpchEntity
+-{
+-    public Nation
+-    {
++        implements TpchEntity {
++    public Nation {
+         requireNonNull(name, "name is null");
+         requireNonNull(comment, "comment is null");
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
++    public String toCsv() {
++        return String.join(",", String.valueOf(nationKey), name, String.valueOf(regionKey), comment);
++    }
++
++    @Override
++    public String toLine() {
+         return buildLine(nationKey, name, regionKey, comment);
+     }
+ }
+diff --git a/src/main/java/io/trino/tpch/Order.java b/src/main/java/io/trino/tpch/Order.java
+index ec6a626..749e0d4 100644
+--- a/src/main/java/io/trino/tpch/Order.java
++++ b/src/main/java/io/trino/tpch/Order.java
+@@ -29,23 +29,33 @@ public record Order(
+         String clerk,
+         int shipPriority,
+         String comment)
+-        implements TpchEntity
+-{
+-    public Order
+-    {
++        implements TpchEntity {
++    public Order {
+         requireNonNull(orderPriority, "orderPriority is null");
+         requireNonNull(clerk, "clerk is null");
+         requireNonNull(comment, "comment is null");
+     }
+ 
+-    public double totalPrice()
+-    {
++    public double totalPrice() {
+         return totalPriceInCents / 100.0;
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
++    public String toCsv() {
++        return String.join(",",
++                String.valueOf(orderKey),
++                String.valueOf(customerKey),
++                String.valueOf(orderStatus),
++                formatMoney(totalPriceInCents),
++                String.valueOf(orderDate),
++                orderPriority,
++                clerk,
++                String.valueOf(shipPriority),
++                comment);
++    }
++
++    @Override
++    public String toLine() {
+         return buildLine(
+                 orderKey,
+                 customerKey,
+diff --git a/src/main/java/io/trino/tpch/Part.java b/src/main/java/io/trino/tpch/Part.java
+index 46382af..302a229 100644
+--- a/src/main/java/io/trino/tpch/Part.java
++++ b/src/main/java/io/trino/tpch/Part.java
+@@ -28,10 +28,8 @@ public record Part(
+         String container,
+         long retailPriceInCents,
+         String comment)
+-        implements TpchEntity
+-{
+-    public Part
+-    {
++        implements TpchEntity {
++    public Part {
+         requireNonNull(name, "name is null");
+         requireNonNull(manufacturer, "manufacturer is null");
+         requireNonNull(brand, "brand is null");
+@@ -40,14 +38,26 @@ public record Part(
+         requireNonNull(comment, "comment is null");
+     }
+ 
+-    public double retailPrice()
+-    {
++    public double retailPrice() {
+         return retailPriceInCents / 100.0;
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
++    public String toCsv() {
++        return String.join(",",
++                String.valueOf(partKey),
++                name,
++                manufacturer,
++                brand,
++                type,
++                String.valueOf(size),
++                container,
++                formatMoney(retailPriceInCents),
++                comment);
++    }
++
++    @Override
++    public String toLine() {
+         return buildLine(partKey,
+                 name,
+                 manufacturer,
+diff --git a/src/main/java/io/trino/tpch/PartSupplier.java b/src/main/java/io/trino/tpch/PartSupplier.java
+index b7f2378..01065ca 100644
+--- a/src/main/java/io/trino/tpch/PartSupplier.java
++++ b/src/main/java/io/trino/tpch/PartSupplier.java
+@@ -24,21 +24,27 @@ public record PartSupplier(
+         int availableQuantity,
+         long supplyCostInCents,
+         String comment)
+-        implements TpchEntity
+-{
+-    public PartSupplier
+-    {
++        implements TpchEntity {
++    public PartSupplier {
+         requireNonNull(comment, "comment is null");
+     }
+ 
+-    public double getSupplyCost()
+-    {
++    public double getSupplyCost() {
+         return supplyCostInCents / 100.0;
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
++    public String toCsv() {
++        return String.join(",",
++                String.valueOf(partKey),
++                String.valueOf(supplierKey),
++                String.valueOf(availableQuantity),
++                formatMoney(supplyCostInCents),
++                comment);
++    }
++
++    @Override
++    public String toLine() {
+         return buildLine(partKey, supplierKey, availableQuantity, formatMoney(supplyCostInCents), comment);
+     }
+ }
+diff --git a/src/main/java/io/trino/tpch/Region.java b/src/main/java/io/trino/tpch/Region.java
+index 176772b..d67d80b 100644
+--- a/src/main/java/io/trino/tpch/Region.java
++++ b/src/main/java/io/trino/tpch/Region.java
+@@ -21,17 +21,19 @@ public record Region(
+         long regionKey,
+         String name,
+         String comment)
+-        implements TpchEntity
+-{
+-    public Region
+-    {
++        implements TpchEntity {
++    public Region {
+         requireNonNull(name, "name is null");
+         requireNonNull(comment, "comment is null");
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
++    public String toCsv() {
++        return String.join(",", String.valueOf(regionKey), name, comment);
++    }
++
++    @Override
++    public String toLine() {
+         return buildLine(regionKey, name, comment);
+     }
+ }
+diff --git a/src/main/java/io/trino/tpch/Runner.java b/src/main/java/io/trino/tpch/Runner.java
+index ace6440..d03f531 100644
+--- a/src/main/java/io/trino/tpch/Runner.java
++++ b/src/main/java/io/trino/tpch/Runner.java
+@@ -35,22 +35,14 @@ public class Runner {
+         // l -- code (same as n and r),
+         // O -- orders, L -- lineitem, P -- part,
+         // S -- partsupp
++        Double scale = 0.001;
++        String outputDirectory = "fixtures/sf-0.001";
+ 
+-        if (args.length < 2) {
+-            System.out.println("Usage: <scale> <output directory>");
+-            System.exit(1);
+-        }
+-
+-        double scale = Double.parseDouble(args[0]);
+-
+-        // Check that the scale is within TPC-H limits.
+-        if (scale < 0.01 || scale > 1000) {
++        if (scale < 0.001 || scale > 1000) {
+             System.out.println("Scale must be between 0.01 and 1000");
+             System.exit(1);
+         }
+ 
+-        String outputDirectory = args[1];
+-
+         // Check if the output directory exists.
+         File directory = new File(outputDirectory);
+ 
+diff --git a/src/main/java/io/trino/tpch/Supplier.java b/src/main/java/io/trino/tpch/Supplier.java
+index f8135f8..deb2a03 100644
+--- a/src/main/java/io/trino/tpch/Supplier.java
++++ b/src/main/java/io/trino/tpch/Supplier.java
+@@ -26,24 +26,32 @@ public record Supplier(
+         String phone,
+         long accountBalanceInCents,
+         String comment)
+-        implements TpchEntity
+-{
+-    public Supplier
+-    {
++        implements TpchEntity {
++    public Supplier {
+         requireNonNull(name, "name is null");
+         requireNonNull(address, "address is null");
+         requireNonNull(phone, "phone is null");
+         requireNonNull(comment, "comment is null");
+     }
+ 
+-    public double getAccountBalance()
+-    {
++    public double getAccountBalance() {
+         return accountBalanceInCents / 100.0;
+     }
+ 
+     @Override
+-    public String toLine()
+-    {
++    public String toCsv() {
++        return String.join(",",
++                String.valueOf(supplierKey),
++                name,
++                address,
++                String.valueOf(nationKey),
++                phone,
++                formatMoney(accountBalanceInCents),
++                comment);
++    }
++
++    @Override
++    public String toLine() {
+         return buildLine(
+                 supplierKey,
+                 name,
+diff --git a/src/main/java/io/trino/tpch/TpchEntity.java b/src/main/java/io/trino/tpch/TpchEntity.java
+index 9cd7aa4..cecc2f9 100644
+--- a/src/main/java/io/trino/tpch/TpchEntity.java
++++ b/src/main/java/io/trino/tpch/TpchEntity.java
+@@ -14,9 +14,10 @@
+ package io.trino.tpch;
+ 
+ public sealed interface TpchEntity
+-        permits Customer, LineItem, Nation, Order, Part, PartSupplier, Region, Supplier
+-{
++        permits Customer, LineItem, Nation, Order, Part, PartSupplier, Region, Supplier {
+     long rowNumber();
+ 
+     String toLine();
++
++    String toCsv();
+ }
+diff --git a/src/main/java/io/trino/tpch/TpchTable.java b/src/main/java/io/trino/tpch/TpchTable.java
+index 1eed611..5081338 100644
+--- a/src/main/java/io/trino/tpch/TpchTable.java
++++ b/src/main/java/io/trino/tpch/TpchTable.java
+@@ -155,35 +155,32 @@ public abstract class TpchTable<E extends TpchEntity> {
+             FileWriter writer;
+             try {
+                 writer = new FileWriter(fileName, StandardCharsets.UTF_8);
++                // Write the header.
++                String[] header = columns.stream().map((TpchColumn<?> column) -> column.getColumnName())
++                        .toArray(String[]::new);
++
++                writer.write(String.join(",", header) + "\n");
++
+                 for (var entity : generator) {
+                     // Write the entity to the CSV file, entity is a row of objects and each
+                     // object is indexed into its columns by the table's columns to properly
+                     // cast the object to the correct type.
+ 
+                     // Cast and build the row of objects.
+-                    var line = entity.toLine();
++                    var line = entity.toCsv();
+ 
+                     // Write the line to the CSV file.
+                     // Write the CSV file.
+                     try {
+-
+-                        // Write the header.
+-                        String[] header = columns.stream().map((TpchColumn<?> column) -> column.getColumnName())
+-                                .toArray(String[]::new);
+-
+-                        writer.write(String.join(",", header));
+-
+                         // Write the line.
+-                        writer.write(line);
+-
+-                        // Close the writer.
+-                        writer.close();
++                        writer.write(line + "\n");
+                     } catch (IOException e) {
+                         System.out.println("Error writing CSV file: " + e.getMessage());
+                         System.exit(1);
+                     }
+ 
+                 }
++                writer.close();
+             } catch (IOException e) {
+                 // TODO Auto-generated catch block
+                 e.printStackTrace();
+diff --git a/src/test/java/io/trino/tpch/TestTpchColumn.java b/src/test/java/io/trino/tpch/TestTpchColumn.java
+index 88f2e44..26d0f6d 100644
+--- a/src/test/java/io/trino/tpch/TestTpchColumn.java
++++ b/src/test/java/io/trino/tpch/TestTpchColumn.java
+@@ -13,23 +13,21 @@
+  */
+ package io.trino.tpch;
+ 
+-import org.testng.annotations.Test;
+-
+-import java.util.List;
+-import java.util.function.Consumer;
+-import java.util.stream.Stream;
+-
+ import static java.lang.String.format;
+ import static java.util.Arrays.asList;
+ import static org.testng.Assert.assertEquals;
+ import static org.testng.Assert.assertFalse;
+ import static org.testng.Assert.assertTrue;
+ 
+-public class TestTpchColumn
+-{
++import java.util.List;
++import java.util.function.Consumer;
++import java.util.stream.Stream;
++
++import org.testng.annotations.Test;
++
++public class TestTpchColumn {
+     @Test
+-    public void testAllColumnNamesHaveValidPrefixes()
+-    {
++    public void testAllColumnNamesHaveValidPrefixes() {
+         forEachTpchColumn(column -> {
+             String columnName = column.getColumnName();
+             assertTrue(hasValidColumnPrefix(columnName),
+@@ -38,33 +36,29 @@ public class TestTpchColumn
+     }
+ 
+     @Test
+-    public void testForbidsInvalidTpchPrefixes()
+-    {
++    public void testForbidsInvalidTpchPrefixes() {
+         assertFalse(hasValidColumnPrefix("order"));
+         assertFalse(hasValidColumnPrefix("z_order"));
+     }
+ 
+-    private boolean hasValidColumnPrefix(String columnName)
+-    {
++    private boolean hasValidColumnPrefix(String columnName) {
+         String columnNameLowercase = columnName.toLowerCase();
+         return Stream.of("p_", "ps_", "l_", "o_", "s_", "c_", "n_", "r_")
+                 .anyMatch(columnNameLowercase::startsWith);
+     }
+ 
+     @Test
+-    public void testSimplifiedColumnNamesAreSuffixesOfColumnNames()
+-    {
+-        forEachTpchColumn(column -> assertEquals(column.getSimplifiedColumnName(), stripPrefix(column.getColumnName())));
++    public void testSimplifiedColumnNamesAreSuffixesOfColumnNames() {
++        forEachTpchColumn(
++                column -> assertEquals(column.getSimplifiedColumnName(), stripPrefix(column.getColumnName())));
+     }
+ 
+-    private String stripPrefix(String columnName)
+-    {
++    private String stripPrefix(String columnName) {
+         return columnName.replaceFirst("\\w{1,2}_", "");
+     }
+ 
+-    private void forEachTpchColumn(Consumer<TpchColumn> columnConsumer)
+-    {
+-        List<Class<? extends TpchColumn>> columnEnums = asList(
++    private void forEachTpchColumn(Consumer<TpchColumn<?>> columnConsumer) {
++        List<Class<? extends TpchColumn<?>>> columnEnums = asList(
+                 CustomerColumn.class,
+                 LineItemColumn.class,
+                 NationColumn.class,
+@@ -74,7 +68,7 @@ public class TestTpchColumn
+                 RegionColumn.class,
+                 SupplierColumn.class);
+ 
+-        columnEnums.forEach((Class<? extends TpchColumn> columnEnumClass) -> {
++        columnEnums.forEach((Class<? extends TpchColumn<?>> columnEnumClass) -> {
+             asList(columnEnumClass.getEnumConstants()).forEach(columnConsumer::accept);
+         });
+     }
