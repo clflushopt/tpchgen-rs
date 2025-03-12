@@ -9,7 +9,7 @@ instead.
 ## Usage
 
 First start by cloning the original repo found [here]http://github.com/trinodb/tpch), then proceed
-to apply the `runner.patch` followed by `csv.patch`.
+to apply the `upstream.patch`.
 
 This will create a small `Runner` class that essentially runs the generators and writes the datasets
 to CSV files, one file per table. The scale factor and output directory are hardcoded but that can
