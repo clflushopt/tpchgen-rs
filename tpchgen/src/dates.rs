@@ -97,15 +97,6 @@ impl DateUtils {
     fn is_leap_year(year: i32) -> bool {
         year % 4 == 0 && year % 100 != 0
     }
-
-    /// Calculate leap year adjustment
-    fn leap_year_adjustment(year: i32, month: i32) -> i32 {
-        if Self::is_leap_year(year) && month >= 2 {
-            1
-        } else {
-            0
-        }
-    }
 }
 
 /// Creates the date index used for lookups
@@ -133,7 +124,7 @@ fn make_date(index: i32) -> NaiveDate {
         d - MONTH_YEAR_DAY_START[(m - 1) as usize] - if is_leap_year(y) && m > 2 { 1 } else { 0 };
 
     // Create date from year, month, day
-    
+
     NaiveDate::from_ymd_opt(1900 + y, m as u32, dy as u32).unwrap()
 }
 
