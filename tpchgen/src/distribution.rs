@@ -45,7 +45,7 @@ impl Distribution {
             let mut dist = vec![String::new(); max as usize];
 
             let mut index = 0;
-            for (value_index, value) in values.iter().enumerate() {
+            for (_, value) in values.iter().enumerate() {
                 let count = distribution.get(value).unwrap();
 
                 for _ in 0..*count {
@@ -66,6 +66,11 @@ impl Distribution {
             distribution: distribution_array,
             max_weight,
         }
+    }
+
+    /// Returns the distribution name.
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     /// Gets a value at the specified index.
@@ -163,7 +168,7 @@ impl DistributionLoader {
     {
         let regex_separator = Regex::new(r"\|").unwrap();
         let mut members = IndexMap::new();
-        let mut count = -1;
+        let mut _count = -1;
 
         for line in lines.by_ref() {
             if Self::is_end(&line) {
@@ -193,7 +198,7 @@ impl DistributionLoader {
             };
 
             if value.eq_ignore_ascii_case("count") {
-                count = weight;
+                _count = weight;
             } else {
                 members.insert(value, weight);
             }

@@ -695,7 +695,7 @@ impl SupplierGeneratorIterator {
         // Add supplier complaints or commendation to the comment
         let bbb_comment_random_value = self.bbb_comment_random.next_value();
         if bbb_comment_random_value <= SupplierGenerator::BBB_COMMENTS_PER_SCALE_BASE {
-            let buffer = comment.clone();
+            let _buffer = comment.clone();
 
             // select random place for BBB comment
             let noise = self.bbb_junk_random.next_int(
