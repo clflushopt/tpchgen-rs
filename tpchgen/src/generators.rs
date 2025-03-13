@@ -446,8 +446,6 @@ impl PartGeneratorIterator {
         let manufacturer = self.manufacturer_random.next_value();
         let brand = manufacturer * 10 + self.brand_random.next_value();
 
-        
-
         Part {
             p_partkey: part_key,
             p_name: name,
@@ -1455,7 +1453,7 @@ impl OrderGeneratorIterator {
             delta *= -1;
         }
 
-        let mut total_price = 0.0;
+        let mut total_price = 0 as i64;
         let mut shipped_count = 0;
 
         let line_count = self.line_count_random.next_value();
@@ -1469,7 +1467,7 @@ impl OrderGeneratorIterator {
             let part_price = PartGeneratorIterator::calculate_part_price(part_key);
             let extended_price = part_price * quantity as i64;
             let discounted_price = extended_price * (100 - discount as i64);
-            total_price += ((discounted_price / 100) * (100 + tax as i64)) as f64 / 10000.0;
+            total_price += ((discounted_price / 100) * (100 + tax as i64)) / 100;
 
             let ship_date = self.line_ship_date_random.next_value() + order_date;
             if dates::DateUtils::is_in_past(ship_date) {
@@ -1489,7 +1487,7 @@ impl OrderGeneratorIterator {
             o_orderkey: order_key,
             o_custkey: customer_key,
             o_orderstatus: order_status,
-            o_totalprice: total_price,
+            o_totalprice: total_price as f64 / 100.,
             o_orderdate: dates::DateUtils::to_epoch_date(order_date).to_string(),
             o_orderpriority: self.order_priority_random.next_value(),
             o_clerk: format!("Clerk#{:09}", self.clerk_random.next_value()),
@@ -1540,7 +1538,7 @@ pub struct LineItem {
     /// Line item number within order
     pub l_linenumber: i32,
     /// Quantity ordered
-    pub l_quantity: f64,
+    pub l_quantity: i64,
     /// Extended price (l_quantity * p_retailprice)
     pub l_extendedprice: f64,
     /// Discount percentage
@@ -1924,7 +1922,7 @@ impl LineItemGeneratorIterator {
             l_partkey: part_key,
             l_suppkey: supplier_key,
             l_linenumber: (self.line_number + 1),
-            l_quantity: quantity as f64,
+            l_quantity: quantity as i64,
             l_extendedprice: extended_price as f64 / 100.0,
             l_discount: discount as f64 / 100.0,
             l_tax: tax as f64 / 100.0,
@@ -1996,10 +1994,6 @@ mod tests {
 
         // TPC-H typically has 25 nations
         assert_eq!(nations.len(), 25);
-
-        for nation in nations.iter().take(5) {
-            println!("{nation}");
-        }
     }
 
     #[test]
@@ -2019,12 +2013,6 @@ mod tests {
 
         // Should have 0.01 * 200,000 = 2,000 parts
         assert_eq!(parts.len(), 2000);
-
-        // CSV Header like.
-        println!("p_partkey, p_name, p_mfgr, p_brand, p_type, p_size, p_container, p_retailprice, p_comment");
-        for part in parts.iter().take(5) {
-            println!("{part}");
-        }
     }
 
     #[test]
@@ -2050,11 +2038,6 @@ mod tests {
         assert_eq!(first.s_suppkey, 1);
         assert_eq!(first.s_name, "Supplier#000000001");
         assert!(!first.s_address.is_empty());
-
-        // Print the first 5 rows.
-        for supplier in suppliers.iter().take(5) {
-            println!("{supplier}");
-        }
     }
 
     #[test]
@@ -2085,11 +2068,6 @@ mod tests {
 
         // Should have multiple different nation keys
         assert!(nation_keys.len() > 1);
-
-        // Print the first 5 rows.
-        for customer in customers.iter().take(5) {
-            println!("{customer}");
-        }
     }
 
     #[test]
@@ -2134,11 +2112,6 @@ mod tests {
             unique_suppliers.len(),
             PartSupplierGenerator::SUPPLIERS_PER_PART as usize
         );
-
-        // Print the first 5 rows.
-        for part_supplier in part_suppliers.iter().take(5) {
-            println!("{part_supplier}");
-        }
     }
 
     #[test]
@@ -2209,11 +2182,6 @@ mod tests {
                 OrderGenerator::make_order_key(i as i64 + 1)
             );
         }
-
-        // Print the first 5 rows.
-        for order in orders.iter().take(5) {
-            println!("{order}");
-        }
     }
 
     #[test]
@@ -2238,8 +2206,8 @@ mod tests {
         assert!(first.l_partkey > 0);
         assert!(first.l_suppkey > 0);
 
-        assert!(first.l_quantity >= LineItemGenerator::QUANTITY_MIN as f64);
-        assert!(first.l_quantity <= LineItemGenerator::QUANTITY_MAX as f64);
+        assert!(first.l_quantity >= LineItemGenerator::QUANTITY_MIN as i64);
+        assert!(first.l_quantity <= LineItemGenerator::QUANTITY_MAX as i64);
 
         assert!(first.l_discount >= LineItemGenerator::DISCOUNT_MIN as f64 / 100.0);
         assert!(first.l_discount <= LineItemGenerator::DISCOUNT_MAX as f64 / 100.0);
@@ -2277,10 +2245,5 @@ mod tests {
             line_items.iter().map(|l| &l.l_linestatus).collect();
 
         assert!(!line_statuses.is_empty());
-
-        // Print the first 5 rows.
-        for line_item in line_items.iter().take(5) {
-            println!("{line_item}");
-        }
     }
 }
