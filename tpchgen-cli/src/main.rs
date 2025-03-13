@@ -29,8 +29,8 @@ use tpchgen::generators::{
 #[command(about = "TPC-H Data Generator", long_about = None)]
 struct Cli {
     /// Scale factor to address defaults to 1.
-    #[arg(short, long, default_value_t = 1)]
-    scale_factor: i64,
+    #[arg(short, long, default_value_t = 1.0)]
+    scale_factor: f64,
 
     /// Output directory for generated files
     #[arg(short, long)]
