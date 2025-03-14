@@ -16,7 +16,7 @@ use crate::random::{RandomBoundedInt, RandomString, RandomStringSequence, Random
 /// Generator for Nation table data
 pub struct NationGenerator {
     distributions: Distributions,
-    text_pool: TextPool,
+    text_pool: Arc<TextPool>,
 }
 
 impl Default for NationGenerator {
@@ -34,7 +34,7 @@ impl NationGenerator {
     /// Creates a NationGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
         distributions: Distributions,
-        text_pool: TextPool,
+        text_pool: Arc<TextPool>,
     ) -> Self {
         NationGenerator {
             distributions,
@@ -166,7 +166,7 @@ impl Region {
 /// Generator for Region table data
 pub struct RegionGenerator {
     distributions: Distributions,
-    text_pool: TextPool,
+    text_pool: Arc<TextPool>,
 }
 
 impl Default for RegionGenerator {
@@ -184,7 +184,7 @@ impl RegionGenerator {
     /// Creates a RegionGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
         distributions: Distributions,
-        text_pool: TextPool,
+        text_pool: Arc<TextPool>,
     ) -> Self {
         RegionGenerator {
             distributions,
@@ -321,7 +321,7 @@ impl PartGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -565,7 +565,7 @@ impl SupplierGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -836,7 +836,7 @@ impl CustomerGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -1032,12 +1032,7 @@ impl PartSupplierGenerator {
 
     /// Creates a new PartSupplierGenerator with the given scale factor
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
-        Self::new_with_text_pool(
-            scale_factor,
-            part,
-            part_count,
-            Arc::new(TextPool::default()),
-        )
+        Self::new_with_text_pool(scale_factor, part, part_count, TextPool::default())
     }
 
     /// Creates a PartSupplierGenerator with specified text pool
@@ -1271,7 +1266,7 @@ impl OrderGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -1625,7 +1620,7 @@ impl LineItemGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
