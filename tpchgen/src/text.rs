@@ -80,6 +80,18 @@ impl TextPool {
         String::from_utf8(result).unwrap()
     }
 
+    pub fn text_as_str(&self, begin: i32, end: i32) -> &str {
+        assert!(begin >= 0, "Begin index must be greater than or equal to 0");
+        assert!(
+            end <= self.size,
+            "End index must be less than the pool size"
+        );
+        assert!(begin < end, "Begin index must be less than the end index");
+
+        /* Safety: text contains only ASCII , and bounds were checked above */
+        unsafe { std::str::from_utf8_unchecked(&self.text[begin as usize..end as usize]) }
+    }
+
     fn generate_sentence(
         distributions: &Distributions,
         builder: &mut ByteArrayBuilder,

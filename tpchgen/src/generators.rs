@@ -1523,7 +1523,7 @@ impl Iterator for OrderGeneratorIterator {
 
 /// The LINEITEM table
 #[derive(Debug, Clone, PartialEq)]
-pub struct LineItem {
+pub struct LineItem<'a> {
     /// Foreign key to ORDERS
     pub l_orderkey: i64,
     /// Foreign key to PART
@@ -1541,24 +1541,24 @@ pub struct LineItem {
     /// Tax percentage
     pub l_tax: f64,
     /// Return flag (R=returned, A=accepted, null=pending)
-    pub l_returnflag: String,
+    pub l_returnflag: &'a str,
     /// Line status (O=ordered, F=fulfilled)
-    pub l_linestatus: String,
-    /// Date shipped
-    pub l_shipdate: String, // Could use a date type instead
-    /// Date committed to ship
-    pub l_commitdate: String, // Could use a date type instead
-    /// Date received
-    pub l_receiptdate: String, // Could use a date type instead
+    pub l_linestatus: &'a str,
+    /// Date shipped (convert to string with [dates::DateUtils::to_epoch_date])
+    pub l_shipdate: i32,
+    /// Date committed to ship (convert to string with [dates::DateUtils::to_epoch_date])
+    pub l_commitdate: i32,
+    /// Date received (convert to string with [dates::DateUtils::to_epoch_date])
+    pub l_receiptdate: i32,
     /// Shipping instructions
-    pub l_shipinstruct: String,
+    pub l_shipinstruct: &'a str,
     /// Shipping mode
-    pub l_shipmode: String,
+    pub l_shipmode: &'a str,
     /// Variable length comment
-    pub l_comment: String,
+    pub l_comment: &'a str,
 }
 
-impl fmt::Display for LineItem {
+impl fmt::Display for LineItem<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1716,15 +1716,6 @@ impl LineItemGenerator {
     }
 }
 
-impl IntoIterator for LineItemGenerator {
-    type Item = LineItem;
-    type IntoIter = LineItemGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates LineItem rows
 pub struct LineItemGeneratorIterator {
     order_date_random: RandomBoundedInt,
@@ -1756,6 +1747,9 @@ pub struct LineItemGeneratorIterator {
     order_date: i32,
     line_count: i32,
     line_number: i32,
+
+    // Flag to indicate if the order should be advanced on next iterator
+    advance_order: bool,
 }
 
 impl LineItemGeneratorIterator {
@@ -1866,6 +1860,7 @@ impl LineItemGeneratorIterator {
             order_date,
             line_count,
             line_number: 0,
+            advance_order: false,
         }
     }
 
@@ -1897,55 +1892,55 @@ impl LineItemGeneratorIterator {
         receipt_date += ship_date;
 
         let returned_flag = if dates::DateUtils::is_in_past(receipt_date) {
-            self.returned_flag_random.next_value()
+            self.returned_flag_random.next_str()
         } else {
-            "N".to_string()
+            "N"
         };
 
         let status = if dates::DateUtils::is_in_past(ship_date) {
-            "F".to_string() // Fulfilled
+            "F" // Fulfilled
         } else {
-            "O".to_string() // Open
+            "O" // Open
         };
 
-        let ship_instructions = self.ship_instructions_random.next_value();
-        let ship_mode = self.ship_mode_random.next_value();
-        let comment = self.comment_random.next_value();
+        let ship_instructions = self.ship_instructions_random.next_str();
+        let ship_mode = self.ship_mode_random.next_str();
+        let comment = self.comment_random.next_str();
 
         LineItem {
             l_orderkey: order_key,
             l_partkey: part_key,
             l_suppkey: supplier_key,
-            l_linenumber: (self.line_number + 1),
+            l_linenumber: self.line_number,
             l_quantity: quantity as i64,
             l_extendedprice: extended_price as f64 / 100.0,
             l_discount: discount as f64 / 100.0,
             l_tax: tax as f64 / 100.0,
             l_returnflag: returned_flag,
             l_linestatus: status,
-            l_shipdate: dates::DateUtils::to_epoch_date(ship_date).to_string(),
-            l_commitdate: dates::DateUtils::to_epoch_date(commit_date).to_string(),
-            l_receiptdate: dates::DateUtils::to_epoch_date(receipt_date).to_string(),
+            l_shipdate: ship_date,
+            l_commitdate: commit_date,
+            l_receiptdate: receipt_date,
             l_shipinstruct: ship_instructions,
             l_shipmode: ship_mode,
             l_comment: comment,
         }
     }
-}
 
-impl Iterator for LineItemGeneratorIterator {
-    type Item = LineItem;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    /// Return the next lineitem
+    ///
+    /// TODO work out lifetimes to make this impl Iterator
+    pub fn make_next_lineitem(&mut self) -> Option<LineItem<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
-        let line_item = self.make_line_item(self.start_index + self.index + 1);
-        self.line_number += 1;
+        // because we borrow self mutably, we need to check if the order should
+        // be advanced before returning the current line item
+        // TODO make this a state machine / encapulate this logic more nicely
 
         // advance next row only when all lines for the order have been produced
-        if self.line_number > self.line_count {
+        if self.advance_order {
             self.order_date_random.row_finished();
             self.line_count_random.row_finished();
 
@@ -1972,7 +1967,17 @@ impl Iterator for LineItemGeneratorIterator {
             self.line_count = self.line_count_random.next_value() - 1;
             self.order_date = self.order_date_random.next_value();
             self.line_number = 0;
+
+            self.advance_order = false;
         }
+
+        self.line_number += 1;
+        if self.line_number > self.line_count {
+            // advance order next time
+            self.advance_order = true;
+        }
+
+        let line_item = self.make_line_item(self.start_index + self.index + 1);
 
         Some(line_item)
     }

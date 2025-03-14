@@ -19,6 +19,7 @@ use clap::{Parser, ValueEnum};
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
+use tpchgen::dates;
 use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
     PartSupplierGenerator, RegionGenerator, SupplierGenerator,
@@ -262,7 +263,8 @@ fn generate_lineitem(cli: &Cli) -> io::Result<()> {
     let mut writer = new_table_writer(cli, filename)?;
 
     let generator = LineItemGenerator::new(cli.scale_factor as f64, cli.part, cli.parts);
-    for item in generator.iter() {
+    let mut iter = generator.iter();
+    while let Some(item) = iter.make_next_lineitem() {
         writeln!(
             writer,
             "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}",
@@ -276,9 +278,9 @@ fn generate_lineitem(cli: &Cli) -> io::Result<()> {
             item.l_tax,
             item.l_returnflag,
             item.l_linestatus,
-            item.l_shipdate,
-            item.l_commitdate,
-            item.l_receiptdate,
+            dates::DateUtils::to_epoch_date(item.l_shipdate),
+            dates::DateUtils::to_epoch_date(item.l_commitdate),
+            dates::DateUtils::to_epoch_date(item.l_receiptdate),
             item.l_shipinstruct,
             item.l_shipmode,
             item.l_comment

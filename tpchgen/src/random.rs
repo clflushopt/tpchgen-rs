@@ -422,8 +422,13 @@ impl RandomString {
         }
     }
 
+    // TODO remove and always return a &str
     pub fn next_value(&mut self) -> String {
         self.distribution.random_value(&mut self.inner).to_string()
+    }
+
+    pub fn next_str(&mut self) -> &str {
+        self.distribution.random_value(&mut self.inner)
     }
 
     /// Advance the inner random number generator by the given number of rows.
@@ -533,6 +538,15 @@ impl RandomText {
         let lenght = self.inner.next_int(self.min_length, self.max_length);
 
         self.text_pool.text(offset, offset + lenght)
+    }
+
+    pub fn next_str(&mut self) -> &str {
+        let offset = self
+            .inner
+            .next_int(0, self.text_pool.size() - self.max_length);
+        let lenght = self.inner.next_int(self.min_length, self.max_length);
+
+        self.text_pool.text_as_str(offset, offset + lenght)
     }
 
     pub fn advance_rows(&mut self, row_count: i64) {
