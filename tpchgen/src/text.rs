@@ -9,6 +9,7 @@ use crate::{
     distribution::{Distribution, Distributions},
     random::RowRandomInt,
 };
+use std::sync::{Arc, OnceLock};
 
 /// Pool of random text that follows TPC-H grammar.
 #[derive(Debug, Clone)]
@@ -17,6 +18,11 @@ pub struct TextPool {
     size: i32,
 }
 
+/// A default text pool that is lazily initialized and shared across the
+/// application
+
+static DEFAULT_TEXT_POOL: OnceLock<Arc<TextPool>> = OnceLock::new();
+
 impl TextPool {
     /// Default text pool size.
     const DEFAULT_TEXT_POOL_SIZE: i32 = 300 * 1024 * 1024;
@@ -24,8 +30,13 @@ impl TextPool {
     const MAX_SENTENCE_LENGTH: i32 = 256;
 
     /// Returns the default text pool.
-    pub fn default() -> Self {
-        Self::new(Self::DEFAULT_TEXT_POOL_SIZE, &Distributions::default())
+    pub fn default() -> Arc<Self> {
+        Arc::clone(DEFAULT_TEXT_POOL.get_or_init(|| {
+            Arc::new(Self::new(
+                Self::DEFAULT_TEXT_POOL_SIZE,
+                &Distributions::default(),
+            ))
+        }))
     }
 
     /// Returns a new text pool with a predefined size and set of distributions.
@@ -38,8 +49,7 @@ impl TextPool {
         }
 
         output.erase(output.length() - size as usize);
-        let text_pool_bytes = output.get_bytes();
-        let text_pool_size = output.length();
+        let (text_pool_bytes, text_pool_size) = output.into_inner();
 
         Self {
             text: text_pool_bytes,
@@ -190,8 +200,9 @@ impl ByteArrayBuilder {
         self.length
     }
 
-    fn get_bytes(&self) -> Vec<u8> {
-        self.bytes.clone()
+    /// Return the inner bytes and length of the builder.
+    pub fn into_inner(self) -> (Vec<u8>, usize) {
+        (self.bytes, self.length)
     }
 
     fn get_last_char(&self) -> char {

@@ -329,9 +329,7 @@ impl RandomAlphaNumeric {
     }
 
     pub fn next_value(&mut self) -> String {
-        let length = self
-            .inner
-            .next_int(self.min_length, self.max_length) as usize;
+        let length = self.inner.next_int(self.min_length, self.max_length) as usize;
         let mut buffer = vec![0u8; length];
 
         let mut char_index = 0;
@@ -475,10 +473,9 @@ impl RandomStringSequence {
         // Randomize first 'count' elements
         for current_position in 0..self.count {
             // Pick a random position to swap with
-            let swap_position = self
-                .inner
-                .next_int(current_position, values.len() as i32 - 1)
-                as usize;
+            let swap_position =
+                self.inner
+                    .next_int(current_position, values.len() as i32 - 1) as usize;
 
             // Swap the elements
             values.swap(current_position as usize, swap_position);
