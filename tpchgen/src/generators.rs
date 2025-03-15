@@ -784,26 +784,26 @@ impl Iterator for SupplierGeneratorIterator {
 
 /// The CUSTOMER table
 #[derive(Debug, Clone, PartialEq)]
-pub struct Customer {
+pub struct Customer<'a> {
     /// Primary key
     pub c_custkey: i64,
     /// Customer name
-    pub c_name: String,
+    pub c_name: &'a str,
     /// Customer address
-    pub c_address: String,
+    pub c_address: &'a str,
     /// Foreign key to NATION
     pub c_nationkey: i64,
     /// Customer phone number
-    pub c_phone: String,
+    pub c_phone: &'a str,
     /// Customer account balance
     pub c_acctbal: f64,
     /// Customer market segment
-    pub c_mktsegment: String,
+    pub c_mktsegment: &'a str,
     /// Variable length comment
-    pub c_comment: String,
+    pub c_comment: &'a str,
 }
 
-impl fmt::Display for Customer {
+impl<'a> fmt::Display for Customer<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -888,15 +888,6 @@ impl CustomerGenerator {
     }
 }
 
-impl IntoIterator for CustomerGenerator {
-    type Item = Customer;
-    type IntoIter = CustomerGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Customer rows
 pub struct CustomerGeneratorIterator {
     address_random: RandomAlphaNumeric,
@@ -909,6 +900,12 @@ pub struct CustomerGeneratorIterator {
     start_index: i64,
     row_count: i64,
     index: i64,
+
+    // Advance on next iterator?
+    row_finished: bool,
+
+    // Customer buffer, always starts with "Customer#"
+    name_buffer: String,
 }
 
 impl CustomerGeneratorIterator {
@@ -954,44 +951,47 @@ impl CustomerGeneratorIterator {
             start_index,
             row_count,
             index: 0,
+            row_finished: false,
+            name_buffer: String::from("Customer#"),
         }
     }
 
     /// Creates a customer with the given key
     fn make_customer(&mut self, customer_key: i64) -> Customer {
         let nation_key = self.nation_key_random.next_value() as i64;
+        // print a string like "Customer#000000001"
+        // buffer already has "Customer#" in it
+        self.name_buffer.truncate("Customer#".len());
+        write!(&mut self.name_buffer, "{:09}", customer_key).unwrap();
 
         Customer {
             c_custkey: customer_key,
-            c_name: format!("Customer#{:09}", customer_key),
-            c_address: self.address_random.next_value(),
+            c_name: &self.name_buffer,
+            c_address: self.address_random.next_str(),
             c_nationkey: nation_key,
-            c_phone: self.phone_random.next_value(nation_key),
+            c_phone: self.phone_random.next_str(nation_key),
             c_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
-            c_mktsegment: self.market_segment_random.next_value(),
-            c_comment: self.comment_random.next_value(),
+            c_mktsegment: self.market_segment_random.next_str(),
+            c_comment: self.comment_random.next_str(),
         }
     }
-}
-
-impl Iterator for CustomerGeneratorIterator {
-    type Item = Customer;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_customer(&mut self) -> Option<Customer<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.address_random.row_finished();
+            self.nation_key_random.row_finished();
+            self.phone_random.row_finished();
+            self.account_balance_random.row_finished();
+            self.market_segment_random.row_finished();
+            self.comment_random.row_finished();
+
+            self.index += 1;
+        }
+        self.row_finished = true;
         let customer = self.make_customer(self.start_index + self.index + 1);
-
-        self.address_random.row_finished();
-        self.nation_key_random.row_finished();
-        self.phone_random.row_finished();
-        self.account_balance_random.row_finished();
-        self.market_segment_random.row_finished();
-        self.comment_random.row_finished();
-
-        self.index += 1;
 
         Some(customer)
     }

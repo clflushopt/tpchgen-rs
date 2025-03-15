@@ -215,8 +215,8 @@ fn generate_customer(cli: &Cli) -> io::Result<()> {
     let filename = "customer.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = CustomerGenerator::new(cli.scale_factor as f64, cli.part, cli.parts);
-    for customer in generator.iter() {
+    let mut iter = CustomerGenerator::new(cli.scale_factor as f64, cli.part, cli.parts).iter();
+    while let Some(customer) = iter.make_next_customer() {
         writeln!(
             writer,
             "{}|{}|{}|{}|{}|{:.2}|{}|{}",
