@@ -124,7 +124,6 @@ fn make_date(index: i32) -> NaiveDate {
         d - MONTH_YEAR_DAY_START[(m - 1) as usize] - if is_leap_year(y) && m > 2 { 1 } else { 0 };
 
     // Create date from year, month, day
-
     NaiveDate::from_ymd_opt(1900 + y, m as u32, dy as u32).unwrap()
 }
 
