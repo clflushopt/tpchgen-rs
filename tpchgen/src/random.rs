@@ -330,11 +330,6 @@ impl RandomAlphaNumeric {
         }
     }
 
-    /// to remove in favor of next_str
-    pub fn next_value(&mut self) -> String {
-        self.next_str().to_string()
-    }
-
     pub fn next_str(&mut self) -> &str {
         let length = self.inner.next_int(self.min_length, self.max_length) as usize;
         self.buffer.clear();
@@ -387,11 +382,6 @@ impl RandomPhoneNumber {
         }
     }
 
-    // todo: remove and always return a &str
-    pub fn next_value(&mut self, nation_key: i64) -> String {
-        self.next_str(nation_key).to_string()
-    }
-
     pub fn next_str(&mut self, nation_key: i64) -> &str {
         let country_code = 10 + (nation_key % Self::NATIONS_MAX as i64);
         let local1 = self.inner.next_int(100, 999);
@@ -441,11 +431,6 @@ impl RandomString {
         }
     }
 
-    // TODO remove and always return a &str
-    pub fn next_value(&mut self) -> String {
-        self.distribution.random_value(&mut self.inner).to_string()
-    }
-
     pub fn next_str(&mut self) -> &str {
         self.distribution.random_value(&mut self.inner)
     }
@@ -486,11 +471,6 @@ impl RandomStringSequence {
             distribution: distribution.clone(),
             buffer: String::new(),
         }
-    }
-
-    /// TODO remove and always return a &str
-    pub fn next_value(&mut self) -> String {
-        self.next_str().to_string()
     }
 
     /// return the next value as a &str
@@ -561,15 +541,6 @@ impl RandomText {
             min_length: (average_text_length * Self::LOW_LENGTH_MULTIPLIER) as i32,
             max_length: (average_text_length * Self::HIGH_LENGTH_MULTIPLIER) as i32,
         }
-    }
-
-    pub fn next_value(&mut self) -> String {
-        let offset = self
-            .inner
-            .next_int(0, self.text_pool.size() - self.max_length);
-        let lenght = self.inner.next_int(self.min_length, self.max_length);
-
-        self.text_pool.text(offset, offset + lenght)
     }
 
     pub fn next_str(&mut self) -> &str {
