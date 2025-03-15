@@ -118,7 +118,7 @@ fn generate_nation(cli: &Cli) -> io::Result<()> {
     for nation in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}|{}",
+            "{}|{}|{}|{}|",
             nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
         )?;
     }
@@ -134,7 +134,7 @@ fn generate_region(cli: &Cli) -> io::Result<()> {
     for region in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}",
+            "{}|{}|{}|",
             region.r_regionkey, region.r_name, region.r_comment
         )?;
     }
@@ -150,7 +150,7 @@ fn generate_part(cli: &Cli) -> io::Result<()> {
     for part in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}|{}|{}|{}|{}|{:.2}|{}",
+            "{}|{}|{}|{}|{}|{}|{}|{:.2}|{}|",
             part.p_partkey,
             part.p_name,
             part.p_mfgr,
@@ -174,7 +174,7 @@ fn generate_supplier(cli: &Cli) -> io::Result<()> {
     for supplier in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}|{}|{}|{:.2}|{}",
+            "{}|{}|{}|{}|{}|{:.2}|{}|",
             supplier.s_suppkey,
             supplier.s_name,
             supplier.s_address,
@@ -196,7 +196,7 @@ fn generate_partsupp(cli: &Cli) -> io::Result<()> {
     for ps in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}|{:.2}|{}",
+            "{}|{}|{}|{:.2}|{}|",
             ps.ps_partkey, ps.ps_suppkey, ps.ps_availqty, ps.ps_supplycost, ps.ps_comment
         )?;
     }
@@ -212,7 +212,7 @@ fn generate_customer(cli: &Cli) -> io::Result<()> {
     for customer in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}|{}|{}|{:.2}|{}|{}",
+            "{}|{}|{}|{}|{}|{:.2}|{}|{}|",
             customer.c_custkey,
             customer.c_name,
             customer.c_address,
@@ -235,7 +235,7 @@ fn generate_orders(cli: &Cli) -> io::Result<()> {
     for order in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}|{:.2}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{:.2}|{}|{}|{}|{}|{}|",
             order.o_orderkey,
             order.o_custkey,
             order.o_orderstatus,
@@ -259,7 +259,7 @@ fn generate_lineitem(cli: &Cli) -> io::Result<()> {
     for item in generator.iter() {
         writeln!(
             writer,
-            "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}",
+            "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
             item.l_orderkey,
             item.l_partkey,
             item.l_suppkey,
