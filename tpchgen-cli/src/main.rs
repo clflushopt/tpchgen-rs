@@ -106,8 +106,9 @@ fn main() -> io::Result<()> {
 fn new_table_writer(cli: &Cli, filename: &str) -> io::Result<Box<dyn Write>> {
     let path = cli.output_dir.join(filename);
     let file = File::create(path)?;
+    let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
 
-    Ok(Box::new(BufWriter::new(file)))
+    Ok(Box::new(writer))
 }
 
 fn generate_nation(cli: &Cli) -> io::Result<()> {
