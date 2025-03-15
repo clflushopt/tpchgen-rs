@@ -23,6 +23,7 @@ use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
     PartSupplierGenerator, RegionGenerator, SupplierGenerator,
 };
+use tpchgen::text::TextPool;
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
@@ -83,6 +84,11 @@ fn main() -> io::Result<()> {
             Table::LineItem,
         ]
     };
+
+    // Prepare the global text pool so it is available for all generators
+    // explicitly so it does not appear to be part of the first table
+    println!("Generating text pool");
+    TextPool::default();
 
     // Generate each table
     for table in tables {
