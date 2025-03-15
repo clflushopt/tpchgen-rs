@@ -86,7 +86,6 @@ fn main() -> io::Result<()> {
 
     // Generate each table
     for table in tables {
-        println!("Generating table: {:?}", table);
         match table {
             Table::Nation => generate_nation(&cli)?,
             Table::Region => generate_region(&cli)?,
@@ -106,7 +105,7 @@ fn main() -> io::Result<()> {
 fn new_table_writer(cli: &Cli, filename: &str) -> io::Result<Box<dyn Write>> {
     let path = cli.output_dir.join(filename);
     let file = File::create(path)?;
-    let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
+    let writer = BufWriter::with_capacity(32 * 1024, file);
 
     Ok(Box::new(writer))
 }
