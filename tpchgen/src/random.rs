@@ -1,6 +1,6 @@
 //! Implementation of the core random number generators.
-
 use crate::{distribution::Distribution, text::TextPool};
+use std::fmt::Write;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct RowRandomInt {
@@ -299,6 +299,7 @@ pub struct RandomAlphaNumeric {
     inner: RowRandomInt,
     min_length: i32,
     max_length: i32,
+    buffer: Vec<u8>,
 }
 
 impl RandomAlphaNumeric {
@@ -325,14 +326,14 @@ impl RandomAlphaNumeric {
             inner: RowRandomInt::new(seed, Self::USAGE_PER_ROW * seeds_per_row),
             min_length,
             max_length,
+            buffer: vec![],
         }
     }
 
-    pub fn next_value(&mut self) -> String {
-        let length = self
-            .inner
-            .next_int(self.min_length, self.max_length) as usize;
-        let mut buffer = vec![0u8; length];
+    pub fn next_str(&mut self) -> &str {
+        let length = self.inner.next_int(self.min_length, self.max_length) as usize;
+        self.buffer.clear();
+        self.buffer.reserve(length);
 
         let mut char_index = 0;
         for i in 0..length {
@@ -341,12 +342,12 @@ impl RandomAlphaNumeric {
             }
 
             let char_pos = (char_index & 0x3f) as usize;
-            buffer[i] = Self::ALPHA_NUMERIC[char_pos];
+            self.buffer.push(Self::ALPHA_NUMERIC[char_pos]);
             char_index >>= 6;
         }
 
         // This is safe because ALPHA_NUMERIC contains only valid ASCII
-        String::from_utf8(buffer).unwrap()
+        unsafe { std::str::from_utf8_unchecked(&self.buffer) }
     }
 
     /// Advance the inner random number generator by the specified number of rows.
@@ -360,9 +361,10 @@ impl RandomAlphaNumeric {
 }
 
 /// Generates phone numbers according to TPC-H spec
-#[derive(Default, Debug, Clone, Copy)]
+#[derive(Default, Debug, Clone)]
 pub struct RandomPhoneNumber {
     inner: RowRandomInt,
+    buffer: String, // buffer to store the generated phone number
 }
 
 impl RandomPhoneNumber {
@@ -376,19 +378,24 @@ impl RandomPhoneNumber {
     pub fn new_with_expected_row_count(seed: i64, seeds_per_row: i32) -> Self {
         Self {
             inner: RowRandomInt::new(seed, 3 * seeds_per_row),
+            buffer: String::new(),
         }
     }
 
-    pub fn next_value(&mut self, nation_key: i64) -> String {
+    pub fn next_str(&mut self, nation_key: i64) -> &str {
         let country_code = 10 + (nation_key % Self::NATIONS_MAX as i64);
         let local1 = self.inner.next_int(100, 999);
         let local2 = self.inner.next_int(100, 999);
         let local3 = self.inner.next_int(1000, 9999);
 
-        format!(
+        self.buffer.clear();
+        write!(
+            &mut self.buffer,
             "{:02}-{:03}-{:03}-{:04}",
             country_code, local1, local2, local3
         )
+        .unwrap();
+        &self.buffer
     }
 
     /// Advance the inner random number generator by the specified number of rows.
@@ -424,8 +431,8 @@ impl RandomString {
         }
     }
 
-    pub fn next_value(&mut self) -> String {
-        self.distribution.random_value(&mut self.inner).to_string()
+    pub fn next_str(&mut self) -> &str {
+        self.distribution.random_value(&mut self.inner)
     }
 
     /// Advance the inner random number generator by the given number of rows.
@@ -443,6 +450,8 @@ pub struct RandomStringSequence {
     inner: RowRandomInt,
     count: i32,
     distribution: Distribution,
+    /// buffer that stores the strings
+    buffer: String,
 }
 
 impl RandomStringSequence {
@@ -460,32 +469,37 @@ impl RandomStringSequence {
             inner: RowRandomInt::new(seed, distribution.size() as i32 * seeds_per_row),
             count,
             distribution: distribution.clone(),
+            buffer: String::new(),
         }
     }
 
-    pub fn next_value(&mut self) -> String {
+    /// return the next value as a &str
+    pub fn next_str(&mut self) -> &str {
         // Get all values from the distribution
-        let mut values: Vec<String> = self
-            .distribution
-            .get_values()
-            .iter()
-            .map(|v| v.to_string())
-            .collect();
+        let mut values: Vec<_> = self.distribution.get_values().iter().collect();
 
         // Randomize first 'count' elements
         for current_position in 0..self.count {
             // Pick a random position to swap with
-            let swap_position = self
-                .inner
-                .next_int(current_position, values.len() as i32 - 1)
-                as usize;
+            let swap_position =
+                self.inner
+                    .next_int(current_position, values.len() as i32 - 1) as usize;
 
             // Swap the elements
             values.swap(current_position as usize, swap_position);
         }
 
         // Join the first 'count' values with spaces
-        values[0..self.count as usize].join(" ")
+        self.buffer.clear(); // reuse buffer
+        if self.count == 0 {
+            return &self.buffer;
+        }
+        self.buffer.push_str(values[0]);
+        for v in &values[1..self.count as usize] {
+            self.buffer.push(' ');
+            self.buffer.push_str(v);
+        }
+        &self.buffer
     }
 
     /// Advance the inner random number generator by the given number of rows.
@@ -529,13 +543,13 @@ impl RandomText {
         }
     }
 
-    pub fn next_value(&mut self) -> String {
+    pub fn next_str(&mut self) -> &str {
         let offset = self
             .inner
             .next_int(0, self.text_pool.size() - self.max_length);
         let lenght = self.inner.next_int(self.min_length, self.max_length);
 
-        self.text_pool.text(offset, offset + lenght)
+        self.text_pool.text_as_str(offset, offset + lenght)
     }
 
     pub fn advance_rows(&mut self, row_count: i64) {

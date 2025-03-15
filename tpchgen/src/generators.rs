@@ -8,6 +8,7 @@ use crate::random::RandomBoundedLong;
 use crate::random::RandomPhoneNumber;
 use crate::random::RowRandomInt;
 use crate::text::TextPool;
+use std::fmt::Write;
 use std::sync::Arc;
 
 use crate::dates::GenerateUtils;
@@ -16,7 +17,7 @@ use crate::random::{RandomBoundedInt, RandomString, RandomStringSequence, Random
 /// Generator for Nation table data
 pub struct NationGenerator {
     distributions: Distributions,
-    text_pool: TextPool,
+    text_pool: Arc<TextPool>,
 }
 
 impl Default for NationGenerator {
@@ -34,7 +35,7 @@ impl NationGenerator {
     /// Creates a NationGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
         distributions: Distributions,
-        text_pool: TextPool,
+        text_pool: Arc<TextPool>,
     ) -> Self {
         NationGenerator {
             distributions,
@@ -48,29 +49,20 @@ impl NationGenerator {
     }
 }
 
-impl IntoIterator for NationGenerator {
-    type Item = Nation;
-    type IntoIter = NationGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// The NATION table
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Nation {
+pub struct Nation<'a> {
     /// Primary key (0-24)
     pub n_nationkey: i64,
     /// Nation name
-    pub n_name: String,
+    pub n_name: &'a str,
     /// Foreign key to REGION
     pub n_regionkey: i64,
     /// Variable length comment
-    pub n_comment: String,
+    pub n_comment: &'a str,
 }
 
-impl fmt::Display for Nation {
+impl<'a> fmt::Display for Nation<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -80,14 +72,14 @@ impl fmt::Display for Nation {
     }
 }
 
-impl Nation {
+impl<'a> Nation<'a> {
     /// Create a new `nation` record with the specified values.
-    pub fn new(n_nationkey: i64, n_name: &str, n_regionkey: i64, n_comment: &str) -> Self {
+    pub fn new(n_nationkey: i64, n_name: &'a str, n_regionkey: i64, n_comment: &'a str) -> Self {
         Nation {
             n_nationkey,
-            n_name: n_name.to_string(),
+            n_name,
             n_regionkey,
-            n_comment: n_comment.to_string(),
+            n_comment,
         }
     }
 }
@@ -97,6 +89,8 @@ pub struct NationGeneratorIterator {
     nations: Distribution,
     comment_random: RandomText,
     index: usize,
+
+    row_finished: bool,
 }
 
 impl NationGeneratorIterator {
@@ -111,14 +105,17 @@ impl NationGeneratorIterator {
                 Self::COMMENT_AVERAGE_LENGTH as f64,
             ),
             index: 0,
+            row_finished: false,
         }
     }
-}
 
-impl Iterator for NationGeneratorIterator {
-    type Item = Nation;
+    pub fn make_next_nation(&mut self) -> Option<Nation<'_>> {
+        if self.row_finished {
+            self.comment_random.row_finished();
+            self.index += 1;
+        }
+        self.row_finished = true;
 
-    fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.nations.size() {
             return None;
         }
@@ -127,15 +124,12 @@ impl Iterator for NationGeneratorIterator {
             // n_nationkey
             n_nationkey: self.index as i64,
             // n_name
-            n_name: self.nations.get_value(self.index).to_string(),
+            n_name: self.nations.get_value(self.index),
             // n_regionkey
             n_regionkey: self.nations.get_weight(self.index) as i64,
             // n_comment
-            n_comment: self.comment_random.next_value(),
+            n_comment: self.comment_random.next_str(),
         };
-
-        self.comment_random.row_finished();
-        self.index += 1;
 
         Some(nation)
     }
@@ -143,22 +137,22 @@ impl Iterator for NationGeneratorIterator {
 
 /// The REGION table
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Region {
+pub struct Region<'a> {
     /// Primary key (0-4)
     pub r_regionkey: i64,
     /// Region name (AFRICA, AMERICA, ASIA, EUROPE, MIDDLE EAST)
-    pub r_name: String,
+    pub r_name: &'a str,
     /// Variable length comment
-    pub r_comment: String,
+    pub r_comment: &'a str,
 }
 
-impl Region {
+impl<'a> Region<'a> {
     /// Creates a new `region` record with the specified values.
-    pub fn new(r_regionkey: i64, r_name: &str, r_comment: &str) -> Self {
+    pub fn new(r_regionkey: i64, r_name: &'a str, r_comment: &'a str) -> Self {
         Region {
             r_regionkey,
-            r_name: r_name.to_string(),
-            r_comment: r_comment.to_string(),
+            r_name,
+            r_comment,
         }
     }
 }
@@ -166,7 +160,7 @@ impl Region {
 /// Generator for Region table data
 pub struct RegionGenerator {
     distributions: Distributions,
-    text_pool: TextPool,
+    text_pool: Arc<TextPool>,
 }
 
 impl Default for RegionGenerator {
@@ -184,7 +178,7 @@ impl RegionGenerator {
     /// Creates a RegionGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
         distributions: Distributions,
-        text_pool: TextPool,
+        text_pool: Arc<TextPool>,
     ) -> Self {
         RegionGenerator {
             distributions,
@@ -198,20 +192,12 @@ impl RegionGenerator {
     }
 }
 
-impl IntoIterator for RegionGenerator {
-    type Item = Region;
-    type IntoIter = RegionGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Region rows
 pub struct RegionGeneratorIterator {
     regions: Distribution,
     comment_random: RandomText,
     index: usize,
+    row_finished: bool,
 }
 
 impl RegionGeneratorIterator {
@@ -226,26 +212,26 @@ impl RegionGeneratorIterator {
                 Self::COMMENT_AVERAGE_LENGTH as f64,
             ),
             index: 0,
+            row_finished: false,
         }
     }
-}
 
-impl Iterator for RegionGeneratorIterator {
-    type Item = Region;
+    pub fn make_next_region(&mut self) -> Option<Region<'_>> {
+        if self.row_finished {
+            self.comment_random.row_finished();
+            self.index += 1;
+        }
+        self.row_finished = true;
 
-    fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.regions.size() {
             return None;
         }
 
         let region = Region {
             r_regionkey: self.index as i64,
-            r_name: self.regions.get_value(self.index).to_string(),
-            r_comment: self.comment_random.next_value(),
+            r_name: self.regions.get_value(self.index),
+            r_comment: self.comment_random.next_str(),
         };
-
-        self.comment_random.row_finished();
-        self.index += 1;
 
         Some(region)
     }
@@ -253,28 +239,28 @@ impl Iterator for RegionGeneratorIterator {
 
 /// The PART table
 #[derive(Debug, Clone, PartialEq)]
-pub struct Part {
+pub struct Part<'a> {
     /// Primary key
     pub p_partkey: i64,
     /// Part name
-    pub p_name: String,
+    pub p_name: &'a str,
     /// Part manufacturer
-    pub p_mfgr: String,
+    pub p_mfgr: &'a str,
     /// Part brand
-    pub p_brand: String,
+    pub p_brand: &'a str,
     /// Part type
-    pub p_type: String,
+    pub p_type: &'a str,
     /// Part size
     pub p_size: i32,
     /// Part container
-    pub p_container: String,
+    pub p_container: &'a str,
     /// Part retail price
     pub p_retailprice: f64,
     /// Variable length comment
-    pub p_comment: String,
+    pub p_comment: &'a str,
 }
 
-impl fmt::Display for Part {
+impl<'a> fmt::Display for Part<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -321,7 +307,7 @@ impl PartGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -363,15 +349,6 @@ impl PartGenerator {
     }
 }
 
-impl IntoIterator for PartGenerator {
-    type Item = Part;
-    type IntoIter = PartGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Part rows
 pub struct PartGeneratorIterator {
     name_random: RandomStringSequence,
@@ -385,6 +362,13 @@ pub struct PartGeneratorIterator {
     start_index: i64,
     row_count: i64,
     index: i64,
+
+    // Buffer to store mfgr and brand
+    pub mfgr_buffer: String,
+    pub brand_buffer: String,
+
+    // Flag to indicate if the order should be advanced on next iterator
+    row_finished: bool,
 }
 
 impl PartGeneratorIterator {
@@ -436,26 +420,38 @@ impl PartGeneratorIterator {
             start_index,
             row_count,
             index: 0,
+            mfgr_buffer: String::from("Manufacturer#"),
+            brand_buffer: String::from("Brand#"),
+            row_finished: false,
         }
     }
 
     /// Creates a part with the given key
     fn make_part(&mut self, part_key: i64) -> Part {
-        let name = self.name_random.next_value();
+        let name = self.name_random.next_str();
 
         let manufacturer = self.manufacturer_random.next_value();
         let brand = manufacturer * 10 + self.brand_random.next_value();
 
+        // print a string like "Manufacturer#1"
+        // buffer already has "Manufacturer#" in it
+        self.mfgr_buffer.truncate("Manufacturer#".len());
+        write!(&mut self.mfgr_buffer, "{}", manufacturer).unwrap();
+        // print a string like "Brand#1"
+        // buffer already has "Brand#" in it
+        self.brand_buffer.truncate("Brand#".len());
+        write!(&mut self.brand_buffer, "{}", brand).unwrap();
+
         Part {
             p_partkey: part_key,
             p_name: name,
-            p_mfgr: format!("Manufacturer#{}", manufacturer),
-            p_brand: format!("Brand#{}", brand),
-            p_type: self.type_random.next_value(),
+            p_mfgr: &self.mfgr_buffer,
+            p_brand: &self.brand_buffer,
+            p_type: self.type_random.next_str(),
             p_size: self.size_random.next_value(),
-            p_container: self.container_random.next_value(),
+            p_container: self.container_random.next_str(),
             p_retailprice: Self::calculate_part_price(part_key) as f64 / 100.0,
-            p_comment: self.comment_random.next_value(),
+            p_comment: self.comment_random.next_str(),
         }
     }
 
@@ -469,27 +465,26 @@ impl PartGeneratorIterator {
 
         price
     }
-}
 
-impl Iterator for PartGeneratorIterator {
-    type Item = Part;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_part(&mut self) -> Option<Part> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.name_random.row_finished();
+            self.manufacturer_random.row_finished();
+            self.brand_random.row_finished();
+            self.type_random.row_finished();
+            self.size_random.row_finished();
+            self.container_random.row_finished();
+            self.comment_random.row_finished();
+
+            self.index += 1;
+        }
+
+        self.row_finished = true;
         let part = self.make_part(self.start_index + self.index + 1);
-
-        self.name_random.row_finished();
-        self.manufacturer_random.row_finished();
-        self.brand_random.row_finished();
-        self.type_random.row_finished();
-        self.size_random.row_finished();
-        self.container_random.row_finished();
-        self.comment_random.row_finished();
-
-        self.index += 1;
 
         Some(part)
     }
@@ -497,24 +492,24 @@ impl Iterator for PartGeneratorIterator {
 
 /// Records for the SUPPLIER table.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Supplier {
+pub struct Supplier<'a> {
     /// Primary key
     pub s_suppkey: i64,
     /// Supplier name
-    pub s_name: String,
+    pub s_name: &'a str,
     /// Supplier address
-    pub s_address: String,
+    pub s_address: &'a str,
     /// Foreign key to NATION
     pub s_nationkey: i64,
     /// Supplier phone number
-    pub s_phone: String,
+    pub s_phone: &'a str,
     /// Supplier account balance
     pub s_acctbal: f64,
     /// Variable length comment
-    pub s_comment: String,
+    pub s_comment: &'a str,
 }
 
-impl fmt::Display for Supplier {
+impl<'a> fmt::Display for Supplier<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -565,7 +560,7 @@ impl SupplierGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -607,15 +602,6 @@ impl SupplierGenerator {
     }
 }
 
-impl IntoIterator for SupplierGenerator {
-    type Item = Supplier;
-    type IntoIter = SupplierGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Supplier rows
 pub struct SupplierGeneratorIterator {
     address_random: RandomAlphaNumeric,
@@ -631,6 +617,14 @@ pub struct SupplierGeneratorIterator {
     start_index: i64,
     row_count: i64,
     index: i64,
+
+    // Advance on next iterator?
+    row_finished: bool,
+    // buffer for name,
+    // always starts with "Supplier#"
+    name_buffer: String,
+    // buffer for comment
+    comment_buffer: String,
 }
 
 impl SupplierGeneratorIterator {
@@ -685,18 +679,19 @@ impl SupplierGeneratorIterator {
             start_index,
             row_count,
             index: 0,
+            row_finished: false,
+            name_buffer: String::from("Supplier#"),
+            comment_buffer: String::new(),
         }
     }
 
     /// Creates a supplier with the given key
     fn make_supplier(&mut self, supplier_key: i64) -> Supplier {
-        let mut comment = self.comment_random.next_value();
+        let mut comment = self.comment_random.next_str();
 
         // Add supplier complaints or commendation to the comment
         let bbb_comment_random_value = self.bbb_comment_random.next_value();
         if bbb_comment_random_value <= SupplierGenerator::BBB_COMMENTS_PER_SCALE_BASE {
-            let buffer = comment.clone();
-
             // select random place for BBB comment
             let noise = self.bbb_junk_random.next_int(
                 0,
@@ -716,57 +711,61 @@ impl SupplierGeneratorIterator {
                 };
 
             // Create a mutable string that we can modify in chunks
-            let mut modified_comment = String::with_capacity(comment.len());
-            modified_comment.push_str(&comment[..offset]);
-            modified_comment.push_str(SupplierGenerator::BBB_BASE_TEXT);
-            modified_comment.push_str(
+            self.comment_buffer.clear();
+            self.comment_buffer.reserve(comment.len());
+            self.comment_buffer.push_str(&comment[..offset]);
+            self.comment_buffer
+                .push_str(SupplierGenerator::BBB_BASE_TEXT);
+            self.comment_buffer.push_str(
                 &comment[offset + SupplierGenerator::BBB_BASE_TEXT.len()
                     ..offset + SupplierGenerator::BBB_BASE_TEXT.len() + noise],
             );
-            modified_comment.push_str(type_text);
-            modified_comment.push_str(
+            self.comment_buffer.push_str(type_text);
+            self.comment_buffer.push_str(
                 &comment
                     [offset + SupplierGenerator::BBB_BASE_TEXT.len() + noise + type_text.len()..],
             );
 
-            comment = modified_comment;
+            comment = &self.comment_buffer;
         }
 
         let nation_key = self.nation_key_random.next_value() as i64;
 
+        // Make a string like Supplier#000000001
+        self.name_buffer.truncate("Supplier#".len());
+        write!(&mut self.name_buffer, "{:09}", supplier_key).unwrap();
+
         Supplier {
             s_suppkey: supplier_key,
-            s_name: format!("Supplier#{:09}", supplier_key),
-            s_address: self.address_random.next_value(),
+            s_name: &self.name_buffer,
+            s_address: self.address_random.next_str(),
             s_nationkey: nation_key,
-            s_phone: self.phone_random.next_value(nation_key),
+            s_phone: self.phone_random.next_str(nation_key),
             s_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
             s_comment: comment,
         }
     }
-}
+    pub fn make_next_supplier(&mut self) -> Option<Supplier<'_>> {
+        if self.row_finished {
+            self.address_random.row_finished();
+            self.nation_key_random.row_finished();
+            self.phone_random.row_finished();
+            self.account_balance_random.row_finished();
+            self.comment_random.row_finished();
+            self.bbb_comment_random.row_finished();
+            self.bbb_junk_random.row_finished();
+            self.bbb_offset_random.row_finished();
+            self.bbb_type_random.row_finished();
 
-impl Iterator for SupplierGeneratorIterator {
-    type Item = Supplier;
+            self.index += 1;
+        }
+        self.row_finished = true;
 
-    fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.row_count {
             return None;
         }
 
         let supplier = self.make_supplier(self.start_index + self.index + 1);
-
-        self.address_random.row_finished();
-        self.nation_key_random.row_finished();
-        self.phone_random.row_finished();
-        self.account_balance_random.row_finished();
-        self.comment_random.row_finished();
-        self.bbb_comment_random.row_finished();
-        self.bbb_junk_random.row_finished();
-        self.bbb_offset_random.row_finished();
-        self.bbb_type_random.row_finished();
-
-        self.index += 1;
 
         Some(supplier)
     }
@@ -774,26 +773,26 @@ impl Iterator for SupplierGeneratorIterator {
 
 /// The CUSTOMER table
 #[derive(Debug, Clone, PartialEq)]
-pub struct Customer {
+pub struct Customer<'a> {
     /// Primary key
     pub c_custkey: i64,
     /// Customer name
-    pub c_name: String,
+    pub c_name: &'a str,
     /// Customer address
-    pub c_address: String,
+    pub c_address: &'a str,
     /// Foreign key to NATION
     pub c_nationkey: i64,
     /// Customer phone number
-    pub c_phone: String,
+    pub c_phone: &'a str,
     /// Customer account balance
     pub c_acctbal: f64,
     /// Customer market segment
-    pub c_mktsegment: String,
+    pub c_mktsegment: &'a str,
     /// Variable length comment
-    pub c_comment: String,
+    pub c_comment: &'a str,
 }
 
-impl fmt::Display for Customer {
+impl<'a> fmt::Display for Customer<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -836,7 +835,7 @@ impl CustomerGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -878,15 +877,6 @@ impl CustomerGenerator {
     }
 }
 
-impl IntoIterator for CustomerGenerator {
-    type Item = Customer;
-    type IntoIter = CustomerGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Customer rows
 pub struct CustomerGeneratorIterator {
     address_random: RandomAlphaNumeric,
@@ -899,6 +889,12 @@ pub struct CustomerGeneratorIterator {
     start_index: i64,
     row_count: i64,
     index: i64,
+
+    // Advance on next iterator?
+    row_finished: bool,
+
+    // Customer buffer, always starts with "Customer#"
+    name_buffer: String,
 }
 
 impl CustomerGeneratorIterator {
@@ -944,51 +940,54 @@ impl CustomerGeneratorIterator {
             start_index,
             row_count,
             index: 0,
+            row_finished: false,
+            name_buffer: String::from("Customer#"),
         }
     }
 
     /// Creates a customer with the given key
     fn make_customer(&mut self, customer_key: i64) -> Customer {
         let nation_key = self.nation_key_random.next_value() as i64;
+        // print a string like "Customer#000000001"
+        // buffer already has "Customer#" in it
+        self.name_buffer.truncate("Customer#".len());
+        write!(&mut self.name_buffer, "{:09}", customer_key).unwrap();
 
         Customer {
             c_custkey: customer_key,
-            c_name: format!("Customer#{:09}", customer_key),
-            c_address: self.address_random.next_value(),
+            c_name: &self.name_buffer,
+            c_address: self.address_random.next_str(),
             c_nationkey: nation_key,
-            c_phone: self.phone_random.next_value(nation_key),
+            c_phone: self.phone_random.next_str(nation_key),
             c_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
-            c_mktsegment: self.market_segment_random.next_value(),
-            c_comment: self.comment_random.next_value(),
+            c_mktsegment: self.market_segment_random.next_str(),
+            c_comment: self.comment_random.next_str(),
         }
     }
-}
-
-impl Iterator for CustomerGeneratorIterator {
-    type Item = Customer;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_customer(&mut self) -> Option<Customer<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.address_random.row_finished();
+            self.nation_key_random.row_finished();
+            self.phone_random.row_finished();
+            self.account_balance_random.row_finished();
+            self.market_segment_random.row_finished();
+            self.comment_random.row_finished();
+
+            self.index += 1;
+        }
+        self.row_finished = true;
         let customer = self.make_customer(self.start_index + self.index + 1);
-
-        self.address_random.row_finished();
-        self.nation_key_random.row_finished();
-        self.phone_random.row_finished();
-        self.account_balance_random.row_finished();
-        self.market_segment_random.row_finished();
-        self.comment_random.row_finished();
-
-        self.index += 1;
 
         Some(customer)
     }
 }
 
 /// The PARTSUPP table
-pub struct PartSupp {
+pub struct PartSupp<'a> {
     /// Primary key, foreign key to PART
     pub ps_partkey: i64,
     /// Primary key, foreign key to SUPPLIER
@@ -998,10 +997,10 @@ pub struct PartSupp {
     /// Supplier cost
     pub ps_supplycost: f64,
     /// Variable length comment
-    pub ps_comment: String,
+    pub ps_comment: &'a str,
 }
 
-impl fmt::Display for PartSupp {
+impl<'a> fmt::Display for PartSupp<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1032,12 +1031,7 @@ impl PartSupplierGenerator {
 
     /// Creates a new PartSupplierGenerator with the given scale factor
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
-        Self::new_with_text_pool(
-            scale_factor,
-            part,
-            part_count,
-            Arc::new(TextPool::default()),
-        )
+        Self::new_with_text_pool(scale_factor, part, part_count, TextPool::default())
     }
 
     /// Creates a PartSupplierGenerator with specified text pool
@@ -1079,15 +1073,6 @@ impl PartSupplierGenerator {
     }
 }
 
-impl IntoIterator for PartSupplierGenerator {
-    type Item = PartSupp;
-    type IntoIter = PartSupplierGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates PartSupplier rows
 pub struct PartSupplierGeneratorIterator {
     scale_factor: f64,
@@ -1100,6 +1085,8 @@ pub struct PartSupplierGeneratorIterator {
 
     index: i64,
     part_supplier_number: i32,
+    // Advance on next iterator?
+    row_finished: bool,
 }
 
 impl PartSupplierGeneratorIterator {
@@ -1137,11 +1124,12 @@ impl PartSupplierGeneratorIterator {
             comment_random,
             index: 0,
             part_supplier_number: 0,
+            row_finished: false,
         }
     }
 
     /// Creates a part-supplier entry with the given part key
-    fn make_part_supplier(&mut self, part_key: i64) -> PartSupp {
+    fn make_part_supplier(&mut self, part_key: i64) -> PartSupp<'_> {
         let supplier_key = Self::select_part_supplier(
             part_key,
             self.part_supplier_number as i64,
@@ -1153,7 +1141,7 @@ impl PartSupplierGeneratorIterator {
             ps_suppkey: supplier_key,
             ps_availqty: self.available_quantity_random.next_value(),
             ps_supplycost: self.supply_cost_random.next_value() as f64 / 100.0,
-            ps_comment: self.comment_random.next_value(),
+            ps_comment: self.comment_random.next_str(),
         }
     }
 
@@ -1169,36 +1157,36 @@ impl PartSupplierGeneratorIterator {
             % supplier_count)
             + 1
     }
-}
 
-impl Iterator for PartSupplierGeneratorIterator {
-    type Item = PartSupp;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_part_supplier(&mut self) -> Option<PartSupp<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.part_supplier_number += 1;
+
+            // advance next row only when all suppliers for the part have been produced
+            if self.part_supplier_number >= PartSupplierGenerator::SUPPLIERS_PER_PART {
+                self.available_quantity_random.row_finished();
+                self.supply_cost_random.row_finished();
+                self.comment_random.row_finished();
+
+                self.index += 1;
+                self.part_supplier_number = 0;
+            }
+        }
+        self.row_finished = true;
+
         let part_key = self.start_index + self.index + 1;
         let part_supplier = self.make_part_supplier(part_key);
-        self.part_supplier_number += 1;
-
-        // advance next row only when all suppliers for the part have been produced
-        if self.part_supplier_number >= PartSupplierGenerator::SUPPLIERS_PER_PART {
-            self.available_quantity_random.row_finished();
-            self.supply_cost_random.row_finished();
-            self.comment_random.row_finished();
-
-            self.index += 1;
-            self.part_supplier_number = 0;
-        }
 
         Some(part_supplier)
     }
 }
 
 /// The ORDERS table
-pub struct Order {
+pub struct Order<'a> {
     /// Primary key
     pub o_orderkey: i64,
     /// Foreign key to CUSTOMER
@@ -1207,19 +1195,19 @@ pub struct Order {
     pub o_orderstatus: char,
     /// Order total price
     pub o_totalprice: f64,
-    /// Order date
-    pub o_orderdate: String, // Could use a date type instead
+    /// Order date (format with dates::DateUtils::to_epoch_date)
+    pub o_orderdate: i32,
     /// Order priority
-    pub o_orderpriority: String,
+    pub o_orderpriority: &'a str,
     /// Clerk who processed the order
-    pub o_clerk: String,
+    pub o_clerk: &'a str,
     /// Order shipping priority
     pub o_shippriority: i32,
     /// Variable length comment
-    pub o_comment: String,
+    pub o_comment: &'a str,
 }
 
-impl fmt::Display for Order {
+impl<'a> fmt::Display for Order<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1271,7 +1259,7 @@ impl OrderGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -1337,15 +1325,6 @@ impl OrderGenerator {
     }
 }
 
-impl IntoIterator for OrderGenerator {
-    type Item = Order;
-    type IntoIter = OrderGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Order rows
 pub struct OrderGeneratorIterator {
     order_date_random: RandomBoundedInt,
@@ -1367,6 +1346,11 @@ pub struct OrderGeneratorIterator {
     max_customer_key: i64,
 
     index: i64,
+
+    // Flag to indicate if the order should be advanced on next iterator
+    row_finished: bool,
+    // Buffer to store clerk name, always starts with "Clerk#"
+    clerk_buffer: String,
 }
 
 impl OrderGeneratorIterator {
@@ -1435,6 +1419,8 @@ impl OrderGeneratorIterator {
             row_count,
             max_customer_key,
             index: 0,
+            clerk_buffer: String::from("Clerk#"),
+            row_finished: false,
         }
     }
 
@@ -1483,44 +1469,53 @@ impl OrderGeneratorIterator {
             'O' // Open - no line items shipped
         };
 
+        // print a string like "Clerk#000000951"
+        // buffer already has "Clerk#" in it
+        self.clerk_buffer.truncate("Clerk#".len());
+        write!(
+            &mut self.clerk_buffer,
+            "{:09}",
+            self.clerk_random.next_value()
+        )
+        .unwrap();
+
         Order {
             o_orderkey: order_key,
             o_custkey: customer_key,
             o_orderstatus: order_status,
             o_totalprice: total_price as f64 / 100.,
-            o_orderdate: dates::DateUtils::to_epoch_date(order_date).to_string(),
-            o_orderpriority: self.order_priority_random.next_value(),
-            o_clerk: format!("Clerk#{:09}", self.clerk_random.next_value()),
+            o_orderdate: order_date,
+            o_orderpriority: self.order_priority_random.next_str(),
+            o_clerk: &self.clerk_buffer,
             o_shippriority: 0, // Fixed value per TPC-H spec
-            o_comment: self.comment_random.next_value(),
+            o_comment: self.comment_random.next_str(),
         }
     }
-}
 
-impl Iterator for OrderGeneratorIterator {
-    type Item = Order;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_order(&mut self) -> Option<Order<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.order_date_random.row_finished();
+            self.line_count_random.row_finished();
+            self.customer_key_random.row_finished();
+            self.order_priority_random.row_finished();
+            self.clerk_random.row_finished();
+            self.comment_random.row_finished();
+
+            self.line_quantity_random.row_finished();
+            self.line_discount_random.row_finished();
+            self.line_tax_random.row_finished();
+            self.line_part_key_random.row_finished();
+            self.line_ship_date_random.row_finished();
+
+            self.index += 1;
+        }
+
+        self.row_finished = true;
         let order = self.make_order(self.start_index + self.index + 1);
-
-        self.order_date_random.row_finished();
-        self.line_count_random.row_finished();
-        self.customer_key_random.row_finished();
-        self.order_priority_random.row_finished();
-        self.clerk_random.row_finished();
-        self.comment_random.row_finished();
-
-        self.line_quantity_random.row_finished();
-        self.line_discount_random.row_finished();
-        self.line_tax_random.row_finished();
-        self.line_part_key_random.row_finished();
-        self.line_ship_date_random.row_finished();
-
-        self.index += 1;
 
         Some(order)
     }
@@ -1528,7 +1523,7 @@ impl Iterator for OrderGeneratorIterator {
 
 /// The LINEITEM table
 #[derive(Debug, Clone, PartialEq)]
-pub struct LineItem {
+pub struct LineItem<'a> {
     /// Foreign key to ORDERS
     pub l_orderkey: i64,
     /// Foreign key to PART
@@ -1546,24 +1541,24 @@ pub struct LineItem {
     /// Tax percentage
     pub l_tax: f64,
     /// Return flag (R=returned, A=accepted, null=pending)
-    pub l_returnflag: String,
+    pub l_returnflag: &'a str,
     /// Line status (O=ordered, F=fulfilled)
-    pub l_linestatus: String,
-    /// Date shipped
-    pub l_shipdate: String, // Could use a date type instead
-    /// Date committed to ship
-    pub l_commitdate: String, // Could use a date type instead
-    /// Date received
-    pub l_receiptdate: String, // Could use a date type instead
+    pub l_linestatus: &'a str,
+    /// Date shipped (convert to string with [dates::DateUtils::to_epoch_date])
+    pub l_shipdate: i32,
+    /// Date committed to ship (convert to string with [dates::DateUtils::to_epoch_date])
+    pub l_commitdate: i32,
+    /// Date received (convert to string with [dates::DateUtils::to_epoch_date])
+    pub l_receiptdate: i32,
     /// Shipping instructions
-    pub l_shipinstruct: String,
+    pub l_shipinstruct: &'a str,
     /// Shipping mode
-    pub l_shipmode: String,
+    pub l_shipmode: &'a str,
     /// Variable length comment
-    pub l_comment: String,
+    pub l_comment: &'a str,
 }
 
-impl fmt::Display for LineItem {
+impl fmt::Display for LineItem<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1625,7 +1620,7 @@ impl LineItemGenerator {
             part,
             part_count,
             Distributions::default(),
-            Arc::new(TextPool::default()),
+            TextPool::default(),
         )
     }
 
@@ -1721,15 +1716,6 @@ impl LineItemGenerator {
     }
 }
 
-impl IntoIterator for LineItemGenerator {
-    type Item = LineItem;
-    type IntoIter = LineItemGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates LineItem rows
 pub struct LineItemGeneratorIterator {
     order_date_random: RandomBoundedInt,
@@ -1761,6 +1747,9 @@ pub struct LineItemGeneratorIterator {
     order_date: i32,
     line_count: i32,
     line_number: i32,
+
+    // Flag to indicate if the order should be advanced on next iterator
+    advance_order: bool,
 }
 
 impl LineItemGeneratorIterator {
@@ -1871,6 +1860,7 @@ impl LineItemGeneratorIterator {
             order_date,
             line_count,
             line_number: 0,
+            advance_order: false,
         }
     }
 
@@ -1902,55 +1892,55 @@ impl LineItemGeneratorIterator {
         receipt_date += ship_date;
 
         let returned_flag = if dates::DateUtils::is_in_past(receipt_date) {
-            self.returned_flag_random.next_value()
+            self.returned_flag_random.next_str()
         } else {
-            "N".to_string()
+            "N"
         };
 
         let status = if dates::DateUtils::is_in_past(ship_date) {
-            "F".to_string() // Fulfilled
+            "F" // Fulfilled
         } else {
-            "O".to_string() // Open
+            "O" // Open
         };
 
-        let ship_instructions = self.ship_instructions_random.next_value();
-        let ship_mode = self.ship_mode_random.next_value();
-        let comment = self.comment_random.next_value();
+        let ship_instructions = self.ship_instructions_random.next_str();
+        let ship_mode = self.ship_mode_random.next_str();
+        let comment = self.comment_random.next_str();
 
         LineItem {
             l_orderkey: order_key,
             l_partkey: part_key,
             l_suppkey: supplier_key,
-            l_linenumber: (self.line_number + 1),
+            l_linenumber: self.line_number,
             l_quantity: quantity as i64,
             l_extendedprice: extended_price as f64 / 100.0,
             l_discount: discount as f64 / 100.0,
             l_tax: tax as f64 / 100.0,
             l_returnflag: returned_flag,
             l_linestatus: status,
-            l_shipdate: dates::DateUtils::to_epoch_date(ship_date).to_string(),
-            l_commitdate: dates::DateUtils::to_epoch_date(commit_date).to_string(),
-            l_receiptdate: dates::DateUtils::to_epoch_date(receipt_date).to_string(),
+            l_shipdate: ship_date,
+            l_commitdate: commit_date,
+            l_receiptdate: receipt_date,
             l_shipinstruct: ship_instructions,
             l_shipmode: ship_mode,
             l_comment: comment,
         }
     }
-}
 
-impl Iterator for LineItemGeneratorIterator {
-    type Item = LineItem;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    /// Return the next lineitem
+    ///
+    /// TODO work out lifetimes to make this impl Iterator
+    pub fn make_next_lineitem(&mut self) -> Option<LineItem<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
-        let line_item = self.make_line_item(self.start_index + self.index + 1);
-        self.line_number += 1;
+        // because we borrow self mutably, we need to check if the order should
+        // be advanced before returning the current line item
+        // TODO make this a state machine / encapulate this logic more nicely
 
         // advance next row only when all lines for the order have been produced
-        if self.line_number > self.line_count {
+        if self.advance_order {
             self.order_date_random.row_finished();
             self.line_count_random.row_finished();
 
@@ -1977,7 +1967,17 @@ impl Iterator for LineItemGeneratorIterator {
             self.line_count = self.line_count_random.next_value() - 1;
             self.order_date = self.order_date_random.next_value();
             self.line_number = 0;
+
+            self.advance_order = false;
         }
+
+        self.line_number += 1;
+        if self.line_number > self.line_count {
+            // advance order next time
+            self.advance_order = true;
+        }
+
+        let line_item = self.make_line_item(self.start_index + self.index + 1);
 
         Some(line_item)
     }
