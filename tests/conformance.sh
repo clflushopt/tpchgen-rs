@@ -15,7 +15,7 @@ set -o pipefail
 set -x
 
 # Scale factors to run against.
-SCALE_FACTORS=("0.001" "0.01")
+SCALE_FACTORS=("0.001" "0.01" "0.1" "1")
 
 # Define tables to compare, we compare all tables but be explicit about them.
 TABLES=("nation" "region" "part" "supplier" "partsupp" "customer" "orders" "lineitem")
