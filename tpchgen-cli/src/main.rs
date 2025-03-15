@@ -177,8 +177,8 @@ fn generate_supplier(cli: &Cli) -> io::Result<()> {
     let filename = "supplier.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = SupplierGenerator::new(cli.scale_factor as f64, cli.part, cli.parts);
-    for supplier in generator.iter() {
+    let mut iter = SupplierGenerator::new(cli.scale_factor as f64, cli.part, cli.parts).iter();
+    while let Some(supplier) = iter.make_next_supplier() {
         writeln!(
             writer,
             "{}|{}|{}|{}|{}|{:.2}|{}",

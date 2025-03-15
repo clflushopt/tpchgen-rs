@@ -492,24 +492,24 @@ impl PartGeneratorIterator {
 
 /// Records for the SUPPLIER table.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Supplier {
+pub struct Supplier<'a> {
     /// Primary key
     pub s_suppkey: i64,
     /// Supplier name
-    pub s_name: String,
+    pub s_name: &'a str,
     /// Supplier address
-    pub s_address: String,
+    pub s_address: &'a str,
     /// Foreign key to NATION
     pub s_nationkey: i64,
     /// Supplier phone number
-    pub s_phone: String,
+    pub s_phone: &'a str,
     /// Supplier account balance
     pub s_acctbal: f64,
     /// Variable length comment
-    pub s_comment: String,
+    pub s_comment: &'a str,
 }
 
-impl fmt::Display for Supplier {
+impl<'a> fmt::Display for Supplier<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -602,15 +602,6 @@ impl SupplierGenerator {
     }
 }
 
-impl IntoIterator for SupplierGenerator {
-    type Item = Supplier;
-    type IntoIter = SupplierGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Supplier rows
 pub struct SupplierGeneratorIterator {
     address_random: RandomAlphaNumeric,
@@ -626,6 +617,14 @@ pub struct SupplierGeneratorIterator {
     start_index: i64,
     row_count: i64,
     index: i64,
+
+    // Advance on next iterator?
+    row_finished: bool,
+    // buffer for name,
+    // always starts with "Supplier#"
+    name_buffer: String,
+    // buffer for comment
+    comment_buffer: String,
 }
 
 impl SupplierGeneratorIterator {
@@ -680,18 +679,19 @@ impl SupplierGeneratorIterator {
             start_index,
             row_count,
             index: 0,
+            row_finished: false,
+            name_buffer: String::from("Supplier#"),
+            comment_buffer: String::new(),
         }
     }
 
     /// Creates a supplier with the given key
     fn make_supplier(&mut self, supplier_key: i64) -> Supplier {
-        let mut comment = self.comment_random.next_value();
+        let mut comment = self.comment_random.next_str();
 
         // Add supplier complaints or commendation to the comment
         let bbb_comment_random_value = self.bbb_comment_random.next_value();
         if bbb_comment_random_value <= SupplierGenerator::BBB_COMMENTS_PER_SCALE_BASE {
-            let _buffer = comment.clone();
-
             // select random place for BBB comment
             let noise = self.bbb_junk_random.next_int(
                 0,
@@ -711,57 +711,61 @@ impl SupplierGeneratorIterator {
                 };
 
             // Create a mutable string that we can modify in chunks
-            let mut modified_comment = String::with_capacity(comment.len());
-            modified_comment.push_str(&comment[..offset]);
-            modified_comment.push_str(SupplierGenerator::BBB_BASE_TEXT);
-            modified_comment.push_str(
+            self.comment_buffer.clear();
+            self.comment_buffer.reserve(comment.len());
+            self.comment_buffer.push_str(&comment[..offset]);
+            self.comment_buffer
+                .push_str(SupplierGenerator::BBB_BASE_TEXT);
+            self.comment_buffer.push_str(
                 &comment[offset + SupplierGenerator::BBB_BASE_TEXT.len()
                     ..offset + SupplierGenerator::BBB_BASE_TEXT.len() + noise],
             );
-            modified_comment.push_str(type_text);
-            modified_comment.push_str(
+            self.comment_buffer.push_str(type_text);
+            self.comment_buffer.push_str(
                 &comment
                     [offset + SupplierGenerator::BBB_BASE_TEXT.len() + noise + type_text.len()..],
             );
 
-            comment = modified_comment;
+            comment = &self.comment_buffer;
         }
 
         let nation_key = self.nation_key_random.next_value() as i64;
 
+        // Make a string like Supplier#000000001
+        self.name_buffer.truncate("Supplier#".len());
+        write!(&mut self.name_buffer, "{:09}", supplier_key).unwrap();
+
         Supplier {
             s_suppkey: supplier_key,
-            s_name: format!("Supplier#{:09}", supplier_key),
-            s_address: self.address_random.next_value(),
+            s_name: &self.name_buffer,
+            s_address: self.address_random.next_str(),
             s_nationkey: nation_key,
-            s_phone: self.phone_random.next_value(nation_key),
+            s_phone: self.phone_random.next_str(nation_key),
             s_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
             s_comment: comment,
         }
     }
-}
+    pub fn make_next_supplier(&mut self) -> Option<Supplier<'_>> {
+        if self.row_finished {
+            self.address_random.row_finished();
+            self.nation_key_random.row_finished();
+            self.phone_random.row_finished();
+            self.account_balance_random.row_finished();
+            self.comment_random.row_finished();
+            self.bbb_comment_random.row_finished();
+            self.bbb_junk_random.row_finished();
+            self.bbb_offset_random.row_finished();
+            self.bbb_type_random.row_finished();
 
-impl Iterator for SupplierGeneratorIterator {
-    type Item = Supplier;
+            self.index += 1;
+        }
+        self.row_finished = true;
 
-    fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.row_count {
             return None;
         }
 
         let supplier = self.make_supplier(self.start_index + self.index + 1);
-
-        self.address_random.row_finished();
-        self.nation_key_random.row_finished();
-        self.phone_random.row_finished();
-        self.account_balance_random.row_finished();
-        self.comment_random.row_finished();
-        self.bbb_comment_random.row_finished();
-        self.bbb_junk_random.row_finished();
-        self.bbb_offset_random.row_finished();
-        self.bbb_type_random.row_finished();
-
-        self.index += 1;
 
         Some(supplier)
     }
