@@ -199,8 +199,8 @@ fn generate_partsupp(cli: &Cli) -> io::Result<()> {
     let filename = "partsupp.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = PartSupplierGenerator::new(cli.scale_factor as f64, cli.part, cli.parts);
-    for ps in generator.iter() {
+    let mut iter = PartSupplierGenerator::new(cli.scale_factor as f64, cli.part, cli.parts).iter();
+    while let Some(ps) = iter.make_next_part_supplier() {
         writeln!(
             writer,
             "{}|{}|{}|{:.2}|{}",

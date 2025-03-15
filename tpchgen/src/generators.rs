@@ -998,7 +998,7 @@ impl Iterator for CustomerGeneratorIterator {
 }
 
 /// The PARTSUPP table
-pub struct PartSupp {
+pub struct PartSupp<'a> {
     /// Primary key, foreign key to PART
     pub ps_partkey: i64,
     /// Primary key, foreign key to SUPPLIER
@@ -1008,10 +1008,10 @@ pub struct PartSupp {
     /// Supplier cost
     pub ps_supplycost: f64,
     /// Variable length comment
-    pub ps_comment: String,
+    pub ps_comment: &'a str,
 }
 
-impl fmt::Display for PartSupp {
+impl<'a> fmt::Display for PartSupp<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1084,15 +1084,6 @@ impl PartSupplierGenerator {
     }
 }
 
-impl IntoIterator for PartSupplierGenerator {
-    type Item = PartSupp;
-    type IntoIter = PartSupplierGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates PartSupplier rows
 pub struct PartSupplierGeneratorIterator {
     scale_factor: f64,
@@ -1105,6 +1096,8 @@ pub struct PartSupplierGeneratorIterator {
 
     index: i64,
     part_supplier_number: i32,
+    // Advance on next iterator?
+    row_finished: bool,
 }
 
 impl PartSupplierGeneratorIterator {
@@ -1142,11 +1135,12 @@ impl PartSupplierGeneratorIterator {
             comment_random,
             index: 0,
             part_supplier_number: 0,
+            row_finished: false,
         }
     }
 
     /// Creates a part-supplier entry with the given part key
-    fn make_part_supplier(&mut self, part_key: i64) -> PartSupp {
+    fn make_part_supplier(&mut self, part_key: i64) -> PartSupp<'_> {
         let supplier_key = Self::select_part_supplier(
             part_key,
             self.part_supplier_number as i64,
@@ -1158,7 +1152,7 @@ impl PartSupplierGeneratorIterator {
             ps_suppkey: supplier_key,
             ps_availqty: self.available_quantity_random.next_value(),
             ps_supplycost: self.supply_cost_random.next_value() as f64 / 100.0,
-            ps_comment: self.comment_random.next_value(),
+            ps_comment: self.comment_random.next_str(),
         }
     }
 
@@ -1174,29 +1168,29 @@ impl PartSupplierGeneratorIterator {
             % supplier_count)
             + 1
     }
-}
 
-impl Iterator for PartSupplierGeneratorIterator {
-    type Item = PartSupp;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_part_supplier(&mut self) -> Option<PartSupp<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.part_supplier_number += 1;
+
+            // advance next row only when all suppliers for the part have been produced
+            if self.part_supplier_number >= PartSupplierGenerator::SUPPLIERS_PER_PART {
+                self.available_quantity_random.row_finished();
+                self.supply_cost_random.row_finished();
+                self.comment_random.row_finished();
+
+                self.index += 1;
+                self.part_supplier_number = 0;
+            }
+        }
+        self.row_finished = true;
+
         let part_key = self.start_index + self.index + 1;
         let part_supplier = self.make_part_supplier(part_key);
-        self.part_supplier_number += 1;
-
-        // advance next row only when all suppliers for the part have been produced
-        if self.part_supplier_number >= PartSupplierGenerator::SUPPLIERS_PER_PART {
-            self.available_quantity_random.row_finished();
-            self.supply_cost_random.row_finished();
-            self.comment_random.row_finished();
-
-            self.index += 1;
-            self.part_supplier_number = 0;
-        }
 
         Some(part_supplier)
     }
