@@ -1203,7 +1203,7 @@ impl Iterator for PartSupplierGeneratorIterator {
 }
 
 /// The ORDERS table
-pub struct Order {
+pub struct Order<'a> {
     /// Primary key
     pub o_orderkey: i64,
     /// Foreign key to CUSTOMER
@@ -1212,19 +1212,19 @@ pub struct Order {
     pub o_orderstatus: char,
     /// Order total price
     pub o_totalprice: f64,
-    /// Order date
-    pub o_orderdate: String, // Could use a date type instead
+    /// Order date (format with dates::DateUtils::to_epoch_date)
+    pub o_orderdate: i32,
     /// Order priority
-    pub o_orderpriority: String,
+    pub o_orderpriority: &'a str,
     /// Clerk who processed the order
-    pub o_clerk: String,
+    pub o_clerk: &'a str,
     /// Order shipping priority
     pub o_shippriority: i32,
     /// Variable length comment
-    pub o_comment: String,
+    pub o_comment: &'a str,
 }
 
-impl fmt::Display for Order {
+impl<'a> fmt::Display for Order<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1342,15 +1342,6 @@ impl OrderGenerator {
     }
 }
 
-impl IntoIterator for OrderGenerator {
-    type Item = Order;
-    type IntoIter = OrderGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Order rows
 pub struct OrderGeneratorIterator {
     order_date_random: RandomBoundedInt,
@@ -1372,6 +1363,11 @@ pub struct OrderGeneratorIterator {
     max_customer_key: i64,
 
     index: i64,
+
+    // Flag to indicate if the order should be advanced on next iterator
+    row_finished: bool,
+    // Buffer to store clerk name, always starts with "Clerk#"
+    clerk_buffer: String,
 }
 
 impl OrderGeneratorIterator {
@@ -1440,6 +1436,8 @@ impl OrderGeneratorIterator {
             row_count,
             max_customer_key,
             index: 0,
+            clerk_buffer: String::from("Clerk#"),
+            row_finished: false,
         }
     }
 
@@ -1488,44 +1486,53 @@ impl OrderGeneratorIterator {
             'O' // Open - no line items shipped
         };
 
+        // print a string like "Clerk#000000951"
+        // buffer already has "Clerk#" in it
+        self.clerk_buffer.truncate("Clerk#".len());
+        write!(
+            &mut self.clerk_buffer,
+            "{:09}",
+            self.clerk_random.next_value()
+        )
+        .unwrap();
+
         Order {
             o_orderkey: order_key,
             o_custkey: customer_key,
             o_orderstatus: order_status,
             o_totalprice: total_price as f64 / 100.,
-            o_orderdate: dates::DateUtils::to_epoch_date(order_date).to_string(),
-            o_orderpriority: self.order_priority_random.next_value(),
-            o_clerk: format!("Clerk#{:09}", self.clerk_random.next_value()),
+            o_orderdate: order_date,
+            o_orderpriority: self.order_priority_random.next_str(),
+            o_clerk: &self.clerk_buffer,
             o_shippriority: 0, // Fixed value per TPC-H spec
-            o_comment: self.comment_random.next_value(),
+            o_comment: self.comment_random.next_str(),
         }
     }
-}
 
-impl Iterator for OrderGeneratorIterator {
-    type Item = Order;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_order(&mut self) -> Option<Order<'_>> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.order_date_random.row_finished();
+            self.line_count_random.row_finished();
+            self.customer_key_random.row_finished();
+            self.order_priority_random.row_finished();
+            self.clerk_random.row_finished();
+            self.comment_random.row_finished();
+
+            self.line_quantity_random.row_finished();
+            self.line_discount_random.row_finished();
+            self.line_tax_random.row_finished();
+            self.line_part_key_random.row_finished();
+            self.line_ship_date_random.row_finished();
+
+            self.index += 1;
+        }
+
+        self.row_finished = true;
         let order = self.make_order(self.start_index + self.index + 1);
-
-        self.order_date_random.row_finished();
-        self.line_count_random.row_finished();
-        self.customer_key_random.row_finished();
-        self.order_priority_random.row_finished();
-        self.clerk_random.row_finished();
-        self.comment_random.row_finished();
-
-        self.line_quantity_random.row_finished();
-        self.line_discount_random.row_finished();
-        self.line_tax_random.row_finished();
-        self.line_part_key_random.row_finished();
-        self.line_ship_date_random.row_finished();
-
-        self.index += 1;
 
         Some(order)
     }

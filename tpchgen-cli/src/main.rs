@@ -238,8 +238,8 @@ fn generate_orders(cli: &Cli) -> io::Result<()> {
     let filename = "orders.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = OrderGenerator::new(cli.scale_factor as f64, cli.part, cli.parts);
-    for order in generator.iter() {
+    let mut iter = OrderGenerator::new(cli.scale_factor as f64, cli.part, cli.parts).iter();
+    while let Some(order) = iter.make_next_order() {
         writeln!(
             writer,
             "{}|{}|{}|{:.2}|{}|{}|{}|{}|{}",
@@ -247,7 +247,7 @@ fn generate_orders(cli: &Cli) -> io::Result<()> {
             order.o_custkey,
             order.o_orderstatus,
             order.o_totalprice,
-            order.o_orderdate,
+            dates::DateUtils::to_epoch_date(order.o_orderdate),
             order.o_orderpriority,
             order.o_clerk,
             order.o_shippriority,
