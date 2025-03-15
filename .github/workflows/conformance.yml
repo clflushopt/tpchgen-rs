@@ -34,7 +34,7 @@ jobs:
           ${{ runner.os }}-cargo-
     
     - name: Make conformance script executable
-      run: chmod +x ./conformance.sh
+      run: chmod +x ./tests/conformance.sh
       
     - name: Run Conformance Tests
-      run: ./conformance.sh
+      run: ./tests/conformance.sh
