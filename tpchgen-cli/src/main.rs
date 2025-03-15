@@ -123,8 +123,7 @@ fn generate_nation(cli: &Cli) -> io::Result<()> {
             nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
 
 fn generate_region(cli: &Cli) -> io::Result<()> {
@@ -139,8 +138,7 @@ fn generate_region(cli: &Cli) -> io::Result<()> {
             region.r_regionkey, region.r_name, region.r_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
 
 fn generate_part(cli: &Cli) -> io::Result<()> {
@@ -163,8 +161,7 @@ fn generate_part(cli: &Cli) -> io::Result<()> {
             part.p_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
 
 fn generate_supplier(cli: &Cli) -> io::Result<()> {
@@ -185,8 +182,7 @@ fn generate_supplier(cli: &Cli) -> io::Result<()> {
             supplier.s_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
 
 fn generate_partsupp(cli: &Cli) -> io::Result<()> {
@@ -201,8 +197,7 @@ fn generate_partsupp(cli: &Cli) -> io::Result<()> {
             ps.ps_partkey, ps.ps_suppkey, ps.ps_availqty, ps.ps_supplycost, ps.ps_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
 
 fn generate_customer(cli: &Cli) -> io::Result<()> {
@@ -224,8 +219,7 @@ fn generate_customer(cli: &Cli) -> io::Result<()> {
             customer.c_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
 
 fn generate_orders(cli: &Cli) -> io::Result<()> {
@@ -248,8 +242,7 @@ fn generate_orders(cli: &Cli) -> io::Result<()> {
             order.o_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
 
 fn generate_lineitem(cli: &Cli) -> io::Result<()> {
@@ -279,6 +272,5 @@ fn generate_lineitem(cli: &Cli) -> io::Result<()> {
             item.l_comment
         )?;
     }
-
-    Ok(())
+    writer.flush()
 }
