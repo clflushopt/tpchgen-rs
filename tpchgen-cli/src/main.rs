@@ -153,8 +153,8 @@ fn generate_part(cli: &Cli) -> io::Result<()> {
     let filename = "part.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = PartGenerator::new(cli.scale_factor as f64, cli.part, cli.parts);
-    for part in generator.iter() {
+    let mut iter = PartGenerator::new(cli.scale_factor as f64, cli.part, cli.parts).iter();
+    while let Some(part) = iter.make_next_part() {
         writeln!(
             writer,
             "{}|{}|{}|{}|{}|{}|{}|{:.2}|{}",

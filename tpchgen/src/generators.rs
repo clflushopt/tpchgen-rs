@@ -8,6 +8,7 @@ use crate::random::RandomBoundedLong;
 use crate::random::RandomPhoneNumber;
 use crate::random::RowRandomInt;
 use crate::text::TextPool;
+use std::fmt::Write;
 use std::sync::Arc;
 
 use crate::dates::GenerateUtils;
@@ -253,28 +254,28 @@ impl Iterator for RegionGeneratorIterator {
 
 /// The PART table
 #[derive(Debug, Clone, PartialEq)]
-pub struct Part {
+pub struct Part<'a> {
     /// Primary key
     pub p_partkey: i64,
     /// Part name
-    pub p_name: String,
+    pub p_name: &'a str,
     /// Part manufacturer
-    pub p_mfgr: String,
+    pub p_mfgr: &'a str,
     /// Part brand
-    pub p_brand: String,
+    pub p_brand: &'a str,
     /// Part type
-    pub p_type: String,
+    pub p_type: &'a str,
     /// Part size
     pub p_size: i32,
     /// Part container
-    pub p_container: String,
+    pub p_container: &'a str,
     /// Part retail price
     pub p_retailprice: f64,
     /// Variable length comment
-    pub p_comment: String,
+    pub p_comment: &'a str,
 }
 
-impl fmt::Display for Part {
+impl<'a> fmt::Display for Part<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -363,15 +364,6 @@ impl PartGenerator {
     }
 }
 
-impl IntoIterator for PartGenerator {
-    type Item = Part;
-    type IntoIter = PartGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Part rows
 pub struct PartGeneratorIterator {
     name_random: RandomStringSequence,
@@ -385,6 +377,13 @@ pub struct PartGeneratorIterator {
     start_index: i64,
     row_count: i64,
     index: i64,
+
+    // Buffer to store mfgr and brand
+    pub mfgr_buffer: String,
+    pub brand_buffer: String,
+
+    // Flag to indicate if the order should be advanced on next iterator
+    row_finished: bool,
 }
 
 impl PartGeneratorIterator {
@@ -436,26 +435,38 @@ impl PartGeneratorIterator {
             start_index,
             row_count,
             index: 0,
+            mfgr_buffer: String::from("Manufacturer#"),
+            brand_buffer: String::from("Brand#"),
+            row_finished: false,
         }
     }
 
     /// Creates a part with the given key
     fn make_part(&mut self, part_key: i64) -> Part {
-        let name = self.name_random.next_value();
+        let name = self.name_random.next_str();
 
         let manufacturer = self.manufacturer_random.next_value();
         let brand = manufacturer * 10 + self.brand_random.next_value();
 
+        // print a string like "Manufacturer#1"
+        // buffer already has "Manufacturer#" in it
+        self.mfgr_buffer.truncate("Manufacturer#".len());
+        write!(&mut self.mfgr_buffer, "{}", manufacturer).unwrap();
+        // print a string like "Brand#1"
+        // buffer already has "Brand#" in it
+        self.brand_buffer.truncate("Brand#".len());
+        write!(&mut self.brand_buffer, "{}", brand).unwrap();
+
         Part {
             p_partkey: part_key,
             p_name: name,
-            p_mfgr: format!("Manufacturer#{}", manufacturer),
-            p_brand: format!("Brand#{}", brand),
-            p_type: self.type_random.next_value(),
+            p_mfgr: &self.mfgr_buffer,
+            p_brand: &self.brand_buffer,
+            p_type: self.type_random.next_str(),
             p_size: self.size_random.next_value(),
-            p_container: self.container_random.next_value(),
+            p_container: self.container_random.next_str(),
             p_retailprice: Self::calculate_part_price(part_key) as f64 / 100.0,
-            p_comment: self.comment_random.next_value(),
+            p_comment: self.comment_random.next_str(),
         }
     }
 
@@ -469,27 +480,26 @@ impl PartGeneratorIterator {
 
         price
     }
-}
 
-impl Iterator for PartGeneratorIterator {
-    type Item = Part;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn make_next_part(&mut self) -> Option<Part> {
         if self.index >= self.row_count {
             return None;
         }
 
+        if self.row_finished {
+            self.name_random.row_finished();
+            self.manufacturer_random.row_finished();
+            self.brand_random.row_finished();
+            self.type_random.row_finished();
+            self.size_random.row_finished();
+            self.container_random.row_finished();
+            self.comment_random.row_finished();
+
+            self.index += 1;
+        }
+
+        self.row_finished = true;
         let part = self.make_part(self.start_index + self.index + 1);
-
-        self.name_random.row_finished();
-        self.manufacturer_random.row_finished();
-        self.brand_random.row_finished();
-        self.type_random.row_finished();
-        self.size_random.row_finished();
-        self.container_random.row_finished();
-        self.comment_random.row_finished();
-
-        self.index += 1;
 
         Some(part)
     }

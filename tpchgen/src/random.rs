@@ -446,6 +446,8 @@ pub struct RandomStringSequence {
     inner: RowRandomInt,
     count: i32,
     distribution: Distribution,
+    /// buffer that stores the strings
+    buffer: String,
 }
 
 impl RandomStringSequence {
@@ -463,17 +465,19 @@ impl RandomStringSequence {
             inner: RowRandomInt::new(seed, distribution.size() as i32 * seeds_per_row),
             count,
             distribution: distribution.clone(),
+            buffer: String::new(),
         }
     }
 
+    /// TODO remove and always return a &str
     pub fn next_value(&mut self) -> String {
+        self.next_str().to_string()
+    }
+
+    /// return the next value as a &str
+    pub fn next_str(&mut self) -> &str {
         // Get all values from the distribution
-        let mut values: Vec<String> = self
-            .distribution
-            .get_values()
-            .iter()
-            .map(|v| v.to_string())
-            .collect();
+        let mut values: Vec<_> = self.distribution.get_values().iter().collect();
 
         // Randomize first 'count' elements
         for current_position in 0..self.count {
@@ -487,7 +491,16 @@ impl RandomStringSequence {
         }
 
         // Join the first 'count' values with spaces
-        values[0..self.count as usize].join(" ")
+        self.buffer.clear(); // reuse buffer
+        if self.count == 0 {
+            return &self.buffer;
+        }
+        self.buffer.push_str(values[0]);
+        for v in &values[1..self.count as usize] {
+            self.buffer.push(' ');
+            self.buffer.push_str(v);
+        }
+        &self.buffer
     }
 
     /// Advance the inner random number generator by the given number of rows.
