@@ -440,7 +440,7 @@ impl RandomString {
 pub struct RandomStringSequence {
     inner: RowRandomInt,
     count: i32,
-    distribution: Distribution,
+    values: Vec<String>,
 }
 
 impl RandomStringSequence {
@@ -457,32 +457,38 @@ impl RandomStringSequence {
         Self {
             inner: RowRandomInt::new(seed, distribution.size() as i32 * seeds_per_row),
             count,
-            distribution: distribution.clone(),
+            values: distribution
+                .get_values()
+                .iter()
+                .map(|v| v.to_string())
+                .collect(),
         }
     }
-
     pub fn next_value(&mut self) -> String {
-        // Get all values from the distribution
-        let mut values: Vec<String> = self
-            .distribution
-            .get_values()
-            .iter()
-            .map(|v| v.to_string())
-            .collect();
+        // Create a temporary index array for swapping
+        let mut indices: Vec<usize> = (0..self.values.len()).collect();
 
-        // Randomize first 'count' elements
-        for current_position in 0..self.count {
-            // Pick a random position to swap with
-            let swap_position =
-                self.inner
-                    .next_int(current_position, values.len() as i32 - 1) as usize;
+        // Perform the swaps on indices array only
+        for current_position in 0..self.count as usize {
+            let swap_position = self
+                .inner
+                .next_int(current_position as i32, indices.len() as i32 - 1)
+                as usize;
 
-            // Swap the elements
-            values.swap(current_position as usize, swap_position);
+            // Swap indices, not actual values
+            indices.swap(current_position, swap_position);
         }
 
-        // Join the first 'count' values with spaces
-        values[0..self.count as usize].join(" ")
+        // Use the shuffled indices to select from original values
+        let mut result = String::with_capacity(self.count as usize);
+        for i in 0..self.count as usize {
+            if i > 0 {
+                result.push_str(" ");
+            }
+            result.push_str(&self.values[indices[i]]);
+        }
+
+        result
     }
 
     /// Advance the inner random number generator by the given number of rows.

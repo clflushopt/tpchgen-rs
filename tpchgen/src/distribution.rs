@@ -496,6 +496,5 @@ mod tests {
                 name
             );
         }
-        println!("{:#?}", distributions);
     }
 }

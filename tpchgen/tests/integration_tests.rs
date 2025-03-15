@@ -33,7 +33,7 @@ fn test_generator<T, G, F>(
     dir.push(reference_path);
 
     // Read reference data.
-    let mut reference_data = read_tbl_gz(dir);
+    let reference_data = read_tbl_gz(dir);
 
     // Generate data using our own generators.
     let generator = generator_fn(scale_factor);
