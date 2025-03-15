@@ -121,8 +121,8 @@ fn generate_nation(cli: &Cli) -> io::Result<()> {
     let filename = "nation.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = NationGenerator::new();
-    for nation in generator.iter() {
+    let mut iter = NationGenerator::new().iter();
+    while let Some(nation) = iter.make_next_nation() {
         writeln!(
             writer,
             "{}|{}|{}|{}",
