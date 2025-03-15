@@ -9,7 +9,7 @@ use tpchgen::generators::{
     PartSupplierGenerator, RegionGenerator, SupplierGenerator,
 };
 
-fn read_csv_gz<P: AsRef<Path>>(path: P) -> Vec<String> {
+fn read_tbl_gz<P: AsRef<Path>>(path: P) -> Vec<String> {
     let file = File::open(path).expect("Failed to open file");
     let gz = GzDecoder::new(file);
     let reader = BufReader::new(gz);
@@ -33,14 +33,11 @@ fn test_generator<T, G, F>(
     dir.push(reference_path);
 
     // Read reference data.
-    let mut reference_data = read_csv_gz(dir);
+    let mut reference_data = read_tbl_gz(dir);
 
     // Generate data using our own generators.
     let generator = generator_fn(scale_factor);
     let generated_data: Vec<String> = generator.map(transform_fn).collect();
-
-    // Drop the header since the original files won't have them.
-    reference_data.drain(0..1);
 
     // Compare that we have the same number of records.
     assert_eq!(
@@ -66,11 +63,11 @@ fn test_generator<T, G, F>(
 fn test_nation_sf_0_001() {
     test_generator(
         |_| NationGenerator::new().iter(),
-        "data/csv/sf-0.001/nation.csv.gz",
+        "data/sf-0.001/nation.tbl.gz",
         0.001,
         |nation| {
             format!(
-                "{},{},{},{}",
+                "{}|{}|{}|{}|",
                 nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
             )
         },
@@ -81,11 +78,11 @@ fn test_nation_sf_0_001() {
 fn test_region_sf_0_001() {
     test_generator(
         |_| RegionGenerator::new().iter(),
-        "data/csv/sf-0.001/region.csv.gz",
+        "data/sf-0.001/region.tbl.gz",
         0.001,
         |region| {
             format!(
-                "{},{},{}",
+                "{}|{}|{}|",
                 region.r_regionkey, region.r_name, region.r_comment
             )
         },
@@ -96,11 +93,11 @@ fn test_region_sf_0_001() {
 fn test_part_sf_0_001() {
     test_generator(
         |sf| PartGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.001/part.csv.gz",
+        "data/sf-0.001/part.tbl.gz",
         0.001,
         |part| {
             format!(
-                "{},{},{},{},{},{},{},{:.2},{}",
+                "{}|{}|{}|{}|{}|{}|{}|{:.2}|{}|",
                 part.p_partkey,
                 part.p_name,
                 part.p_mfgr,
@@ -119,11 +116,11 @@ fn test_part_sf_0_001() {
 fn test_supplier_sf_0_001() {
     test_generator(
         |sf| SupplierGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.001/supplier.csv.gz",
+        "data/sf-0.001/supplier.tbl.gz",
         0.001,
         |supplier| {
             format!(
-                "{},{},{},{},{},{:.2},{}",
+                "{}|{}|{}|{}|{}|{:.2}|{}|",
                 supplier.s_suppkey,
                 supplier.s_name,
                 supplier.s_address,
@@ -140,11 +137,11 @@ fn test_supplier_sf_0_001() {
 fn test_partsupp_sf_0_001() {
     test_generator(
         |sf| PartSupplierGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.001/partsupp.csv.gz",
+        "data/sf-0.001/partsupp.tbl.gz",
         0.001,
         |ps| {
             format!(
-                "{},{},{},{:.2},{}",
+                "{}|{}|{}|{:.2}|{}|",
                 ps.ps_partkey, ps.ps_suppkey, ps.ps_availqty, ps.ps_supplycost, ps.ps_comment
             )
         },
@@ -155,11 +152,11 @@ fn test_partsupp_sf_0_001() {
 fn test_customer_sf_0_001() {
     test_generator(
         |sf| CustomerGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.001/customer.csv.gz",
+        "data/sf-0.001/customer.tbl.gz",
         0.001,
         |customer| {
             format!(
-                "{},{},{},{},{},{:.2},{},{}",
+                "{}|{}|{}|{}|{}|{:.2}|{}|{}|",
                 customer.c_custkey,
                 customer.c_name,
                 customer.c_address,
@@ -177,11 +174,11 @@ fn test_customer_sf_0_001() {
 fn test_orders_sf_0_001() {
     test_generator(
         |sf| OrderGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.001/orders.csv.gz",
+        "data/sf-0.001/orders.tbl.gz",
         0.001,
         |order| {
             format!(
-                "{},{},{},{:.2},{},{},{},{},{}",
+                "{}|{}|{}|{:.2}|{}|{}|{}|{}|{}|",
                 order.o_orderkey,
                 order.o_custkey,
                 order.o_orderstatus,
@@ -200,11 +197,11 @@ fn test_orders_sf_0_001() {
 fn test_lineitem_sf_0_001() {
     test_generator(
         |sf| LineItemGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.001/lineitem.csv.gz",
+        "data/sf-0.001/lineitem.tbl.gz",
         0.001,
         |item| {
             format!(
-                "{},{},{},{},{:.2},{:.2},{:.2},{:.2},{},{},{},{},{},{},{},{}",
+                "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
                 item.l_orderkey,
                 item.l_partkey,
                 item.l_suppkey,
@@ -230,11 +227,11 @@ fn test_lineitem_sf_0_001() {
 fn test_nation_sf_0_01() {
     test_generator(
         |_| NationGenerator::new().iter(),
-        "data/csv/sf-0.01/nation.csv.gz",
+        "data/sf-0.01/nation.tbl.gz",
         0.01,
         |nation| {
             format!(
-                "{},{},{},{}",
+                "{}|{}|{}|{}|",
                 nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
             )
         },
@@ -245,11 +242,11 @@ fn test_nation_sf_0_01() {
 fn test_region_sf_0_01() {
     test_generator(
         |_| RegionGenerator::new().iter(),
-        "data/csv/sf-0.01/region.csv.gz",
+        "data/sf-0.01/region.tbl.gz",
         0.01,
         |region| {
             format!(
-                "{},{},{}",
+                "{}|{}|{}|",
                 region.r_regionkey, region.r_name, region.r_comment
             )
         },
@@ -260,11 +257,11 @@ fn test_region_sf_0_01() {
 fn test_part_sf_0_01() {
     test_generator(
         |sf| PartGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.01/part.csv.gz",
+        "data/sf-0.01/part.tbl.gz",
         0.01,
         |part| {
             format!(
-                "{},{},{},{},{},{},{},{:.2},{}",
+                "{}|{}|{}|{}|{}|{}|{}|{:.2}|{}|",
                 part.p_partkey,
                 part.p_name,
                 part.p_mfgr,
@@ -283,11 +280,11 @@ fn test_part_sf_0_01() {
 fn test_supplier_sf_0_01() {
     test_generator(
         |sf| SupplierGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.01/supplier.csv.gz",
+        "data/sf-0.01/supplier.tbl.gz",
         0.01,
         |supplier| {
             format!(
-                "{},{},{},{},{},{:.2},{}",
+                "{}|{}|{}|{}|{}|{:.2}|{}|",
                 supplier.s_suppkey,
                 supplier.s_name,
                 supplier.s_address,
@@ -304,11 +301,11 @@ fn test_supplier_sf_0_01() {
 fn test_partsupp_sf_0_01() {
     test_generator(
         |sf| PartSupplierGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.01/partsupp.csv.gz",
+        "data/sf-0.01/partsupp.tbl.gz",
         0.01,
         |ps| {
             format!(
-                "{},{},{},{:.2},{}",
+                "{}|{}|{}|{:.2}|{}|",
                 ps.ps_partkey, ps.ps_suppkey, ps.ps_availqty, ps.ps_supplycost, ps.ps_comment
             )
         },
@@ -319,11 +316,11 @@ fn test_partsupp_sf_0_01() {
 fn test_customer_sf_0_01() {
     test_generator(
         |sf| CustomerGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.01/customer.csv.gz",
+        "data/sf-0.01/customer.tbl.gz",
         0.01,
         |customer| {
             format!(
-                "{},{},{},{},{},{:.2},{},{}",
+                "{}|{}|{}|{}|{}|{:.2}|{}|{}|",
                 customer.c_custkey,
                 customer.c_name,
                 customer.c_address,
@@ -341,11 +338,11 @@ fn test_customer_sf_0_01() {
 fn test_orders_sf_0_01() {
     test_generator(
         |sf| OrderGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.01/orders.csv.gz",
+        "data/sf-0.01/orders.tbl.gz",
         0.01,
         |order| {
             format!(
-                "{},{},{},{:.2},{},{},{},{},{}",
+                "{}|{}|{}|{:.2}|{}|{}|{}|{}|{}|",
                 order.o_orderkey,
                 order.o_custkey,
                 order.o_orderstatus,
@@ -364,11 +361,11 @@ fn test_orders_sf_0_01() {
 fn test_lineitem_sf_0_01() {
     test_generator(
         |sf| LineItemGenerator::new(sf, 1, 1).iter(),
-        "data/csv/sf-0.01/lineitem.csv.gz",
+        "data/sf-0.01/lineitem.tbl.gz",
         0.01,
         |item| {
             format!(
-                "{},{},{},{},{},{:.2},{:.2},{:.2},{},{},{},{},{},{},{},{}",
+                "{}|{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
                 item.l_orderkey,
                 item.l_partkey,
                 item.l_suppkey,
