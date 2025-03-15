@@ -69,10 +69,10 @@ for SF in "${SCALE_FACTORS[@]}"; do
         # Compare files
         echo "Comparing ${TABLE}.tbl..."
         
-        if ! diff -q "${RUST_FILE}.sorted" "${C_FILE}.sorted" > /dev/null; then
+        if ! diff -q "${RUST_FILE}" "${C_FILE}" > /dev/null; then
             echo "ERROR: ${TABLE}.tbl files differ!"
             # Get a few sample differences
-            DIFF_SAMPLE=$(diff "${RUST_FILE}.sorted" "${C_FILE}.sorted" | head -n 10)
+            DIFF_SAMPLE=$(diff "${RUST_FILE}" "${C_FILE}" | head -n 10)
             DIFF_COUNT=$((DIFF_COUNT + 1))
             DIFF_ERRORS="${DIFF_ERRORS}\nDifferences in ${TABLE}.tbl:\n${DIFF_SAMPLE}\n"
         else
