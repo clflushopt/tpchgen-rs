@@ -137,22 +137,22 @@ impl NationGeneratorIterator {
 
 /// The REGION table
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Region {
+pub struct Region<'a> {
     /// Primary key (0-4)
     pub r_regionkey: i64,
     /// Region name (AFRICA, AMERICA, ASIA, EUROPE, MIDDLE EAST)
-    pub r_name: String,
+    pub r_name: &'a str,
     /// Variable length comment
-    pub r_comment: String,
+    pub r_comment: &'a str,
 }
 
-impl Region {
+impl<'a> Region<'a> {
     /// Creates a new `region` record with the specified values.
-    pub fn new(r_regionkey: i64, r_name: &str, r_comment: &str) -> Self {
+    pub fn new(r_regionkey: i64, r_name: &'a str, r_comment: &'a str) -> Self {
         Region {
             r_regionkey,
-            r_name: r_name.to_string(),
-            r_comment: r_comment.to_string(),
+            r_name,
+            r_comment,
         }
     }
 }
@@ -192,20 +192,12 @@ impl RegionGenerator {
     }
 }
 
-impl IntoIterator for RegionGenerator {
-    type Item = Region;
-    type IntoIter = RegionGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
 /// Iterator that generates Region rows
 pub struct RegionGeneratorIterator {
     regions: Distribution,
     comment_random: RandomText,
     index: usize,
+    row_finished: bool,
 }
 
 impl RegionGeneratorIterator {
@@ -220,26 +212,26 @@ impl RegionGeneratorIterator {
                 Self::COMMENT_AVERAGE_LENGTH as f64,
             ),
             index: 0,
+            row_finished: false,
         }
     }
-}
 
-impl Iterator for RegionGeneratorIterator {
-    type Item = Region;
+    pub fn make_next_region(&mut self) -> Option<Region<'_>> {
+        if self.row_finished {
+            self.comment_random.row_finished();
+            self.index += 1;
+        }
+        self.row_finished = true;
 
-    fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.regions.size() {
             return None;
         }
 
         let region = Region {
             r_regionkey: self.index as i64,
-            r_name: self.regions.get_value(self.index).to_string(),
-            r_comment: self.comment_random.next_value(),
+            r_name: self.regions.get_value(self.index),
+            r_comment: self.comment_random.next_str(),
         };
-
-        self.comment_random.row_finished();
-        self.index += 1;
 
         Some(region)
     }

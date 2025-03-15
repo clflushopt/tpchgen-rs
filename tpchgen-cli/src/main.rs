@@ -137,8 +137,8 @@ fn generate_region(cli: &Cli) -> io::Result<()> {
     let filename = "region.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = RegionGenerator::new();
-    for region in generator.iter() {
+    let mut iter = RegionGenerator::new().iter();
+    while let Some(region) = iter.make_next_region() {
         writeln!(
             writer,
             "{}|{}|{}",
