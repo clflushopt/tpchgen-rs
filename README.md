@@ -1,18 +1,27 @@
 # tpchgen-rs
 
-TPC-H benchmark data generator in pure Rust !
+[![Apache licensed][license-badge]][license-url]
+[![Build Status][actions-badge]][actions-url]
+
+[license-badge]: https://img.shields.io/badge/license-Apache%20v2-blue.svg
+[license-url]: https://github.com/clflushopt/tpchgen-rs/blob/main/LICENSE
+[actions-badge]: https://github.com/clflushopt/tpchgen-rs/actions/workflows/rust.yml/badge.svg
+[actions-url]: https://github.com/clflushopt/tpchgen-rs/actions?query=branch%3Amain
+
+Blazing fast TPCH benchmark data generator in pure Rust !
 
 ## Usage
 
-`tpchgen-rs` is a CLI tool that generates the TPC-H benchmark dataset in CSV and Parquet formats.
+`tpchgen-cli` is a [`dbgen`](https://github.com/databricks/tpch-dbgen) compatible CLI tool
+that generates tables from the TPCH benchmark dataset.
 
-`tpchgen` is the library that implements the data generation logic for TPC-H
-it can be used to extend or embed data generation logic.
+`tpchgen` is the library that implements the data generation logic for TPCH and it can be
+used to embed data generation logic natively in Rust.
 
 ## Contributing
 
 Pull requests are welcome. For major changes, please open an issue first for
-discussion.
+discussion. See our [contributors guide](CONTRIBUTING.md) for more details.
 
 ## License
 
