@@ -62,22 +62,14 @@ impl TextPool {
         self.size
     }
 
-    /// Returns a chunk of text from the pool.
-    pub fn text(&self, begin: i32, end: i32) -> String {
-        assert!(begin >= 0, "Begin index must be greater than or equal to 0");
-        assert!(
-            end <= self.size,
-            "End index must be less than the pool size"
-        );
-        assert!(begin < end, "Begin index must be less than the end index");
-
-        let mut result = Vec::with_capacity((end - begin) as usize);
-        for i in begin..end {
-            result.push(self.text[i as usize]);
-        }
-
-        // This is fine I guess.
-        String::from_utf8(result).unwrap()
+    /// Returns a chunk of text from the pool
+    ///
+    /// Returns the text from the pool between the given begin and end indices.
+    pub fn text(&self, begin: i32, end: i32) -> &str {
+        // get slice of bytes (note this also does bounds checks)
+        let result: &[u8] = &self.text[begin as usize..end as usize];
+        // Safety: text pool contains only ASCII
+        unsafe { std::str::from_utf8_unchecked(result) }
     }
 
     fn generate_sentence(

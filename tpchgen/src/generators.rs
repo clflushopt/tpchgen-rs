@@ -131,7 +131,7 @@ impl Iterator for NationGeneratorIterator {
             // n_regionkey
             n_regionkey: self.nations.get_weight(self.index) as i64,
             // n_comment
-            n_comment: self.comment_random.next_value(),
+            n_comment: self.comment_random.next_value().to_string(),
         };
 
         self.comment_random.row_finished();
@@ -241,7 +241,7 @@ impl Iterator for RegionGeneratorIterator {
         let region = Region {
             r_regionkey: self.index as i64,
             r_name: self.regions.get_value(self.index).to_string(),
-            r_comment: self.comment_random.next_value(),
+            r_comment: self.comment_random.next_value().to_string(),
         };
 
         self.comment_random.row_finished();
@@ -448,14 +448,14 @@ impl PartGeneratorIterator {
 
         Part {
             p_partkey: part_key,
-            p_name: name,
+            p_name: name.to_string(),
             p_mfgr: format!("Manufacturer#{}", manufacturer),
             p_brand: format!("Brand#{}", brand),
-            p_type: self.type_random.next_value(),
+            p_type: self.type_random.next_value().to_string(),
             p_size: self.size_random.next_value(),
-            p_container: self.container_random.next_value(),
+            p_container: self.container_random.next_value().to_string(),
             p_retailprice: Self::calculate_part_price(part_key) as f64 / 100.0,
-            p_comment: self.comment_random.next_value(),
+            p_comment: self.comment_random.next_value().to_string(),
         }
     }
 
@@ -690,7 +690,7 @@ impl SupplierGeneratorIterator {
 
     /// Creates a supplier with the given key
     fn make_supplier(&mut self, supplier_key: i64) -> Supplier {
-        let mut comment = self.comment_random.next_value();
+        let mut comment = self.comment_random.next_value().to_string();
 
         // Add supplier complaints or commendation to the comment
         let bbb_comment_random_value = self.bbb_comment_random.next_value();
@@ -737,9 +737,9 @@ impl SupplierGeneratorIterator {
         Supplier {
             s_suppkey: supplier_key,
             s_name: format!("Supplier#{:09}", supplier_key),
-            s_address: self.address_random.next_value(),
+            s_address: self.address_random.next_value().to_string(),
             s_nationkey: nation_key,
-            s_phone: self.phone_random.next_value(nation_key),
+            s_phone: self.phone_random.next_value(nation_key).to_string(),
             s_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
             s_comment: comment,
         }
@@ -954,12 +954,12 @@ impl CustomerGeneratorIterator {
         Customer {
             c_custkey: customer_key,
             c_name: format!("Customer#{:09}", customer_key),
-            c_address: self.address_random.next_value(),
+            c_address: self.address_random.next_value().to_string(),
             c_nationkey: nation_key,
-            c_phone: self.phone_random.next_value(nation_key),
+            c_phone: self.phone_random.next_value(nation_key).to_string(),
             c_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
-            c_mktsegment: self.market_segment_random.next_value(),
-            c_comment: self.comment_random.next_value(),
+            c_mktsegment: self.market_segment_random.next_value().to_string(),
+            c_comment: self.comment_random.next_value().to_string(),
         }
     }
 }
@@ -1148,7 +1148,7 @@ impl PartSupplierGeneratorIterator {
             ps_suppkey: supplier_key,
             ps_availqty: self.available_quantity_random.next_value(),
             ps_supplycost: self.supply_cost_random.next_value() as f64 / 100.0,
-            ps_comment: self.comment_random.next_value(),
+            ps_comment: self.comment_random.next_value().to_string(),
         }
     }
 
@@ -1484,10 +1484,10 @@ impl OrderGeneratorIterator {
             o_orderstatus: order_status,
             o_totalprice: total_price as f64 / 100.,
             o_orderdate: dates::DateUtils::to_epoch_date(order_date).to_string(),
-            o_orderpriority: self.order_priority_random.next_value(),
+            o_orderpriority: self.order_priority_random.next_value().to_string(),
             o_clerk: format!("Clerk#{:09}", self.clerk_random.next_value()),
             o_shippriority: 0, // Fixed value per TPC-H spec
-            o_comment: self.comment_random.next_value(),
+            o_comment: self.comment_random.next_value().to_string(),
         }
     }
 }
@@ -1897,7 +1897,7 @@ impl LineItemGeneratorIterator {
         receipt_date += ship_date;
 
         let returned_flag = if dates::DateUtils::is_in_past(receipt_date) {
-            self.returned_flag_random.next_value()
+            self.returned_flag_random.next_value().to_string()
         } else {
             "N".to_string()
         };
@@ -1926,9 +1926,9 @@ impl LineItemGeneratorIterator {
             l_shipdate: dates::DateUtils::to_epoch_date(ship_date).to_string(),
             l_commitdate: dates::DateUtils::to_epoch_date(commit_date).to_string(),
             l_receiptdate: dates::DateUtils::to_epoch_date(receipt_date).to_string(),
-            l_shipinstruct: ship_instructions,
-            l_shipmode: ship_mode,
-            l_comment: comment,
+            l_shipinstruct: ship_instructions.to_string(),
+            l_shipmode: ship_mode.to_string(),
+            l_comment: comment.to_string(),
         }
     }
 }
