@@ -464,7 +464,7 @@ impl RandomString {
 pub struct RandomStringSequence {
     inner: RowRandomInt,
     count: i32,
-    values: Vec<String>,
+    distribution: Distribution,
 }
 
 impl RandomStringSequence {
@@ -481,11 +481,7 @@ impl RandomStringSequence {
         Self {
             inner: RowRandomInt::new(seed, distribution.size() as i32 * seeds_per_row),
             count,
-            values: distribution
-                .get_values()
-                .iter()
-                .map(|v| v.to_string())
-                .collect(),
+            distribution: distribution.clone(),
         }
     }
 
