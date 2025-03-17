@@ -1,6 +1,7 @@
 //! Implementation of the core random number generators.
 
 use crate::{distribution::Distribution, text::TextPool};
+use std::fmt::Display;
 
 #[derive(Default, Debug, Clone, Copy)]
 pub struct RowRandomInt {
@@ -299,6 +300,7 @@ pub struct RandomAlphaNumeric {
     inner: RowRandomInt,
     min_length: i32,
     max_length: i32,
+    buffer: Vec<u8>,
 }
 
 impl RandomAlphaNumeric {
@@ -325,12 +327,13 @@ impl RandomAlphaNumeric {
             inner: RowRandomInt::new(seed, Self::USAGE_PER_ROW * seeds_per_row),
             min_length,
             max_length,
+            buffer: Vec::new(),
         }
     }
 
-    pub fn next_value(&mut self) -> String {
+    pub fn next_value(&mut self) -> &str {
         let length = self.inner.next_int(self.min_length, self.max_length) as usize;
-        let mut buffer = vec![0u8; length];
+        self.buffer.resize(length, 0);
 
         let mut char_index = 0;
         for i in 0..length {
@@ -339,12 +342,12 @@ impl RandomAlphaNumeric {
             }
 
             let char_pos = (char_index & 0x3f) as usize;
-            buffer[i] = Self::ALPHA_NUMERIC[char_pos];
+            self.buffer[i] = Self::ALPHA_NUMERIC[char_pos];
             char_index >>= 6;
         }
 
-        // This is safe because ALPHA_NUMERIC contains only valid ASCII
-        String::from_utf8(buffer).unwrap()
+        // SAFETY: ALPHA_NUMERIC contains only valid ASCII characters
+        unsafe { std::str::from_utf8_unchecked(&self.buffer) }
     }
 
     /// Advance the inner random number generator by the specified number of rows.
@@ -377,16 +380,13 @@ impl RandomPhoneNumber {
         }
     }
 
-    pub fn next_value(&mut self, nation_key: i64) -> String {
-        let country_code = 10 + (nation_key % Self::NATIONS_MAX as i64);
-        let local1 = self.inner.next_int(100, 999);
-        let local2 = self.inner.next_int(100, 999);
-        let local3 = self.inner.next_int(1000, 9999);
-
-        format!(
-            "{:02}-{:03}-{:03}-{:04}",
-            country_code, local1, local2, local3
-        )
+    pub fn next_value(&mut self, nation_key: i64) -> PhoneNumberInstance {
+        PhoneNumberInstance {
+            country_code: 10 + (nation_key % Self::NATIONS_MAX as i64) as i32,
+            local1: self.inner.next_int(100, 999),
+            local2: self.inner.next_int(100, 999),
+            local3: self.inner.next_int(1000, 9999),
+        }
     }
 
     /// Advance the inner random number generator by the specified number of rows.
@@ -396,6 +396,30 @@ impl RandomPhoneNumber {
 
     pub fn row_finished(&mut self) {
         self.inner.row_finished();
+    }
+}
+
+/// A displayable phone number
+///
+/// Example display:
+/// ```text
+/// 27-918-335-1736
+/// ```
+#[derive(Default, Debug, Clone, Copy)]
+pub struct PhoneNumberInstance {
+    country_code: i32,
+    local1: i32,
+    local2: i32,
+    local3: i32,
+}
+
+impl Display for PhoneNumberInstance {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{:02}-{:03}-{:03}-{:04}",
+            self.country_code, self.local1, self.local2, self.local3
+        )
     }
 }
 
@@ -422,8 +446,8 @@ impl RandomString {
         }
     }
 
-    pub fn next_value(&mut self) -> String {
-        self.distribution.random_value(&mut self.inner).to_string()
+    pub fn next_value(&mut self) -> &str {
+        self.distribution.random_value(&mut self.inner)
     }
 
     /// Advance the inner random number generator by the given number of rows.
@@ -464,31 +488,30 @@ impl RandomStringSequence {
                 .collect(),
         }
     }
-    pub fn next_value(&mut self) -> String {
-        // Create a temporary index array for swapping
-        let mut indices: Vec<usize> = (0..self.values.len()).collect();
 
-        // Perform the swaps on indices array only
-        for current_position in 0..self.count as usize {
-            let swap_position = self
-                .inner
-                .next_int(current_position as i32, indices.len() as i32 - 1)
-                as usize;
+    pub fn next_value(&mut self) -> StringSequenceInstance<'_> {
+        // Get all values from the distribution
+        let mut values: Vec<&str> = self
+            .distribution
+            .get_values()
+            .iter()
+            .map(|s| s.as_str())
+            .collect();
 
-            // Swap indices, not actual values
-            indices.swap(current_position, swap_position);
+        // Randomize first 'count' elements
+        for current_position in 0..self.count {
+            // Pick a random position to swap with
+            let swap_position =
+                self.inner
+                    .next_int(current_position, values.len() as i32 - 1) as usize;
+
+            // Swap the elements
+            values.swap(current_position as usize, swap_position);
         }
 
-        // Use the shuffled indices to select from original values
-        let mut result = String::with_capacity(self.count as usize);
-        for i in 0..self.count as usize {
-            if i > 0 {
-                result.push_str(" ");
-            }
-            result.push_str(&self.values[indices[i]]);
-        }
-
-        result
+        // Keep only the first 'count' values, and join them with spaces
+        values.truncate(self.count as usize);
+        StringSequenceInstance { values }
     }
 
     /// Advance the inner random number generator by the given number of rows.
@@ -498,6 +521,32 @@ impl RandomStringSequence {
 
     pub fn row_finished(&mut self) {
         self.inner.row_finished();
+    }
+}
+
+/// Displayable string sequence instance
+///
+/// Prints the sequence of strings as a single string with spaces between them.
+///
+/// Example display:
+/// ```text
+/// "value1 value2 value3"
+/// ```
+#[derive(Default, Debug, Clone)]
+pub struct StringSequenceInstance<'a> {
+    values: Vec<&'a str>,
+}
+
+impl<'a> Display for StringSequenceInstance<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut iter = self.values.iter();
+        if let Some(first) = iter.next() {
+            write!(f, "{}", first)?;
+        }
+        for value in iter {
+            write!(f, " {}", value)?;
+        }
+        Ok(())
     }
 }
 
@@ -532,13 +581,13 @@ impl RandomText {
         }
     }
 
-    pub fn next_value(&mut self) -> String {
+    pub fn next_value(&mut self) -> &str {
         let offset = self
             .inner
             .next_int(0, self.text_pool.size() - self.max_length);
-        let lenght = self.inner.next_int(self.min_length, self.max_length);
+        let length = self.inner.next_int(self.min_length, self.max_length);
 
-        self.text_pool.text(offset, offset + lenght)
+        self.text_pool.text(offset, offset + length)
     }
 
     pub fn advance_rows(&mut self, row_count: i64) {
