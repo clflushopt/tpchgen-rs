@@ -1,12 +1,14 @@
 //! Consistence and conformance test suite that runs against Trino's TPCH
 //! Java implementation.
+
 use flate2::read::GzDecoder;
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use tpchgen::generators::{
-    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
-    PartSupplierGenerator, RegionGenerator, SupplierGenerator,
+    CustomerGenerator, LineItem, LineItemGenerator, LineItemGeneratorIterator, NationGenerator,
+    OrderGenerator, PartGenerator, PartSupplierGenerator, RegionGenerator, SupplierGenerator,
 };
 
 fn read_tbl_gz<P: AsRef<Path>>(path: P) -> Vec<String> {
@@ -56,6 +58,47 @@ fn test_generator<T, G, F>(
             "Record {} doesn't match for {}.\nReference: {}\nGenerated: {}",
             i, reference_path, reference, generated
         );
+    }
+}
+
+/// LineItem table stored as strings
+struct LineItems {
+    items: VecDeque<String>,
+}
+
+impl LineItems {
+    fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
+        let mut iter = LineItemGenerator::new(scale_factor, part, part_count).build();
+        let mut items = VecDeque::new();
+        while let Some(item) = iter.next_line_item() {
+            items.push_back(format!(
+                "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
+                item.l_orderkey,
+                item.l_partkey,
+                item.l_suppkey,
+                item.l_linenumber,
+                item.l_quantity,
+                item.l_extendedprice,
+                item.l_discount,
+                item.l_tax,
+                item.l_returnflag,
+                item.l_linestatus,
+                item.l_shipdate,
+                item.l_commitdate,
+                item.l_receiptdate,
+                item.l_shipinstruct,
+                item.l_shipmode,
+                item.l_comment
+            ));
+        }
+        Self { items }
+    }
+}
+impl Iterator for LineItems {
+    type Item = String;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.items.pop_front()
     }
 }
 
@@ -196,30 +239,10 @@ fn test_orders_sf_0_001() {
 #[test]
 fn test_lineitem_sf_0_001() {
     test_generator(
-        |sf| LineItemGenerator::new(sf, 1, 1).iter(),
+        |sf| LineItems::new(sf, 1, 1),
         "data/sf-0.001/lineitem.tbl.gz",
         0.001,
-        |item| {
-            format!(
-                "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
-                item.l_orderkey,
-                item.l_partkey,
-                item.l_suppkey,
-                item.l_linenumber,
-                item.l_quantity,
-                item.l_extendedprice,
-                item.l_discount,
-                item.l_tax,
-                item.l_returnflag,
-                item.l_linestatus,
-                item.l_shipdate,
-                item.l_commitdate,
-                item.l_receiptdate,
-                item.l_shipinstruct,
-                item.l_shipmode,
-                item.l_comment
-            )
-        },
+        |item| item,
     );
 }
 
@@ -360,29 +383,9 @@ fn test_orders_sf_0_01() {
 #[test]
 fn test_lineitem_sf_0_01() {
     test_generator(
-        |sf| LineItemGenerator::new(sf, 1, 1).iter(),
+        |sf| LineItems::new(sf, 1, 1),
         "data/sf-0.01/lineitem.tbl.gz",
         0.01,
-        |item| {
-            format!(
-                "{}|{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
-                item.l_orderkey,
-                item.l_partkey,
-                item.l_suppkey,
-                item.l_linenumber,
-                item.l_quantity,
-                item.l_extendedprice,
-                item.l_discount,
-                item.l_tax,
-                item.l_returnflag,
-                item.l_linestatus,
-                item.l_shipdate,
-                item.l_commitdate,
-                item.l_receiptdate,
-                item.l_shipinstruct,
-                item.l_shipmode,
-                item.l_comment
-            )
-        },
+        |item| item,
     );
 }

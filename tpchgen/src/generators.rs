@@ -1544,7 +1544,7 @@ impl Iterator for OrderGeneratorIterator {
 
 /// The LINEITEM table
 #[derive(Debug, Clone, PartialEq)]
-pub struct LineItem {
+pub struct LineItem<'a> {
     /// Foreign key to ORDERS
     pub l_orderkey: i64,
     /// Foreign key to PART
@@ -1562,9 +1562,9 @@ pub struct LineItem {
     /// Tax percentage
     pub l_tax: f64,
     /// Return flag (R=returned, A=accepted, null=pending)
-    pub l_returnflag: String,
+    pub l_returnflag: &'a str,
     /// Line status (O=ordered, F=fulfilled)
-    pub l_linestatus: String,
+    pub l_linestatus: &'a str,
     /// Date shipped
     pub l_shipdate: TPCHDate,
     /// Date committed to ship
@@ -1572,14 +1572,14 @@ pub struct LineItem {
     /// Date received
     pub l_receiptdate: TPCHDate,
     /// Shipping instructions
-    pub l_shipinstruct: String,
+    pub l_shipinstruct: &'a str,
     /// Shipping mode
-    pub l_shipmode: String,
+    pub l_shipmode: &'a str,
     /// Variable length comment
-    pub l_comment: String,
+    pub l_comment: &'a str,
 }
 
-impl fmt::Display for LineItem {
+impl fmt::Display for LineItem<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1604,7 +1604,7 @@ impl fmt::Display for LineItem {
     }
 }
 
-/// Generator for LineItem table data
+/// Builder for [`LineItemGeneratorIterator`]
 pub struct LineItemGenerator {
     scale_factor: f64,
     part: i32,
@@ -1662,8 +1662,8 @@ impl LineItemGenerator {
         }
     }
 
-    /// Returns an iterator over the line item rows
-    pub fn iter(&self) -> LineItemGeneratorIterator {
+    /// Returns an `LineItemGenerator`
+    pub fn build(&self) -> LineItemGeneratorIterator {
         LineItemGeneratorIterator::new(
             &self.distributions,
             self.text_pool.clone(),
@@ -1737,16 +1737,8 @@ impl LineItemGenerator {
     }
 }
 
-impl IntoIterator for LineItemGenerator {
-    type Item = LineItem;
-    type IntoIter = LineItemGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-/// Iterator that generates LineItem rows
+/// Generates [`LineItem`] rows
+#[derive(Debug, Clone)]
 pub struct LineItemGeneratorIterator {
     order_date_random: RandomBoundedInt,
     line_count_random: RandomBoundedInt,
@@ -1777,6 +1769,9 @@ pub struct LineItemGeneratorIterator {
     order_date: i32,
     line_count: i32,
     line_number: i32,
+
+    /// Should the internal state be advanced before next item?
+    advance: bool,
 }
 
 impl LineItemGeneratorIterator {
@@ -1887,6 +1882,7 @@ impl LineItemGeneratorIterator {
             order_date,
             line_count,
             line_number: 0,
+            advance: false,
         }
     }
 
@@ -1918,15 +1914,15 @@ impl LineItemGeneratorIterator {
         receipt_date += ship_date;
 
         let returned_flag = if TPCHDate::is_in_past(receipt_date) {
-            self.returned_flag_random.next_value().to_string()
+            self.returned_flag_random.next_value()
         } else {
-            "N".to_string()
+            "N"
         };
 
         let status = if TPCHDate::is_in_past(ship_date) {
-            "F".to_string() // Fulfilled
+            "F" // Fulfilled
         } else {
-            "O".to_string() // Open
+            "O" // Open
         };
 
         let ship_instructions = self.ship_instructions_random.next_value();
@@ -1947,61 +1943,62 @@ impl LineItemGeneratorIterator {
             l_shipdate: TPCHDate::new(ship_date),
             l_commitdate: TPCHDate::new(commit_date),
             l_receiptdate: TPCHDate::new(receipt_date),
-            l_shipinstruct: ship_instructions.to_string(),
-            l_shipmode: ship_mode.to_string(),
-            l_comment: comment.to_string(),
+            l_shipinstruct: ship_instructions,
+            l_shipmode: ship_mode,
+            l_comment: comment,
         }
     }
-}
 
-impl Iterator for LineItemGeneratorIterator {
-    type Item = LineItem;
+    /// Creates the next [`LineItem`], advancing the internal state as needed
+    pub fn next_line_item(&mut self) -> Option<LineItem> {
+        if self.advance {
+            self.line_number += 1;
 
-    fn next(&mut self) -> Option<Self::Item> {
+            // advance next row only when all lines for the order have been produced
+            if self.line_number > self.line_count {
+                self.order_date_random.row_finished();
+                self.line_count_random.row_finished();
+
+                self.quantity_random.row_finished();
+                self.discount_random.row_finished();
+                self.tax_random.row_finished();
+
+                self.line_part_key_random.row_finished();
+                self.supplier_number_random.row_finished();
+
+                self.ship_date_random.row_finished();
+                self.commit_date_random.row_finished();
+                self.receipt_date_random.row_finished();
+
+                self.returned_flag_random.row_finished();
+                self.ship_instructions_random.row_finished();
+                self.ship_mode_random.row_finished();
+
+                self.comment_random.row_finished();
+
+                self.index += 1;
+
+                // generate information for next order
+                self.line_count = self.line_count_random.next_value() - 1;
+                self.order_date = self.order_date_random.next_value();
+                self.line_number = 0;
+            }
+        }
+
+        self.advance = true; // advance after the first row
+
         if self.index >= self.row_count {
             return None;
         }
 
-        let line_item = self.make_line_item(self.start_index + self.index + 1);
-        self.line_number += 1;
-
-        // advance next row only when all lines for the order have been produced
-        if self.line_number > self.line_count {
-            self.order_date_random.row_finished();
-            self.line_count_random.row_finished();
-
-            self.quantity_random.row_finished();
-            self.discount_random.row_finished();
-            self.tax_random.row_finished();
-
-            self.line_part_key_random.row_finished();
-            self.supplier_number_random.row_finished();
-
-            self.ship_date_random.row_finished();
-            self.commit_date_random.row_finished();
-            self.receipt_date_random.row_finished();
-
-            self.returned_flag_random.row_finished();
-            self.ship_instructions_random.row_finished();
-            self.ship_mode_random.row_finished();
-
-            self.comment_random.row_finished();
-
-            self.index += 1;
-
-            // generate information for next order
-            self.line_count = self.line_count_random.next_value() - 1;
-            self.order_date = self.order_date_random.next_value();
-            self.line_number = 0;
-        }
-
-        Some(line_item)
+        Some(self.make_line_item(self.start_index + self.index + 1))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::collections::HashSet;
 
     #[test]
     fn test_nation_generator() {
@@ -2212,11 +2209,11 @@ mod tests {
     #[test]
     fn test_line_item_generation() {
         // Create a generator with a small scale factor
-        let generator = LineItemGenerator::new(0.01, 1, 1);
-        let line_items: Vec<_> = generator.iter().collect();
+        let mut generator = LineItemGenerator::new(0.01, 1, 1).build();
 
         // Check first line item
-        let first = &line_items[0];
+        let mut temp_generator = generator.clone(); // Clone to peek first item
+        let first = temp_generator.next_line_item().unwrap();
         assert_eq!(first.l_orderkey, OrderGenerator::make_order_key(1));
         assert_eq!(first.l_linenumber, 1);
         assert!(first.l_partkey > 0);
@@ -2231,16 +2228,28 @@ mod tests {
         assert!(first.l_tax >= LineItemGenerator::TAX_MIN as f64 / 100.0);
         assert!(first.l_tax <= LineItemGenerator::TAX_MAX as f64 / 100.0);
 
-        // Verify line numbers are sequential per order
+        // gather orders, return flags and line statuses
         let mut order_lines = std::collections::HashMap::new();
-        for line in &line_items {
+        let mut return_flags = HashSet::with_capacity(generator.row_count as usize);
+        let mut line_statuses = HashSet::with_capacity(generator.row_count as usize);
+        while let Some(line_item) = generator.next_line_item() {
             order_lines
-                .entry(line.l_orderkey)
+                .entry(line_item.l_orderkey)
                 .or_insert_with(Vec::new)
-                .push(line.l_linenumber);
+                .push(line_item.l_linenumber);
+
+            let l_return_flag = line_item.l_returnflag;
+            if !return_flags.contains(l_return_flag) {
+                return_flags.insert(l_return_flag.to_string());
+            }
+
+            let l_linestatus = line_item.l_linestatus;
+            if !line_statuses.contains(l_linestatus) {
+                line_statuses.insert(l_linestatus.to_string());
+            }
         }
 
-        // Check each order's line numbers
+        // Verify line numbers are sequential per order
         for (_, lines) in order_lines {
             let mut sorted_lines = lines.clone();
             sorted_lines.sort();
@@ -2252,14 +2261,7 @@ mod tests {
         }
 
         // Verify return flags and line status distributions
-        let return_flags: std::collections::HashSet<_> =
-            line_items.iter().map(|l| &l.l_returnflag).collect();
-
         assert!(return_flags.len() > 1);
-
-        let line_statuses: std::collections::HashSet<_> =
-            line_items.iter().map(|l| &l.l_linestatus).collect();
-
-        assert!(!line_statuses.is_empty());
+        assert!(line_statuses.len() > 1);
     }
 }

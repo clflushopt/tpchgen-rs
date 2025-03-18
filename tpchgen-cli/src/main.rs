@@ -248,8 +248,8 @@ fn generate_lineitem(cli: &Cli) -> io::Result<()> {
     let filename = "lineitem.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = LineItemGenerator::new(cli.scale_factor, cli.part, cli.parts);
-    for item in generator.iter() {
+    let mut generator = LineItemGenerator::new(cli.scale_factor, cli.part, cli.parts).build();
+    while let Some(item) = generator.next_line_item() {
         writeln!(
             writer,
             "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
