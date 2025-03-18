@@ -1884,6 +1884,8 @@ impl LineItemGenerator {
     }
 
     /// Creates a line item with the given order index
+    ///
+    /// Advances the internal state of all generators
     fn make_line_item(&mut self, order_index: i64) -> LineItem {
         let order_key = OrderGenerator::make_order_key(order_index);
 
@@ -1946,55 +1948,67 @@ impl LineItemGenerator {
         }
     }
 
-    fn next_line_item(&mut self) -> Option<LineItem> {
+    /// Creates the next `LineItem`
+    ///
+    /// Returns None when `self.row_count` rows have been generated
+    ///
+    /// Arguments:
+    /// * `advance`: should internal sate be advanced before returning
+    ///   the next `LineItem`?
+    fn next_line_item(&mut self, advance: bool) -> Option<LineItem> {
+        if advance {
+            self.line_number += 1;
+
+            // advance next row only when all lines for the order have been produced
+            if self.line_number > self.line_count {
+                self.order_date_random.row_finished();
+                self.line_count_random.row_finished();
+
+                self.quantity_random.row_finished();
+                self.discount_random.row_finished();
+                self.tax_random.row_finished();
+
+                self.line_part_key_random.row_finished();
+                self.supplier_number_random.row_finished();
+
+                self.ship_date_random.row_finished();
+                self.commit_date_random.row_finished();
+                self.receipt_date_random.row_finished();
+
+                self.returned_flag_random.row_finished();
+                self.ship_instructions_random.row_finished();
+                self.ship_mode_random.row_finished();
+
+                self.comment_random.row_finished();
+
+                self.index += 1;
+
+                // generate information for next order
+                self.line_count = self.line_count_random.next_value() - 1;
+                self.order_date = self.order_date_random.next_value();
+                self.line_number = 0;
+            }
+        }
+
         if self.index >= self.row_count {
             return None;
         }
 
-        let line_item = self.make_line_item(self.start_index + self.index + 1);
-        self.line_number += 1;
-
-        // advance next row only when all lines for the order have been produced
-        if self.line_number > self.line_count {
-            self.order_date_random.row_finished();
-            self.line_count_random.row_finished();
-
-            self.quantity_random.row_finished();
-            self.discount_random.row_finished();
-            self.tax_random.row_finished();
-
-            self.line_part_key_random.row_finished();
-            self.supplier_number_random.row_finished();
-
-            self.ship_date_random.row_finished();
-            self.commit_date_random.row_finished();
-            self.receipt_date_random.row_finished();
-
-            self.returned_flag_random.row_finished();
-            self.ship_instructions_random.row_finished();
-            self.ship_mode_random.row_finished();
-
-            self.comment_random.row_finished();
-
-            self.index += 1;
-
-            // generate information for next order
-            self.line_count = self.line_count_random.next_value() - 1;
-            self.order_date = self.order_date_random.next_value();
-            self.line_number = 0;
-        }
-
-        Some(line_item)
+        Some(self.make_line_item(self.start_index + self.index + 1))
     }
 
     /// return a new iterator foe generating LineItems
     pub fn iter(&mut self) -> LineItemIterator {
-        LineItemIterator { generator: self }
+        LineItemIterator {
+            advance: false,
+            generator: self
+        }
     }
 }
 
 /// Iterator for [`LineItemGenerator`]
 pub struct LineItemIterator<'a> {
+    advance: bool,
     generator: &'a mut LineItemGenerator,
 }
 
@@ -2002,7 +2016,9 @@ impl<'a> Iterator for LineItemIterator<'a> {
     type Item = LineItem;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.generator.next_line_item()
+        let advance = self.advance;
+        self.advance = true;
+        self.generator.next_line_item(advance)
     }
 }
 
