@@ -1269,8 +1269,8 @@ impl OrderGenerator {
     // Constants for order generation
     const CUSTOMER_MORTALITY: i32 = 3; // portion with no orders
     const ORDER_DATE_MIN: i32 = dates::MIN_GENERATE_DATE;
-    const ORDER_DATE_MAX: i32 =
-        Self::ORDER_DATE_MIN + (dates::TOTAL_DATE_RANGE - LineItemGenerator::ITEM_SHIP_DAYS - 1);
+    const ORDER_DATE_MAX: i32 = Self::ORDER_DATE_MIN
+        + (dates::TOTAL_DATE_RANGE - LineItemGeneratorBuilder::ITEM_SHIP_DAYS - 1);
     const CLERK_SCALE_BASE: i32 = 1000;
 
     const LINE_COUNT_MIN: i32 = 1;
@@ -1415,11 +1415,12 @@ impl OrderGeneratorIterator {
         );
 
         // For line item simulation
-        let mut line_quantity_random = LineItemGenerator::create_quantity_random();
-        let mut line_discount_random = LineItemGenerator::create_discount_random();
-        let mut line_tax_random = LineItemGenerator::create_tax_random();
-        let mut line_part_key_random = LineItemGenerator::create_part_key_random(scale_factor);
-        let mut line_ship_date_random = LineItemGenerator::create_ship_date_random();
+        let mut line_quantity_random = LineItemGeneratorBuilder::create_quantity_random();
+        let mut line_discount_random = LineItemGeneratorBuilder::create_discount_random();
+        let mut line_tax_random = LineItemGeneratorBuilder::create_tax_random();
+        let mut line_part_key_random =
+            LineItemGeneratorBuilder::create_part_key_random(scale_factor);
+        let mut line_ship_date_random = LineItemGeneratorBuilder::create_ship_date_random();
 
         // Advance all generators to the starting position
         order_date_random.advance_rows(start_index);
@@ -1604,8 +1605,8 @@ impl fmt::Display for LineItem {
     }
 }
 
-/// Generator for LineItem table data
-pub struct LineItemGenerator {
+/// Builder for [`LineItemGenerator`]
+pub struct LineItemGeneratorBuilder {
     scale_factor: f64,
     part: i32,
     part_count: i32,
@@ -1613,7 +1614,7 @@ pub struct LineItemGenerator {
     text_pool: Arc<TextPool>,
 }
 
-impl LineItemGenerator {
+impl LineItemGeneratorBuilder {
     // Constants for line item generation
     const QUANTITY_MIN: i32 = 1;
     const QUANTITY_MAX: i32 = 50;
@@ -1653,7 +1654,7 @@ impl LineItemGenerator {
         distributions: Distributions,
         text_pool: Arc<TextPool>,
     ) -> Self {
-        LineItemGenerator {
+        LineItemGeneratorBuilder {
             scale_factor,
             part,
             part_count,
@@ -1662,9 +1663,9 @@ impl LineItemGenerator {
         }
     }
 
-    /// Returns an iterator over the line item rows
-    pub fn iter(&self) -> LineItemGeneratorIterator {
-        LineItemGeneratorIterator::new(
+    /// Returns a [`LineItemGenerator`]
+    pub fn build(&self) -> LineItemGenerator {
+        LineItemGenerator::new(
             &self.distributions,
             self.text_pool.clone(),
             self.scale_factor,
@@ -1737,17 +1738,8 @@ impl LineItemGenerator {
     }
 }
 
-impl IntoIterator for LineItemGenerator {
-    type Item = LineItem;
-    type IntoIter = LineItemGeneratorIterator;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-
-/// Iterator that generates LineItem rows
-pub struct LineItemGeneratorIterator {
+/// Generates [`LineItem`] rows
+pub struct LineItemGenerator {
     order_date_random: RandomBoundedInt,
     line_count_random: RandomBoundedInt,
 
@@ -1779,7 +1771,7 @@ pub struct LineItemGeneratorIterator {
     line_number: i32,
 }
 
-impl LineItemGeneratorIterator {
+impl LineItemGenerator {
     fn new(
         distributions: &Distributions,
         text_pool: Arc<TextPool>,
@@ -1790,11 +1782,12 @@ impl LineItemGeneratorIterator {
         let mut order_date_random = OrderGenerator::create_order_date_random();
         let mut line_count_random = OrderGenerator::create_line_count_random();
 
-        let mut quantity_random = LineItemGenerator::create_quantity_random();
-        let mut discount_random = LineItemGenerator::create_discount_random();
-        let mut tax_random = LineItemGenerator::create_tax_random();
+        let mut quantity_random = LineItemGeneratorBuilder::create_quantity_random();
+        let mut discount_random = LineItemGeneratorBuilder::create_discount_random();
+        let mut tax_random = LineItemGeneratorBuilder::create_tax_random();
 
-        let mut line_part_key_random = LineItemGenerator::create_part_key_random(scale_factor);
+        let mut line_part_key_random =
+            LineItemGeneratorBuilder::create_part_key_random(scale_factor);
 
         let mut supplier_number_random = RandomBoundedInt::new_with_seeds_per_row(
             2095021727,
@@ -1803,17 +1796,17 @@ impl LineItemGeneratorIterator {
             OrderGenerator::LINE_COUNT_MAX,
         );
 
-        let mut ship_date_random = LineItemGenerator::create_ship_date_random();
+        let mut ship_date_random = LineItemGeneratorBuilder::create_ship_date_random();
         let mut commit_date_random = RandomBoundedInt::new_with_seeds_per_row(
             904914315,
-            LineItemGenerator::COMMIT_DATE_MIN,
-            LineItemGenerator::COMMIT_DATE_MAX,
+            LineItemGeneratorBuilder::COMMIT_DATE_MIN,
+            LineItemGeneratorBuilder::COMMIT_DATE_MAX,
             OrderGenerator::LINE_COUNT_MAX,
         );
         let mut receipt_date_random = RandomBoundedInt::new_with_seeds_per_row(
             373135028,
-            LineItemGenerator::RECEIPT_DATE_MIN,
-            LineItemGenerator::RECEIPT_DATE_MAX,
+            LineItemGeneratorBuilder::RECEIPT_DATE_MIN,
+            LineItemGeneratorBuilder::RECEIPT_DATE_MAX,
             OrderGenerator::LINE_COUNT_MAX,
         );
 
@@ -1835,7 +1828,7 @@ impl LineItemGeneratorIterator {
         let mut comment_random = RandomText::new_with_expected_row_count(
             1095462486,
             &text_pool,
-            LineItemGenerator::COMMENT_AVERAGE_LENGTH as f64,
+            LineItemGeneratorBuilder::COMMENT_AVERAGE_LENGTH as f64,
             OrderGenerator::LINE_COUNT_MAX,
         );
 
@@ -1865,7 +1858,7 @@ impl LineItemGeneratorIterator {
         let order_date = order_date_random.next_value();
         let line_count = line_count_random.next_value() - 1;
 
-        LineItemGeneratorIterator {
+        LineItemGenerator {
             order_date_random,
             line_count_random,
             quantity_random,
@@ -1952,12 +1945,8 @@ impl LineItemGeneratorIterator {
             l_comment: comment.to_string(),
         }
     }
-}
 
-impl Iterator for LineItemGeneratorIterator {
-    type Item = LineItem;
-
-    fn next(&mut self) -> Option<Self::Item> {
+    fn next_line_item(&mut self) -> Option<LineItem> {
         if self.index >= self.row_count {
             return None;
         }
@@ -1996,6 +1985,24 @@ impl Iterator for LineItemGeneratorIterator {
         }
 
         Some(line_item)
+    }
+
+    /// return a new iterator foe generating LineItems
+    pub fn iter(&mut self) -> LineItemIterator {
+        LineItemIterator { generator: self }
+    }
+}
+
+/// Iterator for [`LineItemGenerator`]
+pub struct LineItemIterator<'a> {
+    generator: &'a mut LineItemGenerator,
+}
+
+impl<'a> Iterator for LineItemIterator<'a> {
+    type Item = LineItem;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.generator.next_line_item()
     }
 }
 
@@ -2212,7 +2219,7 @@ mod tests {
     #[test]
     fn test_line_item_generation() {
         // Create a generator with a small scale factor
-        let generator = LineItemGenerator::new(0.01, 1, 1);
+        let mut generator = LineItemGeneratorBuilder::new(0.01, 1, 1).build();
         let line_items: Vec<_> = generator.iter().collect();
 
         // Check first line item
@@ -2222,14 +2229,14 @@ mod tests {
         assert!(first.l_partkey > 0);
         assert!(first.l_suppkey > 0);
 
-        assert!(first.l_quantity >= LineItemGenerator::QUANTITY_MIN as i64);
-        assert!(first.l_quantity <= LineItemGenerator::QUANTITY_MAX as i64);
+        assert!(first.l_quantity >= LineItemGeneratorBuilder::QUANTITY_MIN as i64);
+        assert!(first.l_quantity <= LineItemGeneratorBuilder::QUANTITY_MAX as i64);
 
-        assert!(first.l_discount >= LineItemGenerator::DISCOUNT_MIN as f64 / 100.0);
-        assert!(first.l_discount <= LineItemGenerator::DISCOUNT_MAX as f64 / 100.0);
+        assert!(first.l_discount >= LineItemGeneratorBuilder::DISCOUNT_MIN as f64 / 100.0);
+        assert!(first.l_discount <= LineItemGeneratorBuilder::DISCOUNT_MAX as f64 / 100.0);
 
-        assert!(first.l_tax >= LineItemGenerator::TAX_MIN as f64 / 100.0);
-        assert!(first.l_tax <= LineItemGenerator::TAX_MAX as f64 / 100.0);
+        assert!(first.l_tax >= LineItemGeneratorBuilder::TAX_MIN as f64 / 100.0);
+        assert!(first.l_tax <= LineItemGeneratorBuilder::TAX_MAX as f64 / 100.0);
 
         // Verify line numbers are sequential per order
         let mut order_lines = std::collections::HashMap::new();

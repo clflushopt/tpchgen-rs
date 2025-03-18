@@ -5,7 +5,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use tpchgen::generators::{
-    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
+    CustomerGenerator, LineItemGeneratorBuilder, NationGenerator, OrderGenerator, PartGenerator,
     PartSupplierGenerator, RegionGenerator, SupplierGenerator,
 };
 
@@ -196,7 +196,7 @@ fn test_orders_sf_0_001() {
 #[test]
 fn test_lineitem_sf_0_001() {
     test_generator(
-        |sf| LineItemGenerator::new(sf, 1, 1).iter(),
+        |sf| LineItemGeneratorBuilder::new(sf, 1, 1).iter(),
         "data/sf-0.001/lineitem.tbl.gz",
         0.001,
         |item| {
@@ -360,7 +360,7 @@ fn test_orders_sf_0_01() {
 #[test]
 fn test_lineitem_sf_0_01() {
     test_generator(
-        |sf| LineItemGenerator::new(sf, 1, 1).iter(),
+        |sf| LineItemGeneratorBuilder::new(sf, 1, 1).iter(),
         "data/sf-0.01/lineitem.tbl.gz",
         0.01,
         |item| {

@@ -20,7 +20,7 @@ use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 use tpchgen::generators::{
-    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
+    CustomerGenerator, LineItemGeneratorBuilder, NationGenerator, OrderGenerator, PartGenerator,
     PartSupplierGenerator, RegionGenerator, SupplierGenerator,
 };
 
@@ -248,7 +248,8 @@ fn generate_lineitem(cli: &Cli) -> io::Result<()> {
     let filename = "lineitem.tbl";
     let mut writer = new_table_writer(cli, filename)?;
 
-    let generator = LineItemGenerator::new(cli.scale_factor, cli.part, cli.parts);
+    let mut generator =
+        LineItemGeneratorBuilder::new(cli.scale_factor, cli.part, cli.parts).build();
     for item in generator.iter() {
         writeln!(
             writer,
