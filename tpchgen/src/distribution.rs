@@ -1,4 +1,6 @@
 use crate::random::RowRandomInt;
+use std::io::{self, BufRead};
+
 use indexmap::IndexMap;
 
 /// TPC-H distributions seed file.
@@ -45,7 +47,7 @@ impl Distribution {
             let mut dist = vec![String::new(); max as usize];
 
             let mut index = 0;
-            for (_, value) in values.iter().enumerate() {
+            for value in values.iter() {
                 let count = distribution.get(value).unwrap();
 
                 for _ in 0..*count {
@@ -102,10 +104,6 @@ impl Distribution {
         unreachable!("Cannot get random value from an invalid distribution")
     }
 }
-
-use std::io::{self, BufRead};
-
-use regex::Regex;
 
 /// DistributionLoader provides functionality to load TPC-H distributions from a text format.
 pub struct DistributionLoader;
@@ -166,7 +164,6 @@ impl DistributionLoader {
     where
         I: Iterator<Item = String>,
     {
-        let regex_separator = Regex::new(r"\|").unwrap();
         let mut members = IndexMap::new();
         let mut _count = -1;
 
@@ -175,7 +172,7 @@ impl DistributionLoader {
                 return Ok(Distribution::new(name.to_string(), members));
             }
 
-            let parts: Vec<&str> = regex_separator.split(&line).collect();
+            let parts: Vec<&str> = line.split("|").collect::<Vec<_>>();
             if parts.len() < 2 {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidData,
