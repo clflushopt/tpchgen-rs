@@ -18,9 +18,8 @@ pub struct TextPool {
     size: i32,
 }
 
-/// A default text pool that is lazily initialized and shared across the
-/// application
-
+/// The default global text pool is lazily initialized once and shared across
+/// all the table generators.
 static DEFAULT_TEXT_POOL: OnceLock<Arc<TextPool>> = OnceLock::new();
 
 impl TextPool {
@@ -29,8 +28,9 @@ impl TextPool {
     /// Maximum length of a sentence in the text.
     const MAX_SENTENCE_LENGTH: i32 = 256;
 
-    /// Returns the default text pool.
-    pub fn default() -> Arc<Self> {
+    /// Returns the default text pool or initializes for the first time if
+    /// that's not already the case.
+    pub fn get_or_init_default() -> Arc<Self> {
         Arc::clone(DEFAULT_TEXT_POOL.get_or_init(|| {
             Arc::new(Self::new(
                 Self::DEFAULT_TEXT_POOL_SIZE,
@@ -327,11 +327,11 @@ impl IndexedDistribution {
         let mut random_table = vec![String::new(); max_weight as usize];
 
         let mut value_index = 0;
-        for i in 0..random_table.len() {
+        for (i, item) in random_table.iter_mut().enumerate() {
             if i >= distribution.get_weight(value_index) as usize {
                 value_index += 1;
             }
-            random_table[i] = distribution.get_value(value_index).to_string();
+            *item = distribution.get_value(value_index).to_string();
         }
 
         IndexedDistribution { random_table }
@@ -372,11 +372,11 @@ impl ParsedDistribution {
         let mut random_table = vec![0; max_weight as usize];
 
         let mut value_index = 0;
-        for i in 0..random_table.len() {
+        for (i, item) in random_table.iter_mut().enumerate() {
             if i >= distribution.get_weight(value_index) as usize {
                 value_index += 1;
             }
-            random_table[i] = value_index;
+            *item = value_index;
         }
 
         ParsedDistribution {

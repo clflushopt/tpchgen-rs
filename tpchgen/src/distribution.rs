@@ -25,10 +25,9 @@ impl Distribution {
 
         let mut running_weight = 0;
         let mut is_valid_distribution = true;
-        let mut index = 0;
 
         // Process each value and its weight
-        for (value, weight) in &distribution {
+        for (index, (value, weight)) in distribution.iter().enumerate() {
             values.push(value.clone());
 
             running_weight += weight;
@@ -36,8 +35,6 @@ impl Distribution {
 
             // A valid distribution requires all weights to be positive
             is_valid_distribution &= *weight > 0;
-
-            index += 1;
         }
 
         // Only create the full distribution array for valid distributions
@@ -220,18 +217,20 @@ pub struct Distributions {
     distributions: IndexMap<String, Distribution>,
 }
 
-impl Distributions {
-    /// Creates a new distributions wrapper.
-    pub fn new(distributions: IndexMap<String, Distribution>) -> Self {
-        Distributions { distributions }
-    }
-
+impl Default for Distributions {
     /// Loads the default distributions from `DISTS_SEED`.
-    pub fn default() -> Self {
+    fn default() -> Self {
         let cursor = io::Cursor::new(DISTS_SEED);
         let lines = cursor.lines();
         let distributions = DistributionLoader::load_distributions(lines).unwrap();
         Distributions::new(distributions)
+    }
+}
+
+impl Distributions {
+    /// Creates a new distributions wrapper.
+    pub fn new(distributions: IndexMap<String, Distribution>) -> Self {
+        Distributions { distributions }
     }
 
     /// Returns the `adjectives` distribution.

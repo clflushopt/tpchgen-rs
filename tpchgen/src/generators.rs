@@ -28,7 +28,10 @@ impl Default for NationGenerator {
 impl NationGenerator {
     /// Creates a new NationGenerator with default distributions and text pool
     pub fn new() -> Self {
-        Self::new_with_distributions_and_text_pool(Distributions::default(), TextPool::default())
+        Self::new_with_distributions_and_text_pool(
+            Distributions::default(),
+            TextPool::get_or_init_default(),
+        )
     }
 
     /// Creates a NationGenerator with the specified distributions and text pool
@@ -188,7 +191,10 @@ impl Default for RegionGenerator {
 impl RegionGenerator {
     /// Creates a new RegionGenerator with default distributions and text pool
     pub fn new() -> Self {
-        Self::new_with_distributions_and_text_pool(Distributions::default(), TextPool::default())
+        Self::new_with_distributions_and_text_pool(
+            Distributions::default(),
+            TextPool::get_or_init_default(),
+        )
     }
 
     /// Creates a RegionGenerator with the specified distributions and text pool
@@ -331,7 +337,7 @@ impl PartGenerator {
             part,
             part_count,
             Distributions::default(),
-            TextPool::default(),
+            TextPool::get_or_init_default(),
         )
     }
 
@@ -575,7 +581,7 @@ impl SupplierGenerator {
             part,
             part_count,
             Distributions::default(),
-            TextPool::default(),
+            TextPool::get_or_init_default(),
         )
     }
 
@@ -846,7 +852,7 @@ impl CustomerGenerator {
             part,
             part_count,
             Distributions::default(),
-            TextPool::default(),
+            TextPool::get_or_init_default(),
         )
     }
 
@@ -1042,7 +1048,12 @@ impl PartSupplierGenerator {
 
     /// Creates a new PartSupplierGenerator with the given scale factor
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
-        Self::new_with_text_pool(scale_factor, part, part_count, TextPool::default())
+        Self::new_with_text_pool(
+            scale_factor,
+            part,
+            part_count,
+            TextPool::get_or_init_default(),
+        )
     }
 
     /// Creates a PartSupplierGenerator with specified text pool
@@ -1276,7 +1287,7 @@ impl OrderGenerator {
             part,
             part_count,
             Distributions::default(),
-            TextPool::default(),
+            TextPool::get_or_init_default(),
         )
     }
 
@@ -1458,7 +1469,7 @@ impl OrderGeneratorIterator {
             delta *= -1;
         }
 
-        let mut total_price = 0 as i64;
+        let mut total_price = 0;
         let mut shipped_count = 0;
 
         let line_count = self.line_count_random.next_value();
@@ -1630,7 +1641,7 @@ impl LineItemGenerator {
             part,
             part_count,
             Distributions::default(),
-            TextPool::default(),
+            TextPool::get_or_init_default(),
         )
     }
 
