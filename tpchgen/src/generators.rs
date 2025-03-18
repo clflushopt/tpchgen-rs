@@ -1545,7 +1545,7 @@ impl Iterator for OrderGeneratorIterator {
 
 /// The LINEITEM table
 #[derive(Debug, Clone, PartialEq)]
-pub struct LineItem {
+pub struct LineItem<'a> {
     /// Foreign key to ORDERS
     pub l_orderkey: i64,
     /// Foreign key to PART
@@ -1563,9 +1563,9 @@ pub struct LineItem {
     /// Tax percentage
     pub l_tax: f64,
     /// Return flag (R=returned, A=accepted, null=pending)
-    pub l_returnflag: String,
+    pub l_returnflag: &'a str,
     /// Line status (O=ordered, F=fulfilled)
-    pub l_linestatus: String,
+    pub l_linestatus: &'a str,
     /// Date shipped
     pub l_shipdate: TPCHDate,
     /// Date committed to ship
@@ -1573,14 +1573,14 @@ pub struct LineItem {
     /// Date received
     pub l_receiptdate: TPCHDate,
     /// Shipping instructions
-    pub l_shipinstruct: String,
+    pub l_shipinstruct: &'a str,
     /// Shipping mode
-    pub l_shipmode: String,
+    pub l_shipmode: &'a str,
     /// Variable length comment
-    pub l_comment: String,
+    pub l_comment: &'a str,
 }
 
-impl fmt::Display for LineItem {
+impl<'a> fmt::Display for LineItem<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -1913,15 +1913,15 @@ impl LineItemGenerator {
         receipt_date += ship_date;
 
         let returned_flag = if TPCHDate::is_in_past(receipt_date) {
-            self.returned_flag_random.next_value().to_string()
+            self.returned_flag_random.next_value()
         } else {
-            "N".to_string()
+            "N"
         };
 
         let status = if TPCHDate::is_in_past(ship_date) {
-            "F".to_string() // Fulfilled
+            "F" // Fulfilled
         } else {
-            "O".to_string() // Open
+            "O" // Open
         };
 
         let ship_instructions = self.ship_instructions_random.next_value();
@@ -1942,9 +1942,9 @@ impl LineItemGenerator {
             l_shipdate: TPCHDate::new(ship_date),
             l_commitdate: TPCHDate::new(commit_date),
             l_receiptdate: TPCHDate::new(receipt_date),
-            l_shipinstruct: ship_instructions.to_string(),
-            l_shipmode: ship_mode.to_string(),
-            l_comment: comment.to_string(),
+            l_shipinstruct: ship_instructions,
+            l_shipmode: ship_mode,
+            l_comment: comment,
         }
     }
 
@@ -1955,7 +1955,7 @@ impl LineItemGenerator {
     /// Arguments:
     /// * `advance`: should internal sate be advanced before returning
     ///   the next `LineItem`?
-    fn next_line_item(&mut self, advance: bool) -> Option<LineItem> {
+    fn next_line_item(&mut self, advance: bool) -> Option<LineItem<'_>> {
         if advance {
             self.line_number += 1;
 
@@ -2001,7 +2001,7 @@ impl LineItemGenerator {
     pub fn iter(&mut self) -> LineItemIterator {
         LineItemIterator {
             advance: false,
-            generator: self
+            generator: self,
         }
     }
 }
@@ -2013,7 +2013,7 @@ pub struct LineItemIterator<'a> {
 }
 
 impl<'a> Iterator for LineItemIterator<'a> {
-    type Item = LineItem;
+    type Item = LineItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         let advance = self.advance;
