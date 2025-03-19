@@ -26,6 +26,8 @@ impl Default for NationGenerator<'_> {
 
 impl<'a> NationGenerator<'a> {
     /// Creates a new NationGenerator with default distributions and text pool
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new() -> Self {
         Self::new_with_distributions_and_text_pool(
             Distributions::default(),
@@ -189,6 +191,8 @@ impl Default for RegionGenerator<'_> {
 
 impl<'a> RegionGenerator<'a> {
     /// Creates a new RegionGenerator with default distributions and text pool
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new() -> Self {
         Self::new_with_distributions_and_text_pool(
             Distributions::default(),
@@ -329,7 +333,10 @@ impl<'a> PartGenerator<'a> {
     const SIZE_MIN: i32 = 1;
     const SIZE_MAX: i32 = 50;
     const COMMENT_AVERAGE_LENGTH: i32 = 14;
+
     /// Creates a new PartGenerator with the given scale factor
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
         Self::new_with_distributions_and_text_pool(
             scale_factor,
@@ -574,6 +581,8 @@ impl<'a> SupplierGenerator<'a> {
     pub const BBB_COMPLAINT_PERCENT: i32 = 50;
 
     /// Creates a new SupplierGenerator with the given scale factor
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
         Self::new_with_distributions_and_text_pool(
             scale_factor,
@@ -845,6 +854,8 @@ impl<'a> CustomerGenerator<'a> {
     const COMMENT_AVERAGE_LENGTH: i32 = 73;
 
     /// Creates a new CustomerGenerator with the given scale factor
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
         Self::new_with_distributions_and_text_pool(
             scale_factor,
@@ -1046,6 +1057,9 @@ impl<'a> PartSupplierGenerator<'a> {
     const COMMENT_AVERAGE_LENGTH: i32 = 124;
 
     /// Creates a new PartSupplierGenerator with the given scale factor
+    ///
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
         Self::new_with_text_pool(
             scale_factor,
@@ -1284,6 +1298,8 @@ impl<'a> OrderGenerator<'a> {
     const ORDER_KEY_SPARSE_BITS: i32 = 2;
     const ORDER_KEY_SPARSE_KEEP: i32 = 3;
     /// Creates a new OrderGenerator with the given scale factor
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
         Self::new_with_distributions_and_text_pool(
             scale_factor,
@@ -1638,6 +1654,8 @@ impl<'a> LineItemGenerator<'a> {
     const COMMENT_AVERAGE_LENGTH: i32 = 27;
 
     /// Creates a new LineItemGenerator with the given scale factor
+    ///
+    /// Note that the returned structure's lifetime is `&'static`
     pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
         Self::new_with_distributions_and_text_pool(
             scale_factor,
