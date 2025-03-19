@@ -361,8 +361,8 @@ pub struct RandomAlphaNumericInstance {
 
 impl Display for RandomAlphaNumericInstance {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // We use up to 64 bytes of a stack buffer for small strings, and heap
-        // allocation for larger ones.
+        // Use up to  64 bytes of a stack buffer for small strings to avoid
+        // allocation, and heap allocation for larger ones.
         let mut stack_buffer = [0u8; 64];
         let mut heap_buffer = Vec::new();
 
@@ -626,5 +626,56 @@ impl<'a> RandomText<'a> {
 
     pub fn row_finished(&mut self) {
         self.inner.row_finished();
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use std::collections::HashSet;
+    #[test]
+    fn test_small_random_alpha_numeric() {
+        RandomAlphaNumericTest {
+            average_length: 10,
+            num_rows: 100,
+            expected_average_length: 10,
+        }
+        .assert()
+    }
+
+    #[test]
+    fn test_large_random_alpha_numeric() {
+        RandomAlphaNumericTest {
+            average_length: 100,
+            num_rows: 100,
+            expected_average_length: 102,
+        }
+        .assert()
+    }
+
+    struct RandomAlphaNumericTest {
+        average_length: i32,
+        num_rows: usize,
+        expected_average_length: usize,
+    }
+    impl RandomAlphaNumericTest {
+        fn assert(self) {
+            let Self {
+                average_length,
+                num_rows,
+                expected_average_length,
+            } = self;
+
+            let mut generator = RandomAlphaNumeric::new(1, average_length);
+            let mut values = HashSet::new();
+            // check that the values are within the expected length and not repeated
+            let mut total_len = 0;
+            for _ in 0..num_rows {
+                let value = generator.next_value().to_string();
+                total_len += value.len();
+                assert!(values.insert(value)); // no dupes
+            }
+            assert_eq!(total_len / num_rows, expected_average_length);
+        }
     }
 }
