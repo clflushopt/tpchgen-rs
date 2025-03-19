@@ -1,6 +1,8 @@
 use chrono::NaiveDate;
-use lazy_static::lazy_static;
-use std::fmt::{Display, Formatter};
+use std::{
+    fmt::{Display, Formatter},
+    sync::LazyLock,
+};
 
 /// The value of 1970-01-01 in the date generator system
 pub const GENERATED_DATE_EPOCH_OFFSET: i32 = 83966;
@@ -12,9 +14,7 @@ pub const TOTAL_DATE_RANGE: i32 = 2557;
 const MONTH_YEAR_DAY_START: [i32; 13] =
     [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
 
-lazy_static! {
-    static ref DATE_INDEX: Vec<NaiveDate> = make_date_index();
-}
+static DATE_INDEX: LazyLock<Vec<NaiveDate>> = LazyLock::new(make_date_index);
 
 pub struct GenerateUtils;
 
