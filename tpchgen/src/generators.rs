@@ -14,7 +14,7 @@ use crate::random::{RandomBoundedInt, RandomString, RandomStringSequence, Random
 
 /// Generator for Nation table data
 pub struct NationGenerator<'a> {
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -28,14 +28,14 @@ impl<'a> NationGenerator<'a> {
     /// Creates a new NationGenerator with default distributions and text pool
     pub fn new() -> Self {
         Self::new_with_distributions_and_text_pool(
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
 
     /// Creates a NationGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         NationGenerator {
@@ -177,7 +177,7 @@ impl<'a> Region<'a> {
 
 /// Generator for Region table data
 pub struct RegionGenerator<'a> {
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -191,14 +191,14 @@ impl<'a> RegionGenerator<'a> {
     /// Creates a new RegionGenerator with default distributions and text pool
     pub fn new() -> Self {
         Self::new_with_distributions_and_text_pool(
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
 
     /// Creates a RegionGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         RegionGenerator {
@@ -312,7 +312,7 @@ pub struct PartGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -335,7 +335,7 @@ impl<'a> PartGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -345,7 +345,7 @@ impl<'a> PartGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         PartGenerator {
@@ -360,7 +360,7 @@ impl<'a> PartGenerator<'a> {
     /// Returns an iterator over the part rows
     pub fn iter(&self) -> PartGeneratorIterator {
         PartGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             GenerateUtils::calculate_start_index(
                 Self::SCALE_BASE,
@@ -550,7 +550,7 @@ pub struct SupplierGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -579,7 +579,7 @@ impl<'a> SupplierGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -589,7 +589,7 @@ impl<'a> SupplierGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         SupplierGenerator {
@@ -604,7 +604,7 @@ impl<'a> SupplierGenerator<'a> {
     /// Returns an iterator over the supplier rows
     pub fn iter(&self) -> SupplierGeneratorIterator {
         SupplierGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             GenerateUtils::calculate_start_index(
                 Self::SCALE_BASE,
@@ -830,7 +830,7 @@ pub struct CustomerGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -850,7 +850,7 @@ impl<'a> CustomerGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -860,7 +860,7 @@ impl<'a> CustomerGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         CustomerGenerator {
@@ -875,7 +875,7 @@ impl<'a> CustomerGenerator<'a> {
     /// Returns an iterator over the customer rows
     pub fn iter(&self) -> CustomerGeneratorIterator {
         CustomerGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             GenerateUtils::calculate_start_index(
                 Self::SCALE_BASE,
@@ -1261,7 +1261,7 @@ pub struct OrderGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -1289,7 +1289,7 @@ impl<'a> OrderGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -1299,7 +1299,7 @@ impl<'a> OrderGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         OrderGenerator {
@@ -1314,7 +1314,7 @@ impl<'a> OrderGenerator<'a> {
     /// Returns an iterator over the order rows
     pub fn iter(&self) -> OrderGeneratorIterator {
         OrderGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             self.scale_factor,
             GenerateUtils::calculate_start_index(
@@ -1612,7 +1612,7 @@ pub struct LineItemGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -1643,7 +1643,7 @@ impl<'a> LineItemGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -1653,7 +1653,7 @@ impl<'a> LineItemGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         LineItemGenerator {
@@ -1668,7 +1668,7 @@ impl<'a> LineItemGenerator<'a> {
     /// Returns an iterator over the line item rows
     pub fn iter(&self) -> LineItemGeneratorIterator {
         LineItemGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             self.scale_factor,
             GenerateUtils::calculate_start_index(

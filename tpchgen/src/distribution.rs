@@ -1,5 +1,8 @@
 use crate::random::RowRandomInt;
-use std::io::{self, BufRead};
+use std::{
+    io::{self, BufRead},
+    sync::LazyLock,
+};
 
 use indexmap::IndexMap;
 
@@ -211,6 +214,11 @@ impl DistributionLoader {
     }
 }
 
+/// Static global instance of the default distributions.
+///
+/// Initialized once on first access.
+static DEFAULT_DISTRIBUTIONS: LazyLock<Distributions> = LazyLock::new(Distributions::default);
+
 /// Distributions wraps all TPC-H distributions and provides methods to access them.
 #[derive(Debug, Clone)]
 pub struct Distributions {
@@ -231,6 +239,11 @@ impl Distributions {
     /// Creates a new distributions wrapper.
     pub fn new(distributions: IndexMap<String, Distribution>) -> Self {
         Distributions { distributions }
+    }
+
+    /// Returns a static reference to the default distributions.
+    pub fn static_default() -> &'static Distributions {
+        &DEFAULT_DISTRIBUTIONS
     }
 
     /// Returns the `adjectives` distribution.

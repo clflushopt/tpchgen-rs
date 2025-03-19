@@ -31,8 +31,12 @@ impl TextPool {
     /// Returns the default text pool or initializes for the first time if
     /// that's not already the case.
     pub fn get_or_init_default() -> &'static Self {
-        DEFAULT_TEXT_POOL
-            .get_or_init(|| Self::new(Self::DEFAULT_TEXT_POOL_SIZE, &Distributions::default()))
+        DEFAULT_TEXT_POOL.get_or_init(|| {
+            Self::new(
+                Self::DEFAULT_TEXT_POOL_SIZE,
+                Distributions::static_default(),
+            )
+        })
     }
 
     /// Returns a new text pool with a predefined size and set of distributions.
