@@ -3,10 +3,10 @@ use core::fmt;
 use crate::dates;
 use crate::distribution::Distribution;
 use crate::distribution::Distributions;
-use crate::random::RandomAlphaNumeric;
 use crate::random::RandomBoundedLong;
 use crate::random::RandomPhoneNumber;
 use crate::random::RowRandomInt;
+use crate::random::{RandomAlphaNumeric, RandomAlphaNumericInstance};
 use crate::text::TextPool;
 
 use crate::dates::{GenerateUtils, TPCHDate};
@@ -518,7 +518,7 @@ pub struct Supplier {
     /// Supplier name
     pub s_name: String,
     /// Supplier address
-    pub s_address: String,
+    pub s_address: RandomAlphaNumericInstance,
     /// Foreign key to NATION
     pub s_nationkey: i64,
     /// Supplier phone number
@@ -752,7 +752,7 @@ impl<'a> SupplierGeneratorIterator<'a> {
         Supplier {
             s_suppkey: supplier_key,
             s_name: format!("Supplier#{:09}", supplier_key),
-            s_address: self.address_random.next_value().to_string(),
+            s_address: self.address_random.next_value(),
             s_nationkey: nation_key,
             s_phone: self.phone_random.next_value(nation_key).to_string(),
             s_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
@@ -795,7 +795,7 @@ pub struct Customer {
     /// Customer name
     pub c_name: String,
     /// Customer address
-    pub c_address: String,
+    pub c_address: RandomAlphaNumericInstance,
     /// Foreign key to NATION
     pub c_nationkey: i64,
     /// Customer phone number
@@ -969,7 +969,7 @@ impl<'a> CustomerGeneratorIterator<'a> {
         Customer {
             c_custkey: customer_key,
             c_name: format!("Customer#{:09}", customer_key),
-            c_address: self.address_random.next_value().to_string(),
+            c_address: self.address_random.next_value(),
             c_nationkey: nation_key,
             c_phone: self.phone_random.next_value(nation_key).to_string(),
             c_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
@@ -2056,7 +2056,7 @@ mod tests {
         let first = &suppliers[0];
         assert_eq!(first.s_suppkey, 1);
         assert_eq!(first.s_name, "Supplier#000000001");
-        assert!(!first.s_address.is_empty());
+        assert!(!first.s_address.to_string().is_empty());
     }
 
     #[test]
@@ -2072,7 +2072,7 @@ mod tests {
         let first = &customers[0];
         assert_eq!(first.c_custkey, 1);
         assert_eq!(first.c_name, "Customer#000000001");
-        assert!(!first.c_address.is_empty());
+        assert!(!first.c_address.to_string().is_empty());
 
         // Check market segment distribution
         let market_segments: std::collections::HashSet<_> =
