@@ -45,12 +45,12 @@ impl<'a> NationGenerator<'a> {
     }
 
     /// Returns an iterator over the nation rows
-    pub fn iter(&self) -> NationGeneratorIterator {
+    pub fn iter(&self) -> NationGeneratorIterator<'a> {
         NationGeneratorIterator::new(self.distributions.nations(), self.text_pool)
     }
 }
 
-impl<'a> IntoIterator for &'a NationGenerator<'a> {
+impl<'a> IntoIterator for NationGenerator<'a> {
     type Item = Nation<'a>;
     type IntoIter = NationGeneratorIterator<'a>;
 
@@ -208,7 +208,7 @@ impl<'a> RegionGenerator<'a> {
     }
 
     /// Returns an iterator over the region rows
-    pub fn iter(&self) -> RegionGeneratorIterator {
+    pub fn iter(&self) -> RegionGeneratorIterator<'a> {
         RegionGeneratorIterator::new(self.distributions.regions(), self.text_pool)
     }
 }
@@ -358,7 +358,7 @@ impl<'a> PartGenerator<'a> {
     }
 
     /// Returns an iterator over the part rows
-    pub fn iter(&self) -> PartGeneratorIterator {
+    pub fn iter(&self) -> PartGeneratorIterator<'a> {
         PartGeneratorIterator::new(
             self.distributions,
             self.text_pool,
@@ -602,7 +602,7 @@ impl<'a> SupplierGenerator<'a> {
     }
 
     /// Returns an iterator over the supplier rows
-    pub fn iter(&self) -> SupplierGeneratorIterator {
+    pub fn iter(&self) -> SupplierGeneratorIterator<'a> {
         SupplierGeneratorIterator::new(
             self.distributions,
             self.text_pool,
@@ -873,7 +873,7 @@ impl<'a> CustomerGenerator<'a> {
     }
 
     /// Returns an iterator over the customer rows
-    pub fn iter(&self) -> CustomerGeneratorIterator {
+    pub fn iter(&self) -> CustomerGeneratorIterator<'a> {
         CustomerGeneratorIterator::new(
             self.distributions,
             self.text_pool,
@@ -1071,7 +1071,7 @@ impl<'a> PartSupplierGenerator<'a> {
     }
 
     /// Returns an iterator over the part supplier rows
-    pub fn iter(&self) -> PartSupplierGeneratorIterator {
+    pub fn iter(&self) -> PartSupplierGeneratorIterator<'a> {
         // Use the part generator's scale base for start/row calculation
         let scale_base = PartGenerator::SCALE_BASE;
 
@@ -1312,7 +1312,7 @@ impl<'a> OrderGenerator<'a> {
     }
 
     /// Returns an iterator over the order rows
-    pub fn iter(&self) -> OrderGeneratorIterator {
+    pub fn iter(&self) -> OrderGeneratorIterator<'a> {
         OrderGeneratorIterator::new(
             self.distributions,
             self.text_pool,
@@ -1666,7 +1666,7 @@ impl<'a> LineItemGenerator<'a> {
     }
 
     /// Returns an iterator over the line item rows
-    pub fn iter(&self) -> LineItemGeneratorIterator {
+    pub fn iter(&self) -> LineItemGeneratorIterator<'a> {
         LineItemGeneratorIterator::new(
             self.distributions,
             self.text_pool,
@@ -2264,5 +2264,21 @@ mod tests {
             line_items.iter().map(|l| &l.l_linestatus).collect();
 
         assert!(!line_statuses.is_empty());
+    }
+
+    #[test]
+    fn check_iter_static_lifetimes() {
+        // Lifetimes of iterators should be independent of the generator that
+        // created it. This test case won't compile if that's not the case.
+
+        let _iter: NationGeneratorIterator<'static> = NationGenerator::new().iter();
+        let _iter: RegionGeneratorIterator<'static> = RegionGenerator::new().iter();
+        let _iter: PartGeneratorIterator<'static> = PartGenerator::new(0.1, 1, 1).iter();
+        let _iter: SupplierGeneratorIterator<'static> = SupplierGenerator::new(0.1, 1, 1).iter();
+        let _iter: CustomerGeneratorIterator<'static> = CustomerGenerator::new(0.1, 1, 1).iter();
+        let _iter: PartSupplierGeneratorIterator<'static> =
+            PartSupplierGenerator::new(0.1, 1, 1).iter();
+        let _iter: OrderGeneratorIterator<'static> = OrderGenerator::new(0.1, 1, 1).iter();
+        let _iter: LineItemGeneratorIterator<'static> = LineItemGenerator::new(0.1, 1, 1).iter();
     }
 }
