@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2021"
 authors = ["clflushopt", "alamb"]
 
+# Designed to have minimal depdencies to make it easy to use in other projects
+# See ../ARCHITECTURE.md for more details
 [dependencies]
 chrono = "0.4.40"
 indexmap = "2.7.1"
