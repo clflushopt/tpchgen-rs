@@ -49,6 +49,11 @@ $ tpchgen-cli -s 1 --output-dir=/tmp/tpch
 Pull requests are welcome. For major changes, please open an issue first for
 discussion. See our [contributors guide](CONTRIBUTING.md) for more details.
 
+## Architecture
+
+Please see [architecture guide](ARCHITECTURE.md) for details on how the code
+is structured.
+
 ## License
 
 The project is licensed under the [APACHE 2.0](LICENSE) license.
@@ -57,3 +62,4 @@ The project is licensed under the [APACHE 2.0](LICENSE) license.
 
 - The TPC-H Specification, see the specification [page](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp).
 - The Original `dbgen` Implementation you must submit an official request to access the software `dbgen` at their official [website](https://www.tpc.org/tpch/)
+

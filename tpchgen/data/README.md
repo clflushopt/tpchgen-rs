@@ -83,7 +83,8 @@ C data generator to verify they are the same. To do so:
 Step 1: create `tbl` files.
 
 One way to do this is using a docker container that has the classic
-data generator prebuilt, though you could also build it from scratch:
+data generator prebuilt, though you could also build it from 
+[source](https://github.com/electrum/tpch-dbgen):
 
 ```shell
 docker run -v `pwd`:/data -it  ghcr.io/scalytics/tpch-docker:main -vf -s 0.001
@@ -111,5 +112,5 @@ cat sf-0.001/customer.tbl.gz | gunzip > /tmp/customer.java.tbl
 And then compare with `diff`
 
 ```shell
-diff du /tmp/customer.c.tbl /tmp/customer.java.tbl
+diff -du /tmp/customer.c.tbl /tmp/customer.java.tbl
 ```
