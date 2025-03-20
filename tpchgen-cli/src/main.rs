@@ -114,11 +114,7 @@ fn generate_nation(cli: &Cli) -> io::Result<()> {
 
     let generator = NationGenerator::new();
     for nation in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|{}|",
-            nation.n_nationkey, nation.n_name, nation.n_regionkey, nation.n_comment
-        )?;
+        writeln!(writer, "{nation}",)?;
     }
     writer.flush()
 }
@@ -129,11 +125,7 @@ fn generate_region(cli: &Cli) -> io::Result<()> {
 
     let generator = RegionGenerator::new();
     for region in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|",
-            region.r_regionkey, region.r_name, region.r_comment
-        )?;
+        writeln!(writer, "{region}",)?;
     }
     writer.flush()
 }
@@ -144,19 +136,7 @@ fn generate_part(cli: &Cli) -> io::Result<()> {
 
     let generator = PartGenerator::new(cli.scale_factor, cli.part, cli.parts);
     for part in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|{}|{}|{}|{}|{:.2}|{}|",
-            part.p_partkey,
-            part.p_name,
-            part.p_mfgr,
-            part.p_brand,
-            part.p_type,
-            part.p_size,
-            part.p_container,
-            part.p_retailprice,
-            part.p_comment
-        )?;
+        writeln!(writer, "{part}",)?;
     }
     writer.flush()
 }
@@ -167,17 +147,7 @@ fn generate_supplier(cli: &Cli) -> io::Result<()> {
 
     let generator = SupplierGenerator::new(cli.scale_factor, cli.part, cli.parts);
     for supplier in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|{}|{}|{:.2}|{}|",
-            supplier.s_suppkey,
-            supplier.s_name,
-            supplier.s_address,
-            supplier.s_nationkey,
-            supplier.s_phone,
-            supplier.s_acctbal,
-            supplier.s_comment
-        )?;
+        writeln!(writer, "{supplier}")?;
     }
     writer.flush()
 }
@@ -188,11 +158,7 @@ fn generate_partsupp(cli: &Cli) -> io::Result<()> {
 
     let generator = PartSupplierGenerator::new(cli.scale_factor, cli.part, cli.parts);
     for ps in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|{:.2}|{}|",
-            ps.ps_partkey, ps.ps_suppkey, ps.ps_availqty, ps.ps_supplycost, ps.ps_comment
-        )?;
+        writeln!(writer, "{ps}")?;
     }
     writer.flush()
 }
@@ -203,18 +169,7 @@ fn generate_customer(cli: &Cli) -> io::Result<()> {
 
     let generator = CustomerGenerator::new(cli.scale_factor, cli.part, cli.parts);
     for customer in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|{}|{}|{:.2}|{}|{}|",
-            customer.c_custkey,
-            customer.c_name,
-            customer.c_address,
-            customer.c_nationkey,
-            customer.c_phone,
-            customer.c_acctbal,
-            customer.c_mktsegment,
-            customer.c_comment
-        )?;
+        writeln!(writer, "{customer}",)?;
     }
     writer.flush()
 }
@@ -225,19 +180,7 @@ fn generate_orders(cli: &Cli) -> io::Result<()> {
 
     let generator = OrderGenerator::new(cli.scale_factor, cli.part, cli.parts);
     for order in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|{:.2}|{}|{}|{}|{}|{}|",
-            order.o_orderkey,
-            order.o_custkey,
-            order.o_orderstatus,
-            order.o_totalprice,
-            order.o_orderdate,
-            order.o_orderpriority,
-            order.o_clerk,
-            order.o_shippriority,
-            order.o_comment
-        )?;
+        writeln!(writer, "{order}")?;
     }
     writer.flush()
 }
@@ -248,26 +191,7 @@ fn generate_lineitem(cli: &Cli) -> io::Result<()> {
 
     let generator = LineItemGenerator::new(cli.scale_factor, cli.part, cli.parts);
     for item in generator.iter() {
-        writeln!(
-            writer,
-            "{}|{}|{}|{}|{:.2}|{:.2}|{:.2}|{:.2}|{}|{}|{}|{}|{}|{}|{}|{}|",
-            item.l_orderkey,
-            item.l_partkey,
-            item.l_suppkey,
-            item.l_linenumber,
-            item.l_quantity,
-            item.l_extendedprice,
-            item.l_discount,
-            item.l_tax,
-            item.l_returnflag,
-            item.l_linestatus,
-            item.l_shipdate,
-            item.l_commitdate,
-            item.l_receiptdate,
-            item.l_shipinstruct,
-            item.l_shipmode,
-            item.l_comment
-        )?;
+        writeln!(writer, "{item}")?;
     }
     writer.flush()
 }

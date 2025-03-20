@@ -3,18 +3,19 @@ use core::fmt;
 use crate::dates;
 use crate::distribution::Distribution;
 use crate::distribution::Distributions;
-use crate::random::RandomAlphaNumeric;
-use crate::random::RandomBoundedLong;
 use crate::random::RandomPhoneNumber;
 use crate::random::RowRandomInt;
+use crate::random::{PhoneNumberInstance, RandomBoundedLong, StringSequenceInstance};
+use crate::random::{RandomAlphaNumeric, RandomAlphaNumericInstance};
 use crate::text::TextPool;
 
 use crate::dates::{GenerateUtils, TPCHDate};
 use crate::random::{RandomBoundedInt, RandomString, RandomStringSequence, RandomText};
 
 /// Generator for Nation table data
+#[derive(Debug)]
 pub struct NationGenerator<'a> {
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -30,14 +31,14 @@ impl<'a> NationGenerator<'a> {
     /// Note that the returned structure's lifetime is `&'static`
     pub fn new() -> Self {
         Self::new_with_distributions_and_text_pool(
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
 
     /// Creates a NationGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         NationGenerator {
@@ -47,12 +48,12 @@ impl<'a> NationGenerator<'a> {
     }
 
     /// Returns an iterator over the nation rows
-    pub fn iter(&self) -> NationGeneratorIterator {
+    pub fn iter(&self) -> NationGeneratorIterator<'a> {
         NationGeneratorIterator::new(self.distributions.nations(), self.text_pool)
     }
 }
 
-impl<'a> IntoIterator for &'a NationGenerator<'a> {
+impl<'a> IntoIterator for NationGenerator<'a> {
     type Item = Nation<'a>;
     type IntoIter = NationGeneratorIterator<'a>;
 
@@ -62,6 +63,14 @@ impl<'a> IntoIterator for &'a NationGenerator<'a> {
 }
 
 /// The NATION table
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// ```text
+/// 0|ALGERIA|0| haggle. carefully final deposits detect slyly agai|
+/// 1|ARGENTINA|1|al foxes promise slyly according to the regular accounts. bold requests alon|
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Nation<'a> {
     /// Primary key (0-24)
@@ -97,6 +106,7 @@ impl<'a> Nation<'a> {
 }
 
 /// Iterator that generates Nation rows
+#[derive(Debug)]
 pub struct NationGeneratorIterator<'a> {
     nations: &'a Distribution,
     comment_random: RandomText<'a>,
@@ -146,6 +156,14 @@ impl<'a> Iterator for NationGeneratorIterator<'a> {
 }
 
 /// The REGION table
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// ```text
+/// 0|AFRICA|lar deposits. blithely final packages cajole. regular waters are final requests. regular accounts are according to |
+/// 1|AMERICA|hs use ironic, even requests. s|
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Region<'a> {
     /// Primary key (0-4)
@@ -178,8 +196,9 @@ impl<'a> Region<'a> {
 }
 
 /// Generator for Region table data
+#[derive(Debug)]
 pub struct RegionGenerator<'a> {
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -195,14 +214,14 @@ impl<'a> RegionGenerator<'a> {
     /// Note that the returned structure's lifetime is `&'static`
     pub fn new() -> Self {
         Self::new_with_distributions_and_text_pool(
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
 
     /// Creates a RegionGenerator with the specified distributions and text pool
     pub fn new_with_distributions_and_text_pool(
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         RegionGenerator {
@@ -212,7 +231,7 @@ impl<'a> RegionGenerator<'a> {
     }
 
     /// Returns an iterator over the region rows
-    pub fn iter(&self) -> RegionGeneratorIterator {
+    pub fn iter(&self) -> RegionGeneratorIterator<'a> {
         RegionGeneratorIterator::new(self.distributions.regions(), self.text_pool)
     }
 }
@@ -227,6 +246,7 @@ impl<'a> IntoIterator for &'a RegionGenerator<'a> {
 }
 
 /// Iterator that generates Region rows
+#[derive(Debug)]
 pub struct RegionGeneratorIterator<'a> {
     regions: &'a Distribution,
     comment_random: RandomText<'a>,
@@ -270,17 +290,57 @@ impl<'a> Iterator for RegionGeneratorIterator<'a> {
     }
 }
 
+/// A Part Manufacturer, formatted as "Manufacturer#<n>"
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PartManufacturerName(i32);
+
+impl PartManufacturerName {
+    pub fn new(value: i32) -> Self {
+        PartManufacturerName(value)
+    }
+}
+
+impl fmt::Display for PartManufacturerName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Manufacturer#{}", self.0)
+    }
+}
+
+/// A Part brand name, formatted as "Brand#<n>"
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PartBrandName(i32);
+
+impl PartBrandName {
+    pub fn new(value: i32) -> Self {
+        PartBrandName(value)
+    }
+}
+
+impl fmt::Display for PartBrandName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Brand#{}", self.0)
+    }
+}
+
 /// The PART table
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// ```text
+/// 1|goldenrod lavender spring chocolate lace|Manufacturer#1|Brand#13|PROMO BURNISHED COPPER|7|JUMBO PKG|901.00|ly. slyly ironi|
+/// 2|blush thistle blue yellow saddle|Manufacturer#1|Brand#13|LARGE BRUSHED BRASS|1|LG CASE|902.00|lar accounts amo|
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Part<'a> {
     /// Primary key
     pub p_partkey: i64,
     /// Part name
-    pub p_name: String,
-    /// Part manufacturer
-    pub p_mfgr: String,
-    /// Part brand
-    pub p_brand: String,
+    pub p_name: StringSequenceInstance<'a>,
+    /// Part manufacturer.
+    pub p_mfgr: PartManufacturerName,
+    /// Part brand.
+    pub p_brand: PartBrandName,
     /// Part type
     pub p_type: &'a str,
     /// Part size
@@ -312,11 +372,12 @@ impl fmt::Display for Part<'_> {
 }
 
 /// Generator for Part table data
+#[derive(Debug)]
 pub struct PartGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -342,7 +403,7 @@ impl<'a> PartGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -352,7 +413,7 @@ impl<'a> PartGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         PartGenerator {
@@ -365,9 +426,9 @@ impl<'a> PartGenerator<'a> {
     }
 
     /// Returns an iterator over the part rows
-    pub fn iter(&self) -> PartGeneratorIterator {
+    pub fn iter(&self) -> PartGeneratorIterator<'a> {
         PartGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             GenerateUtils::calculate_start_index(
                 Self::SCALE_BASE,
@@ -395,6 +456,7 @@ impl<'a> IntoIterator for &'a PartGenerator<'a> {
 }
 
 /// Iterator that generates Part rows
+#[derive(Debug)]
 pub struct PartGeneratorIterator<'a> {
     name_random: RandomStringSequence<'a>,
     manufacturer_random: RandomBoundedInt,
@@ -470,9 +532,9 @@ impl<'a> PartGeneratorIterator<'a> {
 
         Part {
             p_partkey: part_key,
-            p_name: name.to_string(),
-            p_mfgr: format!("Manufacturer#{}", manufacturer),
-            p_brand: format!("Brand#{}", brand),
+            p_name: name,
+            p_mfgr: PartManufacturerName::new(manufacturer),
+            p_brand: PartBrandName::new(brand),
             p_type: self.type_random.next_value(),
             p_size: self.size_random.next_value(),
             p_container: self.container_random.next_value(),
@@ -517,19 +579,44 @@ impl<'a> Iterator for PartGeneratorIterator<'a> {
     }
 }
 
+/// A supplier name, formatted as "Supplier#<n>"
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SupplierName(i64);
+
+impl SupplierName {
+    /// Creates a new SupplierName with the given value
+    pub fn new(value: i64) -> Self {
+        SupplierName(value)
+    }
+}
+
+impl fmt::Display for SupplierName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Supplier#{:09}", self.0)
+    }
+}
+
 /// Records for the SUPPLIER table.
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// ```text
+/// 1|Supplier#000000001| N kD4on9OM Ipw3,gf0JBoQDd7tgrzrddZ|17|27-918-335-1736|5755.94|each slyly above the careful|
+/// 2|Supplier#000000002|89eJ5ksX3ImxJQBvxObC,|5|15-679-861-2259|4032.68| slyly bold instructions. idle dependen|
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct Supplier {
     /// Primary key
     pub s_suppkey: i64,
-    /// Supplier name
-    pub s_name: String,
+    /// Supplier name.
+    pub s_name: SupplierName,
     /// Supplier address
-    pub s_address: String,
+    pub s_address: RandomAlphaNumericInstance,
     /// Foreign key to NATION
     pub s_nationkey: i64,
     /// Supplier phone number
-    pub s_phone: String,
+    pub s_phone: PhoneNumberInstance,
     /// Supplier account balance
     pub s_acctbal: f64,
     /// Variable length comment
@@ -553,11 +640,12 @@ impl fmt::Display for Supplier {
 }
 
 /// Generator for Supplier table data
+#[derive(Debug)]
 pub struct SupplierGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -588,7 +676,7 @@ impl<'a> SupplierGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -598,7 +686,7 @@ impl<'a> SupplierGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         SupplierGenerator {
@@ -611,9 +699,9 @@ impl<'a> SupplierGenerator<'a> {
     }
 
     /// Returns an iterator over the supplier rows
-    pub fn iter(&self) -> SupplierGeneratorIterator {
+    pub fn iter(&self) -> SupplierGeneratorIterator<'a> {
         SupplierGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             GenerateUtils::calculate_start_index(
                 Self::SCALE_BASE,
@@ -641,6 +729,7 @@ impl<'a> IntoIterator for &'a SupplierGenerator<'a> {
 }
 
 /// Iterator that generates Supplier rows
+#[derive(Debug)]
 pub struct SupplierGeneratorIterator<'a> {
     address_random: RandomAlphaNumeric,
     nation_key_random: RandomBoundedInt,
@@ -760,10 +849,10 @@ impl<'a> SupplierGeneratorIterator<'a> {
 
         Supplier {
             s_suppkey: supplier_key,
-            s_name: format!("Supplier#{:09}", supplier_key),
-            s_address: self.address_random.next_value().to_string(),
+            s_name: SupplierName::new(supplier_key),
+            s_address: self.address_random.next_value(),
             s_nationkey: nation_key,
-            s_phone: self.phone_random.next_value(nation_key).to_string(),
+            s_phone: self.phone_random.next_value(nation_key),
             s_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
             s_comment: comment,
         }
@@ -796,28 +885,53 @@ impl Iterator for SupplierGeneratorIterator<'_> {
     }
 }
 
+/// A Customer Name, formatted as "Customer#<n>"
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CustomerName(i64);
+
+impl CustomerName {
+    /// Creates a new CustomerName with the given value
+    pub fn new(value: i64) -> Self {
+        CustomerName(value)
+    }
+}
+
+impl fmt::Display for CustomerName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Customer#{:09}", self.0)
+    }
+}
+
 /// The CUSTOMER table
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// ```text
+/// 1|Customer#000000001|IVhzIApeRb ot,c,E|15|25-989-741-2988|711.56|BUILDING|to the even, regular platelets. regular, ironic epitaphs nag e|
+/// 2|Customer#000000002|XSTf4,NCwDVaWNe6tEgvwfmRchLXak|13|23-768-687-3665|121.65|AUTOMOBILE|l accounts. blithely ironic theodolites integrate boldly: caref|
+/// ```
 #[derive(Debug, Clone, PartialEq)]
-pub struct Customer {
+pub struct Customer<'a> {
     /// Primary key
     pub c_custkey: i64,
     /// Customer name
-    pub c_name: String,
+    pub c_name: CustomerName,
     /// Customer address
-    pub c_address: String,
+    pub c_address: RandomAlphaNumericInstance,
     /// Foreign key to NATION
     pub c_nationkey: i64,
     /// Customer phone number
-    pub c_phone: String,
+    pub c_phone: PhoneNumberInstance,
     /// Customer account balance
     pub c_acctbal: f64,
     /// Customer market segment
-    pub c_mktsegment: String,
+    pub c_mktsegment: &'a str,
     /// Variable length comment
-    pub c_comment: String,
+    pub c_comment: &'a str,
 }
 
-impl fmt::Display for Customer {
+impl fmt::Display for Customer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
@@ -835,11 +949,12 @@ impl fmt::Display for Customer {
 }
 
 /// Generator for Customer table data
+#[derive(Debug)]
 pub struct CustomerGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -861,7 +976,7 @@ impl<'a> CustomerGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -871,7 +986,7 @@ impl<'a> CustomerGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         CustomerGenerator {
@@ -884,9 +999,9 @@ impl<'a> CustomerGenerator<'a> {
     }
 
     /// Returns an iterator over the customer rows
-    pub fn iter(&self) -> CustomerGeneratorIterator {
+    pub fn iter(&self) -> CustomerGeneratorIterator<'a> {
         CustomerGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             GenerateUtils::calculate_start_index(
                 Self::SCALE_BASE,
@@ -905,7 +1020,7 @@ impl<'a> CustomerGenerator<'a> {
 }
 
 impl<'a> IntoIterator for &'a CustomerGenerator<'a> {
-    type Item = Customer;
+    type Item = Customer<'a>;
     type IntoIter = CustomerGeneratorIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -914,6 +1029,7 @@ impl<'a> IntoIterator for &'a CustomerGenerator<'a> {
 }
 
 /// Iterator that generates Customer rows
+#[derive(Debug)]
 pub struct CustomerGeneratorIterator<'a> {
     address_random: RandomAlphaNumeric,
     nation_key_random: RandomBoundedInt,
@@ -974,24 +1090,24 @@ impl<'a> CustomerGeneratorIterator<'a> {
     }
 
     /// Creates a customer with the given key
-    fn make_customer(&mut self, customer_key: i64) -> Customer {
+    fn make_customer(&mut self, customer_key: i64) -> Customer<'a> {
         let nation_key = self.nation_key_random.next_value() as i64;
 
         Customer {
             c_custkey: customer_key,
-            c_name: format!("Customer#{:09}", customer_key),
-            c_address: self.address_random.next_value().to_string(),
+            c_name: CustomerName::new(customer_key),
+            c_address: self.address_random.next_value(),
             c_nationkey: nation_key,
-            c_phone: self.phone_random.next_value(nation_key).to_string(),
+            c_phone: self.phone_random.next_value(nation_key),
             c_acctbal: self.account_balance_random.next_value() as f64 / 100.0,
-            c_mktsegment: self.market_segment_random.next_value().to_string(),
-            c_comment: self.comment_random.next_value().to_string(),
+            c_mktsegment: self.market_segment_random.next_value(),
+            c_comment: self.comment_random.next_value(),
         }
     }
 }
 
-impl Iterator for CustomerGeneratorIterator<'_> {
-    type Item = Customer;
+impl<'a> Iterator for CustomerGeneratorIterator<'a> {
+    type Item = Customer<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index >= self.row_count {
@@ -1013,7 +1129,16 @@ impl Iterator for CustomerGeneratorIterator<'_> {
     }
 }
 
-/// The PARTSUPP table
+/// The PARTSUPP (part supplier) table
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// ```text
+/// 1|2|3325|771.64|, even theodolites. regular, final theodolites eat after the carefully pending foxes. ...
+/// 1|4|8076|993.49|ven ideas. quickly even packages print. pending multipliers must have to are fluff|
+/// ```
+#[derive(Debug, Clone, PartialEq)]
 pub struct PartSupp<'a> {
     /// Primary key, foreign key to PART
     pub ps_partkey: i64,
@@ -1038,6 +1163,7 @@ impl fmt::Display for PartSupp<'_> {
 }
 
 /// Generator for PartSupplier table data
+#[derive(Debug)]
 pub struct PartSupplierGenerator<'a> {
     scale_factor: f64,
     part: i32,
@@ -1085,7 +1211,7 @@ impl<'a> PartSupplierGenerator<'a> {
     }
 
     /// Returns an iterator over the part supplier rows
-    pub fn iter(&self) -> PartSupplierGeneratorIterator {
+    pub fn iter(&self) -> PartSupplierGeneratorIterator<'a> {
         // Use the part generator's scale base for start/row calculation
         let scale_base = PartGenerator::SCALE_BASE;
 
@@ -1118,6 +1244,7 @@ impl<'a> IntoIterator for &'a PartSupplierGenerator<'a> {
 }
 
 /// Iterator that generates PartSupplier rows
+#[derive(Debug)]
 pub struct PartSupplierGeneratorIterator<'a> {
     scale_factor: f64,
     start_index: i64,
@@ -1230,7 +1357,33 @@ impl<'a> Iterator for PartSupplierGeneratorIterator<'a> {
     }
 }
 
+/// A clerk name, formatted as "Clerk#<n>"
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ClerkName(i32);
+
+impl ClerkName {
+    /// Creates a new ClerkName with the given value
+    pub fn new(value: i32) -> Self {
+        ClerkName(value)
+    }
+}
+
+impl fmt::Display for ClerkName {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Clerk#{:09}", self.0)
+    }
+}
+
 /// The ORDERS table
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// ```text
+/// 1|37|O|131251.81|1996-01-02|5-LOW|Clerk#000000951|0|nstructions sleep furiously among |
+///  2|79|O|40183.29|1996-12-01|1-URGENT|Clerk#000000880|0| foxes. pending accounts at the pending, silent asymptot|
+/// ```
+#[derive(Debug, Clone, PartialEq)]
 pub struct Order<'a> {
     /// Primary key
     pub o_orderkey: i64,
@@ -1243,9 +1396,9 @@ pub struct Order<'a> {
     /// Order date
     pub o_orderdate: TPCHDate,
     /// Order priority
-    pub o_orderpriority: String,
-    /// Clerk who processed the order
-    pub o_clerk: String,
+    pub o_orderpriority: &'a str,
+    /// Clerk who processed the order.
+    pub o_clerk: ClerkName,
     /// Order shipping priority
     pub o_shippriority: i32,
     /// Variable length comment
@@ -1271,11 +1424,12 @@ impl fmt::Display for Order<'_> {
 }
 
 /// Generator for Order table data
+#[derive(Debug)]
 pub struct OrderGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -1305,7 +1459,7 @@ impl<'a> OrderGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -1315,7 +1469,7 @@ impl<'a> OrderGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         OrderGenerator {
@@ -1328,9 +1482,9 @@ impl<'a> OrderGenerator<'a> {
     }
 
     /// Returns an iterator over the order rows
-    pub fn iter(&self) -> OrderGeneratorIterator {
+    pub fn iter(&self) -> OrderGeneratorIterator<'a> {
         OrderGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             self.scale_factor,
             GenerateUtils::calculate_start_index(
@@ -1382,6 +1536,7 @@ impl<'a> IntoIterator for &'a OrderGenerator<'a> {
 }
 
 /// Iterator that generates Order rows
+#[derive(Debug)]
 pub struct OrderGeneratorIterator<'a> {
     order_date_random: RandomBoundedInt,
     line_count_random: RandomBoundedInt,
@@ -1403,7 +1558,6 @@ pub struct OrderGeneratorIterator<'a> {
 
     index: i64,
 }
-
 impl<'a> OrderGeneratorIterator<'a> {
     fn new(
         distributions: &'a Distributions,
@@ -1518,14 +1672,17 @@ impl<'a> OrderGeneratorIterator<'a> {
             'O' // Open - no line items shipped
         };
 
+        let clerk_id = self.clerk_random.next_value();
+        let clerk_name = ClerkName::new(clerk_id);
+
         Order {
             o_orderkey: order_key,
             o_custkey: customer_key,
             o_orderstatus: order_status,
             o_totalprice: total_price as f64 / 100.,
             o_orderdate: TPCHDate::new(order_date),
-            o_orderpriority: self.order_priority_random.next_value().to_string(),
-            o_clerk: format!("Clerk#{:09}", self.clerk_random.next_value()),
+            o_orderpriority: self.order_priority_random.next_value(),
+            o_clerk: clerk_name,
             o_shippriority: 0, // Fixed value per TPC-H spec
             o_comment: self.comment_random.next_value(),
         }
@@ -1562,6 +1719,15 @@ impl<'a> Iterator for OrderGeneratorIterator<'a> {
 }
 
 /// The LINEITEM table
+///
+/// The Display trait is implemented to format the line item data as a string
+/// in the default TPC-H 'tbl' format.
+///
+/// Example
+/// ```text
+/// 1|156|4|1|17|17954.55|0.04|0.02|N|O|1996-03-13|1996-02-12|1996-03-22|DELIVER IN PERSON|TRUCK|egular courts above the|
+/// 1|68|9|2|36|34850.16|0.09|0.06|N|O|1996-04-12|1996-02-28|1996-04-20|TAKE BACK RETURN|MAIL|ly final dependencies: slyly bold |
+/// ```
 #[derive(Debug, Clone, PartialEq)]
 pub struct LineItem<'a> {
     /// Foreign key to ORDERS
@@ -1624,11 +1790,12 @@ impl fmt::Display for LineItem<'_> {
 }
 
 /// Generator for LineItem table data
+#[derive(Debug)]
 pub struct LineItemGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
-    distributions: Distributions,
+    distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
 
@@ -1661,7 +1828,7 @@ impl<'a> LineItemGenerator<'a> {
             scale_factor,
             part,
             part_count,
-            Distributions::default(),
+            Distributions::static_default(),
             TextPool::get_or_init_default(),
         )
     }
@@ -1671,7 +1838,7 @@ impl<'a> LineItemGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: Distributions,
+        distributions: &'a Distributions,
         text_pool: &'a TextPool,
     ) -> Self {
         LineItemGenerator {
@@ -1684,9 +1851,9 @@ impl<'a> LineItemGenerator<'a> {
     }
 
     /// Returns an iterator over the line item rows
-    pub fn iter(&self) -> LineItemGeneratorIterator {
+    pub fn iter(&self) -> LineItemGeneratorIterator<'a> {
         LineItemGeneratorIterator::new(
-            &self.distributions,
+            self.distributions,
             self.text_pool,
             self.scale_factor,
             GenerateUtils::calculate_start_index(
@@ -1768,6 +1935,7 @@ impl<'a> IntoIterator for &'a LineItemGenerator<'a> {
 }
 
 /// Iterator that generates LineItem rows
+#[derive(Debug)]
 pub struct LineItemGeneratorIterator<'a> {
     order_date_random: RandomBoundedInt,
     line_count_random: RandomBoundedInt,
@@ -2073,8 +2241,7 @@ mod tests {
         // Check first supplier
         let first = &suppliers[0];
         assert_eq!(first.s_suppkey, 1);
-        assert_eq!(first.s_name, "Supplier#000000001");
-        assert!(!first.s_address.is_empty());
+        assert_eq!(first.to_string(), "1|Supplier#000000001| N kD4on9OM Ipw3,gf0JBoQDd7tgrzrddZ|17|27-918-335-1736|5755.94|each slyly above the careful|")
     }
 
     #[test]
@@ -2089,8 +2256,7 @@ mod tests {
         // Check first customer
         let first = &customers[0];
         assert_eq!(first.c_custkey, 1);
-        assert_eq!(first.c_name, "Customer#000000001");
-        assert!(!first.c_address.is_empty());
+        assert_eq!(first.to_string(), "1|Customer#000000001|IVhzIApeRb ot,c,E|15|25-989-741-2988|711.56|BUILDING|to the even, regular platelets. regular, ironic epitaphs nag e|");
 
         // Check market segment distribution
         let market_segments: std::collections::HashSet<_> =
@@ -2282,5 +2448,21 @@ mod tests {
             line_items.iter().map(|l| &l.l_linestatus).collect();
 
         assert!(!line_statuses.is_empty());
+    }
+
+    #[test]
+    fn check_iter_static_lifetimes() {
+        // Lifetimes of iterators should be independent of the generator that
+        // created it. This test case won't compile if that's not the case.
+
+        let _iter: NationGeneratorIterator<'static> = NationGenerator::new().iter();
+        let _iter: RegionGeneratorIterator<'static> = RegionGenerator::new().iter();
+        let _iter: PartGeneratorIterator<'static> = PartGenerator::new(0.1, 1, 1).iter();
+        let _iter: SupplierGeneratorIterator<'static> = SupplierGenerator::new(0.1, 1, 1).iter();
+        let _iter: CustomerGeneratorIterator<'static> = CustomerGenerator::new(0.1, 1, 1).iter();
+        let _iter: PartSupplierGeneratorIterator<'static> =
+            PartSupplierGenerator::new(0.1, 1, 1).iter();
+        let _iter: OrderGeneratorIterator<'static> = OrderGenerator::new(0.1, 1, 1).iter();
+        let _iter: LineItemGeneratorIterator<'static> = LineItemGenerator::new(0.1, 1, 1).iter();
     }
 }
