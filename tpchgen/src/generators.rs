@@ -28,8 +28,10 @@ impl Default for NationGenerator<'_> {
 impl<'a> NationGenerator<'a> {
     /// Creates a new NationGenerator with default distributions and text pool
     ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new() -> Self {
+    /// The generator's lifetime is `&'static` because it references global
+    /// [`Distribution]`s and thus can be shared safely between threads.
+    pub fn new() -> NationGenerator<'static> {
+        // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             Distributions::static_default(),
             TextPool::get_or_init_default(),
@@ -37,10 +39,10 @@ impl<'a> NationGenerator<'a> {
     }
 
     /// Creates a NationGenerator with the specified distributions and text pool
-    pub fn new_with_distributions_and_text_pool(
-        distributions: &'a Distributions,
-        text_pool: &'a TextPool,
-    ) -> Self {
+    pub fn new_with_distributions_and_text_pool<'b>(
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> NationGenerator<'b> {
         NationGenerator {
             distributions,
             text_pool,
@@ -211,8 +213,10 @@ impl Default for RegionGenerator<'_> {
 impl<'a> RegionGenerator<'a> {
     /// Creates a new RegionGenerator with default distributions and text pool
     ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new() -> Self {
+    /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
+    /// more details.
+    pub fn new() -> RegionGenerator<'static> {
+        // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             Distributions::static_default(),
             TextPool::get_or_init_default(),
@@ -220,10 +224,10 @@ impl<'a> RegionGenerator<'a> {
     }
 
     /// Creates a RegionGenerator with the specified distributions and text pool
-    pub fn new_with_distributions_and_text_pool(
-        distributions: &'a Distributions,
-        text_pool: &'a TextPool,
-    ) -> Self {
+    pub fn new_with_distributions_and_text_pool<'b>(
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> RegionGenerator<'b> {
         RegionGenerator {
             distributions,
             text_pool,
@@ -397,8 +401,10 @@ impl<'a> PartGenerator<'a> {
 
     /// Creates a new PartGenerator with the given scale factor
     ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
+    /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
+    /// more details.
+    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> PartGenerator<'static> {
+        // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             scale_factor,
             part,
@@ -409,13 +415,13 @@ impl<'a> PartGenerator<'a> {
     }
 
     /// Creates a PartGenerator with specified distributions and text pool
-    pub fn new_with_distributions_and_text_pool(
+    pub fn new_with_distributions_and_text_pool<'b>(
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: &'a Distributions,
-        text_pool: &'a TextPool,
-    ) -> Self {
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> PartGenerator<'b> {
         PartGenerator {
             scale_factor,
             part,
@@ -670,8 +676,10 @@ impl<'a> SupplierGenerator<'a> {
 
     /// Creates a new SupplierGenerator with the given scale factor
     ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
+    /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
+    /// more details.
+    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> SupplierGenerator<'static> {
+        // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             scale_factor,
             part,
@@ -682,13 +690,13 @@ impl<'a> SupplierGenerator<'a> {
     }
 
     /// Creates a SupplierGenerator with specified distributions and text pool
-    pub fn new_with_distributions_and_text_pool(
+    pub fn new_with_distributions_and_text_pool<'b>(
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: &'a Distributions,
-        text_pool: &'a TextPool,
-    ) -> Self {
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> SupplierGenerator<'b> {
         SupplierGenerator {
             scale_factor,
             part,
@@ -970,8 +978,10 @@ impl<'a> CustomerGenerator<'a> {
 
     /// Creates a new CustomerGenerator with the given scale factor
     ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
+    /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
+    /// more details.
+    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> CustomerGenerator<'static> {
+        // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             scale_factor,
             part,
@@ -982,13 +992,13 @@ impl<'a> CustomerGenerator<'a> {
     }
 
     /// Creates a CustomerGenerator with specified distributions and text pool
-    pub fn new_with_distributions_and_text_pool(
+    pub fn new_with_distributions_and_text_pool<'b>(
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: &'a Distributions,
-        text_pool: &'a TextPool,
-    ) -> Self {
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> CustomerGenerator<'b> {
         CustomerGenerator {
             scale_factor,
             part,
@@ -1184,9 +1194,10 @@ impl<'a> PartSupplierGenerator<'a> {
 
     /// Creates a new PartSupplierGenerator with the given scale factor
     ///
-    ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
+    /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
+    /// more details.
+    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> PartSupplierGenerator<'static> {
+        // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_text_pool(
             scale_factor,
             part,
@@ -1200,8 +1211,8 @@ impl<'a> PartSupplierGenerator<'a> {
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        text_pool: &'a TextPool,
-    ) -> Self {
+        text_pool: &TextPool,
+    ) -> PartSupplierGenerator<'_> {
         PartSupplierGenerator {
             scale_factor,
             part,
@@ -1453,8 +1464,10 @@ impl<'a> OrderGenerator<'a> {
     const ORDER_KEY_SPARSE_KEEP: i32 = 3;
     /// Creates a new OrderGenerator with the given scale factor
     ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
+    /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
+    /// more details.
+    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> OrderGenerator<'static> {
+        // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             scale_factor,
             part,
@@ -1465,13 +1478,13 @@ impl<'a> OrderGenerator<'a> {
     }
 
     /// Creates a OrderGenerator with specified distributions and text pool
-    pub fn new_with_distributions_and_text_pool(
+    pub fn new_with_distributions_and_text_pool<'b>(
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: &'a Distributions,
-        text_pool: &'a TextPool,
-    ) -> Self {
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> OrderGenerator<'b> {
         OrderGenerator {
             scale_factor,
             part,
@@ -1822,8 +1835,9 @@ impl<'a> LineItemGenerator<'a> {
 
     /// Creates a new LineItemGenerator with the given scale factor
     ///
-    /// Note that the returned structure's lifetime is `&'static`
-    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> Self {
+    /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
+    /// more details.
+    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> LineItemGenerator<'static> {
         Self::new_with_distributions_and_text_pool(
             scale_factor,
             part,
@@ -1834,13 +1848,13 @@ impl<'a> LineItemGenerator<'a> {
     }
 
     /// Creates a LineItemGenerator with specified distributions and text pool
-    pub fn new_with_distributions_and_text_pool(
+    pub fn new_with_distributions_and_text_pool<'b>(
         scale_factor: f64,
         part: i32,
         part_count: i32,
-        distributions: &'a Distributions,
-        text_pool: &'a TextPool,
-    ) -> Self {
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> LineItemGenerator<'b> {
         LineItemGenerator {
             scale_factor,
             part,
