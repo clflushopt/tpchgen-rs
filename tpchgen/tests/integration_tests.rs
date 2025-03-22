@@ -56,7 +56,7 @@ where
 #[test]
 fn test_nation_sf_0_001() {
     let _sf = 0.001;
-    let generator = NationGenerator::new();
+    let generator = NationGenerator::default();
     test_generator(generator.iter(), "data/sf-0.001/nation.tbl.gz", |nation| {
         nation.to_string()
     });
@@ -65,7 +65,7 @@ fn test_nation_sf_0_001() {
 #[test]
 fn test_region_sf_0_001() {
     let _sf = 0.001;
-    let generator = RegionGenerator::new();
+    let generator = RegionGenerator::default();
     test_generator(generator.iter(), "data/sf-0.001/region.tbl.gz", |region| {
         region.to_string()
     });
@@ -131,8 +131,8 @@ fn test_lineitem_sf_0_001() {
 
 #[test]
 fn test_nation_sf_0_01() {
-    let _sf = 0.01;
-    let generator = NationGenerator::new();
+    let sf = 0.01;
+    let generator = NationGenerator::new(sf, 1, 1);
     test_generator(generator.iter(), "data/sf-0.01/nation.tbl.gz", |nation| {
         nation.to_string()
     });
@@ -140,8 +140,8 @@ fn test_nation_sf_0_01() {
 
 #[test]
 fn test_region_sf_0_01() {
-    let _sf = 0.01;
-    let generator = RegionGenerator::new();
+    let sf = 0.01;
+    let generator = RegionGenerator::new(sf, 1, 1);
     test_generator(generator.iter(), "data/sf-0.01/region.tbl.gz", |region| {
         region.to_string()
     });

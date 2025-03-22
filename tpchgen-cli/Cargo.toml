@@ -7,3 +7,8 @@ authors = ["clflushopt", "alamb"]
 [dependencies]
 clap = { version = "4.5.32", features = ["derive"] }
 tpchgen = { path = "../tpchgen" }
+tokio = { version = "1.44.1", features = ["full"]}
+futures = "0.3.31"
+num_cpus = "1.0"
+log = "0.4.26"
+env_logger = "0.11.7"

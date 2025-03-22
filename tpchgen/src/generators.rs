@@ -23,16 +23,22 @@ pub struct NationGenerator<'a> {
 
 impl Default for NationGenerator<'_> {
     fn default() -> Self {
-        Self::new()
+        // arguments are ignored
+        Self::new(1.0, 1, 1)
     }
 }
 
 impl<'a> NationGenerator<'a> {
     /// Creates a new NationGenerator with default distributions and text pool
     ///
+    /// Nations does not depend on the scale factor or the part number. The signature of
+    /// this method is provided to be consistent with the other generators, but the
+    /// parameters are ignored. You can use [`NationGenerator::default`] to create a
+    /// default generator.
+    ///
     /// The generator's lifetime is `&'static` because it references global
     /// [`Distribution]`s and thus can be shared safely between threads.
-    pub fn new() -> NationGenerator<'static> {
+    pub fn new(_scale_factor: f64, _part: i32, _part_count: i32) -> NationGenerator<'static> {
         // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             Distributions::static_default(),
@@ -208,16 +214,22 @@ pub struct RegionGenerator<'a> {
 
 impl Default for RegionGenerator<'_> {
     fn default() -> Self {
-        Self::new()
+        // arguments are ignored
+        Self::new(1.0, 1, 1)
     }
 }
 
 impl<'a> RegionGenerator<'a> {
     /// Creates a new RegionGenerator with default distributions and text pool
     ///
+    /// Regions does not depend on the scale factor or the part number. The signature of
+    /// this method is provided to be consistent with the other generators, but the
+    /// parameters are ignored. You can use [`RegionGenerator::default`] to create a
+    /// default generator.
+    ///
     /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
     /// more details.
-    pub fn new() -> RegionGenerator<'static> {
+    pub fn new(_scale_factor: f64, _part: i32, _part_count: i32) -> RegionGenerator<'static> {
         // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_distributions_and_text_pool(
             Distributions::static_default(),
@@ -433,6 +445,11 @@ impl<'a> PartGenerator<'a> {
         }
     }
 
+    /// Return the row count for the given scale factor and generator part count
+    pub fn calculate_row_count(scale_factor: f64, part: i32, part_count: i32) -> i64 {
+        GenerateUtils::calculate_row_count(Self::SCALE_BASE, scale_factor, part, part_count)
+    }
+
     /// Returns an iterator over the part rows
     pub fn iter(&self) -> PartGeneratorIterator<'a> {
         PartGeneratorIterator::new(
@@ -444,12 +461,7 @@ impl<'a> PartGenerator<'a> {
                 self.part,
                 self.part_count,
             ),
-            GenerateUtils::calculate_row_count(
-                Self::SCALE_BASE,
-                self.scale_factor,
-                self.part,
-                self.part_count,
-            ),
+            Self::calculate_row_count(self.scale_factor, self.part, self.part_count),
         )
     }
 }
@@ -708,6 +720,11 @@ impl<'a> SupplierGenerator<'a> {
         }
     }
 
+    /// Return the row count for the given scale factor and generator part count
+    pub fn calculate_row_count(scale_factor: f64, part: i32, part_count: i32) -> i64 {
+        GenerateUtils::calculate_row_count(Self::SCALE_BASE, scale_factor, part, part_count)
+    }
+
     /// Returns an iterator over the supplier rows
     pub fn iter(&self) -> SupplierGeneratorIterator<'a> {
         SupplierGeneratorIterator::new(
@@ -719,12 +736,7 @@ impl<'a> SupplierGenerator<'a> {
                 self.part,
                 self.part_count,
             ),
-            GenerateUtils::calculate_row_count(
-                Self::SCALE_BASE,
-                self.scale_factor,
-                self.part,
-                self.part_count,
-            ),
+            Self::calculate_row_count(self.scale_factor, self.part, self.part_count),
         )
     }
 }
@@ -1010,6 +1022,11 @@ impl<'a> CustomerGenerator<'a> {
         }
     }
 
+    /// Return the row count for the given scale factor and generator part count
+    pub fn calculate_row_count(scale_factor: f64, part: i32, part_count: i32) -> i64 {
+        GenerateUtils::calculate_row_count(Self::SCALE_BASE, scale_factor, part, part_count)
+    }
+
     /// Returns an iterator over the customer rows
     pub fn iter(&self) -> CustomerGeneratorIterator<'a> {
         CustomerGeneratorIterator::new(
@@ -1021,12 +1038,7 @@ impl<'a> CustomerGenerator<'a> {
                 self.part,
                 self.part_count,
             ),
-            GenerateUtils::calculate_row_count(
-                Self::SCALE_BASE,
-                self.scale_factor,
-                self.part,
-                self.part_count,
-            ),
+            Self::calculate_row_count(self.scale_factor, self.part, self.part_count),
         )
     }
 }
@@ -1223,9 +1235,19 @@ impl<'a> PartSupplierGenerator<'a> {
         }
     }
 
+    /// Return the row count for the given scale factor and generator part count
+    pub fn calculate_row_count(scale_factor: f64, part: i32, part_count: i32) -> i64 {
+        // Use the part generator's scale base for start/row calculation
+        GenerateUtils::calculate_row_count(
+            PartGenerator::SCALE_BASE,
+            scale_factor,
+            part,
+            part_count,
+        )
+    }
+
     /// Returns an iterator over the part supplier rows
     pub fn iter(&self) -> PartSupplierGeneratorIterator<'a> {
-        // Use the part generator's scale base for start/row calculation
         let scale_base = PartGenerator::SCALE_BASE;
 
         PartSupplierGeneratorIterator::new(
@@ -1237,12 +1259,7 @@ impl<'a> PartSupplierGenerator<'a> {
                 self.part,
                 self.part_count,
             ),
-            GenerateUtils::calculate_row_count(
-                scale_base,
-                self.scale_factor,
-                self.part,
-                self.part_count,
-            ),
+            Self::calculate_row_count(self.scale_factor, self.part, self.part_count),
         )
     }
 }
@@ -1496,6 +1513,11 @@ impl<'a> OrderGenerator<'a> {
         }
     }
 
+    /// Return the row count for the given scale factor and generator part count
+    pub fn calculate_row_count(scale_factor: f64, part: i32, part_count: i32) -> i64 {
+        GenerateUtils::calculate_row_count(Self::SCALE_BASE, scale_factor, part, part_count)
+    }
+
     /// Returns an iterator over the order rows
     pub fn iter(&self) -> OrderGeneratorIterator<'a> {
         OrderGeneratorIterator::new(
@@ -1508,12 +1530,7 @@ impl<'a> OrderGenerator<'a> {
                 self.part,
                 self.part_count,
             ),
-            GenerateUtils::calculate_row_count(
-                Self::SCALE_BASE,
-                self.scale_factor,
-                self.part,
-                self.part_count,
-            ),
+            Self::calculate_row_count(self.scale_factor, self.part, self.part_count),
         )
     }
 
@@ -2211,7 +2228,7 @@ mod tests {
 
     #[test]
     fn test_nation_generator() {
-        let generator = NationGenerator::new();
+        let generator = NationGenerator::default();
         let nations: Vec<_> = generator.iter().collect();
 
         // TPC-H typically has 25 nations
@@ -2220,7 +2237,7 @@ mod tests {
 
     #[test]
     fn test_region_generator() {
-        let generator = RegionGenerator::new();
+        let generator = RegionGenerator::default();
         let regions: Vec<_> = generator.iter().collect();
 
         // TPC-H typically has 5 regions
@@ -2472,8 +2489,8 @@ mod tests {
         // Lifetimes of iterators should be independent of the generator that
         // created it. This test case won't compile if that's not the case.
 
-        let _iter: NationGeneratorIterator<'static> = NationGenerator::new().iter();
-        let _iter: RegionGeneratorIterator<'static> = RegionGenerator::new().iter();
+        let _iter: NationGeneratorIterator<'static> = NationGenerator::default().iter();
+        let _iter: RegionGeneratorIterator<'static> = RegionGenerator::default().iter();
         let _iter: PartGeneratorIterator<'static> = PartGenerator::new(0.1, 1, 1).iter();
         let _iter: SupplierGeneratorIterator<'static> = SupplierGenerator::new(0.1, 1, 1).iter();
         let _iter: CustomerGeneratorIterator<'static> = CustomerGenerator::new(0.1, 1, 1).iter();

@@ -10,22 +10,42 @@
 //! -T, --tables     Tables to generate data for
 //! -F, --format     Output format for the data (CSV or Parquet)
 //! -O, --output     Output directory for the generated data
-//
-// The main function is the entry point for the CLI and it uses the `clap` crate
-// to parse the command line arguments and then generate the data.
+//! -v, --verbose    Verbose output
+//!
+//! # Logging:
+//! Use the `-v` flag or `RUST_LOG` environment variable to control logging output.
+//!
+//! `-v` sets the log level to `info` and ignores the `RUST_LOG` environment variable.
+//!
+//! # Examples
+//! ```
+//! # see all info output
+//! tpchgen-cli -s 1 -v
+//!
+//! # same thing using RUST_LOG
+//! RUST_LOG=info tpchgen-cli -s 1
+//!
+//! # see all debug output
+//! RUST_LOG=debug tpchgen -s 1
+//! ```
+mod generate;
+mod sources;
 
-// tpchgen-cli/src/main.rs
+use crate::generate::{generate_in_chunks, Sink, Source};
+use crate::sources::*;
 use clap::{Parser, ValueEnum};
+use log::{debug, info, LevelFilter};
+use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
-use tpchgen::csv::{
-    CustomerCsv, LineItemCsv, NationCsv, OrderCsv, PartCsv, PartSuppCsv, RegionCsv, SupplierCsv,
-};
+use std::time::Instant;
+use tpchgen::distribution::Distributions;
 use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
     PartSupplierGenerator, RegionGenerator, SupplierGenerator,
 };
+use tpchgen::text::TextPool;
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
@@ -54,6 +74,10 @@ struct Cli {
     /// Output format: tbl, csv, parquet (default: tbl)
     #[arg(short, long, default_value = "tbl")]
     format: OutputFormat,
+
+    /// Verbose output (default: false)
+    #[arg(short, long, default_value_t = false)]
+    verbose: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -66,6 +90,12 @@ enum Table {
     Customer,
     Orders,
     LineItem,
+}
+
+impl Display for Table {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.name())
+    }
 }
 
 impl Table {
@@ -90,14 +120,53 @@ enum OutputFormat {
     Parquet,
 }
 
-fn main() -> io::Result<()> {
+#[tokio::main]
+async fn main() -> io::Result<()> {
     // Parse command line arguments
     let cli = Cli::parse();
-    cli.main()
+    cli.main().await
+}
+
+/// macro to create a Cli function for generating a table
+///
+/// Arguments:
+/// $FUN_NAME: name of the function to create
+/// $TABLE: The [`Table`] to generate
+/// $GENERATOR: The generator type to use
+/// $TBL_SOURCE: The [`Source`] type to use for TBL format
+/// $CSV_SOURCE: The [`Source`] type to use for CSV format
+macro_rules! define_generate {
+    ($FUN_NAME:ident,  $TABLE:expr, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty) => {
+        async fn $FUN_NAME(&self) -> io::Result<()> {
+            let filename = self.output_filename($TABLE);
+            let (num_parts, parts) = self.parallel_target_part_count(&$TABLE);
+            let scale_factor = self.scale_factor;
+            info!("Writing table {} (SF={scale_factor}) to {filename}", $TABLE);
+            debug!("Generating {num_parts} parts in total");
+            let gens = parts
+                .into_iter()
+                .map(move |part| $GENERATOR::new(scale_factor, part, num_parts));
+            match self.format {
+                OutputFormat::Tbl => self.go(&filename, gens.map(<$TBL_SOURCE>::new)).await,
+                OutputFormat::Csv => self.go(&filename, gens.map(<$CSV_SOURCE>::new)).await,
+                // https://github.com/clflushopt/tpchgen-rs/issues/46
+                OutputFormat::Parquet => unimplemented!("Parquet support not yet implemented"),
+            }
+        }
+    };
 }
 
 impl Cli {
-    fn main(self) -> io::Result<()> {
+    async fn main(self) -> io::Result<()> {
+        if self.verbose {
+            // explicitly set logging to info / stdout
+            env_logger::builder().filter_level(LevelFilter::Info).init();
+            info!("Verbose output enabled (ignoring RUST_LOG environment variable)");
+        } else {
+            env_logger::init();
+            debug!("Logging configured from environment variables");
+        }
+
         // Create output directory if it doesn't exist
         fs::create_dir_all(&self.output_dir)?;
 
@@ -117,23 +186,89 @@ impl Cli {
             ]
         };
 
+        // force the creation of the distributions and text pool to so it doesn't
+        // get charged to the first table
+        let start = Instant::now();
+        debug!("Creating distributions and text pool");
+        Distributions::static_default();
+        TextPool::get_or_init_default();
+        let elapsed = start.elapsed();
+        info!("Created static distributions and text pools in {elapsed:?}");
+
         // Generate each table
         for table in tables {
             match table {
-                Table::Nation => self.generate_nation()?,
-                Table::Region => self.generate_region()?,
-                Table::Part => self.generate_part()?,
-                Table::Supplier => self.generate_supplier()?,
-                Table::PartSupp => self.generate_partsupp()?,
-                Table::Customer => self.generate_customer()?,
-                Table::Orders => self.generate_orders()?,
-                Table::LineItem => self.generate_lineitem()?,
+                Table::Nation => self.generate_nation().await?,
+                Table::Region => self.generate_region().await?,
+                Table::Part => self.generate_part().await?,
+                Table::Supplier => self.generate_supplier().await?,
+                Table::PartSupp => self.generate_partsupp().await?,
+                Table::Customer => self.generate_customer().await?,
+                Table::Orders => self.generate_orders().await?,
+                Table::LineItem => self.generate_lineitem().await?,
             }
         }
 
-        println!("Generation complete!");
+        info!("Generation complete!");
         Ok(())
     }
+
+    define_generate!(
+        generate_nation,
+        Table::Nation,
+        NationGenerator,
+        NationTblSource,
+        NationCsvSource
+    );
+    define_generate!(
+        generate_region,
+        Table::Region,
+        RegionGenerator,
+        RegionTblSource,
+        RegionCsvSource
+    );
+    define_generate!(
+        generate_part,
+        Table::Part,
+        PartGenerator,
+        PartTblSource,
+        PartCsvSource
+    );
+    define_generate!(
+        generate_supplier,
+        Table::Supplier,
+        SupplierGenerator,
+        SupplierTblSource,
+        SupplierCsvSource
+    );
+    define_generate!(
+        generate_partsupp,
+        Table::PartSupp,
+        PartSupplierGenerator,
+        PartSuppTblSource,
+        PartSuppCsvSource
+    );
+    define_generate!(
+        generate_customer,
+        Table::Customer,
+        CustomerGenerator,
+        CustomerTblSource,
+        CustomerCsvSource
+    );
+    define_generate!(
+        generate_orders,
+        Table::Orders,
+        OrderGenerator,
+        OrderTblSource,
+        OrderCsvSource
+    );
+    define_generate!(
+        generate_lineitem,
+        Table::LineItem,
+        LineItemGenerator,
+        LineItemTblSource,
+        LineItemCsvSource
+    );
 
     /// return the output filename for the given table
     fn output_filename(&self, table: Table) -> String {
@@ -152,239 +287,112 @@ impl Cli {
         Ok(BufWriter::with_capacity(32 * 1024, file))
     }
 
-    fn generate_nation(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::Nation);
-        let writer = self.new_output_writer(&filename)?;
+    /// Returns a list of "parts" (data generator chunks, not TPCH parts) to create
+    ///
+    /// Tuple returned is `(num_parts, part_list)`:
+    /// - num_parts is the total number of parts to generate
+    /// - part_list is the list of parts to generate (1 based)
+    fn parallel_target_part_count(&self, table: &Table) -> (i32, Vec<i32>) {
+        // parallel generation disabled if user specifies a part explicitly
+        if self.part != 1 || self.parts != 1 {
+            return (self.parts, vec![self.part]);
+        }
 
-        let generator = NationGenerator::new();
-        match self.format {
-            OutputFormat::Tbl => self.nation_tbl(writer, generator),
-            OutputFormat::Csv => self.nation_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
+        // Note use part=1, part_count=1 to calculate the total row count
+        // for the table
+        //
+        // Avg row size is an estimate of the average row size in bytes from the first 100 rows
+        // of the table in tbl format
+        let (avg_row_size_bytes, row_count) = match table {
+            Table::Nation => (88, 1),
+            Table::Region => (77, 1),
+            Table::Part => (
+                115,
+                PartGenerator::calculate_row_count(self.scale_factor, 1, 1),
+            ),
+            Table::Supplier => (
+                140,
+                SupplierGenerator::calculate_row_count(self.scale_factor, 1, 1),
+            ),
+            Table::PartSupp => (
+                148,
+                PartSupplierGenerator::calculate_row_count(self.scale_factor, 1, 1),
+            ),
+            Table::Customer => (
+                160,
+                CustomerGenerator::calculate_row_count(self.scale_factor, 1, 1),
+            ),
+            Table::Orders => (
+                114,
+                OrderGenerator::calculate_row_count(self.scale_factor, 1, 1),
+            ),
+            Table::LineItem => {
+                // there are on average 4 line items per order.
+                // For example, in SF=10,
+                // * orders has 15,000,000 rows
+                // * lineitem has around 60,000,000 rows
+                let row_count = 4 * OrderGenerator::calculate_row_count(self.scale_factor, 1, 1);
+                (128, row_count)
             }
-        }
+        };
+        // target chunks of about 16MB (use 15MB to ensure we don't exceed the target size)
+        let target_chunk_size_bytes = 15 * 1024 * 1024;
+        let num_parts = ((row_count * avg_row_size_bytes) / target_chunk_size_bytes) + 1;
+        // convert to i32
+        let num_parts = num_parts.try_into().unwrap();
+        // generating all the parts
+        (num_parts, (1..=num_parts).collect())
     }
 
-    fn generate_region(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::Region);
-        let writer = self.new_output_writer(&filename)?;
+    /// Generates the output file from the sources
+    async fn go<I>(&self, filename: &str, sources: I) -> Result<(), io::Error>
+    where
+        I: Iterator<Item: Source> + 'static,
+    {
+        let sink = BufWriterSink::new(self.new_output_writer(filename)?);
+        generate_in_chunks(sink, sources).await
+    }
+}
 
-        let generator = RegionGenerator::new();
-        match self.format {
-            OutputFormat::Tbl => self.region_tbl(writer, generator),
-            OutputFormat::Csv => self.region_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
-            }
+/// Wrapper around a buffer writer that counts the number of buffers and bytes written
+struct BufWriterSink {
+    start: Instant,
+    inner: BufWriter<File>,
+    num_buffers: usize,
+    num_bytes: usize,
+}
+
+impl BufWriterSink {
+    fn new(inner: BufWriter<File>) -> Self {
+        Self {
+            start: Instant::now(),
+            inner,
+            num_buffers: 0,
+            num_bytes: 0,
         }
     }
+}
 
-    fn generate_part(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::Part);
-        let writer = self.new_output_writer(&filename)?;
-
-        let generator = PartGenerator::new(self.scale_factor, self.part, self.parts);
-        match self.format {
-            OutputFormat::Tbl => self.part_tbl(writer, generator),
-            OutputFormat::Csv => self.part_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
-            }
-        }
+impl Sink for BufWriterSink {
+    fn sink(&mut self, buffer: &[u8]) -> Result<(), io::Error> {
+        self.num_buffers += 1;
+        self.num_bytes += buffer.len();
+        self.inner.write_all(buffer)
     }
 
-    fn generate_supplier(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::Supplier);
-        let writer = self.new_output_writer(&filename)?;
+    fn finish(mut self) -> Result<(), io::Error> {
+        let res = self.inner.flush();
 
-        let generator = SupplierGenerator::new(self.scale_factor, self.part, self.parts);
-        match self.format {
-            OutputFormat::Tbl => self.supplier_tbl(writer, generator),
-            OutputFormat::Csv => self.supplier_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
-            }
-        }
-    }
+        let duration = self.start.elapsed();
+        let mb_per_buffer = self.num_bytes as f64 / (1024.0 * 1024.0) / self.num_buffers as f64;
+        let bytes_per_second = (self.num_bytes as f64 / duration.as_secs_f64()) as u64;
+        let gb_per_second = bytes_per_second as f64 / (1024.0 * 1024.0 * 1024.0);
 
-    fn generate_partsupp(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::PartSupp);
-        let writer = self.new_output_writer(&filename)?;
-
-        let generator = PartSupplierGenerator::new(self.scale_factor, self.part, self.parts);
-        match self.format {
-            OutputFormat::Tbl => self.partsupp_tbl(writer, generator),
-            OutputFormat::Csv => self.partsupp_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
-            }
-        }
-    }
-
-    fn generate_customer(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::Customer);
-        let writer = self.new_output_writer(&filename)?;
-
-        let generator = CustomerGenerator::new(self.scale_factor, self.part, self.parts);
-        match self.format {
-            OutputFormat::Tbl => self.customer_tbl(writer, generator),
-            OutputFormat::Csv => self.customer_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
-            }
-        }
-    }
-
-    fn generate_orders(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::Orders);
-        let writer = self.new_output_writer(&filename)?;
-
-        let generator = OrderGenerator::new(self.scale_factor, self.part, self.parts);
-        match self.format {
-            OutputFormat::Tbl => self.orders_tbl(writer, generator),
-            OutputFormat::Csv => self.orders_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
-            }
-        }
-    }
-
-    fn generate_lineitem(&self) -> io::Result<()> {
-        let filename = self.output_filename(Table::LineItem);
-        let writer = self.new_output_writer(&filename)?;
-
-        let generator = LineItemGenerator::new(self.scale_factor, self.part, self.parts);
-        match self.format {
-            OutputFormat::Tbl => self.lineitem_tbl(writer, generator),
-            OutputFormat::Csv => self.lineitem_csv(writer, generator),
-            OutputFormat::Parquet => {
-                unimplemented!("Parquet output not yet implemented");
-            }
-        }
-    }
-
-    // Separate functions for each table/output format combination
-    // to ensure they are inlined / a single function doesn't get out of hand
-    // TODO: make these via macros
-
-    fn nation_tbl<W: Write>(&self, mut w: W, gen: NationGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn nation_csv<W: Write>(&self, mut w: W, gen: NationGenerator) -> io::Result<()> {
-        writeln!(w, "{}", NationCsv::header())?;
-        for item in gen.iter() {
-            writeln!(&mut w, "{}", NationCsv::new(item))?;
-        }
-        w.flush()
-    }
-
-    fn region_tbl<W: Write>(&self, mut w: W, gen: RegionGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn region_csv<W: Write>(&self, mut w: W, gen: RegionGenerator) -> io::Result<()> {
-        writeln!(w, "{}", RegionCsv::header())?;
-        for item in gen.iter() {
-            writeln!(&mut w, "{}", RegionCsv::new(item))?;
-        }
-        w.flush()
-    }
-
-    fn part_tbl<W: Write>(&self, mut w: W, gen: PartGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn part_csv<W: Write>(&self, mut w: W, gen: PartGenerator) -> io::Result<()> {
-        writeln!(w, "{}", PartCsv::header())?;
-        for item in gen.iter() {
-            writeln!(&mut w, "{}", PartCsv::new(item))?;
-        }
-        w.flush()
-    }
-
-    fn supplier_tbl<W: Write>(&self, mut w: W, gen: SupplierGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn supplier_csv<W: Write>(&self, mut w: W, generator: SupplierGenerator) -> io::Result<()> {
-        writeln!(w, "{}", SupplierCsv::header())?;
-        for item in generator.iter() {
-            writeln!(&mut w, "{}", SupplierCsv::new(item))?;
-        }
-        w.flush()
-    }
-
-    fn partsupp_tbl<W: Write>(&self, mut w: W, gen: PartSupplierGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn partsupp_csv<W: Write>(&self, mut w: W, gen: PartSupplierGenerator) -> io::Result<()> {
-        writeln!(w, "{}", PartSuppCsv::header())?;
-        for item in gen.iter() {
-            writeln!(&mut w, "{}", PartSuppCsv::new(item))?;
-        }
-        w.flush()
-    }
-
-    fn customer_tbl<W: Write>(&self, mut w: W, gen: CustomerGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn customer_csv<W: Write>(&self, mut w: W, gen: CustomerGenerator) -> io::Result<()> {
-        writeln!(w, "{}", CustomerCsv::header())?;
-        for item in gen.iter() {
-            writeln!(&mut w, "{}", CustomerCsv::new(item))?;
-        }
-        w.flush()
-    }
-
-    fn orders_tbl<W: Write>(&self, mut w: W, gen: OrderGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn orders_csv<W: Write>(&self, mut w: W, gen: OrderGenerator) -> io::Result<()> {
-        writeln!(w, "{}", OrderCsv::header())?;
-        for item in gen.iter() {
-            writeln!(&mut w, "{}", OrderCsv::new(item))?;
-        }
-        w.flush()
-    }
-
-    fn lineitem_tbl<W: Write>(&self, mut w: W, gen: LineItemGenerator) -> io::Result<()> {
-        for item in gen.iter() {
-            writeln!(&mut w, "{item}")?;
-        }
-        w.flush()
-    }
-
-    fn lineitem_csv<W: Write>(&self, mut w: W, gen: LineItemGenerator) -> io::Result<()> {
-        writeln!(w, "{}", LineItemCsv::header())?;
-        for item in gen.iter() {
-            writeln!(&mut w, "{}", LineItemCsv::new(item))?;
-        }
-        w.flush()
+        info!("Completed in {duration:?} ({gb_per_second:.02} GB/sec)");
+        debug!(
+            "wrote {} bytes in {} buffers {mb_per_buffer:.02} MB/buffer",
+            self.num_bytes, self.num_buffers,
+        );
+        res
     }
 }

@@ -12,7 +12,7 @@ use std::fmt::Display;
 /// # use tpchgen::csv::NationCsv;
 /// # use std::fmt::Write;
 /// // Output the first 3 rows in CSV format
-/// let generator = NationGenerator::new();
+/// let generator = NationGenerator::default();
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", NationCsv::header()).unwrap(); // write header
 /// for line in generator.iter().take(3) {
@@ -60,7 +60,7 @@ impl Display for NationCsv<'_> {
 /// # use tpchgen::generators::{RegionGenerator};
 /// # use tpchgen::csv::{NationCsv, RegionCsv};
 /// # use std::fmt::Write;
-/// let generator = RegionGenerator::new();
+/// let generator = RegionGenerator::default();
 /// // Output the first 3 rows in CSV format
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", RegionCsv::header()).unwrap(); // write header
