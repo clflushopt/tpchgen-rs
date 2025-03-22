@@ -523,12 +523,7 @@ impl<'a> RandomStringSequence<'a> {
 
     pub fn next_value(&mut self) -> StringSequenceInstance<'a> {
         // Get all values from the distribution
-        let mut values: Vec<&str> = self
-            .distribution
-            .get_values()
-            .iter()
-            .map(|s| s.as_str())
-            .collect();
+        let mut values: Vec<&str> = self.distribution.get_values().to_vec();
 
         // Randomize first 'count' elements
         for current_position in 0..self.count {

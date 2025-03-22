@@ -1,6 +1,6 @@
 use crate::random::RowRandomInt;
 use std::{
-    io::{self, BufRead},
+    io::{self},
     sync::LazyLock,
 };
 
@@ -14,15 +14,15 @@ pub(crate) const DISTS_SEED: &str = include_str!("dists.dss");
 #[derive(Debug, Clone)]
 pub struct Distribution {
     name: String,
-    values: Vec<String>,
+    values: Vec<&'static str>,
     weights: Vec<i32>,
-    distribution: Option<Vec<String>>,
+    distribution: Option<Vec<&'static str>>,
     max_weight: i32,
 }
 
 impl Distribution {
     /// Creates a new Distribution with the given name and weighted values.
-    pub fn new(name: String, distribution: IndexMap<String, i32>) -> Self {
+    pub fn new(name: String, distribution: IndexMap<&'static str, i32>) -> Self {
         let mut values = Vec::new();
         let mut weights = vec![0; distribution.len()];
 
@@ -31,7 +31,7 @@ impl Distribution {
 
         // Process each value and its weight
         for (index, (value, weight)) in distribution.iter().enumerate() {
-            values.push(value.clone());
+            values.push(*value);
 
             running_weight += weight;
             weights[index] = running_weight;
@@ -44,14 +44,15 @@ impl Distribution {
         // "nations" is a special case that's not a valid distribution
         let (distribution_array, max_weight) = if is_valid_distribution {
             let max = weights[weights.len() - 1];
-            let mut dist = vec![String::new(); max as usize];
+            let mut dist = vec![""; max as usize];
 
             let mut index = 0;
             for value in values.iter() {
+                let value = *value; // &str
                 let count = distribution.get(value).unwrap();
 
                 for _ in 0..*count {
-                    dist[index] = value.clone();
+                    dist[index] = value;
                     index += 1;
                 }
             }
@@ -77,11 +78,11 @@ impl Distribution {
 
     /// Gets a value at the specified index.
     pub fn get_value(&self, index: usize) -> &str {
-        &self.values[index]
+        self.values[index]
     }
 
     /// Gets all values in this distribution.
-    pub fn get_values(&self) -> &[String] {
+    pub fn get_values(&self) -> &[&'static str] {
         &self.values
     }
 
@@ -99,7 +100,7 @@ impl Distribution {
     pub fn random_value(&self, random: &mut RowRandomInt) -> &str {
         if let Some(dist) = &self.distribution {
             let random_value = random.next_int(0, self.max_weight - 1);
-            return &dist[random_value as usize];
+            return dist[random_value as usize];
         }
         unreachable!("Cannot get random value from an invalid distribution")
     }
@@ -118,17 +119,15 @@ impl DistributionLoader {
     /// - Distributions end with `"END"`
     pub fn load_distributions<I>(lines: I) -> io::Result<IndexMap<String, Distribution>>
     where
-        I: Iterator<Item = io::Result<String>>,
+        I: Iterator<Item = &'static str>,
     {
-        let filtered_lines = lines.filter_map(|line_result| {
-            line_result.ok().and_then(|line| {
-                let trimmed = line.trim();
-                if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                    Some(trimmed.to_string())
-                } else {
-                    None
-                }
-            })
+        let filtered_lines = lines.filter_map(|line| {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                Some(trimmed)
+            } else {
+                None
+            }
         });
 
         Self::load_distributions_from_filtered_lines(filtered_lines)
@@ -139,7 +138,7 @@ impl DistributionLoader {
         lines: I,
     ) -> io::Result<IndexMap<String, Distribution>>
     where
-        I: Iterator<Item = String>,
+        I: Iterator<Item = &'static str>,
     {
         let mut distributions = IndexMap::new();
         let mut lines_iter = lines.peekable();
@@ -162,13 +161,13 @@ impl DistributionLoader {
         name: &str,
     ) -> io::Result<Distribution>
     where
-        I: Iterator<Item = String>,
+        I: Iterator<Item = &'static str>,
     {
         let mut members = IndexMap::new();
         let mut _count = -1;
 
         for line in lines.by_ref() {
-            if Self::is_end(&line) {
+            if Self::is_end(line) {
                 return Ok(Distribution::new(name.to_string(), members));
             }
 
@@ -180,7 +179,7 @@ impl DistributionLoader {
                 ));
             }
 
-            let value = parts[0].to_string();
+            let value = parts[0];
             let weight = match parts[1].trim().parse::<i32>() {
                 Ok(w) => w,
                 Err(_) => {
@@ -228,8 +227,7 @@ pub struct Distributions {
 impl Default for Distributions {
     /// Loads the default distributions from `DISTS_SEED`.
     fn default() -> Self {
-        let cursor = io::Cursor::new(DISTS_SEED);
-        let lines = cursor.lines();
+        let lines = DISTS_SEED.split('\n');
         let distributions = DistributionLoader::load_distributions(lines).unwrap();
         Distributions::new(distributions)
     }
