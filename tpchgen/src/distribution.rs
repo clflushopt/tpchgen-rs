@@ -1,10 +1,9 @@
 use crate::random::RowRandomInt;
 use std::{
+    collections::HashMap,
     io::{self, BufRead},
     sync::LazyLock,
 };
-
-use indexmap::IndexMap;
 
 /// TPC-H distributions seed file.
 pub(crate) const DISTS_SEED: &str = include_str!("dists.dss");
@@ -22,17 +21,14 @@ pub struct Distribution {
 
 impl Distribution {
     /// Creates a new Distribution with the given name and weighted values.
-    pub fn new(name: String, distribution: IndexMap<String, i32>) -> Self {
-        let mut values = Vec::new();
+    pub fn new(name: String, distribution: Vec<(String, i32)>) -> Self {
         let mut weights = vec![0; distribution.len()];
 
         let mut running_weight = 0;
         let mut is_valid_distribution = true;
 
         // Process each value and its weight
-        for (index, (value, weight)) in distribution.iter().enumerate() {
-            values.push(value.clone());
-
+        for (index, (_, weight)) in distribution.iter().enumerate() {
             running_weight += weight;
             weights[index] = running_weight;
 
@@ -47,10 +43,8 @@ impl Distribution {
             let mut dist = vec![String::new(); max as usize];
 
             let mut index = 0;
-            for value in values.iter() {
-                let count = distribution.get(value).unwrap();
-
-                for _ in 0..*count {
+            for (value, weight) in &distribution {
+                for _ in 0..*weight {
                     dist[index] = value.clone();
                     index += 1;
                 }
@@ -60,6 +54,8 @@ impl Distribution {
         } else {
             (None, -1)
         };
+
+        let values = distribution.into_iter().map(|(tok, _)| tok).collect();
 
         Distribution {
             name,
@@ -116,7 +112,7 @@ impl DistributionLoader {
     /// - Distributions start with `"BEGIN <name>"`
     /// - Distribution entries are formatted as `"value|weight"`
     /// - Distributions end with `"END"`
-    pub fn load_distributions<I>(lines: I) -> io::Result<IndexMap<String, Distribution>>
+    pub fn load_distributions<I>(lines: I) -> io::Result<HashMap<String, Distribution>>
     where
         I: Iterator<Item = io::Result<String>>,
     {
@@ -137,11 +133,11 @@ impl DistributionLoader {
     /// Internal method to load distributions from pre-filtered lines.
     fn load_distributions_from_filtered_lines<I>(
         lines: I,
-    ) -> io::Result<IndexMap<String, Distribution>>
+    ) -> io::Result<HashMap<String, Distribution>>
     where
         I: Iterator<Item = String>,
     {
-        let mut distributions = IndexMap::new();
+        let mut distributions = HashMap::new();
         let mut lines_iter = lines.peekable();
 
         while let Some(line) = lines_iter.next() {
@@ -164,12 +160,14 @@ impl DistributionLoader {
     where
         I: Iterator<Item = String>,
     {
-        let mut members = IndexMap::new();
+        // (Token, Weight) pairs within a distribution.
+        let mut members: Vec<(String, i32)> = Vec::new();
         let mut _count = -1;
 
         for line in lines.by_ref() {
             if Self::is_end(&line) {
-                return Ok(Distribution::new(name.to_string(), members));
+                let distribution = Distribution::new(name.to_string(), members);
+                return Ok(distribution);
             }
 
             let parts: Vec<&str> = line.split("|").collect::<Vec<_>>();
@@ -180,7 +178,7 @@ impl DistributionLoader {
                 ));
             }
 
-            let value = parts[0].to_string();
+            let value = parts[0];
             let weight = match parts[1].trim().parse::<i32>() {
                 Ok(w) => w,
                 Err(_) => {
@@ -197,7 +195,7 @@ impl DistributionLoader {
             if value.eq_ignore_ascii_case("count") {
                 _count = weight;
             } else {
-                members.insert(value, weight);
+                members.push((value.to_string(), weight));
             }
         }
 
@@ -217,28 +215,47 @@ impl DistributionLoader {
 /// Static global instance of the default distributions.
 ///
 /// Initialized once on first access.
-static DEFAULT_DISTRIBUTIONS: LazyLock<Distributions> = LazyLock::new(Distributions::default);
+static DEFAULT_DISTRIBUTIONS: LazyLock<Distributions> =
+    LazyLock::new(|| Distributions::try_load_defualt().unwrap());
 
 /// Distributions wraps all TPC-H distributions and provides methods to access them.
 #[derive(Debug, Clone)]
 pub struct Distributions {
-    distributions: IndexMap<String, Distribution>,
-}
+    articles: Distribution,
+    adjectives: Distribution,
+    adverbs: Distribution,
+    nouns: Distribution,
+    verbs: Distribution,
+    auxiliaries: Distribution,
 
-impl Default for Distributions {
-    /// Loads the default distributions from `DISTS_SEED`.
-    fn default() -> Self {
-        let cursor = io::Cursor::new(DISTS_SEED);
-        let lines = cursor.lines();
-        let distributions = DistributionLoader::load_distributions(lines).unwrap();
-        Distributions::new(distributions)
-    }
+    distributions: HashMap<String, Distribution>,
 }
 
 impl Distributions {
-    /// Creates a new distributions wrapper.
-    pub fn new(distributions: IndexMap<String, Distribution>) -> Self {
-        Distributions { distributions }
+    pub fn try_load_defualt() -> io::Result<Self> {
+        let cursor = io::Cursor::new(DISTS_SEED);
+        let lines = cursor.lines();
+        let mut distributions = DistributionLoader::load_distributions(lines).unwrap();
+
+        let remove_dist = &mut |key: &str| {
+            distributions.remove(key).ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Missing distribution: {key}"),
+                )
+            })
+        };
+
+        Ok(Distributions {
+            articles: remove_dist("articles")?,
+            adjectives: remove_dist("adjectives")?,
+            adverbs: remove_dist("adverbs")?,
+            nouns: remove_dist("nouns")?,
+            verbs: remove_dist("verbs")?,
+            auxiliaries: remove_dist("auxillaries")?, // P.S: The correct spelling is `auxiliaries` which is what we use.
+
+            distributions,
+        })
     }
 
     /// Returns a static reference to the default distributions.
@@ -248,24 +265,24 @@ impl Distributions {
 
     /// Returns the `adjectives` distribution.
     pub fn adjectives(&self) -> &Distribution {
-        self.get("adjectives")
+        &self.adjectives
     }
 
     /// Returns the `adverbs` distribution.
     pub fn adverbs(&self) -> &Distribution {
-        self.get("adverbs")
+        &self.adverbs
     }
 
     /// Returns the `articles` distribution.
     pub fn articles(&self) -> &Distribution {
-        self.get("articles")
+        &self.articles
     }
 
     /// Returns the `auxillaries` distribution.
     ///
     /// P.S: The correct spelling is `auxiliaries` which is what we use.
     pub fn auxiliaries(&self) -> &Distribution {
-        self.get("auxillaries")
+        &self.auxiliaries
     }
 
     /// Returns the `grammar` distribution.
@@ -295,7 +312,7 @@ impl Distributions {
 
     /// Returns the `nouns` distribution.
     pub fn nouns(&self) -> &Distribution {
-        self.get("nouns")
+        &self.nouns
     }
 
     /// Returns the `orders_priority` distribution.
@@ -355,7 +372,7 @@ impl Distributions {
 
     /// Returns the `verbs` distribution.
     pub fn verbs(&self) -> &Distribution {
-        self.get("verbs")
+        &self.verbs
     }
 
     /// Returns the distribution with the specified name.
