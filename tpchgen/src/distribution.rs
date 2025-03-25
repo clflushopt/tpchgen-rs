@@ -1,6 +1,6 @@
 use crate::random::RowRandomInt;
 use std::{
-    io::{self, BufRead},
+    io::{self},
     sync::LazyLock,
 };
 
@@ -11,16 +11,16 @@ pub(crate) const DISTS_SEED: &str = include_str!("dists.dss");
 /// It provides methods to access values by index or randomly based on their weights.
 #[derive(Debug, Clone, Default)]
 pub struct Distribution {
-    name: String,
-    values: Vec<String>,
+    name: &'static str,
+    values: Vec<&'static str>,
     weights: Vec<i32>,
-    distribution: Option<Vec<String>>,
+    distribution: Option<Vec<&'static str>>,
     max_weight: i32,
 }
 
 impl Distribution {
     /// Creates a new Distribution with the given name and weighted values.
-    pub fn new(name: String, distribution: Vec<(String, i32)>) -> Self {
+    pub fn new(name: &'static str, distribution: Vec<(&'static str, i32)>) -> Self {
         let mut weights = vec![0; distribution.len()];
 
         let mut running_weight = 0;
@@ -39,12 +39,12 @@ impl Distribution {
         // "nations" is a special case that's not a valid distribution
         let (distribution_array, max_weight) = if is_valid_distribution {
             let max = weights[weights.len() - 1];
-            let mut dist = vec![String::new(); max as usize];
+            let mut dist = vec![""; max as usize];
 
             let mut index = 0;
             for (value, weight) in &distribution {
                 for _ in 0..*weight {
-                    dist[index] = value.clone();
+                    dist[index] = value;
                     index += 1;
                 }
             }
@@ -67,16 +67,16 @@ impl Distribution {
 
     /// Returns the distribution name.
     pub fn name(&self) -> &str {
-        &self.name
+        self.name
     }
 
     /// Gets a value at the specified index.
     pub fn get_value(&self, index: usize) -> &str {
-        &self.values[index]
+        self.values[index]
     }
 
     /// Gets all values in this distribution.
-    pub fn get_values(&self) -> &[String] {
+    pub fn get_values(&self) -> &[&'static str] {
         &self.values
     }
 
@@ -94,23 +94,26 @@ impl Distribution {
     pub fn random_value(&self, random: &mut RowRandomInt) -> &str {
         if let Some(dist) = &self.distribution {
             let random_value = random.next_int(0, self.max_weight - 1);
-            return &dist[random_value as usize];
+            return dist[random_value as usize];
         }
         unreachable!("Cannot get random value from an invalid distribution")
     }
 
     /// Loads a single distribution until its END marker.
-    fn load_distribution<I>(lines: &mut std::iter::Peekable<I>, name: &str) -> io::Result<Self>
+    fn load_distribution<I>(
+        lines: &mut std::iter::Peekable<I>,
+        name: &'static str,
+    ) -> io::Result<Self>
     where
-        I: Iterator<Item = String>,
+        I: Iterator<Item = &'static str>,
     {
         // (Token, Weight) pairs within a distribution.
-        let mut members: Vec<(String, i32)> = Vec::new();
+        let mut members: Vec<(&'static str, i32)> = Vec::new();
         let mut _count = -1;
 
         for line in lines.by_ref() {
-            if Self::is_end(&line) {
-                let distribution = Distribution::new(name.to_string(), members);
+            if Self::is_end(line) {
+                let distribution = Distribution::new(name, members);
                 return Ok(distribution);
             }
 
@@ -139,7 +142,7 @@ impl Distribution {
             if value.eq_ignore_ascii_case("count") {
                 _count = weight;
             } else {
-                members.push((value.to_string(), weight));
+                members.push((value, weight));
             }
         }
 
@@ -191,12 +194,11 @@ pub struct Distributions {
 
 impl Distributions {
     pub fn try_load_default() -> io::Result<Self> {
-        let cursor = io::Cursor::new(DISTS_SEED);
-        let lines = cursor.lines();
+        let lines = DISTS_SEED.split('\n');
 
         let mut new_self = Self::default();
         for (name, distribution) in Self::load_distributions(lines)? {
-            match name.as_str() {
+            match name {
                 "articles" => new_self.articles = distribution,
                 "adjectives" => new_self.adjectives = distribution,
                 "adverbs" => new_self.adverbs = distribution,
@@ -242,30 +244,39 @@ impl Distributions {
     /// - Distributions start with `"BEGIN <name>"`
     /// - Distribution entries are formatted as `"value|weight"`
     /// - Distributions end with `"END"`
-    fn load_distributions<I>(lines: I) -> io::Result<Vec<(String, Distribution)>>
+    fn load_distributions<I>(lines: I) -> io::Result<Vec<(&'static str, Distribution)>>
     where
-        I: Iterator<Item = io::Result<String>>,
+        I: Iterator<Item = &'static str>,
     {
         let mut filtered_lines = lines
-            .filter_map(|line_result| {
-                line_result.ok().and_then(|line| {
-                    let trimmed = line.trim();
-                    if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                        Some(trimmed.to_string())
-                    } else {
-                        None
-                    }
-                })
+            .filter_map(|line| {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                    Some(trimmed)
+                } else {
+                    None
+                }
             })
             .peekable();
 
         let mut distributions = Vec::new();
 
         while let Some(line) = filtered_lines.next() {
-            let parts: Vec<&str> = line.split_whitespace().collect();
-            if parts.len() == 2 && parts[0].eq_ignore_ascii_case("BEGIN") {
-                let name = parts[1].to_string();
-                let distribution = Distribution::load_distribution(&mut filtered_lines, &name)?;
+            // This checks if the line has exactly two parts and the first part is "BEGIN"
+            let mut part_iter = line.split_whitespace();
+            let Some(part0) = part_iter.next() else {
+                continue;
+            };
+            let Some(part1) = part_iter.next() else {
+                continue;
+            };
+            // Check if len != 2
+            if part_iter.next().is_some() {
+                continue;
+            }
+            if part0.eq_ignore_ascii_case("BEGIN") {
+                let name = part1;
+                let distribution = Distribution::load_distribution(&mut filtered_lines, name)?;
                 distributions.push((name, distribution));
             }
         }
@@ -395,13 +406,11 @@ impl Distributions {
 mod tests {
     use super::*;
     use std::collections::HashMap;
-    use std::io::Cursor;
 
     #[test]
     fn test_load_empty() {
         let input = "";
-        let cursor = Cursor::new(input);
-        let lines = cursor.lines();
+        let lines = input.split('\n');
         let distributions = Distributions::load_distributions(lines).unwrap();
         assert!(distributions.is_empty());
     }
@@ -415,8 +424,7 @@ mod tests {
             value2|20
             END
         ";
-        let cursor = Cursor::new(input);
-        let lines = cursor.lines();
+        let lines = input.split('\n');
         let distributions: HashMap<_, _> = Distributions::load_distributions(lines)
             .unwrap()
             .into_iter()
@@ -447,8 +455,7 @@ mod tests {
             z|4
             END
         ";
-        let cursor = Cursor::new(input);
-        let lines = cursor.lines();
+        let lines = input.split('\n');
         let distributions: HashMap<_, _> = Distributions::load_distributions(lines)
             .unwrap()
             .into_iter()
@@ -472,8 +479,7 @@ mod tests {
             value|invalid
             END
         ";
-        let cursor = Cursor::new(input);
-        let lines = cursor.lines();
+        let lines = input.split('\n');
         let result = Distributions::load_distributions(lines);
         assert!(result.is_err());
     }
@@ -484,8 +490,7 @@ mod tests {
             BEGIN test
             value|10
         ";
-        let cursor = Cursor::new(input);
-        let lines = cursor.lines();
+        let lines = input.split('\n');
         let result = Distributions::load_distributions(lines);
         assert!(result.is_err());
     }
@@ -522,8 +527,7 @@ mod tests {
             "Q13b",
         ];
 
-        let cursor = Cursor::new(DISTS_SEED);
-        let lines = cursor.lines();
+        let lines = DISTS_SEED.split('\n');
         let distributions: HashMap<_, _> = Distributions::load_distributions(lines)
             .unwrap()
             .into_iter()
