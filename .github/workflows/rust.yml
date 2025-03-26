@@ -22,32 +22,42 @@ jobs:
       - name: Check
         run: cargo check --verbose --workspace --all-targets
 
-  # Library tests (run in parallel with "tests" and dpcs)
-  test-lib:
+  # Tests for tpchgen
+  test-tests-tpchgen:
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v4
-      - name: Run Tests
-        run: cargo test --lib --workspace
+      - name: Tests (tpchgen)
+        run: cargo test -p tpchgen --tests
 
-  # "test" tests (aka tests in the tests directory)
-  test-test:
+  # doc examples test for tpchgen (takes a while)
+  test-doc-tpchgen:
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v4
-      - name: Run Tests
-        run: cargo test --tests --workspace
+      - name: Doc Tests (tpchgen)
+        run: cargo test -p tpchgen --doc
 
-  # doc examples test
-  test-doc:
+  # All tests for tpchgen-arrow
+  test-all-tpchgen-arrow:
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v4
-      - name: Run Tests
-        run: cargo test --doc --workspace
+      - name: All Tests (tpchgen-arrow)
+        run: cargo test -p tpchgen-arrow
+
+  # All tests for tpchgen-cli
+  test-all-tpchgen-cli:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - name: All Tests (tpchgen-cli)
+        run: cargo test -p tpchgen-cli
+
 
   # documentation build
   docs:
@@ -65,7 +75,7 @@ jobs:
   conformance-test:
     name: TPC-H Conformance Tests
     runs-on: ubuntu-latest
-    needs: [lint, test-lib, test-test, docs]
+    needs: [lint, test-tests-tpchgen, docs]
 
     steps:
       - uses: actions/checkout@v4

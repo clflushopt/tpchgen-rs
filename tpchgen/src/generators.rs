@@ -1823,7 +1823,7 @@ impl fmt::Display for LineItem<'_> {
 }
 
 /// Generator for LineItem table data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LineItemGenerator<'a> {
     scale_factor: f64,
     part: i32,

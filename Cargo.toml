@@ -1,6 +1,6 @@
 [workspace]
 
-members = [ "tpchgen" , "tpchgen-cli"]
+members = [ "tpchgen" , "tpchgen-arrow", "tpchgen-cli"]
 
 resolver = "2"
 

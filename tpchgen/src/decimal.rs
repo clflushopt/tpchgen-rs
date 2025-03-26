@@ -4,12 +4,26 @@ use std::fmt;
 
 /// Represents a decimal with a scale of 2.
 ///
+/// For example `TPCHDecimal(1234)` represents `12.34`.
+///
 /// A 'decimal' column should be able to fit any values in the the range
 /// [-9_999_999_999.99, +9_999_999_999.99] in increments of 0.01.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TPCHDecimal(pub i64);
 
 impl TPCHDecimal {
+    /// Create a new decimal value.
+    ///
+    /// # Example
+    /// ```
+    /// use tpchgen::decimal::TPCHDecimal;
+    /// let decimal = TPCHDecimal::new(1234);
+    /// assert_eq!(decimal.to_string(), "12.34");
+    /// ```
+    pub fn new(value: i64) -> Self {
+        TPCHDecimal(value)
+    }
+
     pub const ZERO: TPCHDecimal = TPCHDecimal(0);
 
     /// Converts the decimal value to an f64.
