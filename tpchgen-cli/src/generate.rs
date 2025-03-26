@@ -35,14 +35,18 @@ pub trait Sink: Send {
 /// Each [`Source`] is a data generator that generates data directly into an in
 /// memory buffer.
 ///
-/// This function will run the [`Source`]es in parallel using all available
-/// cores. Data is written to the [`Sink`] in the order of the [`Source`]es in
+/// This function will run the [`Source`]es in parallel up to num_threads.
+/// Data is written to the [`Sink`] in the order of the [`Source`]es in
 /// the input iterator.
 ///
 /// G: Generator
 /// I: Iterator<Item = G>
 /// S: Sink that writes buffers somewhere
-pub async fn generate_in_chunks<G, I, S>(mut sink: S, sources: I) -> Result<(), io::Error>
+pub async fn generate_in_chunks<G, I, S>(
+    mut sink: S,
+    sources: I,
+    num_threads: usize,
+) -> Result<(), io::Error>
 where
     G: Source + 'static,
     I: Iterator<Item = G>,
@@ -51,11 +55,10 @@ where
     let recycler = BufferRecycler::new();
 
     // use all cores to make data
-    let num_tasks = num_cpus::get();
-    debug!("Generating with {num_tasks} parallel tasks");
+    debug!("Using {num_threads} threads");
 
     // create a channel to communicate between the generator tasks and the writer task
-    let (tx, mut rx) = tokio::sync::mpsc::channel(num_tasks);
+    let (tx, mut rx) = tokio::sync::mpsc::channel(num_threads);
 
     let sources_and_recyclers = sources.map(|generator| (generator, recycler.clone()));
 
@@ -75,7 +78,7 @@ where
                 .expect("join_next join is infallible unless task panics")
         })
         // run in parallel
-        .buffered(num_tasks)
+        .buffered(num_threads)
         .map(async |buffer| {
             // send the buffer to the writer task, in order.
 

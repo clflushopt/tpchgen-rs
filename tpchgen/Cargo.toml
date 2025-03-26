@@ -12,3 +12,4 @@ repository = "https://github.com/clflushopt/tpchgen-rs"
 
 [dev-dependencies]
 flate2 = "1.1.0"
+

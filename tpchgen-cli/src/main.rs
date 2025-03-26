@@ -30,11 +30,16 @@
 //! ```
 mod csv;
 mod generate;
+mod parquet;
+mod statistics;
 mod tbl;
 
 use crate::csv::*;
 use crate::generate::{generate_in_chunks, Sink, Source};
+use crate::parquet::*;
+use crate::statistics::WriteStatistics;
 use crate::tbl::*;
+use ::parquet::basic::Compression;
 use clap::{Parser, ValueEnum};
 use log::{debug, info, LevelFilter};
 use std::fmt::Display;
@@ -48,6 +53,10 @@ use tpchgen::generators::{
     PartSuppGenerator, RegionGenerator, SupplierGenerator,
 };
 use tpchgen::text::TextPool;
+use tpchgen_arrow::{
+    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow,
+    RecordBatchIterator, RegionArrow, SupplierArrow,
+};
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
@@ -65,7 +74,7 @@ struct Cli {
     #[arg(short, long)]
     tables: Option<Vec<Table>>,
 
-    /// Number of parts to generate (for parallel generation)
+    /// Number of parts to generate (manual parallel generation)
     #[arg(short, long, default_value_t = 1)]
     parts: i32,
 
@@ -76,6 +85,21 @@ struct Cli {
     /// Output format: tbl, csv, parquet (default: tbl)
     #[arg(short, long, default_value = "tbl")]
     format: OutputFormat,
+
+    /// The number of threads for parallel generation, defaults to the number of CPUs
+    #[arg(short, long, default_value_t = num_cpus::get())]
+    num_threads: usize,
+
+    /// The parquet block compression. Default is ZSTD(1)
+    ///
+    /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP, LZO, BROTLI, LZ4
+    ///
+    /// Using ZSTD results in the best compression, but is about 2x slower than
+    /// UNCOMPRESSED. For example, for the lineitem table at SF=10
+    ///   ZSTD(1):      1.9G  (0.52 GB/sec)
+    ///   UNCOMPRESSED: 3.8G  (1.41 GB/sec)
+    #[arg(short, long, default_value = "ZSTD(1)")]
+    parquet_compression: Compression,
 
     /// Verbose output (default: false)
     #[arg(short, long, default_value_t = false)]
@@ -137,8 +161,9 @@ async fn main() -> io::Result<()> {
 /// $GENERATOR: The generator type to use
 /// $TBL_SOURCE: The [`Source`] type to use for TBL format
 /// $CSV_SOURCE: The [`Source`] type to use for CSV format
+/// $PARQUET_SOURCE: The [`RecordBatchIterator`] type to use for Parquet format
 macro_rules! define_generate {
-    ($FUN_NAME:ident,  $TABLE:expr, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty) => {
+    ($FUN_NAME:ident,  $TABLE:expr, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
         async fn $FUN_NAME(&self) -> io::Result<()> {
             let filename = self.output_filename($TABLE);
             let (num_parts, parts) = self.parallel_target_part_count(&$TABLE);
@@ -151,8 +176,10 @@ macro_rules! define_generate {
             match self.format {
                 OutputFormat::Tbl => self.go(&filename, gens.map(<$TBL_SOURCE>::new)).await,
                 OutputFormat::Csv => self.go(&filename, gens.map(<$CSV_SOURCE>::new)).await,
-                // https://github.com/clflushopt/tpchgen-rs/issues/46
-                OutputFormat::Parquet => unimplemented!("Parquet support not yet implemented"),
+                OutputFormat::Parquet => {
+                    self.go_parquet(&filename, gens.map(<$PARQUET_SOURCE>::new))
+                        .await
+                }
             }
         }
     };
@@ -220,56 +247,64 @@ impl Cli {
         Table::Nation,
         NationGenerator,
         NationTblSource,
-        NationCsvSource
+        NationCsvSource,
+        NationArrow
     );
     define_generate!(
         generate_region,
         Table::Region,
         RegionGenerator,
         RegionTblSource,
-        RegionCsvSource
+        RegionCsvSource,
+        RegionArrow
     );
     define_generate!(
         generate_part,
         Table::Part,
         PartGenerator,
         PartTblSource,
-        PartCsvSource
+        PartCsvSource,
+        PartArrow
     );
     define_generate!(
         generate_supplier,
         Table::Supplier,
         SupplierGenerator,
         SupplierTblSource,
-        SupplierCsvSource
+        SupplierCsvSource,
+        SupplierArrow
     );
     define_generate!(
         generate_partsupp,
         Table::PartSupp,
         PartSuppGenerator,
         PartSuppTblSource,
-        PartSuppCsvSource
+        PartSuppCsvSource,
+        PartSuppArrow
     );
     define_generate!(
         generate_customer,
         Table::Customer,
         CustomerGenerator,
         CustomerTblSource,
-        CustomerCsvSource
+        CustomerCsvSource,
+        CustomerArrow
     );
     define_generate!(
         generate_orders,
         Table::Orders,
         OrderGenerator,
         OrderTblSource,
-        OrderCsvSource
+        OrderCsvSource,
+        OrderArrow
     );
     define_generate!(
         generate_lineitem,
         Table::LineItem,
         LineItemGenerator,
         LineItemTblSource,
-        LineItemCsvSource
+        LineItemCsvSource,
+        LineItemArrow
     );
 
     /// return the output filename for the given table
@@ -352,49 +387,42 @@ impl Cli {
         I: Iterator<Item: Source> + 'static,
     {
         let sink = BufWriterSink::new(self.new_output_writer(filename)?);
-        generate_in_chunks(sink, sources).await
+        generate_in_chunks(sink, sources, self.num_threads).await
+    }
+
+    /// Generates an output parquet file from the sources
+    async fn go_parquet<I>(&self, filename: &str, sources: I) -> Result<(), io::Error>
+    where
+        I: Iterator<Item: RecordBatchIterator> + 'static,
+    {
+        let writer = self.new_output_writer(filename)?;
+        generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
     }
 }
 
 /// Wrapper around a buffer writer that counts the number of buffers and bytes written
 struct BufWriterSink {
-    start: Instant,
+    statistics: WriteStatistics,
     inner: BufWriter<File>,
-    num_buffers: usize,
-    num_bytes: usize,
 }
 
 impl BufWriterSink {
     fn new(inner: BufWriter<File>) -> Self {
         Self {
-            start: Instant::now(),
             inner,
-            num_buffers: 0,
-            num_bytes: 0,
+            statistics: WriteStatistics::new("buffers"),
         }
     }
 }
 
 impl Sink for BufWriterSink {
     fn sink(&mut self, buffer: &[u8]) -> Result<(), io::Error> {
-        self.num_buffers += 1;
-        self.num_bytes += buffer.len();
+        self.statistics.increment_chunks(1);
+        self.statistics.increment_bytes(buffer.len());
         self.inner.write_all(buffer)
     }
 
     fn flush(mut self) -> Result<(), io::Error> {
-        let res = self.inner.flush();
-
-        let duration = self.start.elapsed();
-        let mb_per_buffer = self.num_bytes as f64 / (1024.0 * 1024.0) / self.num_buffers as f64;
-        let bytes_per_second = (self.num_bytes as f64 / duration.as_secs_f64()) as u64;
-        let gb_per_second = bytes_per_second as f64 / (1024.0 * 1024.0 * 1024.0);
-
-        info!("Completed in {duration:?} ({gb_per_second:.02} GB/sec)");
-        debug!(
-            "wrote {} bytes in {} buffers {mb_per_buffer:.02} MB/buffer",
-            self.num_bytes, self.num_buffers,
-        );
-        res
+        self.inner.flush()
     }
 }
