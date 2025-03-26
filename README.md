@@ -8,74 +8,55 @@
 [actions-badge]: https://github.com/clflushopt/tpchgen-rs/actions/workflows/rust.yml/badge.svg
 [actions-url]: https://github.com/clflushopt/tpchgen-rs/actions?query=branch%3Amain
 
-Blazing fast TPCH benchmark data generator in pure Rust !
+Blazing fast [TPCH] benchmark data generator, in pure Rust with Zero dependencies.
+
+[TPCH]: https://www.tpc.org/tpch/
+
+![Parquet Generation Performance](parquet-performance.png)
 
 ## Features
-1. Zero dependency TPCH data generator crate for easy embedding
-2. Blazing Speed (see below)
-3. Batteries included, multi-threaded CLI
+1. Blazing Speed 🚀
+2. Obsessively Tested 📋
+3. Fully parallel, streaming, reasonable memory usage 🧠
 
-## Benchmarks
+## Try  now!
+First [install Rust](https://www.rust-lang.org/tools/install) and this tool:
 
-(coming soon)
-
-## Measuring Performance
-
-This generator is so fast it can saturate the throughput of most IO devices at
-time of writing. To see its true speed, you need to run it on a machine with a
-fast IO device (SSD or NVMe). Alternately you can use the `--stdout` flag and
-the `pv` command to send the output to `/dev/null` and measure the throughput.
-
-For example:
-
-```sh
-# Generate SF=100, about 100GB of data, piped to /dev/null, reporting statistics 
-tpchgen-cli -- -s 100 --stdout | pv -arb > /dev/null
-# Reports something like 
-# 106GiB [3.09GiB/s] (3.09GiB/s)
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+cargo install tpchgen-cli
 ```
 
-Similarly for parquet
-
-```
-# Generate SF=100 in parquet format, piped to /dev/null, reporting statistics
-tpchgen-cli -- -s 100 --format=parquet --stdout | pv -arb > /dev/null
-# 38.2GiB [ 865MiB/s] ( 865MiB/s)
+```shell
+# create Scale Factor 10 (3.6GB, 8 files, 60M rows in lineitem) in 5 seconds on a modern laptop
+tpchgen-cli -s 10 --format=parquet
 ```
 
-## Structure
+## Performance
 
-`tpchgen-cli` is a [`dbgen`](https://github.com/databricks/tpch-dbgen) compatible CLI tool
-that generates tables from the TPCH benchmark dataset.
+[`tpchgen-cli`](tpchgen-cli/README.md) is more than 10x faster than any other
+TPCH generator we know of. On a 2023 Mac M3 Max laptop, it easily generates data
+faster than can be written to SSD. See [BENCHMARKS.md](benchmarks/BENCHMARKS.md)
+for more details on performance and benchmarking.
 
-`tpchgen` is the library that implements the data generation logic for TPCH and it can be
-used to embed data generation logic natively in Rust.
+## Testing
 
-### CLI Usage
+This crate has extensive tests to ensure correctness. We compare the output of
+this crate with the original `dbgen` implementation as part of every checkin.
+See [TESTING.md](TESTING.md) for more details.
 
-We tried to make the `tpchgen-cli` experience as close to `dbgen` as possible for no other
-reason than maybe make it easier for you to have a drop-in replacement.
+## Crates
 
-```sh
-$ tpchgen-cli -h
-TPC-H Data Generator
+* `tpchgen` is the library that implements the data generation logic for TPCH
+  and it can be used to embed data generation logic natively in Rust.
+  
+# `tpchgen-arrow` is a library for generating in memory [Apache Arrow] 
+  record batches for each of the TPCH tables
 
-Usage: tpchgen-cli [OPTIONS] --output-dir <OUTPUT_DIR>
+* `tpchgen-cli` is a [`dbgen`](https://github.com/databricks/tpch-dbgen)
+  compatible CLI tool that generates tables from the TPCH benchmark dataset.
 
-Options:
-  -s, --scale-factor <SCALE_FACTOR>  Scale factor to address defaults to 1 [default: 1]
-  -o, --output-dir <OUTPUT_DIR>      Output directory for generated files
-  -t, --tables <TABLES>              Which tables to generate (default: all) [possible values: nation, region, part, supplier, part-supp, customer, orders, line-item]
-  -p, --parts <PARTS>                Number of parts to generate (for parallel generation) [default: 1]
-      --part <PART>                  Which part to generate (1-based, only relevant if parts > 1) [default: 1]
-  -h, --help                         Print help
-```
-
-For example generating a dataset with a scale factor of 1 (1GB) can be done like this :
-
-```sh
-$ tpchgen-cli -s 1 --output-dir=/tmp/tpch
-```
+[Apache Arrow]: https://arrow.apache.org/
 
 ## Contributing
 
@@ -95,4 +76,3 @@ The project is licensed under the [APACHE 2.0](LICENSE) license.
 
 - The TPC-H Specification, see the specification [page](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp).
 - The Original `dbgen` Implementation you must submit an official request to access the software `dbgen` at their official [website](https://www.tpc.org/tpch/)
-

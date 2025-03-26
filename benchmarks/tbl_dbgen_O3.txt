@@ -1,0 +1,51 @@
+Timings
+Fri Mar 28 06:45:42 EDT 2025
+Darwin Andrews-MacBook-Pro-2.local 24.3.0 Darwin Kernel Version 24.3.0: Thu Jan  2 20:24:23 PST 2025; root:xnu-11215.81.4~3/RELEASE_ARM64_T6031 arm64
+SF=1
+       10.77 real         9.78 user         0.69 sys
+***********Timings**********
+Sat Mar 29 23:44:14 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+10.04user 0.63system 0:10.68elapsed 100%CPU (0avgtext+0avgdata 309056maxresident)k
+0inputs+2149824outputs (0major+784minor)pagefaults 0swaps
+SF=10
+77.33user 5.56system 1:22.90elapsed 99%CPU (0avgtext+0avgdata 309028maxresident)k
+0inputs+21937816outputs (0major+786minor)pagefaults 0swaps
+SF=100
+Command terminated by signal 2
+17.69user 1.33system 10:17:45elapsed 0%CPU (0avgtext+0avgdata 309032maxresident)k
+0inputs+5090544outputs (0major+779minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 10:06:25 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+Command terminated by signal 2
+0.50user 0.00system 0:00.50elapsed 100%CPU (0avgtext+0avgdata 59700maxresident)k
+0inputs+0outputs (0major+291minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 10:06:55 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+Command terminated by signal 2
+2.83user 0.02system 0:14.85elapsed 19%CPU (0avgtext+0avgdata 309032maxresident)k
+0inputs+50296outputs (0major+777minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 10:11:36 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+Command terminated by signal 2
+1.30user 0.03system 0:01.34elapsed 100%CPU (0avgtext+0avgdata 156200maxresident)k
+0inputs+0outputs (0major+392minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 10:20:24 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+10.12user 0.53system 0:10.66elapsed 99%CPU (0avgtext+0avgdata 309040maxresident)k
+0inputs+2149824outputs (0major+785minor)pagefaults 0swaps
+SF=10
+76.94user 5.90system 1:23.03elapsed 99%CPU (0avgtext+0avgdata 309048maxresident)k
+0inputs+21937816outputs (0major+785minor)pagefaults 0swaps
+SF=100
+747.81user 60.90system 13:29.92elapsed 99%CPU (0avgtext+0avgdata 309068maxresident)k
+0inputs+223909456outputs (0major+786minor)pagefaults 0swaps

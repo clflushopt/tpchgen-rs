@@ -1,0 +1,12 @@
+***********Timings**********
+Sun Mar 30 10:39:26 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+12.95user 0.63system 0:13.59elapsed 99%CPU (0avgtext+0avgdata 309024maxresident)k
+0inputs+2149824outputs (0major+783minor)pagefaults 0swaps
+SF=10
+101.86user 5.76system 1:47.63elapsed 99%CPU (0avgtext+0avgdata 309048maxresident)k
+0inputs+21937816outputs (0major+784minor)pagefaults 0swaps
+SF=100
+962.43user 61.08system 17:05.00elapsed 99%CPU (0avgtext+0avgdata 309044maxresident)k
+0inputs+223909456outputs (0major+781minor)pagefaults 0swaps

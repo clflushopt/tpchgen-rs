@@ -1,0 +1,31 @@
+Timings
+Fri Mar 28 06:51:04 EDT 2025
+Darwin Andrews-MacBook-Pro-2.local 24.3.0 Darwin Kernel Version 24.3.0: Thu Jan  2 20:24:23 PST 2025; root:xnu-11215.81.4~3/RELEASE_ARM64_T6031 arm64
+SF=1
+        1.83 real         4.40 user         0.66 sys
+SF=10
+        4.14 real        36.07 user         2.77 sys
+***********Timings**********
+Fri Mar 28 15:06:45 UTC 2025
+Linux aal-perf2 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+7.72user 1.00system 0:02.12elapsed 409%CPU (0avgtext+0avgdata 1036364maxresident)k
+1536inputs+2149824outputs (7major+39945minor)pagefaults 0swaps
+SF=10
+68.88user 8.64system 0:14.31elapsed 541%CPU (0avgtext+0avgdata 1587416maxresident)k
+0inputs+21937816outputs (0major+105106minor)pagefaults 0swaps
+SF=100
+651.78user 76.69system 1:32.88elapsed 784%CPU (0avgtext+0avgdata 3257772maxresident)k
+64inputs+223909456outputs (1major+29197minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 10:18:32 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+8.02user 0.94system 0:02.18elapsed 410%CPU (0avgtext+0avgdata 1061396maxresident)k
+1536inputs+2149824outputs (7major+45504minor)pagefaults 0swaps
+SF=10
+69.01user 8.80system 0:14.34elapsed 542%CPU (0avgtext+0avgdata 1583412maxresident)k
+0inputs+21937816outputs (0major+101904minor)pagefaults 0swaps
+SF=100
+648.35user 76.50system 1:33.52elapsed 775%CPU (0avgtext+0avgdata 3204064maxresident)k
+0inputs+223909456outputs (0major+137550minor)pagefaults 0swaps

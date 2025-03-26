@@ -1,0 +1,21 @@
+Timings
+Fri Mar 28 06:51:12 EDT 2025
+Darwin Andrews-MacBook-Pro-2.local 24.3.0 Darwin Kernel Version 24.3.0: Thu Jan  2 20:24:23 PST 2025; root:xnu-11215.81.4~3/RELEASE_ARM64_T6031 arm64
+SF=1
+        4.31 real         4.03 user         0.27 sys
+SF=10
+       32.52 real        32.37 user         1.38 sys
+SF=100
+      210.93 real       209.82 user        10.25 sys
+***********Timings**********
+Sun Mar 30 11:29:48 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+6.00user 0.67system 0:06.22elapsed 107%CPU (0avgtext+0avgdata 450952maxresident)k
+1536inputs+2149832outputs (7major+4163minor)pagefaults 0swaps
+SF=10
+51.90user 6.18system 0:56.04elapsed 103%CPU (0avgtext+0avgdata 457720maxresident)k
+1536inputs+21937824outputs (7major+5999minor)pagefaults 0swaps
+SF=100
+513.91user 58.14system 8:41.84elapsed 109%CPU (0avgtext+0avgdata 459408maxresident)k
+0inputs+223909528outputs (0major+19281minor)pagefaults 0swaps
