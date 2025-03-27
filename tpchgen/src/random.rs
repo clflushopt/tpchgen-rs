@@ -440,7 +440,7 @@ impl RandomPhoneNumber {
 /// ```text
 /// 27-918-335-1736
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PhoneNumberInstance {
     country_code: i32,
     local1: i32,

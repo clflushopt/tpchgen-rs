@@ -274,11 +274,11 @@ impl Display for CustomerCsv<'_> {
 ///
 /// # Example
 /// ```
-/// # use tpchgen::generators::PartSupplierGenerator;
+/// # use tpchgen::generators::PartSuppGenerator;
 /// # use tpchgen::csv::PartSuppCsv;
 /// # use std::fmt::Write;
 /// // Output the first 3 rows in CSV format
-/// let generator = PartSupplierGenerator::new(1.0, 1, 1);
+/// let generator = PartSuppGenerator::new(1.0, 1, 1);
 /// let mut csv = String::new();
 /// writeln!(&mut csv, "{}", PartSuppCsv::header()).unwrap(); // write header
 /// for line in generator.iter().take(3) {

@@ -1,5 +1,7 @@
 //! Routines to convert TPCH types to Arrow types
 
+use arrow::array::{StringViewArray, StringViewBuilder};
+use std::fmt::Write;
 use tpchgen::dates::TPCHDate;
 use tpchgen::decimal::TPCHDecimal;
 
@@ -15,6 +17,36 @@ pub fn to_arrow_decimal(value: TPCHDecimal) -> i128 {
 #[inline(always)]
 pub fn to_arrow_date32(value: TPCHDate) -> i32 {
     value.into_inner() + TPCHDATE_TO_DATE32_OFFSET
+}
+
+/// Converts an iterator of TPCH decimals to an Arrow Decimal128Array
+pub fn decimal128_array_from_iter<I>(values: I) -> arrow::array::Decimal128Array
+where
+    I: Iterator<Item = TPCHDecimal>,
+{
+    let values = values.map(to_arrow_decimal);
+    arrow::array::Decimal128Array::from_iter_values(values)
+        .with_precision_and_scale(15, 2)
+        .unwrap()
+}
+
+/// Coverts an iterator of displayable values to an Arrow StringViewArray
+///
+/// This results in an extra copy of the data, which could be avoided for some types
+pub fn string_view_array_from_display_iter<I>(values: I) -> StringViewArray
+where
+    I: Iterator<Item: std::fmt::Display>,
+{
+    let mut buffer = String::new();
+    let values = values.into_iter();
+    let size_hint = values.size_hint().0;
+    let mut builder = StringViewBuilder::with_capacity(size_hint);
+    for v in values {
+        buffer.clear();
+        write!(&mut buffer, "{v}").unwrap();
+        builder.append_value(&buffer);
+    }
+    builder.finish()
 }
 
 /// Number of days that must be added to a TPCH date to get an Arrow `Date32` value.

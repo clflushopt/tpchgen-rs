@@ -1,6 +1,4 @@
 //! Generators for each TPC-H Tables
-use core::fmt;
-
 use crate::dates;
 use crate::decimal::TPCHDecimal;
 use crate::distribution::Distribution;
@@ -10,12 +8,14 @@ use crate::random::RowRandomInt;
 use crate::random::{PhoneNumberInstance, RandomBoundedLong, StringSequenceInstance};
 use crate::random::{RandomAlphaNumeric, RandomAlphaNumericInstance};
 use crate::text::TextPool;
+use core::fmt;
+use std::fmt::Display;
 
 use crate::dates::{GenerateUtils, TPCHDate};
 use crate::random::{RandomBoundedInt, RandomString, RandomStringSequence, RandomText};
 
 /// Generator for Nation table data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct NationGenerator<'a> {
     distributions: &'a Distributions,
     text_pool: &'a TextPool,
@@ -206,7 +206,7 @@ impl<'a> Region<'a> {
 }
 
 /// Generator for Region table data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct RegionGenerator<'a> {
     distributions: &'a Distributions,
     text_pool: &'a TextPool,
@@ -390,7 +390,7 @@ impl fmt::Display for Part<'_> {
 }
 
 /// Generator for Part table data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct PartGenerator<'a> {
     scale_factor: f64,
     part: i32,
@@ -660,7 +660,7 @@ impl fmt::Display for Supplier {
 }
 
 /// Generator for Supplier table data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SupplierGenerator<'a> {
     scale_factor: f64,
     part: i32,
@@ -971,7 +971,7 @@ impl fmt::Display for Customer<'_> {
 }
 
 /// Generator for Customer table data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct CustomerGenerator<'a> {
     scale_factor: f64,
     part: i32,
@@ -1186,16 +1186,16 @@ impl fmt::Display for PartSupp<'_> {
     }
 }
 
-/// Generator for PartSupplier table data
-#[derive(Debug)]
-pub struct PartSupplierGenerator<'a> {
+/// Generator for PartSupp table data
+#[derive(Debug, Clone)]
+pub struct PartSuppGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
     text_pool: &'a TextPool,
 }
 
-impl<'a> PartSupplierGenerator<'a> {
+impl<'a> PartSuppGenerator<'a> {
     /// Base scale for part-supplier generation
     const SUPPLIERS_PER_PART: i32 = 4;
 
@@ -1206,11 +1206,11 @@ impl<'a> PartSupplierGenerator<'a> {
     const SUPPLY_COST_MAX: i32 = 100000;
     const COMMENT_AVERAGE_LENGTH: i32 = 124;
 
-    /// Creates a new PartSupplierGenerator with the given scale factor
+    /// Creates a new PartSuppGenerator with the given scale factor
     ///
     /// Note the generator's lifetime is `&'static`. See [`NationGenerator`] for
     /// more details.
-    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> PartSupplierGenerator<'static> {
+    pub fn new(scale_factor: f64, part: i32, part_count: i32) -> PartSuppGenerator<'static> {
         // Note: use explicit lifetime to ensure this remains `&'static`
         Self::new_with_text_pool(
             scale_factor,
@@ -1220,14 +1220,14 @@ impl<'a> PartSupplierGenerator<'a> {
         )
     }
 
-    /// Creates a PartSupplierGenerator with specified text pool
+    /// Creates a PartSuppGenerator with specified text pool
     pub fn new_with_text_pool(
         scale_factor: f64,
         part: i32,
         part_count: i32,
         text_pool: &TextPool,
-    ) -> PartSupplierGenerator<'_> {
-        PartSupplierGenerator {
+    ) -> PartSuppGenerator<'_> {
+        PartSuppGenerator {
             scale_factor,
             part,
             part_count,
@@ -1247,10 +1247,10 @@ impl<'a> PartSupplierGenerator<'a> {
     }
 
     /// Returns an iterator over the part supplier rows
-    pub fn iter(&self) -> PartSupplierGeneratorIterator<'a> {
+    pub fn iter(&self) -> PartSuppGeneratorIterator<'a> {
         let scale_base = PartGenerator::SCALE_BASE;
 
-        PartSupplierGeneratorIterator::new(
+        PartSuppGeneratorIterator::new(
             self.text_pool,
             self.scale_factor,
             GenerateUtils::calculate_start_index(
@@ -1264,18 +1264,18 @@ impl<'a> PartSupplierGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a PartSupplierGenerator<'a> {
+impl<'a> IntoIterator for &'a PartSuppGenerator<'a> {
     type Item = PartSupp<'a>;
-    type IntoIter = PartSupplierGeneratorIterator<'a>;
+    type IntoIter = PartSuppGeneratorIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.iter()
     }
 }
 
-/// Iterator that generates PartSupplier rows
+/// Iterator that generates PartSupp rows
 #[derive(Debug)]
-pub struct PartSupplierGeneratorIterator<'a> {
+pub struct PartSuppGeneratorIterator<'a> {
     scale_factor: f64,
     start_index: i64,
     row_count: i64,
@@ -1288,25 +1288,25 @@ pub struct PartSupplierGeneratorIterator<'a> {
     part_supplier_number: i32,
 }
 
-impl<'a> PartSupplierGeneratorIterator<'a> {
+impl<'a> PartSuppGeneratorIterator<'a> {
     fn new(text_pool: &'a TextPool, scale_factor: f64, start_index: i64, row_count: i64) -> Self {
         let mut available_quantity_random = RandomBoundedInt::new_with_seeds_per_row(
             1671059989,
-            PartSupplierGenerator::AVAILABLE_QUANTITY_MIN,
-            PartSupplierGenerator::AVAILABLE_QUANTITY_MAX,
-            PartSupplierGenerator::SUPPLIERS_PER_PART,
+            PartSuppGenerator::AVAILABLE_QUANTITY_MIN,
+            PartSuppGenerator::AVAILABLE_QUANTITY_MAX,
+            PartSuppGenerator::SUPPLIERS_PER_PART,
         );
         let mut supply_cost_random = RandomBoundedInt::new_with_seeds_per_row(
             1051288424,
-            PartSupplierGenerator::SUPPLY_COST_MIN,
-            PartSupplierGenerator::SUPPLY_COST_MAX,
-            PartSupplierGenerator::SUPPLIERS_PER_PART,
+            PartSuppGenerator::SUPPLY_COST_MIN,
+            PartSuppGenerator::SUPPLY_COST_MAX,
+            PartSuppGenerator::SUPPLIERS_PER_PART,
         );
         let mut comment_random = RandomText::new_with_expected_row_count(
             1961692154,
             text_pool,
-            PartSupplierGenerator::COMMENT_AVERAGE_LENGTH as f64,
-            PartSupplierGenerator::SUPPLIERS_PER_PART,
+            PartSuppGenerator::COMMENT_AVERAGE_LENGTH as f64,
+            PartSuppGenerator::SUPPLIERS_PER_PART,
         );
 
         // Advance all generators to the starting position
@@ -1314,7 +1314,7 @@ impl<'a> PartSupplierGeneratorIterator<'a> {
         supply_cost_random.advance_rows(start_index);
         comment_random.advance_rows(start_index);
 
-        PartSupplierGeneratorIterator {
+        PartSuppGeneratorIterator {
             scale_factor,
             start_index,
             row_count,
@@ -1354,14 +1354,14 @@ impl<'a> PartSupplierGeneratorIterator<'a> {
 
         ((part_key
             + (supplier_number
-                * ((supplier_count / PartSupplierGenerator::SUPPLIERS_PER_PART as i64)
+                * ((supplier_count / PartSuppGenerator::SUPPLIERS_PER_PART as i64)
                     + ((part_key - 1) / supplier_count))))
             % supplier_count)
             + 1
     }
 }
 
-impl<'a> Iterator for PartSupplierGeneratorIterator<'a> {
+impl<'a> Iterator for PartSuppGeneratorIterator<'a> {
     type Item = PartSupp<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1374,7 +1374,7 @@ impl<'a> Iterator for PartSupplierGeneratorIterator<'a> {
         self.part_supplier_number += 1;
 
         // advance next row only when all suppliers for the part have been produced
-        if self.part_supplier_number >= PartSupplierGenerator::SUPPLIERS_PER_PART {
+        if self.part_supplier_number >= PartSuppGenerator::SUPPLIERS_PER_PART {
             self.available_quantity_random.row_finished();
             self.supply_cost_random.row_finished();
             self.comment_random.row_finished();
@@ -1404,6 +1404,27 @@ impl fmt::Display for ClerkName {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd)]
+/// Order status (F=final, O=open, P=pending)
+pub enum OrderStatus {
+    /// Fulfilled - all line items shipped
+    Fulfilled,
+    /// Open - no line items shipped
+    Open,
+    /// Partially fulfilled - some line items shipped
+    Pending,
+}
+
+impl Display for OrderStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            OrderStatus::Fulfilled => write!(f, "F"),
+            OrderStatus::Open => write!(f, "O"),
+            OrderStatus::Pending => write!(f, "P"),
+        }
+    }
+}
+
 /// The ORDERS table
 ///
 /// The Display trait is implemented to format the line item data as a string
@@ -1420,7 +1441,7 @@ pub struct Order<'a> {
     /// Foreign key to CUSTOMER
     pub o_custkey: i64,
     /// Order status (F=final, O=open, P=pending)
-    pub o_orderstatus: char,
+    pub o_orderstatus: OrderStatus,
     /// Order total price
     pub o_totalprice: TPCHDecimal,
     /// Order date
@@ -1454,7 +1475,7 @@ impl fmt::Display for Order<'_> {
 }
 
 /// Generator for Order table data
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct OrderGenerator<'a> {
     scale_factor: f64,
     part: i32,
@@ -1697,11 +1718,11 @@ impl<'a> OrderGeneratorIterator<'a> {
         }
 
         let order_status = if shipped_count == line_count {
-            'F' // Fulfilled - all line items shipped
+            OrderStatus::Fulfilled
         } else if shipped_count > 0 {
-            'P' // Partially fulfilled - some line items shipped
+            OrderStatus::Pending
         } else {
-            'O' // Open - no line items shipped
+            OrderStatus::Open
         };
 
         let clerk_id = self.clerk_random.next_value();
@@ -2124,7 +2145,7 @@ impl<'a> LineItemGeneratorIterator<'a> {
         let part_key = self.line_part_key_random.next_value();
 
         let supplier_number = self.supplier_number_random.next_value() as i64;
-        let supplier_key = PartSupplierGeneratorIterator::select_part_supplier(
+        let supplier_key = PartSuppGeneratorIterator::select_part_supplier(
             part_key,
             supplier_number,
             self.scale_factor,
@@ -2310,7 +2331,7 @@ mod tests {
     #[test]
     fn test_part_supplier_generation() {
         // Create a generator with a small scale factor
-        let generator = PartSupplierGenerator::new(0.01, 1, 1);
+        let generator = PartSuppGenerator::new(0.01, 1, 1);
         let part_suppliers: Vec<_> = generator.iter().collect();
 
         // Should have 0.01 * 200,000 * 4 = 8,000 part-supplier relationships
@@ -2339,7 +2360,7 @@ mod tests {
 
         assert_eq!(
             suppliers_for_first_part.len(),
-            PartSupplierGenerator::SUPPLIERS_PER_PART as usize
+            PartSuppGenerator::SUPPLIERS_PER_PART as usize
         );
 
         // Supplier keys should be unique for each part
@@ -2347,7 +2368,7 @@ mod tests {
             suppliers_for_first_part.iter().collect();
         assert_eq!(
             unique_suppliers.len(),
-            PartSupplierGenerator::SUPPLIERS_PER_PART as usize
+            PartSuppGenerator::SUPPLIERS_PER_PART as usize
         );
     }
 
@@ -2357,17 +2378,17 @@ mod tests {
         let scale_factor = 1.0;
 
         // Same part with different supplier numbers should yield different suppliers
-        let supplier1 = PartSupplierGeneratorIterator::select_part_supplier(1, 0, scale_factor);
-        let supplier2 = PartSupplierGeneratorIterator::select_part_supplier(1, 1, scale_factor);
-        let supplier3 = PartSupplierGeneratorIterator::select_part_supplier(1, 2, scale_factor);
-        let supplier4 = PartSupplierGeneratorIterator::select_part_supplier(1, 3, scale_factor);
+        let supplier1 = PartSuppGeneratorIterator::select_part_supplier(1, 0, scale_factor);
+        let supplier2 = PartSuppGeneratorIterator::select_part_supplier(1, 1, scale_factor);
+        let supplier3 = PartSuppGeneratorIterator::select_part_supplier(1, 2, scale_factor);
+        let supplier4 = PartSuppGeneratorIterator::select_part_supplier(1, 3, scale_factor);
 
         // All suppliers should be different
         let suppliers = vec![supplier1, supplier2, supplier3, supplier4];
         let unique_suppliers: std::collections::HashSet<_> = suppliers.iter().collect();
         assert_eq!(
             unique_suppliers.len(),
-            PartSupplierGenerator::SUPPLIERS_PER_PART as usize
+            PartSuppGenerator::SUPPLIERS_PER_PART as usize
         );
 
         // All supplier keys should be within valid range (1 to supplier_count)
@@ -2390,9 +2411,6 @@ mod tests {
         let first = &orders[0];
         assert_eq!(first.o_orderkey, OrderGenerator::make_order_key(1));
         assert!(first.o_custkey > 0);
-        assert!(
-            first.o_orderstatus == 'F' || first.o_orderstatus == 'P' || first.o_orderstatus == 'O'
-        );
         assert!(first.o_totalprice > TPCHDecimal::ZERO);
 
         // Check order status distribution
@@ -2494,8 +2512,7 @@ mod tests {
         let _iter: PartGeneratorIterator<'static> = PartGenerator::new(0.1, 1, 1).iter();
         let _iter: SupplierGeneratorIterator<'static> = SupplierGenerator::new(0.1, 1, 1).iter();
         let _iter: CustomerGeneratorIterator<'static> = CustomerGenerator::new(0.1, 1, 1).iter();
-        let _iter: PartSupplierGeneratorIterator<'static> =
-            PartSupplierGenerator::new(0.1, 1, 1).iter();
+        let _iter: PartSuppGeneratorIterator<'static> = PartSuppGenerator::new(0.1, 1, 1).iter();
         let _iter: OrderGeneratorIterator<'static> = OrderGenerator::new(0.1, 1, 1).iter();
         let _iter: LineItemGeneratorIterator<'static> = LineItemGenerator::new(0.1, 1, 1).iter();
     }

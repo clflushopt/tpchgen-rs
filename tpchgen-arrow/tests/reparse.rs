@@ -5,76 +5,157 @@ use arrow::array::RecordBatch;
 use arrow::datatypes::SchemaRef;
 use std::io::Write;
 use std::sync::Arc;
-use tpchgen::csv::LineItemCsv;
-use tpchgen::generators::{LineItem, LineItemGenerator};
-use tpchgen_arrow::{LineItemArrow, RecordBatchIterator};
+use tpchgen::csv::{
+    CustomerCsv, LineItemCsv, NationCsv, OrderCsv, PartCsv, PartSuppCsv, RegionCsv, SupplierCsv,
+};
+use tpchgen::generators::{
+    Customer, CustomerGenerator, LineItem, LineItemGenerator, Nation, NationGenerator, Order,
+    OrderGenerator, Part, PartGenerator, PartSupp, PartSuppGenerator, Region, RegionGenerator,
+    Supplier, SupplierGenerator,
+};
+use tpchgen_arrow::{
+    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow,
+    RecordBatchIterator, RegionArrow, SupplierArrow,
+};
 
-#[test]
-fn test_tpchgen_lineitem_tbl() {
-    do_test_tpchgen_lineitem(0.1, TestFormat::TBL)
+/// Macro that defines tests for tbl for a given type
+macro_rules! test_row_type {
+    ($FUNCNAME:ident, $GENERATOR:ty, $ARROWITER:ty, $FORMATTYPE:expr) => {
+        #[test]
+        fn $FUNCNAME() {
+            let scale_factor = 0.1;
+            let batch_size = 1000;
+            let part = 1;
+            let part_count = 1;
+            let generator = <$GENERATOR>::new(scale_factor, part, part_count);
+            $FORMATTYPE.test(
+                generator.clone().iter(),
+                <$ARROWITER>::new(generator).with_batch_size(batch_size),
+            );
+        }
+    };
 }
 
-#[test]
-fn test_tpchgen_lineitem_csv() {
-    do_test_tpchgen_lineitem(0.1, TestFormat::CSV)
+test_row_type!(customer_tbl, CustomerGenerator, CustomerArrow, Test::tbl());
+test_row_type!(customer_csv, CustomerGenerator, CustomerArrow, Test::csv());
+test_row_type!(lineitem_tbl, LineItemGenerator, LineItemArrow, Test::tbl());
+test_row_type!(lineitem_csv, LineItemGenerator, LineItemArrow, Test::csv());
+test_row_type!(nation_tbl, NationGenerator, NationArrow, Test::tbl());
+test_row_type!(nation_csv, NationGenerator, NationArrow, Test::csv());
+test_row_type!(order_tbl, OrderGenerator, OrderArrow, Test::tbl());
+test_row_type!(order_csv, OrderGenerator, OrderArrow, Test::csv());
+test_row_type!(part_tbl, PartGenerator, PartArrow, Test::tbl());
+test_row_type!(part_csv, PartGenerator, PartArrow, Test::csv());
+test_row_type!(partsupp_tbl, PartSuppGenerator, PartSuppArrow, Test::tbl());
+test_row_type!(partsupp_csv, PartSuppGenerator, PartSuppArrow, Test::csv());
+test_row_type!(region_tbl, RegionGenerator, RegionArrow, Test::tbl());
+test_row_type!(region_csv, RegionGenerator, RegionArrow, Test::csv());
+test_row_type!(supplier_tbl, SupplierGenerator, SupplierArrow, Test::tbl());
+test_row_type!(supplier_csv, SupplierGenerator, SupplierArrow, Test::csv());
+
+/// Common trait for writing rows in TBL and CSV format
+trait RowType {
+    /// write a row in TBL format, WITHOUT newline
+    fn write_tbl_row(self, text_data: &mut Vec<u8>);
+    /// write the header in CSV format
+    fn write_csv_header(text_data: &mut Vec<u8>);
+    /// write a row in CSV format, WITH newline
+    fn write_csv_row(self, text_data: &mut Vec<u8>);
 }
 
-/// Generates LineItem's using the specified format and compares the results of
-/// parsing with the Arrow CSV parser with directly generated the batches
-fn do_test_tpchgen_lineitem(scale_factor: f64, format: TestFormat) {
-    let batch_size = 1000;
-
-    // TPCH scale factor 1
-    let lineitem_generator = LineItemGenerator::new(scale_factor, 1, 1);
-    let mut lineitem_iter = lineitem_generator.clone().iter();
-    let mut arrow_iter = LineItemArrow::new(lineitem_generator).with_batch_size(batch_size);
-
-    let mut batch_num = 0;
-    while let Some(arrow_batch) = arrow_iter.next() {
-        println!("Batch {}", batch_num);
-        batch_num += 1;
-        let mut text_data = Vec::new();
-        format.write_lineitem_header(&mut text_data);
-        lineitem_iter.by_ref().take(batch_size).for_each(|item| {
-            format.write_lineitem(item, &mut text_data);
-        });
-        let tbl_batch = format.parse(&text_data, arrow_iter.schema(), batch_size);
-        assert_eq!(tbl_batch, arrow_batch);
-    }
+/// Macro that implements the RowType trait for a given type
+macro_rules! impl_row_type {
+    ($type:ty, $csv_type:ty) => {
+        impl RowType for $type {
+            fn write_tbl_row(self, text_data: &mut Vec<u8>) {
+                write!(text_data, "{}", self).unwrap();
+            }
+            fn write_csv_header(text_data: &mut Vec<u8>) {
+                writeln!(text_data, "{}", <$csv_type>::header()).unwrap();
+            }
+            fn write_csv_row(self, text_data: &mut Vec<u8>) {
+                writeln!(text_data, "{}", <$csv_type>::new(self)).unwrap();
+            }
+        }
+    };
 }
+
+impl_row_type!(Customer<'_>, CustomerCsv);
+impl_row_type!(LineItem<'_>, LineItemCsv);
+impl_row_type!(Nation<'_>, NationCsv);
+impl_row_type!(Order<'_>, OrderCsv);
+impl_row_type!(Part<'_>, PartCsv);
+impl_row_type!(PartSupp<'_>, PartSuppCsv);
+impl_row_type!(Region<'_>, RegionCsv);
+impl_row_type!(Supplier, SupplierCsv);
 
 #[derive(Debug, Clone, Copy)]
 #[allow(clippy::upper_case_acronyms)]
-enum TestFormat {
+enum Test {
     /// Generate and parse data as TBL format ('|' delimited)
     TBL,
     /// Generate and parse data as CSV format
     CSV,
 }
 
-impl TestFormat {
-    /// Write the header for the LineItem format into the provided buffer
-    fn write_lineitem_header(&self, text_data: &mut Vec<u8>) {
+impl Test {
+    /// Create a test for TBL format
+    fn tbl() -> Self {
+        Self::TBL
+    }
+
+    /// Create a test for CSV format
+    fn csv() -> Self {
+        Self::CSV
+    }
+
+    /// Generates data using the row iterator and the arrow iterator using the
+    /// specified format and compares the results of parsing with the Arrow CSV
+    /// parser with the directly generated the batches
+    fn test<R, RI, RBI>(&self, mut row_iter: RI, mut arrow_iter: RBI)
+    where
+        R: RowType,
+        RI: Iterator<Item = R>,
+        RBI: RecordBatchIterator,
+    {
+        // For each batch generated by the arrow iterator
+        while let Some(arrow_batch) = arrow_iter.next() {
+            // Generate the same number of rows using the row iterator
+            // in the specified format
+            let batch_size = arrow_batch.num_rows();
+            let mut text_data = Vec::new();
+            self.write_header::<R>(&mut text_data);
+            row_iter.by_ref().take(batch_size).for_each(|item| {
+                self.write_row(item, &mut text_data);
+            });
+            // reparse the generated data and compare with the arrow batch
+            let reparsed_batch = self.parse(&text_data, arrow_iter.schema(), batch_size);
+            assert_eq!(reparsed_batch, arrow_batch);
+        }
+    }
+
+    /// Write the header for the row type
+    fn write_header<R: RowType>(&self, text_data: &mut Vec<u8>) {
         match self {
-            TestFormat::TBL => {}
-            TestFormat::CSV => {
-                writeln!(text_data, "{}\n", LineItemCsv::header()).unwrap();
+            Test::TBL => {}
+            Test::CSV => {
+                R::write_csv_header(text_data);
             }
         }
     }
 
-    /// Write a LineItem into the provided buffer
-    fn write_lineitem(&self, line_item: LineItem<'_>, text_data: &mut Vec<u8>) {
+    /// Write a row into the provided buffer
+    fn write_row<R: RowType>(&self, row: R, text_data: &mut Vec<u8>) {
         match self {
-            TestFormat::TBL => {
-                write!(text_data, "{}", line_item).unwrap();
+            Test::TBL => {
+                row.write_tbl_row(text_data);
                 // Note: TBL lines end with '|' which the arrow csv parser treats as a
                 // delimiter for a new column so replace the last '|' with a newline
                 let end_offset = text_data.len() - 1;
                 text_data[end_offset] = b'\n';
             }
-            TestFormat::CSV => {
-                writeln!(text_data, "{}", LineItemCsv::new(line_item)).unwrap();
+            Test::CSV => {
+                row.write_csv_row(text_data);
             }
         }
     }
@@ -85,8 +166,8 @@ impl TestFormat {
             arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema)).with_batch_size(batch_size);
 
         let builder = match self {
-            TestFormat::TBL => builder.with_header(false).with_delimiter(b'|'),
-            TestFormat::CSV => builder.with_header(true),
+            Test::TBL => builder.with_header(false).with_delimiter(b'|'),
+            Test::CSV => builder.with_header(true),
         };
 
         let mut parser = builder.build(data).unwrap();

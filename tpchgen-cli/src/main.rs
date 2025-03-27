@@ -45,7 +45,7 @@ use std::time::Instant;
 use tpchgen::distribution::Distributions;
 use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
-    PartSupplierGenerator, RegionGenerator, SupplierGenerator,
+    PartSuppGenerator, RegionGenerator, SupplierGenerator,
 };
 use tpchgen::text::TextPool;
 
@@ -246,7 +246,7 @@ impl Cli {
     define_generate!(
         generate_partsupp,
         Table::PartSupp,
-        PartSupplierGenerator,
+        PartSuppGenerator,
         PartSuppTblSource,
         PartSuppCsvSource
     );
@@ -318,7 +318,7 @@ impl Cli {
             ),
             Table::PartSupp => (
                 148,
-                PartSupplierGenerator::calculate_row_count(self.scale_factor, 1, 1),
+                PartSuppGenerator::calculate_row_count(self.scale_factor, 1, 1),
             ),
             Table::Customer => (
                 160,

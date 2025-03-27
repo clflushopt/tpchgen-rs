@@ -1,4 +1,4 @@
-use crate::conversions::{to_arrow_date32, to_arrow_decimal};
+use crate::conversions::{decimal128_array_from_iter, to_arrow_date32};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{
     Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch, StringViewArray,
@@ -6,9 +6,6 @@ use arrow::array::{
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{LineItemGenerator, LineItemGeneratorIterator};
-
-/// Schema for the LineItem table
-static LINEITEM_SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_lineitem_schema);
 
 /// Generate  [`LineItem`]s in [`RecordBatch`] format
 ///
@@ -83,7 +80,7 @@ impl Iterator for LineItemArrow {
 
     /// Generate the next batch of data, if there is one
     fn next(&mut self) -> Option<Self::Item> {
-        // Get some rows to convert
+        // Get next rows to convert
         let rows: Vec<_> = self.inner.by_ref().take(self.batch_size).collect();
         if rows.is_empty() {
             return None;
@@ -101,23 +98,10 @@ impl Iterator for LineItemArrow {
         }))
         .with_precision_and_scale(15, 2)
         .unwrap();
-        let l_extended_price = Decimal128Array::from_iter_values(
-            rows.iter()
-                .map(|row| row.l_extendedprice)
-                .map(to_arrow_decimal),
-        )
-        .with_precision_and_scale(15, 2)
-        .unwrap();
-        let l_discount = Decimal128Array::from_iter_values(
-            rows.iter().map(|row| row.l_discount).map(to_arrow_decimal),
-        )
-        .with_precision_and_scale(15, 2)
-        .unwrap();
-        let l_tax = Decimal128Array::from_iter_values(
-            rows.iter().map(|row| row.l_tax).map(to_arrow_decimal),
-        )
-        .with_precision_and_scale(15, 2)
-        .unwrap();
+        let l_extended_price =
+            decimal128_array_from_iter(rows.iter().map(|row| row.l_extendedprice));
+        let l_discount = decimal128_array_from_iter(rows.iter().map(|row| row.l_discount));
+        let l_tax = decimal128_array_from_iter(rows.iter().map(|row| row.l_tax));
         let l_returnflag =
             StringViewArray::from_iter_values(rows.iter().map(|row| row.l_returnflag));
         let l_linestatus =
@@ -164,6 +148,9 @@ impl Iterator for LineItemArrow {
         Some(batch)
     }
 }
+
+/// Schema for the LineItem table
+static LINEITEM_SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_lineitem_schema);
 
 fn make_lineitem_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
