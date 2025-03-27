@@ -177,9 +177,9 @@ impl Display for PartCsv<'_> {
 /// assert_eq!(
 ///   csv,
 ///   "s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment\n\
-///    1,Supplier#000000001, N kD4on9OM Ipw3,gf0JBoQDd7tgrzrddZ,17,27-918-335-1736,5755.94,\"each slyly above the careful\"\n\
-///    2,Supplier#000000002,89eJ5ksX3ImxJQBvxObC,,5,15-679-861-2259,4032.68,\" slyly bold instructions. idle dependen\"\n\
-///    3,Supplier#000000003,q1,G3Pj6OjIuUYfUoH18BFTKP5aU9bEV3,1,11-383-516-1199,4192.40,\"blithely silent requests after the express dependencies are sl\"\n"
+///    1,Supplier#000000001,\" N kD4on9OM Ipw3,gf0JBoQDd7tgrzrddZ\",17,27-918-335-1736,5755.94,\"each slyly above the careful\"\n\
+///    2,Supplier#000000002,\"89eJ5ksX3ImxJQBvxObC,\",5,15-679-861-2259,4032.68,\" slyly bold instructions. idle dependen\"\n\
+///    3,Supplier#000000003,\"q1,G3Pj6OjIuUYfUoH18BFTKP5aU9bEV3\",1,11-383-516-1199,4192.40,\"blithely silent requests after the express dependencies are sl\"\n"
 /// );
 /// ```
 pub struct SupplierCsv {
@@ -201,8 +201,8 @@ impl Display for SupplierCsv {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},{},{},{},{},\"{}\"",
+            // note must quote the address and comment fields as they may contain commas
+            "{},{},\"{}\",{},{},{},\"{}\"",
             self.inner.s_suppkey,
             self.inner.s_name,
             self.inner.s_address,
@@ -232,9 +232,9 @@ impl Display for SupplierCsv {
 /// assert_eq!(
 ///   csv,
 ///   "c_custkey,c_name,c_address,c_nationkey,c_phone,c_acctbal,c_mktsegment,c_comment\n\
-///    1,Customer#000000001,IVhzIApeRb ot,c,E,15,25-989-741-2988,711.56,BUILDING,\"to the even, regular platelets. regular, ironic epitaphs nag e\"\n\
-///    2,Customer#000000002,XSTf4,NCwDVaWNe6tEgvwfmRchLXak,13,23-768-687-3665,121.65,AUTOMOBILE,\"l accounts. blithely ironic theodolites integrate boldly: caref\"\n\
-///    3,Customer#000000003,MG9kdTD2WBHm,1,11-719-748-3364,7498.12,AUTOMOBILE,\" deposits eat slyly ironic, even instructions. express foxes detect slyly. blithely even accounts abov\"\n"
+///    1,Customer#000000001,\"IVhzIApeRb ot,c,E\",15,25-989-741-2988,711.56,BUILDING,\"to the even, regular platelets. regular, ironic epitaphs nag e\"\n\
+///    2,Customer#000000002,\"XSTf4,NCwDVaWNe6tEgvwfmRchLXak\",13,23-768-687-3665,121.65,AUTOMOBILE,\"l accounts. blithely ironic theodolites integrate boldly: caref\"\n\
+///    3,Customer#000000003,\"MG9kdTD2WBHm\",1,11-719-748-3364,7498.12,AUTOMOBILE,\" deposits eat slyly ironic, even instructions. express foxes detect slyly. blithely even accounts abov\"\n"
 /// );
 /// ```
 pub struct CustomerCsv<'a> {
@@ -256,8 +256,8 @@ impl Display for CustomerCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},{},{},{},{},{},\"{}\"",
+            // note must quote the address and comment fields as they may contain commas
+            "{},{},\"{}\",{},{},{},{},\"{}\"",
             self.inner.c_custkey,
             self.inner.c_name,
             self.inner.c_address,
