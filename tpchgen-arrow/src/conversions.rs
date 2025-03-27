@@ -13,7 +13,7 @@ pub fn to_arrow_decimal(value: TPCHDecimal) -> i128 {
 
 /// Convert a TPCH date to an Arrow Date32
 #[inline(always)]
-pub fn to_date32(value: TPCHDate) -> i32 {
+pub fn to_arrow_date32(value: TPCHDate) -> i32 {
     value.into_inner() + TPCHDATE_TO_DATE32_OFFSET
 }
 
