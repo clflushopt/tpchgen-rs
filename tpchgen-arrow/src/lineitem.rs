@@ -1,4 +1,4 @@
-use crate::conversions::{to_arrow_decimal, to_date32};
+use crate::conversions::{to_arrow_date32, to_arrow_decimal};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{
     Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch, StringViewArray,
@@ -122,12 +122,17 @@ impl Iterator for LineItemArrow {
             StringViewArray::from_iter_values(rows.iter().map(|row| row.l_returnflag));
         let l_linestatus =
             StringViewArray::from_iter_values(rows.iter().map(|row| row.l_linestatus));
-        let l_shipdate =
-            Date32Array::from_iter_values(rows.iter().map(|row| row.l_shipdate).map(to_date32));
-        let l_commitdate =
-            Date32Array::from_iter_values(rows.iter().map(|row| row.l_commitdate).map(to_date32));
-        let l_receiptdate =
-            Date32Array::from_iter_values(rows.iter().map(|row| row.l_receiptdate).map(to_date32));
+        let l_shipdate = Date32Array::from_iter_values(
+            rows.iter().map(|row| row.l_shipdate).map(to_arrow_date32),
+        );
+        let l_commitdate = Date32Array::from_iter_values(
+            rows.iter().map(|row| row.l_commitdate).map(to_arrow_date32),
+        );
+        let l_receiptdate = Date32Array::from_iter_values(
+            rows.iter()
+                .map(|row| row.l_receiptdate)
+                .map(to_arrow_date32),
+        );
         let l_shipinstruct =
             StringViewArray::from_iter_values(rows.iter().map(|row| row.l_shipinstruct));
         let l_shipmode = StringViewArray::from_iter_values(rows.iter().map(|row| row.l_shipmode));

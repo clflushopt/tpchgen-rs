@@ -48,14 +48,14 @@ mod tests {
     }
 
     #[test]
-    fn test_to_date32() {
+    fn test_to_arrow_date32() {
         let value = TPCHDate::new(MIN_GENERATE_DATE);
-        assert_eq!(to_date32(value), 8035);
+        assert_eq!(to_arrow_date32(value), 8035);
 
         let value = TPCHDate::new(MIN_GENERATE_DATE + 100);
-        assert_eq!(to_date32(value), 8135);
+        assert_eq!(to_arrow_date32(value), 8135);
 
         let value = TPCHDate::new(MIN_GENERATE_DATE + 1234);
-        assert_eq!(to_date32(value), 9269);
+        assert_eq!(to_arrow_date32(value), 9269);
     }
 }

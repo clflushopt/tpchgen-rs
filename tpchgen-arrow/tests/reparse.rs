@@ -44,6 +44,7 @@ fn do_test_tpchgen_lineitem(scale_factor: f64, format: TestFormat) {
 }
 
 #[derive(Debug, Clone, Copy)]
+#[allow(clippy::upper_case_acronyms)]
 enum TestFormat {
     /// Generate and parse data as TBL format ('|' delimited)
     TBL,
