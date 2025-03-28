@@ -11,10 +11,9 @@ This directory contains a set of scripts to generate TPCH data at various scale 
 
 The CLI from this repo, with default (mutlti-threaded configuration)
 
-Example
+Example command for SF=10
 
 ```shell
-# Scale factor 10
 tpchgen-cli -s 10
 ```
 
@@ -79,10 +78,17 @@ docker run -v "/tmp:/data" --rm ghcr.io/scalytics/tpch-docker:main -vf -s 1
 
 # Columnar file formats
 
-## tpchgen-parquet
-Uses the CLI in this
+## parquet tpchdbgen (`parquet_tpchgen.sh`)
+Uses the CLI in this repo. Deafults to snappy compression
 
-## duckdb-custom
+Example command for SF=10
+
+```shell
+tpchgen-cli -s 10 --format=parquet
+```
+
+
+## duckdb duckdb (`duckdb_duckdb.sh.`)
 
 Note duckdb does not create the `tbl` files, but instead creates a database in its own custom format file so we can not compare directly
 
@@ -99,11 +105,11 @@ CALL dbgen(sf = 1);
 
 duckdb test.duckdb "INSTALL tpch; LOAD tpch; CALL dbgen(sf = 1);"
 
-## duckdb (parquet)
+## duckdb duckdb (`parquet_duckdb.sh.`)
 
 Run the above commands for `duckdb` and then export the data to parquet.
 
-note the output parquet file uses SNAPPY compressions
+note the output parquet file uses SNAPPY compression
 
 ```sql
 copy customer to 'customer.parquet' (FORMAT parquet);
