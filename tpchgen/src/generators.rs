@@ -9,7 +9,7 @@ use crate::random::{PhoneNumberInstance, RandomBoundedLong, StringSequenceInstan
 use crate::random::{RandomAlphaNumeric, RandomAlphaNumericInstance};
 use crate::text::TextPool;
 use core::fmt;
-use std::fmt::Display;
+use std::fmt::{DebugSet, Display};
 
 use crate::dates::{GenerateUtils, TPCHDate};
 use crate::random::{RandomBoundedInt, RandomString, RandomStringSequence, RandomText};
@@ -1771,6 +1771,42 @@ impl<'a> Iterator for OrderGeneratorIterator<'a> {
     }
 }
 
+/*
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReturnFlag<'a> {
+    /// Return flag (R=returned, A=accepted, N=No)
+    Code(&'a str),
+    No
+}
+
+impl Display for ReturnFlag<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            // Code is always R or A -- we could optimize this specially
+            ReturnFlag::Code(s) => write!(f, "{}", s),
+            ReturnFlag::No => write!(f, "N"),
+        }
+    }
+}
+
+ */
+
+/// Status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineItemStatus {
+    Fulfilled,
+    Open,
+}
+
+impl Display for LineItemStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            LineItemStatus::Fulfilled => write!(f, "F"),
+            LineItemStatus::Open => write!(f, "O"),
+        }
+    }
+}
+
 /// The LINEITEM table
 ///
 /// The Display trait is implemented to format the line item data as a string
@@ -1803,7 +1839,7 @@ pub struct LineItem<'a> {
     /// Return flag (R=returned, A=accepted, null=pending)
     pub l_returnflag: &'a str,
     /// Line status (O=ordered, F=fulfilled)
-    pub l_linestatus: &'static str,
+    pub l_linestatus: LineItemStatus,
     /// Date shipped
     pub l_shipdate: TPCHDate,
     /// Date committed to ship
@@ -2168,9 +2204,9 @@ impl<'a> LineItemGeneratorIterator<'a> {
         };
 
         let status = if TPCHDate::is_in_past(ship_date) {
-            "F" // Fulfilled
+            LineItemStatus::Fulfilled
         } else {
-            "O" // Open
+            LineItemStatus::Open
         };
 
         let ship_instructions = self.ship_instructions_random.next_value();

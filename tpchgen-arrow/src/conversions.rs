@@ -4,6 +4,7 @@ use arrow::array::{StringViewArray, StringViewBuilder};
 use std::fmt::Write;
 use tpchgen::dates::TPCHDate;
 use tpchgen::decimal::TPCHDecimal;
+use tpchgen::generators::LineItemStatus;
 
 /// Convert a TPCHDecimal to an Arrow Decimal(15,2)
 #[inline(always)]
@@ -47,6 +48,26 @@ where
         builder.append_value(&buffer);
     }
     builder.finish()
+}
+
+
+
+/// Coverts an iterator of LineItemStatus to an Arrow StringViewArray avoiding
+/// an extra copy of the data
+///
+pub fn string_view_array_from_line_item_status_iter<I>(values: I) -> StringViewArray
+where
+    I: Iterator<Item = LineItemStatus>
+{
+    // we know therea are only 2 valid values, and no nulls
+    // so simply create the view buffers directly.
+    // pre-compute Views for each status
+    let fulfilled_view = let mut view_buffer = [0; 16];
+    view_buffer[0..4].copy_from_slice(&length.to_le_bytes());
+    view_buffer[4..4 + v.len()].copy_from_slice(v);
+    self.views_builder.append(u128::from_le_bytes(view_buffer));
+    assert!(fulfilled_view, )
+
 }
 
 /// Number of days that must be added to a TPCH date to get an Arrow `Date32` value.
