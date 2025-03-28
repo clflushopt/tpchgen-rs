@@ -132,9 +132,12 @@ copy supplier to 'supplier.parquet' (FORMAT parquet);
 
 --- gcp setup
 
+sudo apt-get install -y time g++ clang emacs-nw git
+
+# install rust
 
 sudo mdadm --create --verbose /dev/md0 --level=0 --raid-devices=4 /dev/nvme1n1 /dev/nvme2n1 /dev/nvme3n1 /dev/nvme4n1
-    sudo mkfs -t ext4 /dev/md0
+sudo mkfs -t ext4 /dev/md0
 sudo mkdir /data
 sudo mount /dev/md0 /data
 sudo chmod -R a+rwx /data
@@ -169,14 +172,3 @@ sudo ln -s /home/alamb/.duckdb/cli/latest/duckdb /usr/local/bin
 v1.2.1 8e52ec4395
 
 Issues to file / look into:
-
-I can not make SF1000 as I get an error like this:
-called `Result::unwrap()` on an `Err` value: General("Parquet does not support more than 32767 row groups per fil\
-e (currently: 32768)")
-
-Solutions: make larger row groups / make multiple files perhaps...
-
---- things I would like to measure:
-How long does it take to make SF 10,000 and SF100,000 (and peak memory)
-
-Why is peak memory increasing over time for tpchgen?
