@@ -77,13 +77,14 @@ Example command to generate scale factor 1 dataset into `/tmp`
 docker run -v "/tmp:/data" --rm ghcr.io/scalytics/tpch-docker:main -vf -s 1
 ```
 
-# Parquet and similar benchmarks
+# Columnar file formats
 
-## tpchgen
+## tpchgen-parquet
+Uses the CLI in this
 
-## duckdb
+## duckdb-custom
 
-Note duckdb does not create the `tbl` files, but instead creates a database file so we can not compare directly
+Note duckdb does not create the `tbl` files, but instead creates a database in its own custom format file so we can not compare directly
 
 We use the TPCH data generator as described here https://duckdb.org/docs/stable/extensions/tpch.html
 
@@ -96,9 +97,13 @@ LOAD tpch;
 CALL dbgen(sf = 1);
 ```
 
+duckdb test.duckdb "INSTALL tpch; LOAD tpch; CALL dbgen(sf = 1);"
+
 ## duckdb (parquet)
 
 Run the above commands for `duckdb` and then export the data to parquet.
+
+note the output parquet file uses SNAPPY compressions
 
 ```sql
 copy customer to 'customer.parquet' (FORMAT parquet);
