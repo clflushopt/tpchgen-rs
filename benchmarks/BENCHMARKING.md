@@ -81,6 +81,8 @@ docker run -v "/tmp:/data" --rm ghcr.io/scalytics/tpch-docker:main -vf -s 1
 ## parquet tpchdbgen (`parquet_tpchgen.sh`)
 Uses the CLI in this repo. Deafults to snappy compression
 
+This uses less than 400MB of peakmemory as measured by top
+
 Example command for SF=10
 
 ```shell
@@ -93,6 +95,8 @@ tpchgen-cli -s 10 --format=parquet
 Note duckdb does not create the `tbl` files, but instead creates a database in its own custom format file so we can not compare directly
 
 We use the TPCH data generator as described here https://duckdb.org/docs/stable/extensions/tpch.html
+
+Note for the larger scale factors, as documneted on https://duckdb.org/docs/stable/extensions/tpch.html, duckdb consumes signifcicant amounts of memoyr
 
 ```sql
 INSTALL tpch;
