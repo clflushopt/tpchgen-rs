@@ -27,6 +27,7 @@ where
     let values = values.map(to_arrow_decimal);
     arrow::array::Decimal128Array::from_iter_values(values)
         .with_precision_and_scale(15, 2)
+        // safe to unwrap because 15,2 is within the valid range for Decimal128 (38)
         .unwrap()
 }
 
