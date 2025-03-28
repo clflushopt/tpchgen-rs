@@ -5,3 +5,15 @@ SF=1
         6.05 real         9.84 user         2.37 sys
 SF=10
        58.69 real       102.23 user        23.13 sys
+***********Timings**********
+Fri Mar 28 15:29:04 UTC 2025
+Linux aal-perf2 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+19.12user 3.23system 0:10.60elapsed 210%CPU (0avgtext+0avgdata 2257964maxresident)k
+792inputs+508960outputs (11major+155167minor)pagefaults 0swaps
+SF=10
+193.63user 12.59system 1:40.79elapsed 204%CPU (0avgtext+0avgdata 6753128maxresident)k
+0inputs+5223456outputs (0major+536499minor)pagefaults 0swaps
+SF=100
+1919.23user 52.13system 16:49.96elapsed 195%CPU (0avgtext+0avgdata 35294416maxresident)k
+0inputs+53912096outputs (0major+3611478minor)pagefaults 0swaps
