@@ -1,24 +1,57 @@
 # Benchmark Methodology
 
-## `tpchgen-rs`
+This directory contains a set of scripts to generate TPCH data at various scale factors
 
-The CLI from this rep
 
-## `dbgen` (native)
+# `TBL` format benchmarks
 
-We use the copy of tpch-dbgen from here:https://github.com/electrum/tpch-dbgen
+
+## tpchgen (`./tbl_tpchgen.sh`)
+
+
+The CLI from this repo, with default (mutlti-threaded configuration)
+
+Example
+
+```shell
+# Scale factor 10
+tpchgen-cli -s 10
+```
+
+
+## tpchgen1 (`./tbl_tpchgen_1.sh`)
+
+The CLI from this rep, run with `--num-threads=1` to use only a single core
+
+Example
+
+```shell
+# Scale factor 10
+tpchgen-cli -s 10
+```
+
+
+## `dbgen` (`tbl_dbgen.sh`)
+
+`dbgen` is the classic dbgen program from TPCH. We use an unmodified copy from [electrum/tpch-dbgen](https://github.com/electrum/tpch-dbgen)
+
+Example commands:
 ```shell
 git clone https://github.com/electrum/tpch-dbgen.git
 cd tpch-dbgen
 make
 ./dbgen -vf -s 1
-````
+```
 
-## `dbgen` (native -O3)
 
-Apply this patch to the makefile to enable realistic optimization levels
+## `dbgen_O3` (`tbl_dbgen_O3.sh`)
+
+The `makefile` that comes with the classic dbgen program uses basic
+optimization levels (`-O`). A more realistic comparison is to use
+maximum optimization (`-O3`).
+
+This variabt runs dbgen with enable realistic optimization levels
 ```diff
-andrewlamb@Andrews-MacBook-Pro-2:~/Software/tpch-dbgen$ git diff -b
 diff --git a/makefile b/makefile
 index b72d51a..701c946 100644
 --- a/makefile
@@ -34,13 +67,19 @@ LDFLAGS = -O
 #  Windows NT
 ```
 
-## `dbgen` (docker)
+## `dbgen_docker` docker (`tbl_dbgen_docker.sh`)
 
-Generate a scale factor 1 dataset into `/tmp`
+Since compiling `dbgen` is non trivial, projects such as DataFusion (TOOD link) often use a pre-built docker image
+
+Example command to generate scale factor 1 dataset into `/tmp`
 
 ```sh
 docker run -v "/tmp:/data" --rm ghcr.io/scalytics/tpch-docker:main -vf -s 1
 ```
+
+# Parquet and similar benchmarks
+
+## tpchgen
 
 ## duckdb
 
