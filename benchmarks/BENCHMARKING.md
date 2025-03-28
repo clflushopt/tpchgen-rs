@@ -132,43 +132,33 @@ copy supplier to 'supplier.parquet' (FORMAT parquet);
 
 --- gcp setup
 
-sudo apt-get install -y time g++ clang emacs-nw git
+sudo apt-get install -y time g++ clang emacs git tmux mdadm
+
 
 # install rust
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 
+# setup drive on /dev
 sudo mdadm --create --verbose /dev/md0 --level=0 --raid-devices=4 /dev/nvme1n1 /dev/nvme2n1 /dev/nvme3n1 /dev/nvme4n1
 sudo mkfs -t ext4 /dev/md0
 sudo mkdir /data
 sudo mount /dev/md0 /data
 sudo chmod -R a+rwx /data
 
-
-alamb@aal-perf:~$ df -h
-Filesystem       Size  Used Avail Use% Mounted on
-udev              44G     0   44G   0% /dev
-tmpfs            8.7G  640K  8.7G   1% /run
-/dev/nvme0n1p1   9.7G  7.2G  2.0G  79% /
-tmpfs             44G     0   44G   0% /dev/shm
-tmpfs            5.0M     0  5.0M   0% /run/lock
-/dev/nvme0n1p15  124M   12M  113M  10% /boot/efi
-tmpfs            8.7G     0  8.7G   0% /run/user/1000
-/dev/md0         1.5T   28K  1.4T   1% /data
-
+# get tpchgen
 cd /data
-
 git clone git@github.com:alamb/tpchgen-rs.git
+cd tpchgen-rs
+git checkout alamb/parquet
+cargo install --path tpchgen-cli
 
-Can only write at 756MB/s !!!!!
-
-When writing 10gb it goes slightly faster
+# Note the GPC machine can only write at 756MB/s !!!!!
+dd if=/dev/zero of=/data/test1.img bs=1G count=10 oflag=dsync
+...
 10737418240 bytes (11 GB, 10 GiB) copied, 13.179 s, 815 MB/s
 
 
-Install duckdb like this:
-
+# Install duckdb like this:
 curl https://install.duckdb.org | sh
-
 sudo ln -s /home/alamb/.duckdb/cli/latest/duckdb /usr/local/bin
-v1.2.1 8e52ec4395
-
-Issues to file / look into:
+# v1.2.1 8e52ec4395

@@ -10,8 +10,7 @@ echo "***********Timings**********" >> $LOGFILE
 date >> $LOGFILE
 uname -a >> $LOGFILE
 
-#SCALE_FACTORS="1 10 100"
-SCALE_FACTORS="1 10"
+SCALE_FACTORS="1 10 100"
 rm -rf out_duckdb
 mkdir out_duckdb
 for sf in $SCALE_FACTORS ; do
