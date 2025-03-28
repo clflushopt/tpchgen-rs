@@ -6,7 +6,7 @@ use tpchgen::csv::{
 };
 use tpchgen::generators::{
     CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
-    PartSupplierGenerator, RegionGenerator, SupplierGenerator,
+    PartSuppGenerator, RegionGenerator, SupplierGenerator,
 };
 
 /// Define a Source that writes the table in CSV format
@@ -41,11 +41,7 @@ define_csv_source!(NationCsvSource, NationGenerator<'static>, NationCsv);
 define_csv_source!(RegionCsvSource, RegionGenerator<'static>, RegionCsv);
 define_csv_source!(PartCsvSource, PartGenerator<'static>, PartCsv);
 define_csv_source!(SupplierCsvSource, SupplierGenerator<'static>, SupplierCsv);
-define_csv_source!(
-    PartSuppCsvSource,
-    PartSupplierGenerator<'static>,
-    PartSuppCsv
-);
+define_csv_source!(PartSuppCsvSource, PartSuppGenerator<'static>, PartSuppCsv);
 define_csv_source!(CustomerCsvSource, CustomerGenerator<'static>, CustomerCsv);
 define_csv_source!(OrderCsvSource, OrderGenerator<'static>, OrderCsv);
 define_csv_source!(LineItemCsvSource, LineItemGenerator<'static>, LineItemCsv);

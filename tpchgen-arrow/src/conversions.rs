@@ -1,7 +1,10 @@
 //! Routines to convert TPCH types to Arrow types
 
+use arrow::array::{StringViewArray, StringViewBuilder};
+use std::fmt::Write;
 use tpchgen::dates::TPCHDate;
 use tpchgen::decimal::TPCHDecimal;
+use tpchgen::generators::LineItemStatus;
 
 /// Convert a TPCHDecimal to an Arrow Decimal(15,2)
 #[inline(always)]
@@ -15,6 +18,56 @@ pub fn to_arrow_decimal(value: TPCHDecimal) -> i128 {
 #[inline(always)]
 pub fn to_arrow_date32(value: TPCHDate) -> i32 {
     value.into_inner() + TPCHDATE_TO_DATE32_OFFSET
+}
+
+/// Converts an iterator of TPCH decimals to an Arrow Decimal128Array
+pub fn decimal128_array_from_iter<I>(values: I) -> arrow::array::Decimal128Array
+where
+    I: Iterator<Item = TPCHDecimal>,
+{
+    let values = values.map(to_arrow_decimal);
+    arrow::array::Decimal128Array::from_iter_values(values)
+        .with_precision_and_scale(15, 2)
+        .unwrap()
+}
+
+/// Coverts an iterator of displayable values to an Arrow StringViewArray
+///
+/// This results in an extra copy of the data, which could be avoided for some types
+pub fn string_view_array_from_display_iter<I>(values: I) -> StringViewArray
+where
+    I: Iterator<Item: std::fmt::Display>,
+{
+    let mut buffer = String::new();
+    let values = values.into_iter();
+    let size_hint = values.size_hint().0;
+    let mut builder = StringViewBuilder::with_capacity(size_hint);
+    for v in values {
+        buffer.clear();
+        write!(&mut buffer, "{v}").unwrap();
+        builder.append_value(&buffer);
+    }
+    builder.finish()
+}
+
+
+
+/// Coverts an iterator of LineItemStatus to an Arrow StringViewArray avoiding
+/// an extra copy of the data
+///
+pub fn string_view_array_from_line_item_status_iter<I>(values: I) -> StringViewArray
+where
+    I: Iterator<Item = LineItemStatus>
+{
+    // we know therea are only 2 valid values, and no nulls
+    // so simply create the view buffers directly.
+    // pre-compute Views for each status
+    let fulfilled_view = let mut view_buffer = [0; 16];
+    view_buffer[0..4].copy_from_slice(&length.to_le_bytes());
+    view_buffer[4..4 + v.len()].copy_from_slice(v);
+    self.views_builder.append(u128::from_le_bytes(view_buffer));
+    assert!(fulfilled_view, )
+
 }
 
 /// Number of days that must be added to a TPCH date to get an Arrow `Date32` value.
