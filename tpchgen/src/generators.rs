@@ -1427,7 +1427,13 @@ impl OrderStatus {
 
 impl Display for OrderStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.as_str())
+        // duplicate the logic from `as_str` to give rustc the
+        // maximum chance of optimizing this to a static string
+        match self {
+            OrderStatus::Fulfilled => write!(f, "F"),
+            OrderStatus::Open => write!(f, "O"),
+            OrderStatus::Pending => write!(f, "P"),
+        }
     }
 }
 
@@ -1777,6 +1783,34 @@ impl<'a> Iterator for OrderGeneratorIterator<'a> {
     }
 }
 
+/// Status of each [`LineItem`]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LineItemStatus {
+    Fulfilled,
+    Open,
+}
+
+impl LineItemStatus {
+    /// Returns the string representation of the LineItemStatus
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LineItemStatus::Fulfilled => "F",
+            LineItemStatus::Open => "O",
+        }
+    }
+}
+
+impl Display for LineItemStatus {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        // duplicate the logic from `as_str` to give rustc the
+        // maximum chance of optimizing this to a static string
+        match self {
+            LineItemStatus::Fulfilled => write!(f, "F"),
+            LineItemStatus::Open => write!(f, "O"),
+        }
+    }
+}
+
 /// The LINEITEM table
 ///
 /// The Display trait is implemented to format the line item data as a string
@@ -1806,21 +1840,23 @@ pub struct LineItem<'a> {
     pub l_discount: TPCHDecimal,
     /// Tax percentage
     pub l_tax: TPCHDecimal,
-    /// Return flag (R=returned, A=accepted, null=pending)
+    /// Return flag ("R"=returned, "A"=accepted, or "N"=pending)
     pub l_returnflag: &'a str,
-    /// Line status (O=ordered, F=fulfilled)
-    pub l_linestatus: &'static str,
+    /// Line status ("O"=ordered, "F"=fulfilled)
+    pub l_linestatus: LineItemStatus,
     /// Date shipped
     pub l_shipdate: TPCHDate,
     /// Date committed to ship
     pub l_commitdate: TPCHDate,
     /// Date received
     pub l_receiptdate: TPCHDate,
-    /// Shipping instructions
+    /// Shipping instructions. One of:
     pub l_shipinstruct: &'a str,
-    /// Shipping mode
+    /// Shipping mode.
+    /// One of: "TRUCK", "RAIL", "REG AIR", "FOB", "MAIL", "AIR", "SHIP"
     pub l_shipmode: &'a str,
-    /// Variable length comment
+    /// Variable length comment.
+    /// One of "COLLECT COD", "TAKE BACK RETURN", "DELIVER IN PERSON", "NONE",
     pub l_comment: &'a str,
 }
 
@@ -2174,9 +2210,9 @@ impl<'a> LineItemGeneratorIterator<'a> {
         };
 
         let status = if TPCHDate::is_in_past(ship_date) {
-            "F" // Fulfilled
+            LineItemStatus::Fulfilled
         } else {
-            "O" // Open
+            LineItemStatus::Open
         };
 
         let ship_instructions = self.ship_instructions_random.next_value();

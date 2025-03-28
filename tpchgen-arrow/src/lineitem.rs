@@ -1,4 +1,8 @@
-use crate::conversions::{decimal128_array_from_iter, to_arrow_date32};
+use crate::conversions::{
+    decimal128_array_from_iter, string_view_array_from_line_item_status_iter,
+    string_view_array_from_return_flag_iter, string_view_array_from_shipinstruct_iter,
+    string_view_array_from_shipmode_iter, to_arrow_date32,
+};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{
     Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch, StringViewArray,
@@ -103,9 +107,9 @@ impl Iterator for LineItemArrow {
         let l_discount = decimal128_array_from_iter(rows.iter().map(|row| row.l_discount));
         let l_tax = decimal128_array_from_iter(rows.iter().map(|row| row.l_tax));
         let l_returnflag =
-            StringViewArray::from_iter_values(rows.iter().map(|row| row.l_returnflag));
+            string_view_array_from_return_flag_iter(rows.iter().map(|row| row.l_returnflag));
         let l_linestatus =
-            StringViewArray::from_iter_values(rows.iter().map(|row| row.l_linestatus));
+            string_view_array_from_line_item_status_iter(rows.iter().map(|row| row.l_linestatus));
         let l_shipdate = Date32Array::from_iter_values(
             rows.iter().map(|row| row.l_shipdate).map(to_arrow_date32),
         );
@@ -118,8 +122,9 @@ impl Iterator for LineItemArrow {
                 .map(to_arrow_date32),
         );
         let l_shipinstruct =
-            StringViewArray::from_iter_values(rows.iter().map(|row| row.l_shipinstruct));
-        let l_shipmode = StringViewArray::from_iter_values(rows.iter().map(|row| row.l_shipmode));
+            string_view_array_from_shipinstruct_iter(rows.iter().map(|row| row.l_shipinstruct));
+        let l_shipmode =
+            string_view_array_from_shipmode_iter(rows.iter().map(|row| row.l_shipmode));
         let l_comment = StringViewArray::from_iter_values(rows.iter().map(|row| row.l_comment));
 
         let batch = RecordBatch::try_new(
