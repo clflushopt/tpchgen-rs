@@ -22,8 +22,8 @@ echo "Timings" > $LOGFILE
 date >> $LOGFILE
 uname -a >> $LOGFILE
 
-#SCALE_FACTORS="1 10 100"
-SCALE_FACTORS="1"
+SCALE_FACTORS="1 10 100"
+#SCALE_FACTORS="1"
 for sf in $SCALE_FACTORS ; do
     echo "SF=$sf" >> $LOGFILE
     # dbgen needs to run in the same directory as the .dss file
