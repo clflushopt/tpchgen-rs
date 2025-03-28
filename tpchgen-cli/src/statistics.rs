@@ -45,10 +45,11 @@ impl Drop for WriteStatistics {
         let mb_per_chunk = self.num_bytes as f64 / (1024.0 * 1024.0) / self.num_chunks as f64;
         let bytes_per_second = (self.num_bytes as f64 / duration.as_secs_f64()) as u64;
         let gb_per_second = bytes_per_second as f64 / (1024.0 * 1024.0 * 1024.0);
+        let gb = self.num_bytes as f64 / (1024.0 * 1024.0 * 1024.0);
 
-        info!("Completed in {duration:?} ({gb_per_second:.02} GB/sec)");
+        info!("Created {gb:.02} GB in {duration:?} ({gb_per_second:.02} GB/sec)");
         debug!(
-            "wrote {} bytes in {} {}  {mb_per_chunk:.02} MB/{}",
+            "Wrote {} bytes in {} {}  {mb_per_chunk:.02} MB/{}",
             self.num_bytes, self.num_chunks, self.chunk_label, self.chunk_label
         );
     }
