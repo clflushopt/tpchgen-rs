@@ -7,8 +7,7 @@ set -x
 set -e
 
 LOGFILE=tbl_tpchgen_1.txt
-rm -f $LOGFILE
-echo "Timings" > $LOGFILE
+echo "***********Timings**********" >> $LOGFILE
 date >> $LOGFILE
 uname -a >> $LOGFILE
 

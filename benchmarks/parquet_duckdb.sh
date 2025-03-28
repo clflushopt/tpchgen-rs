@@ -6,9 +6,7 @@ set -x
 set -e
 
 LOGFILE=parquet_duckdb.txt
-rm -f $LOGFILE
-echo "Timings" > $LOGFILE
-date >> $LOGFILE
+echo "***********Timings**********" >> $LOGFILE
 uname -a >> $LOGFILE
 
 SCALE_FACTORS="1 10 100"

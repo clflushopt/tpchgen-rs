@@ -7,8 +7,8 @@ set -e
 
 LOGFILE=tbl_dbgen_docker.txt
 
-rm -f $LOGFILE
-echo "Timings" > $LOGFILE
+echo "Timings" >> $LOGFILE
+echo "***********Timings**********" >> $LOGFILE
 date >> $LOGFILE
 uname -a >> $LOGFILE
 

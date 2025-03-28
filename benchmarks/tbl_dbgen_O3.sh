@@ -17,8 +17,7 @@ make
 popd
 
 
-rm -f $LOGFILE
-echo "Timings" > $LOGFILE
+echo "***********Timings**********" >> $LOGFILE
 date >> $LOGFILE
 uname -a >> $LOGFILE
 
