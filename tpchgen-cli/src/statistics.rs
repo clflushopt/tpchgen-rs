@@ -3,14 +3,14 @@
 use log::{debug, info};
 use std::time::Instant;
 
-/// Statisitics for writing data to a file
+/// Statistics for writing data to a file
 ///
 /// Reports the statistics on drop
 #[derive(Clone, Debug)]
 pub struct WriteStatistics {
     /// Time at which the writer was created
     start: Instant,
-    /// User defined "chunks" (e,g. buffers or row_groups)
+    /// User defined "chunks" (e.g. buffers or row_groups)
     num_chunks: usize,
     chunk_label: String,
     /// total bytes written
