@@ -125,3 +125,56 @@ copy partsupp to 'partsupp.parquet' (FORMAT parquet);
 copy region to 'region.parquet' (FORMAT parquet);
 copy supplier to 'supplier.parquet' (FORMAT parquet);
 ```
+
+
+
+--- gcp setup
+
+
+sudo mdadm --create --verbose /dev/md0 --level=0 --raid-devices=4 /dev/nvme1n1 /dev/nvme2n1 /dev/nvme3n1 /dev/nvme4n1
+    sudo mkfs -t ext4 /dev/md0
+sudo mkdir /data
+sudo mount /dev/md0 /data
+sudo chmod -R a+rwx /data
+
+
+alamb@aal-perf:~$ df -h
+Filesystem       Size  Used Avail Use% Mounted on
+udev              44G     0   44G   0% /dev
+tmpfs            8.7G  640K  8.7G   1% /run
+/dev/nvme0n1p1   9.7G  7.2G  2.0G  79% /
+tmpfs             44G     0   44G   0% /dev/shm
+tmpfs            5.0M     0  5.0M   0% /run/lock
+/dev/nvme0n1p15  124M   12M  113M  10% /boot/efi
+tmpfs            8.7G     0  8.7G   0% /run/user/1000
+/dev/md0         1.5T   28K  1.4T   1% /data
+
+cd /data
+
+git clone git@github.com:alamb/tpchgen-rs.git
+
+Can only write at 756MB/s !!!!!
+
+When writing 10gb it goes slightly faster
+10737418240 bytes (11 GB, 10 GiB) copied, 13.179 s, 815 MB/s
+
+
+Install duckdb like this:
+
+curl https://install.duckdb.org | sh
+
+sudo ln -s /home/alamb/.duckdb/cli/latest/duckdb /usr/local/bin
+v1.2.1 8e52ec4395
+
+Issues to file / look into:
+
+I can not make SF1000 as I get an error like this:
+called `Result::unwrap()` on an `Err` value: General("Parquet does not support more than 32767 row groups per fil\
+e (currently: 32768)")
+
+Solutions: make larger row groups / make multiple files perhaps...
+
+--- things I would like to measure:
+How long does it take to make SF 10,000 and SF100,000 (and peak memory)
+
+Why is peak memory increasing over time for tpchgen?

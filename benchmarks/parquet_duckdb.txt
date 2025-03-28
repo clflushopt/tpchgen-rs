@@ -1,5 +1,9 @@
 Timings
-Fri Mar 28 07:47:39 EDT 2025
+Fri Mar 28 07:49:04 EDT 2025
 Darwin Andrews-MacBook-Pro-2.local 24.3.0 Darwin Kernel Version 24.3.0: Thu Jan  2 20:24:23 PST 2025; root:xnu-11215.81.4~3/RELEASE_ARM64_T6031 arm64
 SF=1
-        6.89 real        20.76 user         2.34 sys
+        6.55 real        14.31 user         2.68 sys
+SF=10
+       62.29 real       147.46 user        30.21 sys
+SF=100
+     2627.48 real      1520.29 user      2531.71 sys

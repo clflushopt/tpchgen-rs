@@ -8,23 +8,38 @@
 [actions-badge]: https://github.com/clflushopt/tpchgen-rs/actions/workflows/rust.yml/badge.svg
 [actions-url]: https://github.com/clflushopt/tpchgen-rs/actions?query=branch%3Amain
 
-Blazing fast TPCH benchmark data generator in pure Rust !
+Blazing fast TPCH benchmark data generator in pure Rust!
 
 ## Features
-1. Zero dependency TPCH data generator crate for easy embedding
 2. Blazing Speed (see below)
+1. Obsessively Tested
+3. Fully parallel (uses all available cores)
+3. Steaming (minimal memory usage)
 3. Batteries included, multi-threaded CLI
+1. Zero dependency, 100% pure Rust makes for easy embedding
 
 ## Try it now!
 
-(TODO example)
+```shell
+# create SF10 XXX GB dataset, XX rows in linetiem
+tpchgen-cli -s 10
+```
 
+```shell
+# create 10GB parquet
+tpchgen-cli -s 10
+```
 
-## Benchmarks
+## Performance
 
 (coming soon)
 
 See [BENCHMARKS.md](BENCHMARKS.md) for more details on methodology.
+
+
+Notes:
+By default, `tpchgen-cli` generates 250MB/sec on a Mac M3 laptop.
+
 
 
 ## Correctness
