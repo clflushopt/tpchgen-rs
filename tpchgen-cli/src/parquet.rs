@@ -30,7 +30,7 @@ pub async fn generate_parquet<I>(
     parquet_compression: Compression,
 ) -> Result<(), io::Error>
 where
-    I: Iterator<Item = impl RecordBatchIterator> + 'static,
+    I: Iterator<Item: RecordBatchIterator> + 'static,
 {
     debug!(
         "Generating Parquet with {num_threads} threads, using {parquet_compression} compression"
