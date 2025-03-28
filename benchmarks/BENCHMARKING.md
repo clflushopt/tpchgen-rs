@@ -109,6 +109,8 @@ CALL dbgen(sf = 1);
 
 duckdb test.duckdb "INSTALL tpch; LOAD tpch; CALL dbgen(sf = 1);"
 
+Note I did not have a machine with enough memoyr to create scale factor 100
+
 ## duckdb duckdb (`parquet_duckdb.sh.`)
 
 Run the above commands for `duckdb` and then export the data to parquet.
