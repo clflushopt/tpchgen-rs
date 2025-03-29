@@ -21,6 +21,11 @@ macro_rules! define_tbl_source {
         }
 
         impl Source for $SOURCE_NAME {
+            fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
+                // TBL source does not have a header
+                buffer
+            }
+
             fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
                 for item in self.inner.iter() {
                     // The default Display impl writes TBL format

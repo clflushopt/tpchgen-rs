@@ -15,6 +15,12 @@ use tokio::task::JoinSet;
 /// For example, this is implemented for the different generators in the tpchgen
 /// crate
 pub trait Source: Send {
+    /// Create the first line for the output, into the buffer
+    ///
+    /// This will be called before the first call to [`create`] and exactly once
+    /// across all [`Source`]es
+    fn header(&self, buffer: Vec<u8>) -> Vec<u8>;
+
     /// generates the data for this generator into the buffer, returning the buffer.
     fn create(self, buffer: Vec<u8>) -> Vec<u8>;
 }
@@ -53,12 +59,22 @@ where
     S: Sink + 'static,
 {
     let recycler = BufferRecycler::new();
+    let mut sources = sources.peekable();
 
     // use all cores to make data
     debug!("Using {num_threads} threads");
 
     // create a channel to communicate between the generator tasks and the writer task
     let (tx, mut rx) = tokio::sync::mpsc::channel(num_threads);
+
+    // write the header
+    let Some(first) = sources.peek() else {
+        return Ok(()); // no sources
+    };
+    let header = first.header(Vec::new());
+    tx.send(header)
+        .await
+        .expect("tx just created, it should not be closed");
 
     let sources_and_recyclers = sources.map(|generator| (generator, recycler.clone()));
 

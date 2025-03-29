@@ -23,9 +23,14 @@ macro_rules! define_csv_source {
         }
 
         impl Source for $SOURCE_NAME {
-            fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
+            fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
+                let mut buffer = buffer;
                 writeln!(&mut buffer, "{}", <$FORMATTER>::header())
                     .expect("writing to memory is infallible");
+                buffer
+            }
+
+            fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
                 for item in self.inner.iter() {
                     let formatter = <$FORMATTER>::new(item);
                     writeln!(&mut buffer, "{formatter}").expect("writing to memory is infallible");
