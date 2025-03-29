@@ -107,7 +107,7 @@ struct Cli {
     verbose: bool,
 
     /// Write the output to stdout instead of a file, this is only supported
-    /// for the tbl formats.
+    /// for the tbl and csv formats.
     #[arg(long, default_value_t = false)]
     stdout: bool,
 }
