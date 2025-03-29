@@ -173,8 +173,6 @@ macro_rules! define_generate {
         async fn $FUN_NAME(&self) -> io::Result<()> {
             let filename = self.output_filename($TABLE);
             let (num_parts, parts) = self.parallel_target_part_count(&$TABLE);
-            // parquet files can have at most 32K row groups so cap the number of parts
-            let num_parts = num_parts.min(32767 - 1);
             let scale_factor = self.scale_factor;
             info!("Writing table {} (SF={scale_factor}) to {filename}", $TABLE);
             debug!("Generating {num_parts} parts in total");
@@ -383,7 +381,13 @@ impl Cli {
         };
         // target chunks of about 16MB (use 15MB to ensure we don't exceed the target size)
         let target_chunk_size_bytes = 15 * 1024 * 1024;
-        let num_parts = ((row_count * avg_row_size_bytes) / target_chunk_size_bytes) + 1;
+        let mut num_parts = ((row_count * avg_row_size_bytes) / target_chunk_size_bytes) + 1;
+
+        // parquet files can have at most 32767 row groups so cap the number of parts at that number
+        if self.format == OutputFormat::Parquet {
+            num_parts = num_parts.min(32767);
+        }
+
         // convert to i32
         let num_parts = num_parts.try_into().unwrap();
         // generating all the parts
