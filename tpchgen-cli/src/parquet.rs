@@ -108,6 +108,7 @@ where
         // send the chunks to the writer task
         if let Err(e) = tx.send(chunks).await {
             debug!("Error sending chunks to writer: {e}");
+            break; // stop early
         }
     }
     // signal the writer task that we are done
