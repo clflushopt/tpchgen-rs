@@ -94,7 +94,10 @@ struct Cli {
     ///
     /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP, LZO, BROTLI, LZ4
     ///
-    /// Using ZSTD results in the best compression, but is about 2x slower than
+    /// Note to use zstd you must supply the "compression" level (1-22)
+    /// as a number in parentheses, e.g. `ZSTD(1)` for level 1 compression.
+    ///
+    /// Using `ZSTD` results in the best compression, but is about 2x slower than
     /// UNCOMPRESSED. For example, for the lineitem table at SF=10
     ///
     ///   ZSTD(1):      1.9G  (0.52 GB/sec)
