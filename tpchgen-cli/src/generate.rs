@@ -104,6 +104,11 @@ where
 
     // drive the stream to completion
     while let Some(write_task) = stream.next().await {
+        // break early if the writer stream is done (errored)
+        if writer_task.is_finished() {
+            debug!("writer task is done early, stopping writer");
+            break;
+        }
         write_task.await; // sends the buffer to the writer task
     }
     drop(stream); // drop any stream references
