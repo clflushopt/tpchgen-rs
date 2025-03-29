@@ -90,16 +90,17 @@ struct Cli {
     #[arg(short, long, default_value_t = num_cpus::get())]
     num_threads: usize,
 
-    /// The parquet block compression. Default is SNAPPY
+    /// Parquet block compression format. Default is SNAPPY
     ///
     /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP, LZO, BROTLI, LZ4
     ///
     /// Using ZSTD results in the best compression, but is about 2x slower than
     /// UNCOMPRESSED. For example, for the lineitem table at SF=10
+    ///
     ///   ZSTD(1):      1.9G  (0.52 GB/sec)
     ///   SNAPPY:       2.4G  (0.75 GB/sec)
     ///   UNCOMPRESSED: 3.8G  (1.41 GB/sec)
-    #[arg(short, long, default_value = "SNAPPY")]
+    #[arg(short = 'c', long, default_value = "SNAPPY")]
     parquet_compression: Compression,
 
     /// Verbose output (default: false)
