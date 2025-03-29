@@ -320,11 +320,10 @@ impl Cli {
         format!("{}.{extension}", table.name())
     }
 
-    /// return a buffered file for writing the given filename in the output directory
-    fn new_output_writer(&self, filename: &str) -> io::Result<BufWriter<File>> {
+    /// return a file for writing the given filename in the output directory
+    fn new_output_file(&self, filename: &str) -> io::Result<File> {
         let path = self.output_dir.join(filename);
-        let file = File::create(path)?;
-        Ok(BufWriter::with_capacity(32 * 1024, file))
+        File::create(path)
     }
 
     /// Returns a list of "parts" (data generator chunks, not TPCH parts) to create
@@ -389,7 +388,8 @@ impl Cli {
     where
         I: Iterator<Item: Source> + 'static,
     {
-        let sink = BufWriterSink::new(self.new_output_writer(filename)?);
+        // Since generate_in_chunks already buffers, there is no need to buffer again
+        let sink = WriterSink::new(self.new_output_file(filename)?);
         generate_in_chunks(sink, sources, self.num_threads).await
     }
 
@@ -398,19 +398,20 @@ impl Cli {
     where
         I: Iterator<Item: RecordBatchIterator> + 'static,
     {
-        let writer = self.new_output_writer(filename)?;
+        let file = self.new_output_file(filename)?;
+        let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
         generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
     }
 }
 
 /// Wrapper around a buffer writer that counts the number of buffers and bytes written
-struct BufWriterSink {
+struct WriterSink<W: Write> {
     statistics: WriteStatistics,
-    inner: BufWriter<File>,
+    inner: W,
 }
 
-impl BufWriterSink {
-    fn new(inner: BufWriter<File>) -> Self {
+impl<W: Write> WriterSink<W> {
+    fn new(inner: W) -> Self {
         Self {
             inner,
             statistics: WriteStatistics::new("buffers"),
@@ -418,7 +419,7 @@ impl BufWriterSink {
     }
 }
 
-impl Sink for BufWriterSink {
+impl<W: Write + Send> Sink for WriterSink<W> {
     fn sink(&mut self, buffer: &[u8]) -> Result<(), io::Error> {
         self.statistics.increment_chunks(1);
         self.statistics.increment_bytes(buffer.len());
