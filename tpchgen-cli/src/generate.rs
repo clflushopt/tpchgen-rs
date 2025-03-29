@@ -17,7 +17,7 @@ use tokio::task::JoinSet;
 pub trait Source: Send {
     /// generates the data for this generator into the buffer, returning the buffer.
     fn create(self, buffer: Vec<u8>) -> Vec<u8>;
-    
+
     /// Create the first line for the output, into the buffer
     ///
     /// This will be called before the first call to [`create`] and exactly once
