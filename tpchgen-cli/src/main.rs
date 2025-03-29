@@ -71,7 +71,7 @@ struct Cli {
     output_dir: PathBuf,
 
     /// Which tables to generate (default: all)
-    #[arg(short, long)]
+    #[arg(short = 'T', long = "tables", value_enum)]
     tables: Option<Vec<Table>>,
 
     /// Number of parts to generate (manual parallel generation)
@@ -118,10 +118,10 @@ enum Table {
     Region,
     Part,
     Supplier,
-    PartSupp,
+    Partsupp,
     Customer,
     Orders,
-    LineItem,
+    Lineitem,
 }
 
 impl Display for Table {
@@ -137,10 +137,10 @@ impl Table {
             Table::Region => "region",
             Table::Part => "part",
             Table::Supplier => "supplier",
-            Table::PartSupp => "partsupp",
+            Table::Partsupp => "partsupp",
             Table::Customer => "customer",
             Table::Orders => "orders",
-            Table::LineItem => "lineitem",
+            Table::Lineitem => "lineitem",
         }
     }
 }
@@ -216,10 +216,10 @@ impl Cli {
                 Table::Region,
                 Table::Part,
                 Table::Supplier,
-                Table::PartSupp,
+                Table::Partsupp,
                 Table::Customer,
                 Table::Orders,
-                Table::LineItem,
+                Table::Lineitem,
             ]
         };
 
@@ -239,10 +239,10 @@ impl Cli {
                 Table::Region => self.generate_region().await?,
                 Table::Part => self.generate_part().await?,
                 Table::Supplier => self.generate_supplier().await?,
-                Table::PartSupp => self.generate_partsupp().await?,
+                Table::Partsupp => self.generate_partsupp().await?,
                 Table::Customer => self.generate_customer().await?,
                 Table::Orders => self.generate_orders().await?,
-                Table::LineItem => self.generate_lineitem().await?,
+                Table::Lineitem => self.generate_lineitem().await?,
             }
         }
 
@@ -284,7 +284,7 @@ impl Cli {
     );
     define_generate!(
         generate_partsupp,
-        Table::PartSupp,
+        Table::Partsupp,
         PartSuppGenerator,
         PartSuppTblSource,
         PartSuppCsvSource,
@@ -308,7 +308,7 @@ impl Cli {
     );
     define_generate!(
         generate_lineitem,
-        Table::LineItem,
+        Table::Lineitem,
         LineItemGenerator,
         LineItemTblSource,
         LineItemCsvSource,
@@ -358,7 +358,7 @@ impl Cli {
                 140,
                 SupplierGenerator::calculate_row_count(self.scale_factor, 1, 1),
             ),
-            Table::PartSupp => (
+            Table::Partsupp => (
                 148,
                 PartSuppGenerator::calculate_row_count(self.scale_factor, 1, 1),
             ),
@@ -370,7 +370,7 @@ impl Cli {
                 114,
                 OrderGenerator::calculate_row_count(self.scale_factor, 1, 1),
             ),
-            Table::LineItem => {
+            Table::Lineitem => {
                 // there are on average 4 line items per order.
                 // For example, in SF=10,
                 // * orders has 15,000,000 rows
