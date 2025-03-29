@@ -20,8 +20,8 @@ pub trait Source: Send {
 
     /// Create the first line for the output, into the buffer
     ///
-    /// This will be called before the first call to [`create`] and exactly once
-    /// across all [`Source`]es
+    /// This will be called before the first call to [`Self::create`] and
+    /// exactly once across all [`Source`]es
     fn header(&self, buffer: Vec<u8>) -> Vec<u8>;
 }
 
