@@ -10,12 +10,16 @@ use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescPtr;
-use std::fs::File;
 use std::io;
-use std::io::BufWriter;
+use std::io::Write;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 use tpchgen_arrow::RecordBatchIterator;
+
+pub trait IntoSize {
+    /// Convert the object into a size
+    fn into_size(self) -> Result<usize, io::Error>;
+}
 
 /// Converts a set of RecordBatchIterators into a Parquet file
 ///
@@ -23,8 +27,8 @@ use tpchgen_arrow::RecordBatchIterator;
 ///
 /// Note the input is an iterator of [`RecordBatchIterator`]; The batches
 /// produced by each iterator is encoded as its own row group.
-pub async fn generate_parquet<I>(
-    writer: BufWriter<File>,
+pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
+    writer: W,
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
@@ -98,8 +102,8 @@ where
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
         }
-        let file = writer.into_inner()?.into_inner()?;
-        statistics.increment_bytes(file.metadata()?.len() as usize);
+        let size = writer.into_inner()?.into_size()?;
+        statistics.increment_bytes(size);
         Ok(()) as Result<(), io::Error>
     });
 

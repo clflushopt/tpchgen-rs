@@ -19,6 +19,30 @@ Blazing fast TPCH benchmark data generator in pure Rust !
 
 (coming soon)
 
+## Measuring Performance
+
+This generator is so fast it can saturate the throughput of most IO devices at
+time of writing. To see its true speed, you need to run it on a machine with a
+fast IO device (SSD or NVMe). Alternately you can use the `--stdout` flag and
+the `pv` command to send the output to `/dev/null` and measure the throughput.
+
+For example:
+
+```sh
+# Generate SF=100, about 100GB of data, piped to /dev/null, reporting statistics 
+tpchgen-cli -- -s 100 --stdout | pv -arb > /dev/null
+# Reports something like 
+# 106GiB [3.09GiB/s] (3.09GiB/s)
+```
+
+Similarly for parquet
+
+```
+# Generate SF=100 in parquet format, piped to /dev/null, reporting statistics
+tpchgen-cli -- -s 100 --format=parquet --stdout | pv -arb > /dev/null
+# 38.2GiB [ 865MiB/s] ( 865MiB/s)
+```
+
 ## Structure
 
 `tpchgen-cli` is a [`dbgen`](https://github.com/databricks/tpch-dbgen) compatible CLI tool

@@ -44,7 +44,7 @@ use clap::{Parser, ValueEnum};
 use log::{debug, info, LevelFilter};
 use std::fmt::Display;
 use std::fs::{self, File};
-use std::io::{self, BufWriter, Write};
+use std::io::{self, BufWriter, Stdout, Write};
 use std::path::PathBuf;
 use std::time::Instant;
 use tpchgen::distribution::Distributions;
@@ -106,8 +106,7 @@ struct Cli {
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
-    /// Write the output to stdout instead of a file, this is only supported
-    /// for the tbl and csv formats.
+    /// Write the output to stdout instead of a file.
     #[arg(long, default_value_t = false)]
     stdout: bool,
 }
@@ -410,9 +409,31 @@ impl Cli {
     where
         I: Iterator<Item: RecordBatchIterator> + 'static,
     {
-        let file = self.new_output_file(filename)?;
-        let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-        generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
+        if self.stdout {
+            // write to stdout
+            let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
+            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
+        } else {
+            // write to a file
+            let file = self.new_output_file(filename)?;
+            let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
+            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
+        }
+    }
+}
+
+impl IntoSize for BufWriter<Stdout> {
+    fn into_size(self) -> Result<usize, io::Error> {
+        // we can't get the size of stdout, so just return 0
+        Ok(0)
+    }
+}
+
+impl IntoSize for BufWriter<File> {
+    fn into_size(self) -> Result<usize, io::Error> {
+        let file = self.into_inner()?;
+        let metadata = file.metadata()?;
+        Ok(metadata.len() as usize)
     }
 }
 
