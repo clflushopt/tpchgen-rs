@@ -105,6 +105,11 @@ struct Cli {
     /// Verbose output (default: false)
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
+
+    /// Write the output to stdout instead of a file, this is only supported
+    /// for the tbl formats.
+    #[arg(long, default_value_t = false)]
+    stdout: bool,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
@@ -199,8 +204,10 @@ impl Cli {
             debug!("Logging configured from environment variables");
         }
 
-        // Create output directory if it doesn't exist
-        fs::create_dir_all(&self.output_dir)?;
+        // Create output directory if it doesn't exist and we are not writing to stdout.
+        if !self.stdout {
+            fs::create_dir_all(&self.output_dir)?;
+        }
 
         // Determine which tables to generate
         let tables: Vec<Table> = if let Some(tables) = self.tables.as_ref() {
@@ -389,8 +396,13 @@ impl Cli {
         I: Iterator<Item: Source> + 'static,
     {
         // Since generate_in_chunks already buffers, there is no need to buffer again
-        let sink = WriterSink::new(self.new_output_file(filename)?);
-        generate_in_chunks(sink, sources, self.num_threads).await
+        if self.stdout {
+            let sink = WriterSink::new(io::stdout());
+            generate_in_chunks(sink, sources, self.num_threads).await
+        } else {
+            let sink = WriterSink::new(self.new_output_file(filename)?);
+            generate_in_chunks(sink, sources, self.num_threads).await
+        }
     }
 
     /// Generates an output parquet file from the sources
