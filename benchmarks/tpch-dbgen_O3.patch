@@ -1,0 +1,79 @@
+--- ../tpch-dbgen/makefile	2025-03-28 06:44:39
++++ makefile	2025-03-28 06:44:14
+@@ -103,14 +103,14 @@
+ CC      = gcc
+ # Current values for DATABASE are: INFORMIX, DB2, TDAT (Teradata)
+ #                                  SQLSERVER, SYBASE, ORACLE
+-# Current values for MACHINE are:  ATT, DOS, HP, IBM, ICL, MVS, 
+-#                                  SGI, SUN, U2200, VMS, LINUX, WIN32 
++# Current values for MACHINE are:  ATT, DOS, HP, IBM, ICL, MVS,
++#                                  SGI, SUN, U2200, VMS, LINUX, WIN32
+ # Current values for WORKLOAD are:  TPCH
+ DATABASE= ORACLE
+ MACHINE = MAC
+ WORKLOAD = TPCH
+ #
+-CFLAGS	= -g -DDBNAME=\"dss\" -D$(MACHINE) -D$(DATABASE) -D$(WORKLOAD) -DRNG_TEST -D_FILE_OFFSET_BITS=64 
++CFLAGS	= -g -DDBNAME=\"dss\" -D$(MACHINE) -D$(DATABASE) -D$(WORKLOAD) -DRNG_TEST -D_FILE_OFFSET_BITS=64 -O3
+ LDFLAGS = -O
+ # The OBJ,EXE and LIB macros will need to be changed for compilation under
+ #  Windows NT
+@@ -137,7 +137,7 @@
+ #
+ SRC1 = build.c driver.c bm_utils.c rnd.c print.c load_stub.c bcd2.c \
+ 	speed_seed.c text.c permute.c rng64.c
+-SRC2 = qgen.c varsub.c 
++SRC2 = qgen.c varsub.c
+ SRC  = $(SRC1) $(SRC2)
+ #
+ OBJ1 = build$(OBJ) driver$(OBJ) bm_utils$(OBJ) rnd$(OBJ) print$(OBJ) \
+@@ -147,7 +147,7 @@
+ 	text$(OBJ) bcd2$(OBJ) permute$(OBJ) speed_seed$(OBJ) rng64$(OBJ)
+ OBJS = $(OBJ1) $(OBJ2)
+ #
+-SETS = dists.dss 
++SETS = dists.dss
+ DOC=README HISTORY PORTING.NOTES BUGS
+ DDL  = dss.ddl dss.ri
+ WINDOWS_IDE = tpch.dsw dbgen.dsp tpch.sln tpch.vcproj qgen.vcproj
+@@ -160,7 +160,7 @@
+ 	queries/8.sql queries/9.sql queries/10.sql queries/11.sql queries/12.sql queries/13.sql \
+ 	queries/14.sql queries/15.sql queries/16.sql queries/17.sql queries/18.sql queries/19.sql queries/20.sql \
+ 	queries/21.sql queries/22.sql
+-VARIANTS= variants/8a.sql variants/12a.sql variants/13a.sql variants/14a.sql variants/15a.sql 
++VARIANTS= variants/8a.sql variants/12a.sql variants/13a.sql variants/14a.sql variants/15a.sql
+ ANS   = answers/q1.out answers/q2.out answers/q3.out answers/q4.out answers/q5.out answers/q6.out answers/q7.out answers/q8.out \
+ 	answers/q9.out answers/q10.out answers/q11.out answers/q12.out answers/q13.out answers/q14.out answers/q15.out \
+ 	answers/q16.out answers/q17.out answers/q18.out answers/q19.out answers/q20.out answers/q21.out answers/q22.out
+@@ -170,12 +170,12 @@
+ REFERENCE_DATA=referenceData/[13]*
+ SCRIPTS= check55.sh column_split.sh dop.sh gen_tasks.sh last_row.sh load_balance.sh new55.sh check_dirs.sh
+ ALLSRC=$(DBGENSRC) $(REFERENCE) $(QSRC) $(SCRIPTS)
+-JUNK  = 
++JUNK  =
+ #
+ all: $(PROGS)
+-$(PROG1): $(OBJ1) $(SETS) 
++$(PROG1): $(OBJ1) $(SETS)
+ 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ1) $(LIBS)
+-$(PROG2): permute.h $(OBJ2) 
++$(PROG2): permute.h $(OBJ2)
+ 	$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $(OBJ2) $(LIBS)
+ clean:
+ 	rm -f $(PROGS) $(OBJS) $(JUNK)
+@@ -183,13 +183,13 @@
+ 	lint $(CFLAGS) -u -x -wO -Ma -p $(SRC1)
+ 	lint $(CFLAGS) -u -x -wO -Ma -p $(SRC2)
+ 
+-tar: $(ALLSRC) 
++tar: $(ALLSRC)
+ 	tar cvhf - $(ALLSRC) --exclude .svn\*/\* |gzip - > tpch_${VERSION}_${RELEASE}_${PATCH}.tar.gz
+ 	tar cvhf - $(REFERENCE_DATA) --exclude .svn\*/\* |gzip - > reference_${VERSION}_${RELEASE}_${PATCH}.tar.gz
+ zip: $(ALLSRC)
+ 	zip -r tpch_${VERSION}_${RELEASE}_${PATCH}.zip $(ALLSRC) -x *.svn*
+ 	zip -r reference_${VERSION}_${RELEASE}_${PATCH}.zip $(REFERENCE_DATA) -x *.svn*
+-release: 
++release:
+ 	make -f makefile.suite tar
+ 	make -f makefile.suite zip
+ 	( cd tests; sh test_list.sh `date '+%Y%m%d'` )
