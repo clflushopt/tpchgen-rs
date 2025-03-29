@@ -96,7 +96,7 @@ Note duckdb does not create the `tbl` files, but instead creates a database in i
 
 We use the TPCH data generator as described here https://duckdb.org/docs/stable/extensions/tpch.html
 
-Note for the larger scale factors, as documneted on https://duckdb.org/docs/stable/extensions/tpch.html, duckdb consumes signifcicant amounts of memoyr
+Note for the larger scale factors, as documented  on https://duckdb.org/docs/stable/extensions/tpch.html, duckdb consumes significant amounts of memory 
 
 ```sql
 INSTALL tpch;
@@ -109,7 +109,7 @@ CALL dbgen(sf = 1);
 
 duckdb test.duckdb "INSTALL tpch; LOAD tpch; CALL dbgen(sf = 1);"
 
-Note I did not have a machine with enough memoyr to create scale factor 100
+Note I did not have a machine with enough memory to create scale factor 100
 
 ## duckdb duckdb (`parquet_duckdb.sh.`)
 
@@ -152,7 +152,7 @@ cd tpchgen-rs
 git checkout alamb/parquet
 cargo install --path tpchgen-cli
 
-# Note the GPC machine can only write at 756MB/s !!!!!
+# Note the GCP machine can only write at 756MB/s !!!!!
 dd if=/dev/zero of=/data/test1.img bs=1G count=10 oflag=dsync
 ...
 10737418240 bytes (11 GB, 10 GiB) copied, 13.179 s, 815 MB/s
@@ -160,5 +160,5 @@ dd if=/dev/zero of=/data/test1.img bs=1G count=10 oflag=dsync
 
 # Install duckdb like this:
 curl https://install.duckdb.org | sh
-sudo ln -s /home/alamb/.duckdb/cli/latest/duckdb /usr/local/bin
+sudo ln -s ~/.duckdb/cli/latest/duckdb /usr/local/bin
 # v1.2.1 8e52ec4395
