@@ -21,7 +21,7 @@ pub trait Source: Send {
 
 /// Something that can write the contents of a buffer somewhere
 ///
-/// For example, this is implemented for a file writer
+/// For example, this is implemented for a file writer.
 pub trait Sink: Send {
     /// Write all data from the buffer to the sink
     fn sink(&mut self, buffer: &[u8]) -> Result<(), io::Error>;
