@@ -129,6 +129,12 @@ impl TPCHDate {
     fn to_julian(date: i32) -> i32 {
         JULIAN_DATE[(date - MIN_GENERATE_DATE) as usize]
     }
+
+    /// Returns unix epoch time for this date.
+    fn to_unix_epoch(&self) -> i64 {
+        let (y, m, dy) = self.to_ymd();
+        days_since_unix_epoch(1900 + y, m, dy) * 86400
+    }
 }
 
 /// Creates a index table of formatted strings
@@ -187,6 +193,32 @@ const fn julian(date: i32) -> i32 {
     result + offset
 }
 
+/// Returns the number of days since the Unix epoch (1970-01-01).
+fn days_since_unix_epoch(year: i32, month: i32, day: i32) -> i64 {
+    // Days in each month (non-leap year)
+    const DAYS_IN_MONTH: [i64; 12] = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+    // Calculate days from year component
+    let mut days = 0i64;
+    for y in 1970..year {
+        days += if is_leap_year(y) { 366 } else { 365 };
+    }
+
+    // Add days from months
+    for m in 0..(month as usize - 1) {
+        days += DAYS_IN_MONTH[m];
+    }
+    // Add leap day if needed
+    if month > 2 && is_leap_year(year) {
+        days += 1;
+    }
+
+    // Add days from current month
+    days += day as i64 - 1;
+
+    days
+}
+
 const fn is_leap_year(year: i32) -> bool {
     year % 4 == 0 && year % 100 != 0
 }
@@ -221,5 +253,24 @@ mod test {
             let (y, m, dy) = date.to_ymd();
             assert_eq!(format_ymd(y, m, dy), date.to_string());
         }
+    }
+
+    #[test]
+    fn test_date_epoch_consistency() {
+        // Check that dates are actually machine some epochs.
+        let date = TPCHDate::new(MIN_GENERATE_DATE + 1);
+        // 1992-01-02 00:00:00 (12:00:00 AM)
+        assert_eq!(date.to_string(), "1992-01-02");
+        assert_eq!(date.to_unix_epoch(), 694310400);
+
+        let date = TPCHDate::new(MIN_GENERATE_DATE + 1234);
+        // 1995-05-19 00:00:00 (12:00:00 AM)
+        assert_eq!(date.to_string(), "1995-05-19");
+        assert_eq!(date.to_unix_epoch(), 800841600);
+
+        let date = TPCHDate::new(MIN_GENERATE_DATE + TOTAL_DATE_RANGE - 1);
+        // 1998-12-31 00:00:00 (12:00:00 AM)
+        assert_eq!(date.to_string(), "1998-12-31");
+        assert_eq!(date.to_unix_epoch(), 915062400);
     }
 }
