@@ -8,7 +8,7 @@
 [actions-badge]: https://github.com/clflushopt/tpchgen-rs/actions/workflows/rust.yml/badge.svg
 [actions-url]: https://github.com/clflushopt/tpchgen-rs/actions?query=branch%3Amain
 
-Blazing fast [TPCH] benchmark data generator, in pure Rust with Zero dependencies.
+Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencies.
 
 [TPCH]: https://www.tpc.org/tpch/
 
