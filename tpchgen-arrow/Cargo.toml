@@ -11,7 +11,7 @@ license = "Apache-2.0"
 [dependencies]
 arrow = { version = "54.3.0", default-features = false, features = ["prettyprint"] }
 chrono = "0.4.40"
-tpchgen = { path = "../tpchgen" }
+tpchgen = { path = "../tpchgen", version = "0.1.0" }
 
 [dev-dependencies]
 arrow-csv = "54.3.0"
