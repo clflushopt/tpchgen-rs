@@ -12,7 +12,6 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with Zero dependencie
 
 [TPCH]: https://www.tpc.org/tpch/
 
-![Parquet Generation Performance](parquet-performance.png)
 
 ## Features
 1. Blazing Speed 🚀
@@ -33,6 +32,8 @@ tpchgen-cli -s 10 --format=parquet
 ```
 
 ## Performance
+
+![Parquet Generation Performance](parquet-performance.png)
 
 [`tpchgen-cli`](tpchgen-cli/README.md) is more than 10x faster than any other
 TPCH generator we know of. On a 2023 Mac M3 Max laptop, it easily generates data
