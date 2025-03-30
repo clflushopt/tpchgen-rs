@@ -154,6 +154,49 @@ impl TypedValueParser for TableValueParser {
         Table::from_str(value)
             .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))
     }
+
+    fn possible_values(
+        &self,
+    ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+        Some(Box::new(
+            [
+                clap::builder::PossibleValue::new("Region").help("Region table (alias: r)"),
+                clap::builder::PossibleValue::new("Nation").help("Nation table (alias: n)"),
+                clap::builder::PossibleValue::new("Supplier").help("Supplier table (alias: s)"),
+                clap::builder::PossibleValue::new("Customer").help("Customer table (alias: c)"),
+                clap::builder::PossibleValue::new("Part").help("Part table (alias: P)"),
+                clap::builder::PossibleValue::new("PartSupp").help("PartSupp table (alias: S)"),
+                clap::builder::PossibleValue::new("Orders").help("Orders table (alias: O)"),
+                clap::builder::PossibleValue::new("LineItem").help("LineItem table (alias: L)"),
+                // Add aliases as separate possible values
+                clap::builder::PossibleValue::new("r")
+                    .help("Region table")
+                    .hide(true),
+                clap::builder::PossibleValue::new("n")
+                    .help("Nation table")
+                    .hide(true),
+                clap::builder::PossibleValue::new("s")
+                    .help("Supplier table")
+                    .hide(true),
+                clap::builder::PossibleValue::new("c")
+                    .help("Customer table")
+                    .hide(true),
+                clap::builder::PossibleValue::new("P")
+                    .help("Part table")
+                    .hide(true),
+                clap::builder::PossibleValue::new("S")
+                    .help("PartSupp table")
+                    .hide(true),
+                clap::builder::PossibleValue::new("O")
+                    .help("Orders table")
+                    .hide(true),
+                clap::builder::PossibleValue::new("L")
+                    .help("LineItem table")
+                    .hide(true),
+            ]
+            .into_iter(),
+        ))
+    }
 }
 
 impl FromStr for Table {
