@@ -40,12 +40,14 @@ use crate::parquet::*;
 use crate::statistics::WriteStatistics;
 use crate::tbl::*;
 use ::parquet::basic::Compression;
+use clap::builder::TypedValueParser;
 use clap::{Parser, ValueEnum};
 use log::{debug, info, LevelFilter};
 use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Stdout, Write};
 use std::path::PathBuf;
+use std::str::FromStr;
 use std::time::Instant;
 use tpchgen::distribution::Distributions;
 use tpchgen::generators::{
@@ -71,7 +73,7 @@ struct Cli {
     output_dir: PathBuf,
 
     /// Which tables to generate (default: all)
-    #[arg(short = 'T', long = "tables", value_enum)]
+    #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
     tables: Option<Vec<Table>>,
 
     /// Number of parts to generate (manual parallel generation)
@@ -115,7 +117,7 @@ struct Cli {
     stdout: bool,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Table {
     Nation,
     Region,
@@ -130,6 +132,51 @@ enum Table {
 impl Display for Table {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name())
+    }
+}
+
+#[derive(Debug, Clone)]
+struct TableValueParser;
+
+impl TypedValueParser for TableValueParser {
+    type Value = Table;
+
+    /// Parse the value into a Table enum.
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        _: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> Result<Self::Value, clap::Error> {
+        let value = value
+            .to_str()
+            .ok_or_else(|| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))?;
+        Table::from_str(value)
+            .map_err(|_| clap::Error::new(clap::error::ErrorKind::InvalidValue).with_cmd(cmd))
+    }
+}
+
+impl FromStr for Table {
+    type Err = &'static str;
+
+    /// Returns the table enum value from the given string full name or abbreviation
+    ///
+    /// The original dbgen tool allows some abbreviations to mean two different tables
+    /// like 'p' which aliases to both 'part' and 'partsupp'. This implementation does
+    /// not support this since it just adds unnecessary complexity and confusion so we
+    /// only support the exclusive abbreviations.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "n" | "nation" => Ok(Table::Nation),
+            "r" | "region" => Ok(Table::Region),
+            "s" | "supplier" => Ok(Table::Supplier),
+            "P" | "part" => Ok(Table::Part),
+            "S" | "partsupp" => Ok(Table::Partsupp),
+            "c" | "customer" => Ok(Table::Customer),
+            "O" | "orders" => Ok(Table::Orders),
+            "L" | "lineitem" => Ok(Table::Lineitem),
+            _ => Err("Invalid table name {s}"),
+        }
     }
 }
 
