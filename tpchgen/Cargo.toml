@@ -1,10 +1,13 @@
 [package]
 name = "tpchgen"
-version = "0.1.0"
-edition = "2021"
 authors = ["clflushopt", "alamb"]
-description = "Blazing fast pure Rust no dependency TPC-H data generator"
+description = "Blazing fast pure Rust no dependency TPC-H data generation library."
 repository = "https://github.com/clflushopt/tpchgen-rs"
+readme = { workspace = true }
+version = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
 
 # Designed to have no depdencies to make it easy to embed in other projects
 # See ../ARCHITECTURE.md for more details
@@ -12,4 +15,3 @@ repository = "https://github.com/clflushopt/tpchgen-rs"
 
 [dev-dependencies]
 flate2 = "1.1.0"
-
