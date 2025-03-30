@@ -49,3 +49,18 @@ SF=10
 SF=100
 747.81user 60.90system 13:29.92elapsed 99%CPU (0avgtext+0avgdata 309068maxresident)k
 0inputs+223909456outputs (0major+786minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 22:46:23 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+10.11user 0.64system 0:10.76elapsed 99%CPU (0avgtext+0avgdata 309044maxresident)k
+0inputs+2149824outputs (0major+785minor)pagefaults 0swaps
+SF=10
+77.20user 5.70system 1:22.91elapsed 99%CPU (0avgtext+0avgdata 309024maxresident)k
+0inputs+21937816outputs (0major+784minor)pagefaults 0swaps
+SF=100
+749.38user 59.42system 13:31.34elapsed 99%CPU (0avgtext+0avgdata 309136maxresident)k
+0inputs+223909456outputs (0major+786minor)pagefaults 0swaps
+SF=1000
+7505.73user 646.75system 2:16:06elapsed 99%CPU (0avgtext+0avgdata 309076maxresident)k
+0inputs+2283837488outputs (0major+787minor)pagefaults 0swaps

@@ -25,12 +25,14 @@ tpchgen-cli -s 100 --format=parquet --stdout | pv -arb > /dev/null
 
 ![Parquet Generation Performance](../parquet-performance.png)
 
-See [tpchgen-rs performance Spreadsheet] for more details
+See [tpchgen-rs performance Spreadsheet] for more details.
 
 [tpchgen-rs performance Spreadsheet]: https://docs.google.com/spreadsheets/d/14qTHR5zgqXq4BkhO1IUw2BPwBUIOqMXLZ2fUyOaPflI/edit?gid=0#gid=0
 
-[Apache Parquet](https://parquet.apache.org/) is a columnar storage file format that is optimized for use with big data processing frameworks. 
-It is widely used in the industry and is supported by many data processing engines, including Apache Spark, DataFusion, Snowflake, DataBricks, and DuckDB.
+[Apache Parquet](https://parquet.apache.org/) is a columnar storage file format
+that is optimized for use with big data processing frameworks. It is widely used
+in industry and academia and is supported by many data processing engines,
+including Apache Spark, DataFusion, Snowflake, DataBricks, and DuckDB.
 
 | Name                  | Generator | Output Format        | Notes                                       |
 |-----------------------|-----------|----------------------|---------------------------------------------|
@@ -42,7 +44,7 @@ It is widely used in the industry and is supported by many data processing engin
 ## `parquet_tpchgen.sh`
 
 This script uses the `tpchgen-cli` command in this repo to produce a 
-single parquet file per table, using the snappy compression.
+single parquet file per table, with snappy page compression.
 
 Example command to create Scale Factor 10
 
@@ -50,19 +52,21 @@ Example command to create Scale Factor 10
 tpchgen-cli -s 10 --format=parquet
 ```
 
-## `parquet_duckdb.sh.`
+## `parquet_duckdb.sh`
 
-Run the above commands for `duckdb` and then export the data to parquet.
+This script uses duckdb to produce a single parquet file per table, with snappy
+page compression.
 
-The [TPCH data generator included in DuckDB] writes into the DuckDB proprietary
-format, so to generate Parquet files, you must then export export each table to
-Parquet format.
+Since the [TPCH data generator included in DuckDB] writes into the DuckDB
+proprietary format, creating Parquet files requires a second step to export each
+table to Parquet format.
 
 Note: As described in the documentation, DuckDB's TPCH generator consumes
-significant amounts of memory. For example, to create Scale Factor 1000
-requires a machine with at least 647GB of RAM.
+significant amounts of memory. For example, to create Scale Factor 1000 requires
+a machine with at least 647GB of RAM. Our benchmark machine did not have enough
+ram to create the TPCH data for Scale Factor 1000 using DuckDB.
 
-[TPCH data generator included in DuckDB]: https://duckdb.org/docs/stable/extensions/tpch.html)
+[TPCH data generator included in DuckDB]: https://duckdb.org/docs/stable/extensions/tpch.html
 
 Example command to create Scale Factor 10
 
@@ -85,9 +89,12 @@ copy region to 'region.parquet' (FORMAT parquet);
 copy supplier to 'supplier.parquet' (FORMAT parquet);
 ```
 
-## `duckdb_duckdb.sh.`
+## `duckdb_duckdb.sh`
 
-Since creating Parquet data with DuckDB requires two steps, we also report only
+This script creates TPCH data using the DuckDB's built-in TPCH generator to the
+DuckDB proprietary format.
+
+Since creating Parquet data with DuckDB requires two steps, we also report
 the time taken for DuckDB to create TPCH data in its own format for comparison.
 
 Example command to create Scale Factor 10
@@ -101,13 +108,18 @@ LOAD tpch;
 CALL dbgen(sf = 10);
 ```
 
-# `TBL` format benchmarks
+# Benchmarking `TBL` format
 
-The classic `dbgen` program produces data in a tab-separated format known as
-`TBL` (or `tbl`), which is a simple text format, delimited by `|` characters.
+![TBL Performance](../tbl-performance.png)
+
+The classic `dbgen` program produces data in a format known as
+`TBL` (or `tbl`), which is a simple text format delimited by `|` characters.
 Prior to the advent of open columnar formats like Parquet, running TPCH required
-loading this data into a database or data processing engine before queries
+generating TBL formatted data and [loading into a database or data processing engine] before queries
 could be executed. This format is still useful for benchmarking and comparison.
+
+[loading into a database or data processing engine]: https://support.hpe.com/hpesc/public/docDisplay?docId=sf000078704en_us&docLocale=en_US
+
 
 | Name                  | Generator | Output Format        | Notes                                    |
 |-----------------------|-----------|----------------------|------------------------------------------|
@@ -115,7 +127,6 @@ could be executed. This format is still useful for benchmarking and comparison.
 | [tbl_tpchgen_1.sh]    | `dbgen`   | TBL                  | Restricted to 1 core (`--num-threads=1`) |
 | [tbl_dbgen.sh]        | `dbgen`   | TBL                  |                                          |
 | [tbl_dbgen_O3.sh]     | `dbgen`   | TBL                  | `dbgen` modified (compiled with `-O3`)   |
-| [tbl_dbgen_docker.sh] | `dbgen`   | TBL                  |                                          |
 
 
 ## `tbl_tpchgen.sh`
@@ -137,7 +148,7 @@ single core to produce a single, uncompressed tbl file per table.
 This is useful for comparing the per-core performance of `tpchgen-cli` against
 the classic `dbgen` program, which only supports single-threaded execution.
 
-Example
+Example command for SF=10
 
 ```shell
 # Scale factor 10
@@ -146,21 +157,24 @@ tpchgen-cli -s 10 --num-threads=1
 
 ## `tbl_dbgen.sh`
 
-`dbgen` is the classic TPCH data generator program. This script uses an unmodified copy from [electrum/tpch-dbgen](https://github.com/electrum/tpch-dbgen)
+`dbgen` is the classic TPCH data generator program. This script uses an
+unmodified copy of `dbgen` from
+[electrum/tpch-dbgen](https://github.com/electrum/tpch-dbgen)
 
-Example commands:
+Example command for SF=10
+
 ```shell
 git clone https://github.com/electrum/tpch-dbgen.git
 cd tpch-dbgen
 make
-./dbgen -vf -s 1
+./dbgen -vf -s 10
 ```
 
 
 ## `tbl_dbgen_O3.sh`
 
 The `makefile` that comes with the classic dbgen program uses the default
-optimization levels (`-O`). A more realistic comparison is using maximum
+C compiler optimization level (`-O`). A more realistic comparison is using maximum
 optimization (`-O3`), which is what this script does. 
 
 This diff is applied to the `makefile` in the `tpch-dbgen` directory to change
@@ -182,23 +196,26 @@ LDFLAGS = -O
 #  Windows NT
 ```
 
-Then running
+Example command for SF=10
 
 ```shell
 git clone https://github.com/electrum/tpch-dbgen.git
 cd tpch-dbgen
 patch < path/to/your/patch/file.patch
 make
-./dbgen -vf -s 1
+./dbgen -vf -s 10
 ```
 
 # Benchmarking Machine Setup
 
-Here are the commands that were used to configure the benchmarking machine on GCP. 
+We tested using a Google Cloud Platform (GCP) virtual machine with the following
+specifications:
 
 * Machine type: c3-standard-22-lssd (22 vCPUs, 88 GB Memory)
 * CPU platform: Intel Sapphire Rapids
 * Architecture: x86/64
+
+Here are the commands we used to configure the benchmarking machine:
 
 ## Install Softare
 ```shell

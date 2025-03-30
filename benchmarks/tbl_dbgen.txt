@@ -10,3 +10,25 @@ SF=10
 SF=100
 962.43user 61.08system 17:05.00elapsed 99%CPU (0avgtext+0avgdata 309044maxresident)k
 0inputs+223909456outputs (0major+781minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 19:34:28 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+Command terminated by signal 2
+1.43user 0.00system 0:01.44elapsed 100%CPU (0avgtext+0avgdata 128176maxresident)k
+0inputs+0outputs (0major+555minor)pagefaults 0swaps
+***********Timings**********
+Sun Mar 30 19:35:07 UTC 2025
+Linux aal-perf 6.1.0-31-cloud-amd64 #1 SMP PREEMPT_DYNAMIC Debian 6.1.128-1 (2025-02-07) x86_64 GNU/Linux
+SF=1
+12.94user 0.60system 0:13.57elapsed 99%CPU (0avgtext+0avgdata 309048maxresident)k
+0inputs+2149824outputs (0major+783minor)pagefaults 0swaps
+SF=10
+99.36user 5.77system 1:45.28elapsed 99%CPU (0avgtext+0avgdata 309088maxresident)k
+0inputs+21937816outputs (0major+784minor)pagefaults 0swaps
+SF=100
+958.77user 60.54system 17:00.11elapsed 99%CPU (0avgtext+0avgdata 309080maxresident)k
+0inputs+223909456outputs (0major+783minor)pagefaults 0swaps
+SF=1000
+9641.76user 651.99system 2:51:48elapsed 99%CPU (0avgtext+0avgdata 309020maxresident)k
+0inputs+2283837488outputs (0major+783minor)pagefaults 0swaps

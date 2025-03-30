@@ -16,7 +16,7 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencie
 
 1. Blazing Speed 🚀
 2. Obsessively Tested 📋
-3. Fully parallel, streaming, reasonable memory usage 🧠
+3. Fully parallel, streaming, constant memory usage 🧠
 
 ## Try now!
 
@@ -34,12 +34,29 @@ tpchgen-cli -s 10 --format=parquet
 
 ## Performance
 
+| Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
+|--------------|---------------|------------|----------------------|
+| 1            | `0:02.24`     | `0:12.29`  | `0:10.68`            |
+| 10           | `0:09.97`     | `1:46.80`  | `1:41.14`            |
+| 100          | `1:14.22`     | `17:48.27` | `16:40.88`           |
+| 1000         | `10:26.26`    | N/A (OOM)  | N/A (OOM)            |           
+
+* DuckDB (proprietary) is the time required to create TPCH data using the
+  proprietary DuckDB format
+* Creating Scale Factor 1000 data in DuckDB [requires 647 GB of memory], 
+  which is why it is not included in the table above. 
+
+[required 647 GB of memory]: https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator
+
+Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
+
 ![Parquet Generation Performance](parquet-performance.png)
 
-[`tpchgen-cli`](tpchgen-cli/README.md) is more than 10x faster than any other
-TPCH generator we know of. On a 2023 Mac M3 Max laptop, it easily generates data
-faster than can be written to SSD. See [BENCHMARKS.md](benchmarks/BENCHMARKS.md)
-for more details on performance and benchmarking.
+[`tpchgen-cli`](tpchgen-cli/README.md) is more than 10x faster than the next
+fastest TPCH generator we know of. On a 2023 Mac M3 Max laptop, it easily
+generates data faster than can be written to SSD. See
+[BENCHMARKS.md](benchmarks/BENCHMARKS.md) for more details on performance and
+benchmarking.
 
 ## Testing
 
