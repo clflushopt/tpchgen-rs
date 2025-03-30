@@ -1404,8 +1404,8 @@ impl fmt::Display for ClerkName {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd)]
 /// Order status (F=final, O=open, P=pending)
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd)]
 pub enum OrderStatus {
     /// Fulfilled - all line items shipped
     Fulfilled,
@@ -1415,13 +1415,19 @@ pub enum OrderStatus {
     Pending,
 }
 
+impl OrderStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            OrderStatus::Fulfilled => "F",
+            OrderStatus::Open => "O",
+            OrderStatus::Pending => "P",
+        }
+    }
+}
+
 impl Display for OrderStatus {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            OrderStatus::Fulfilled => write!(f, "F"),
-            OrderStatus::Open => write!(f, "O"),
-            OrderStatus::Pending => write!(f, "P"),
-        }
+        write!(f, "{}", self.as_str())
     }
 }
 
