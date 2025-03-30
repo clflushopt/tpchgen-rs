@@ -168,31 +168,6 @@ impl TypedValueParser for TableValueParser {
                 clap::builder::PossibleValue::new("PartSupp").help("PartSupp table (alias: S)"),
                 clap::builder::PossibleValue::new("Orders").help("Orders table (alias: O)"),
                 clap::builder::PossibleValue::new("LineItem").help("LineItem table (alias: L)"),
-                // Add aliases as separate possible values
-                clap::builder::PossibleValue::new("r")
-                    .help("Region table")
-                    .hide(true),
-                clap::builder::PossibleValue::new("n")
-                    .help("Nation table")
-                    .hide(true),
-                clap::builder::PossibleValue::new("s")
-                    .help("Supplier table")
-                    .hide(true),
-                clap::builder::PossibleValue::new("c")
-                    .help("Customer table")
-                    .hide(true),
-                clap::builder::PossibleValue::new("P")
-                    .help("Part table")
-                    .hide(true),
-                clap::builder::PossibleValue::new("S")
-                    .help("PartSupp table")
-                    .hide(true),
-                clap::builder::PossibleValue::new("O")
-                    .help("Orders table")
-                    .hide(true),
-                clap::builder::PossibleValue::new("L")
-                    .help("LineItem table")
-                    .hide(true),
             ]
             .into_iter(),
         ))
