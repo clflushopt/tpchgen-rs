@@ -12,13 +12,14 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencie
 
 [TPCH]: https://www.tpc.org/tpch/
 
-
 ## Features
+
 1. Blazing Speed 🚀
 2. Obsessively Tested 📋
 3. Fully parallel, streaming, reasonable memory usage 🧠
 
-## Try  now!
+## Try now!
+
 First [install Rust](https://www.rust-lang.org/tools/install) and this tool:
 
 ```shell
@@ -48,13 +49,13 @@ See [TESTING.md](TESTING.md) for more details.
 
 ## Crates
 
-* `tpchgen` is the library that implements the data generation logic for TPCH
+- `tpchgen` is the library that implements the data generation logic for TPCH
   and it can be used to embed data generation logic natively in Rust.
-  
-# `tpchgen-arrow` is a library for generating in memory [Apache Arrow] 
-  record batches for each of the TPCH tables
 
-* `tpchgen-cli` is a [`dbgen`](https://github.com/databricks/tpch-dbgen)
+- `tpchgen-arrow` is a library for generating in memory [Apache Arrow]
+  record batches for each of the TPCH tables.
+
+- `tpchgen-cli` is a [`dbgen`](https://github.com/databricks/tpch-dbgen)
   compatible CLI tool that generates tables from the TPCH benchmark dataset.
 
 [Apache Arrow]: https://arrow.apache.org/
