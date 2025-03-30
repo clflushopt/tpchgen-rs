@@ -131,7 +131,7 @@ impl TPCHDate {
     }
 
     /// Returns unix epoch time for this date.
-    fn to_unix_epoch(&self) -> i64 {
+    pub fn to_unix_epoch(&self) -> i64 {
         let (y, m, dy) = self.to_ymd();
         days_since_unix_epoch(1900 + y, m, dy) * 86400
     }
@@ -205,9 +205,10 @@ fn days_since_unix_epoch(year: i32, month: i32, day: i32) -> i64 {
     }
 
     // Add days from months
-    for m in 0..(month as usize - 1) {
-        days += DAYS_IN_MONTH[m];
+    for day in DAYS_IN_MONTH.iter().take(month as usize - 1) {
+        days += *day;
     }
+
     // Add leap day if needed
     if month > 2 && is_leap_year(year) {
         days += 1;
