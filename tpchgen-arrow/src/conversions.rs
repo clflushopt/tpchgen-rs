@@ -151,6 +151,24 @@ where
 /// This takes advantage of the fact there are only 7 distinct values for
 /// l_shipmode in the TPCH schema and all are less than 12 bytes so can be inlined
 ///
+/// All valid values for `l_shipmode` in the TPCH schema are less than 12 bytes
+/// long
+///
+/// ```sql
+/// DataFusion CLI v46.0.1
+/// +------------+
+/// | l_shipmode |
+/// +------------+
+/// | TRUCK      |
+/// | RAIL       |
+/// | REG AIR    |
+/// | FOB        |
+/// | MAIL       |
+/// | AIR        |
+/// | SHIP       |
+/// +------------+
+/// ```
+///
 /// Example
 /// ```
 /// # use arrow::array::StringViewArray;
@@ -178,7 +196,24 @@ where
 {
     let values = values.into_iter();
     // we know the only valid values for shipmode in the TPCH schema are less than
-    let views: ScalarBuffer<u128> = values.map(shipmode_to_view).collect();
+    // 12 bytes long and can be inlined in a u128, so we can use precomputed views
+    let views: ScalarBuffer<u128> = values.map(|ship_mode| {
+        match ship_mode {
+            // Views in Arrow's StringViewArray are represented as u128 values
+            // low 32 bits of the u128 represent the length (1)
+            // https://docs.rs/arrow/latest/arrow/array/struct.GenericByteViewArray.html#layout-views-and-buffers
+            "TRUCK" => 0x000000000000004b4355525400000005, // 0x4b43555254 = 'TRUCK'
+            "RAIL" => 0x000000000000004c49415200000004,    // 0x4c494152 = 'RAIL'
+            "REG AIR" => 0x000000000000005249412047455200000007, // 0x5249472041474552 = 'REG AIR'
+            "FOB" => 0x00000000000000424f4600000003,       // 0x424f46 = 'FOB'
+            "MAIL" => 0x000000000000004c49414d00000004,    // 0x4c49414d = 'MAIL'
+            "AIR" => 0x0000000000000052494100000003,       // 0x524941 = 'AIR'
+            "SHIP" => 0x000000000000005049485300000004,    // 0x50495048 = 'SHIP'
+            _ => panic!(
+                "Invalid ship mode value: {ship_mode}. This function only supports the 7 valid values for l_shipmode in the TPCH schema."
+            )
+        }
+    }).collect();
     let buffers = vec![]; // all values are inlined in the u128, so no need for a buffer
     let nulls = None;
 
@@ -186,43 +221,6 @@ where
     unsafe { GenericByteViewArray::new_unchecked(views, buffers, nulls) }
 }
 
-/// Converts a shipmode to a valid u128 view (which is used in Arrow's
-/// StringViewArray)
-///
-/// All valid values for `l_shipmode` in the TPCH schema are less than 12 bytes
-/// long
-///
-/// ```sql
-/// DataFusion CLI v46.0.1
-/// +------------+
-/// | l_shipmode |
-/// +------------+
-/// | TRUCK      |
-/// | RAIL       |
-/// | REG AIR    |
-/// | FOB        |
-/// | MAIL       |
-/// | AIR        |
-/// | SHIP       |
-/// +------------+
-/// ```
-fn shipmode_to_view(ship_mode: &'static str) -> u128 {
-    // Views in Arrow's StringViewArray are represented as u128 values
-    // low 32 bits of the u128 represent the length (1)
-    // https://docs.rs/arrow/latest/arrow/array/struct.GenericByteViewArray.html#layout-views-and-buffers
-    match ship_mode {
-        "TRUCK" => 0x000000000000004b4355525400000005, // 0x4b43555254 = 'TRUCK'
-        "RAIL" => 0x000000000000004c49415200000004,    // 0x4c494152 = 'RAIL'
-        "REG AIR" => 0x000000000000005249412047455200000007, // 0x5249472041474552 = 'REG AIR'
-        "FOB" => 0x00000000000000424f4600000003,       // 0x424f46 = 'FOB'
-        "MAIL" => 0x000000000000004c49414d00000004,    // 0x4c49414d = 'MAIL'
-        "AIR" => 0x0000000000000052494100000003,       // 0x524941 = 'AIR'
-        "SHIP" => 0x000000000000005049485300000004,    // 0x50495048 = 'SHIP'
-        _ => panic!(
-            "Invalid ship mode value: {ship_mode}. This function only supports the 7 valid values for l_shipmode in the TPCH schema."
-        ),
-    }
-}
 /// Converts an iterator of shipmode fields to an Arrow [`StringViewArray`] avoiding
 /// an extra copy of the data
 ///
@@ -257,9 +255,6 @@ fn shipmode_to_view(ship_mode: &'static str) -> u128 {
 /// assert_eq!(actual.len(), 4);
 /// // check the values in the StringViewArray build with the builder
 /// let expected = StringViewArray::from_iter_values(ship_instructs);
-/// for i in expected.views() {
-/// println!("view: {i:#x}");
-/// }
 /// assert_eq!(actual, expected);
 /// ```
 pub fn string_view_array_from_shipinstruct_iter<I>(values: I) -> StringViewArray
