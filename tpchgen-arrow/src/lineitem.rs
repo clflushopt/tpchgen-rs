@@ -1,12 +1,10 @@
 use crate::conversions::{
     decimal128_array_from_iter, string_view_array_from_line_item_status_iter,
     string_view_array_from_return_flag_iter, string_view_array_from_shipinstruct_iter,
-    string_view_array_from_shipmode_iter, to_arrow_date32,
+    string_view_array_from_shipmode_iter, string_view_array_from_string_iter, to_arrow_date32,
 };
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
-use arrow::array::{
-    Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch, StringViewArray,
-};
+use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{LineItemGenerator, LineItemGeneratorIterator};
@@ -125,7 +123,7 @@ impl Iterator for LineItemArrow {
             string_view_array_from_shipinstruct_iter(rows.iter().map(|row| row.l_shipinstruct));
         let l_shipmode =
             string_view_array_from_shipmode_iter(rows.iter().map(|row| row.l_shipmode));
-        let l_comment = StringViewArray::from_iter_values(rows.iter().map(|row| row.l_comment));
+        let l_comment = string_view_array_from_string_iter(rows.iter().map(|row| row.l_comment));
 
         let batch = RecordBatch::try_new(
             Arc::clone(self.schema()),

@@ -1850,13 +1850,13 @@ pub struct LineItem<'a> {
     pub l_commitdate: TPCHDate,
     /// Date received
     pub l_receiptdate: TPCHDate,
-    /// Shipping instructions. One of:
+    /// Shipping instructions.
+    /// One of "COLLECT COD", "TAKE BACK RETURN", "DELIVER IN PERSON", "NONE",
     pub l_shipinstruct: &'a str,
     /// Shipping mode.
     /// One of: "TRUCK", "RAIL", "REG AIR", "FOB", "MAIL", "AIR", "SHIP"
     pub l_shipmode: &'a str,
     /// Variable length comment.
-    /// One of "COLLECT COD", "TAKE BACK RETURN", "DELIVER IN PERSON", "NONE",
     pub l_comment: &'a str,
 }
 

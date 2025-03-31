@@ -1,5 +1,6 @@
 use crate::conversions::{
-    decimal128_array_from_iter, string_view_array_from_display_iter, to_arrow_date32,
+    decimal128_array_from_iter, string_view_array_from_display_iter,
+    string_view_array_from_string_iter, to_arrow_date32,
 };
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewArray};
@@ -91,7 +92,7 @@ impl Iterator for OrderArrow {
             StringViewArray::from_iter_values(rows.iter().map(|r| r.o_orderpriority));
         let o_clerk = string_view_array_from_display_iter(rows.iter().map(|r| r.o_clerk));
         let o_shippriority = Int32Array::from_iter_values(rows.iter().map(|r| r.o_shippriority));
-        let o_comment = StringViewArray::from_iter_values(rows.iter().map(|r| r.o_comment));
+        let o_comment = string_view_array_from_string_iter(rows.iter().map(|r| r.o_comment));
 
         let batch = RecordBatch::try_new(
             Arc::clone(self.schema()),

@@ -60,9 +60,8 @@ where
     let values = values.into_iter();
 
     // format all values directly into the buffer
-    let mut buffer: Vec<u8> = Vec::with_capacity (31*1024*1024);
+    let mut buffer: Vec<u8> = Vec::with_capacity(31 * 1024 * 1024);
     let mut views = Vec::with_capacity(values.size_hint().0);
-
 
     for v in values {
         use std::io::Write;
@@ -74,7 +73,8 @@ where
         // https://docs.rs/arrow-array/54.3.1/src/arrow_array/builder/generic_bytes_view_builder.rs.html#286
 
         let len_u32 = length as u32; // length of the string
-        if length <= 12 { // inline view
+        if length <= 12 {
+            // inline view
             let s = &buffer[start_offset..start_offset + length]; // slice of the string in the buffer
             let mut view_buffer = [0; 16];
             view_buffer[0..4].copy_from_slice(&len_u32.to_le_bytes());
@@ -83,7 +83,8 @@ where
             // data in buffer is not needed, so clear space for next string
             buffer.truncate(start_offset);
         } else {
-            let prefix =  u32::from_le_bytes(buffer[start_offset..start_offset+4].try_into().unwrap());
+            let prefix =
+                u32::from_le_bytes(buffer[start_offset..start_offset + 4].try_into().unwrap());
             let view = ByteView {
                 length: len_u32, // length of the string
                 prefix,
@@ -101,9 +102,74 @@ where
 
     // SAFETY: valid by construction
     unsafe { GenericByteViewArray::new_unchecked(views, buffers, nulls) }
-
 }
 
+/// Optimized version of StringViewArray::from_iter_values
+/// that minimizes the number of copies
+///
+/// Example
+/// ```
+/// # use arrow::array::StringViewArray;
+/// # use arrow::array::Array;
+/// # use tpchgen_arrow::conversions::string_view_array_from_string_iter;
+/// let values = vec![
+///   "Hello",
+///   "This is a string that is longer than 12 bytes and will be stored in a buffer",
+///   "World",
+/// ];
+/// // This will convert the string values to a StringViewArray with minimal overhead
+/// let actual = string_view_array_from_string_iter(values.clone());
+/// assert_eq!(actual.len(), 3);
+/// // check the values in the StringViewArray built with the builder
+/// let expected = StringViewArray::from_iter_values(values);
+/// assert_eq!(actual, expected);
+/// ```
+pub fn string_view_array_from_string_iter<I>(values: I) -> StringViewArray
+where
+    I: IntoIterator<Item = &'static str>,
+{
+    // Construct a `StringViewArray` directly from parts rather than StringViewBuilder
+    // to avoid an extra copy of the data.
+    let values = values.into_iter();
+
+    let mut buffer: Vec<u8> = Vec::with_capacity(31 * 1024 * 1024);
+    let mut views = Vec::with_capacity(values.size_hint().0);
+
+    for s in values {
+        // implementation adapted from Arrow's GenericByteViewBuilder
+        // https://docs.rs/arrow-array/54.3.1/src/arrow_array/builder/generic_bytes_view_builder.rs.html#286
+        // length of the string
+        let length = s.len();
+        let len_u32 = length as u32;
+        if length <= 12 {
+            // inline view
+            let mut view_buffer = [0; 16];
+            view_buffer[0..4].copy_from_slice(&len_u32.to_le_bytes());
+            view_buffer[4..4 + length].copy_from_slice(s.as_bytes());
+            views.push(u128::from_le_bytes(view_buffer));
+        } else {
+            let start_offset = buffer.len(); // current length of the buffer
+            // write the string to the buffer
+            buffer.extend_from_slice(s.as_bytes()); // append the bytes of the string to the buffer
+            let prefix = u32::from_le_bytes(s.as_bytes()[0..4].try_into().unwrap());
+            let view = ByteView {
+                length: len_u32, // length of the string
+                prefix,
+                buffer_index: 0, // we only make a single buffer
+                offset: start_offset as u32,
+            };
+            views.push(u128::from(view));
+        }
+    }
+
+    let views = ScalarBuffer::from(views); // convert to ScalarBuffer<u128>
+    // all values are in the single, buffer
+    let buffers = vec![Buffer::from(buffer)];
+    let nulls = None; // no nulls in data
+
+    // SAFETY: valid by construction
+    unsafe { GenericByteViewArray::new_unchecked(views, buffers, nulls) }
+}
 /// Coverts an iterator of [`ReturnFlag`] to an Arrow [`StringViewArray`] avoiding
 /// an extra copy of the data
 ///
