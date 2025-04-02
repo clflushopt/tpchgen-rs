@@ -141,6 +141,7 @@ impl TPCHDate {
 
     /// Returns the number of days since the Unix epoch this date
     /// represents.
+    #[inline(always)]
     pub fn to_unix_epoch(&self) -> i32 {
         self.date_index + Self::UNIX_EPOCH_OFFSET
     }
