@@ -13,10 +13,24 @@ pub fn to_arrow_decimal(value: TPCHDecimal) -> i128 {
     value.into_inner() as i128
 }
 
-/// Convert a TPCH date to an Arrow Date32
+/// Convert a TPCH date to an Arrow Date32.
+///
+/// * Arrow `Date32` are days since the epoch (1970-01-01)
+/// * [`TPCHDate`]s are days since MIN_GENERATE_DATE (1992-01-01)
+///
+/// ```
+/// use chrono::NaiveDate;
+/// use tpchgen::dates::TPCHDate;
+/// let arrow_epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
+///  let tpch_epoch = NaiveDate::from_ymd_opt(1992, 1, 1).unwrap();
+/// // the difference between the two epochs is 8035 days
+/// let day_offset = (tpch_epoch - arrow_epoch).num_days();
+/// let day_offset: i32 = day_offset.try_into().unwrap();
+///  assert_eq!(day_offset, TPCHDate::UNIX_EPOCH_OFFSET);
+/// ```
 #[inline(always)]
 pub fn to_arrow_date32(value: TPCHDate) -> i32 {
-    value.into_inner() + TPCHDATE_TO_DATE32_OFFSET
+    value.to_unix_epoch()
 }
 
 /// Converts an iterator of TPCH decimals to an Arrow Decimal128Array
@@ -49,24 +63,6 @@ where
     }
     builder.finish()
 }
-
-/// Number of days that must be added to a TPCH date to get an Arrow `Date32` value.
-///
-/// * Arrow `Date32` are days since the epoch (1970-01-01)
-/// * [`TPCHDate`]s are days since MIN_GENERATE_DATE (1992-01-01)
-///
-/// This value is `8035` because `1992-01-01` is `8035` days after `1970-01-01`
-/// ```
-/// use chrono::NaiveDate;
-/// use tpchgen_arrow::conversions::TPCHDATE_TO_DATE32_OFFSET;
-/// let arrow_epoch = NaiveDate::from_ymd_opt(1970, 1, 1).unwrap();
-///  let tpch_epoch = NaiveDate::from_ymd_opt(1992, 1, 1).unwrap();
-/// // the difference between the two epochs is 8035 days
-/// let day_offset = (tpch_epoch - arrow_epoch).num_days();
-/// let day_offset: i32 = day_offset.try_into().unwrap();
-///  assert_eq!(day_offset, TPCHDATE_TO_DATE32_OFFSET);
-/// ```
-pub const TPCHDATE_TO_DATE32_OFFSET: i32 = 8035;
 
 // test to ensure that the conversion functions are correct
 #[cfg(test)]
