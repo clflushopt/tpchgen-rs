@@ -100,8 +100,8 @@ impl TPCHDate {
     /// Number of days that must be added to a TPCH date to get a Unix epoch
     /// relative date.
     ///
-    /// * Arrow `Date32` are days since the epoch (1970-01-01)
-    /// * [`TPCHDate`]s are days since MIN_GENERATE_DATE (1992-01-01)
+    /// * Unix epoch relative dates are days since the epoch (1970-01-01)
+    /// * [`TPCHDate`]s are days since [`MIN_GENERATE_DATE`] (1992-01-01)
     ///
     /// This value is `8035` because `1992-01-01` is `8035` days after `1970-01-01`
     pub const UNIX_EPOCH_OFFSET: i32 = 8035;
