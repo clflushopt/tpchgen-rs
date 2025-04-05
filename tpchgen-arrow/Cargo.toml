@@ -10,7 +10,7 @@ license = "Apache-2.0"
 
 [dependencies]
 arrow = { version = "54.3.0", default-features = false, features = ["prettyprint"] }
-chrono = "0.4.40"
+chrono = "0.4.39"
 tpchgen = { path = "../tpchgen", version = "0.1.0" }
 
 [dev-dependencies]
