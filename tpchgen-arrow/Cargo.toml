@@ -1,6 +1,6 @@
 [package]
 name = "tpchgen-arrow"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 authors = ["clflushopt", "alamb"]
 description = "TPC-H data generator into Apache Arrow format"
