@@ -11,8 +11,8 @@ repository = { workspace = true }
 version = "0.1.1"
 
 [dependencies]
-arrow = "54.3.0"
-parquet = "54.3.0"
+arrow = "54.1.0"
+parquet = "54.1.0"
 clap = { version = "4.5.32", features = ["derive"] }
 tpchgen = { path = "../tpchgen", version = "0.1.0"}
 tpchgen-arrow = { path = "../tpchgen-arrow", version = "0.1.1" }
