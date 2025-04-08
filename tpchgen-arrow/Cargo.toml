@@ -14,4 +14,4 @@ tpchgen = { path = "../tpchgen", version = "0.1.1" }
 
 [dev-dependencies]
 arrow-csv = "54.3.0"
-chrono = "0.4.39"
+chrono = "=0.4.39"
