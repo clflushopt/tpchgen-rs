@@ -81,8 +81,8 @@ CALL dbgen(sf = 10);
 -- Export each table to Parquet format
 copy customer to 'customer.parquet' (FORMAT parquet);
 copy lineitem to 'lineitem.parquet' (FORMAT parquet);
-copy nation to 'supplier.parquet' (FORMAT parquet);
-copy orders to 'supplier.parquet' (FORMAT parquet);
+copy nation to 'nation.parquet' (FORMAT parquet);
+copy orders to 'orders.parquet' (FORMAT parquet);
 copy part to 'part.parquet' (FORMAT parquet);
 copy partsupp to 'partsupp.parquet' (FORMAT parquet);
 copy region to 'region.parquet' (FORMAT parquet);
