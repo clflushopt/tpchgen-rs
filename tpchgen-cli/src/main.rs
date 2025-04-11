@@ -160,14 +160,14 @@ impl TypedValueParser for TableValueParser {
     ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
         Some(Box::new(
             [
-                clap::builder::PossibleValue::new("Region").help("Region table (alias: r)"),
-                clap::builder::PossibleValue::new("Nation").help("Nation table (alias: n)"),
-                clap::builder::PossibleValue::new("Supplier").help("Supplier table (alias: s)"),
-                clap::builder::PossibleValue::new("Customer").help("Customer table (alias: c)"),
-                clap::builder::PossibleValue::new("Part").help("Part table (alias: P)"),
-                clap::builder::PossibleValue::new("PartSupp").help("PartSupp table (alias: S)"),
-                clap::builder::PossibleValue::new("Orders").help("Orders table (alias: O)"),
-                clap::builder::PossibleValue::new("LineItem").help("LineItem table (alias: L)"),
+                clap::builder::PossibleValue::new("region").help("Region table (alias: r)"),
+                clap::builder::PossibleValue::new("nation").help("Nation table (alias: n)"),
+                clap::builder::PossibleValue::new("supplier").help("Supplier table (alias: s)"),
+                clap::builder::PossibleValue::new("customer").help("Customer table (alias: c)"),
+                clap::builder::PossibleValue::new("part").help("Part table (alias: P)"),
+                clap::builder::PossibleValue::new("partsupp").help("PartSupp table (alias: S)"),
+                clap::builder::PossibleValue::new("orders").help("Orders table (alias: O)"),
+                clap::builder::PossibleValue::new("lineitem").help("LineItem table (alias: L)"),
             ]
             .into_iter(),
         ))
