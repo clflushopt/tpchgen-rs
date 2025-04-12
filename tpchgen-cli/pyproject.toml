@@ -1,10 +1,14 @@
 [build-system]
-requires = ["maturin>=0.14,<0.15"]
+requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
+
+[tool.maturin]
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+features = ["pyo3/extension-module"]
 
 [project]
 name = "tpchgen"
-version = "0.1.1"
+version = "0.0.1"
 description = "Python bindings for TPC-H data generator"
 requires-python = ">=3.7"
 classifiers = [

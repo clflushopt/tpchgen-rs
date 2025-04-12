@@ -12,9 +12,9 @@ version = "0.1.1"
 
 [lib]
 name = "tpchgen"
-# Add these two lines:
 path = "src/lib.rs"
-crate-type = ["cdylib", "rlib"]
+# "cdylib" is necessary to produce a shared library for Python to import from.
+crate-type = ["cdylib"]
 
 [[bin]]
 name = "tpchgen"
@@ -31,5 +31,8 @@ futures = "0.3.31"
 num_cpus = "1.0"
 log = "0.4.26"
 env_logger = "0.11.7"
-# Add PyO3 dependency:
-pyo3 = { version = "0.18.0", features = ["extension-module"] }
+
+[dependencies.pyo3]
+version = "0.24.0"
+# "abi3-py38" tells pyo3 (and maturin) to build using the stable ABI with minimum Python version 3.8
+features = ["abi3-py38"]

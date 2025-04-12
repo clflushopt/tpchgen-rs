@@ -1,5 +1,4 @@
 use pyo3::prelude::*;
-use pyo3::wrap_pyfunction;
 
 // You'll need to refactor your CLI functionality to be callable from here
 // This might involve extracting your main CLI logic into functions
@@ -21,7 +20,7 @@ fn generate_tpch(scale_factor: f64, output_dir: &str, format: Option<&str>) -> P
 }
 
 #[pymodule]
-fn tpchgen(_py: Python, m: &PyModule) -> PyResult<()> {
+fn tpchgen(_py: Python<'_>, m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(generate_tpch, m)?)?;
     
     // Add more functions as needed
