@@ -63,22 +63,24 @@ benchmarking.
 
 ## Testing
 
-This crate has extensive tests to ensure correctness. We compare the output of
-this crate with the original `dbgen` implementation as part of every checkin.
-See [TESTING.md](TESTING.md) for more details.
+This crate has extensive tests to ensure correctness and produces exactly the
+same, byte-for-byte output as the original [`dbgen`] implementation. We compare
+the output of this crate with [`dbgen`] as part of every checkin. See
+[TESTING.md](TESTING.md) for more details on testing methodology.
 
 ## Crates
 
-- `tpchgen` is the library that implements the data generation logic for TPCH
-  and it can be used to embed data generation logic natively in Rust.
+- [`tpchgen`](tpchgen): the core data generator logic for TPC-H. It has no
+  dependencies and is easy to embed in other Rust project. 
 
-- `tpchgen-arrow` is a library for generating in memory [Apache Arrow]
-  record batches for each of the TPCH tables.
+- [`tpchgen-arrow`](tpchgen-arrow) generates TPC-H data in [Apache Arrow]
+  format. It relies
 
-- `tpchgen-cli` is a [`dbgen`](https://github.com/databricks/tpch-dbgen)
-  compatible CLI tool that generates tables from the TPCH benchmark dataset.
+- [`tpchgen-cli`](tpchgen-cli) is a [`dbgen`] compatible CLI tool that generates
+  benchmark dataset using multiple processes.
 
 [Apache Arrow]: https://arrow.apache.org/
+[`dbgen`]: https://github.com/databricks/tpch-dbgen
 
 ## Contributing
 
