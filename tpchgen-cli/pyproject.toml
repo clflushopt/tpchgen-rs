@@ -1,0 +1,16 @@
+[build-system]
+requires = ["maturin>=0.14,<0.15"]
+build-backend = "maturin"
+
+[project]
+name = "tpchgen"
+version = "0.1.1"
+description = "Python bindings for TPC-H data generator"
+requires-python = ">=3.7"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+]
+
+[project.scripts]
+tpchgen = "tpchgen:generate_tpch"

@@ -10,6 +10,16 @@ repository = { workspace = true }
 
 version = "0.1.1"
 
+[lib]
+name = "tpchgen"
+# Add these two lines:
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[[bin]]
+name = "tpchgen"
+path = "src/main.rs"
+
 [dependencies]
 arrow = "54.3.0"
 parquet = "54.3.0"
@@ -21,3 +31,5 @@ futures = "0.3.31"
 num_cpus = "1.0"
 log = "0.4.26"
 env_logger = "0.11.7"
+# Add PyO3 dependency:
+pyo3 = { version = "0.18.0", features = ["extension-module"] }
