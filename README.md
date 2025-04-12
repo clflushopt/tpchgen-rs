@@ -32,6 +32,9 @@ cargo install tpchgen-cli
 tpchgen-cli -s 10 --format=parquet
 ```
 
+Or watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14) recorded by [@alamb](https://github.com/alamb)
+and the companion blog post in the [Datafusion blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/).
+
 ## Performance
 
 | Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
