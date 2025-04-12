@@ -45,7 +45,8 @@
 //!
 //!
 //! The library was designed to be easily integrated in existing Rust projects as
-//! such it avoids exposing a malleable API and focuses instead on just the core
+//! such it avoids exposing a malleable API and purposely does not have any dependencies
+//! on other Rust crates. It is focused entire on the core
 //! generation logic.
 //!
 //! If you want an easy way to generate the TPC-H dataset for usage with external
