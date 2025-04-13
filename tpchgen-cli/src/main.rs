@@ -558,7 +558,7 @@ fn run_cli(args: Vec<String>) -> PyResult<()> {
 }
 
 #[pymodule]
-fn tpchgen_cli(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+fn rust(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(run_cli, m)?)?;
     Ok(())
 }

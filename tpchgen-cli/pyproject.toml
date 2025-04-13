@@ -2,13 +2,8 @@
 requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
-[tool.maturin]
-# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
-features = ["pyo3/extension-module"]
-
 [project]
-name = "tpchgen" # this is just the python package named, shown in `pip list`. but uses `import tpchgen_cli`
-
+name = "tpchgen"
 version = "0.0.1"
 description = "Python bindings for TPC-H data generator"
 requires-python = ">=3.8"
@@ -16,3 +11,11 @@ classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
+
+[project.scripts]
+tpchgen = "tpchgen.main:main"
+
+[tool.maturin]
+# "extension-module" tells pyo3 we want to build an extension module (skips linking against libpython.so)
+features = ["pyo3/extension-module"]
+module-name = "tpchgen.rust"

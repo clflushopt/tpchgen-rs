@@ -4,3 +4,5 @@ __old/
 Cargo.lock
 .idea
 .venv/
+__pycache__/
+*.so
