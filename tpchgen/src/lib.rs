@@ -1,6 +1,8 @@
 //! Rust TPCH Data Generator
 //!
-//! This crate provides a Rust implementation of the TPC-H data generator.
+//! This crate provides a native Rust implementation of functions and utilities
+//! necessary for generating the TPC-H benchmark dataset in several popular
+//! formats.
 //!
 //! # Example: TBL output format
 //! ```
@@ -25,16 +27,30 @@
 //!   );
 //! ```
 //!
-//! Each generator produces a row struct (e.g. [`LineItem`]) that is designed
-//! to be efficiently converted to the output format (e.g. TBL CSV). This crate
-//! provides the following output formats:
+//! The TPC-H dataset is composed of several tables with foreign key relations
+//! between them. For each table we implement and expose a generator that uses
+//! the iterator API to produce structs e.g [`LineItem`] that represent a single
+//! row.
+//!
+//! For each struct type we expose several facilities that allow fast conversion
+//! to Tbl and Csv formats but can also be extended to support other output formats.
+//!
+//! This crate currently supports the following output formats:
 //!
 //! - TBL: The `Display` impl of the row structs produces the TPCH TBL format.
 //! - CSV: the [`csv`] module has formatters for CSV output (e.g. [`LineItemCsv`]).
 //!
 //! [`LineItem`]: generators::LineItem
 //! [`LineItemCsv`]: csv::LineItemCsv
-
+//!
+//!
+//! The library was designed to be easily integrated in existing Rust projects as
+//! such it avoids exposing a malleable API and purposely does not have any dependencies
+//! on other Rust crates. It is focused entire on the core
+//! generation logic.
+//!
+//! If you want an easy way to generate the TPC-H dataset for usage with external
+//! systems you can use CLI tool instead.
 pub mod csv;
 pub mod dates;
 pub mod decimal;
