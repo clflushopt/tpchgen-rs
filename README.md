@@ -80,7 +80,7 @@ the output of this crate with [`dbgen`] as part of every checkin. See
   benchmark dataset using multiple processes.
 
 [Apache Arrow]: https://arrow.apache.org/
-[`dbgen`]: https://github.com/databricks/tpch-dbgen
+[`dbgen`]: https://github.com/electrum/tpch-dbgen
 
 ## Contributing
 
