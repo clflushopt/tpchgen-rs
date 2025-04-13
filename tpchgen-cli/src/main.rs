@@ -43,6 +43,7 @@ use ::parquet::basic::Compression;
 use clap::builder::TypedValueParser;
 use clap::{Parser, ValueEnum};
 use log::{debug, info, LevelFilter};
+use std::env;
 use std::fmt::Display;
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Stdout, Write};
@@ -539,26 +540,25 @@ impl<W: Write + Send> Sink for WriterSink<W> {
 }
 
 #[pyfunction]
-fn run_cli(args: Vec<String>) -> PyResult<()> {
+fn run_cli() -> PyResult<()> {
     // Create a runtime to run the async function
-    let rt = tokio::runtime::Runtime::new().unwrap();
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create Tokio runtime");
+
+    rt.block_on(async {
+        // Skip the first arg, which is the Python executable typically called like this
+        // ["python", "tpchgen", "a", "b", "c"]
+        let args: Vec<String> = env::args().skip(1).collect();
+        let cli = Cli::parse_from(args);
+
+        cli.main().await.map_err(|e| {
+            PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string())
+        })
+    })
     
-    // Build the arguments array for CLI parsing
-    let mut full_args = vec!["tpchgen-cli".to_string()];
-    full_args.extend(args);
-    
-    // Parse command line arguments using your existing parser
-    let cli = Cli::parse_from(full_args);
-    
-    // Run the main function
-    match rt.block_on(cli.main()) {
-        Ok(_) => Ok(()),
-        Err(e) => Err(PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string())),
-    }
 }
 
 #[pymodule]
-fn rust(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
-    m.add_function(wrap_pyfunction!(run_cli, m)?)?;
+fn rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_wrapped(wrap_pyfunction!(run_cli))?;
     Ok(())
 }
