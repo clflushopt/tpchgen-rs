@@ -59,6 +59,7 @@ use tpchgen_arrow::{
     CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow,
     RecordBatchIterator, RegionArrow, SupplierArrow,
 };
+use pyo3::prelude::*;
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
@@ -535,4 +536,29 @@ impl<W: Write + Send> Sink for WriterSink<W> {
     fn flush(mut self) -> Result<(), io::Error> {
         self.inner.flush()
     }
+}
+
+#[pyfunction]
+fn run_cli(args: Vec<String>) -> PyResult<()> {
+    // Create a runtime to run the async function
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    
+    // Build the arguments array for CLI parsing
+    let mut full_args = vec!["tpchgen-cli".to_string()];
+    full_args.extend(args);
+    
+    // Parse command line arguments using your existing parser
+    let cli = Cli::parse_from(full_args);
+    
+    // Run the main function
+    match rt.block_on(cli.main()) {
+        Ok(_) => Ok(()),
+        Err(e) => Err(PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string())),
+    }
+}
+
+#[pymodule]
+fn tpchgen_cli(_py: Python, m: &Bound<PyModule>) -> PyResult<()> {
+    m.add_function(wrap_pyfunction!(run_cli, m)?)?;
+    Ok(())
 }

@@ -7,14 +7,12 @@ build-backend = "maturin"
 features = ["pyo3/extension-module"]
 
 [project]
-name = "tpchgen"
+name = "tpchgen" # this is just the python package named, shown in `pip list`. but uses `import tpchgen_cli`
+
 version = "0.0.1"
 description = "Python bindings for TPC-H data generator"
-requires-python = ">=3.7"
+requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
 ]
-
-[project.scripts]
-tpchgen = "tpchgen:generate_tpch"
