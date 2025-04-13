@@ -74,7 +74,7 @@ the output of this crate with [`dbgen`] as part of every checkin. See
   dependencies and is easy to embed in other Rust project. 
 
 - [`tpchgen-arrow`](tpchgen-arrow) generates TPC-H data in [Apache Arrow]
-  format. It relies
+  format. It depends on the arrow-rs library
 
 - [`tpchgen-cli`](tpchgen-cli) is a [`dbgen`] compatible CLI tool that generates
   benchmark dataset using multiple processes.
