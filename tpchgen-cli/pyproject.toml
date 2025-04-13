@@ -4,7 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "tpchgen"
-version = "0.0.1"
+version = "1.0.0"
 description = "Python bindings for TPC-H data generator"
 requires-python = ">=3.8"
 classifiers = [
