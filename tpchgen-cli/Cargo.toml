@@ -10,7 +10,7 @@ license = { workspace = true }
 repository = { workspace = true }
 
 [lib]
-name = "tpchgen"
+name = "tpchgen_cli"
 path = "src/main.rs"
 crate-type = ["cdylib"]
 
