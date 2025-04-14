@@ -6,7 +6,6 @@ build-backend = "maturin"
 name = "tpchgen-cli"
 version = "0.1.0"
 description = "Python CLI for TPC-H data generator"
-license = { text = "Apache-2.0" }
 requires-python = ">=3.8"
 
 [project.urls]
