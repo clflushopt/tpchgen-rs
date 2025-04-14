@@ -9,9 +9,9 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-arrow = { version = "54.3.0", default-features = false, features = ["prettyprint"] }
+arrow = { version = "54.0.0", default-features = false, features = ["prettyprint"] }
 tpchgen = { path = "../tpchgen", version = "1.0.0" }
 
 [dev-dependencies]
-arrow-csv = "54.3.0"
+arrow-csv = "54.0.0"
 chrono = "0.4.39"
