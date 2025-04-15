@@ -40,7 +40,7 @@ jobs:
       working-directory: tpchgen-cli
       run: |
         # Publish to TestPyPI
-        maturin publish --no-sdist -u __token__ -i python -r https://test.pypi.org/legacy/
+        maturin publish --no-sdist -u __token__ -i python --repository-url https://test.pypi.org/legacy/
         # Uncomment below to publish to PyPI instead
         # maturin publish --no-sdist -u __token__ -i python
       env:
