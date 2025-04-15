@@ -19,8 +19,19 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencie
 3. Fully parallel, streaming, constant memory usage 🧠
 
 ## Try now!
+### Install Using Python
+Install this tool with Python:
+```shell
+pip install tpchgen-cli
+```
 
-First [install Rust](https://www.rust-lang.org/tools/install) and this tool:
+```shell
+# create Scale Factor 10 (3.6GB, 8 files, 60M rows in lineitem) in 5 seconds on a modern laptop
+tpchgen-cli -s 10 --format=parquet
+```
+
+### Install Using Rust
+[Install Rust](https://www.rust-lang.org/tools/install) and this tool:
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
