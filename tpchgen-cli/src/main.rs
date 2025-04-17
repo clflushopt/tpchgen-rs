@@ -12,7 +12,7 @@
 //!     -V, --version                 Prints version information
 //!     -s, --scale-factor <FACTOR>  Scale factor for the data generation (default: 1)
 //!     -T, --tables <TABLES>        Comma-separated list of tables to generate (default: all)
-//!     -F, --format <FORMAT>        Output format: tbl, csv, or parquet (default: tbl)
+//!     -f, --format <FORMAT>        Output format: tbl, csv, or parquet (default: tbl)
 //!     -o, --output-dir <DIR>       Output directory (default: current directory)
 //!     -p, --parts <N>              Number of parts to split generation into (default: 1)
 //!         --part <N>               Which part to generate (1-based, default: 1)
