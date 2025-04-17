@@ -4,13 +4,22 @@
 //! API wise to the original dbgen tool, as in we use the same command line flags
 //! and arguments.
 //!
-//! -h, --help       Prints help information
-//! -V, --version    Prints version information
-//! -s, --scale      Scale factor for the data generation
-//! -T, --tables     Tables to generate data for
-//! -F, --format     Output format for the data (CSV or Parquet)
-//! -O, --output     Output directory for the generated data
-//! -v, --verbose    Verbose output
+//! USAGE:
+//!     tpchgen-cli [OPTIONS]
+//!
+//! OPTIONS:
+//!     -h, --help                    Prints help information
+//!     -V, --version                 Prints version information
+//!     -s, --scale-factor <FACTOR>  Scale factor for the data generation (default: 1)
+//!     -T, --tables <TABLES>        Comma-separated list of tables to generate (default: all)
+//!     -F, --format <FORMAT>        Output format: tbl, csv, or parquet (default: tbl)
+//!     -o, --output-dir <DIR>       Output directory (default: current directory)
+//!     -p, --parts <N>              Number of parts to split generation into (default: 1)
+//!         --part <N>               Which part to generate (1-based, default: 1)
+//!     -n, --num-threads <N>        Number of threads to use (default: number of CPUs)
+//!     -c, --parquet-compression <C> Parquet compression codec, e.g., SNAPPY, ZSTD(1), UNCOMPRESSED (default: SNAPPY)
+//!     -v, --verbose                Verbose output
+//!         --stdout                 Write output to stdout instead of files
 //!
 //! # Logging:
 //! Use the `-v` flag or `RUST_LOG` environment variable to control logging output.
@@ -62,6 +71,7 @@ use tpchgen_arrow::{
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
+#[command(version)]
 #[command(about = "TPC-H Data Generator", long_about = None)]
 struct Cli {
     /// Scale factor to address (default: 1)
