@@ -4,6 +4,7 @@
 //! API wise to the original dbgen tool, as in we use the same command line flags
 //! and arguments.
 //!
+//! ```
 //! USAGE:
 //!     tpchgen-cli [OPTIONS]
 //!
@@ -20,7 +21,8 @@
 //!     -c, --parquet-compression <C> Parquet compression codec, e.g., SNAPPY, ZSTD(1), UNCOMPRESSED (default: SNAPPY)
 //!     -v, --verbose                Verbose output
 //!         --stdout                 Write output to stdout instead of files
-//!
+//!```
+//! 
 //! # Logging:
 //! Use the `-v` flag or `RUST_LOG` environment variable to control logging output.
 //!
