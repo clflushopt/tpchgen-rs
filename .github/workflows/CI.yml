@@ -168,4 +168,3 @@ jobs:
           command: upload
           # args: --non-interactive --skip-existing wheels-*/*
           args: --non-interactive --repository-url https://test.pypi.org/legacy/ --skip-existing wheels-*/*
-          working-directory: tpchgen-cli
