@@ -1,4 +1,4 @@
-name: publish-pypi
+name: tpchgen-cli-publish-pypi
 
 on:
   release:
