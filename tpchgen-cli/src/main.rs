@@ -22,7 +22,7 @@
 //!     -v, --verbose                Verbose output
 //!         --stdout                 Write output to stdout instead of files
 //!```
-//! 
+//!
 //! # Logging:
 //! Use the `-v` flag or `RUST_LOG` environment variable to control logging output.
 //!
