@@ -18,7 +18,8 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencie
 2. Obsessively Tested 📋
 3. Fully parallel, streaming, constant memory usage 🧠
 
-## Try now!
+## Try it now!
+
 ### Install Using Python
 Install this tool with Python:
 ```shell
@@ -45,6 +46,30 @@ tpchgen-cli -s 10 --format=parquet
 
 Or watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14) recorded by [@alamb](https://github.com/alamb)
 and the companion blog post in the [Datafusion blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/).
+
+### Examples
+
+```shell
+
+# Create a scale factor 10 dataset in the native table format.
+tpchgen-cli -s 10 --output-dir sf10
+
+# Create a scale factor 1 dataset in Parquet format.
+tpchgen-cli -s 1 --output-dir sf1-parquet --format=parquet
+
+# Create a scale factor 1 partitionned dataset for the orders and customer tables.
+tpchgen-cli --tables region,nation,orders,customer --output-dir sf1-partitioned --parts 10 --part 2
+
+# Create a scale factor 1 partitionned into separate folders.
+#
+# Each folder will have a single partition of rows, the parition size will depend on the scale
+# factor. For tables that have less rows than the minimum partition size like "nation" or "region"
+# they will be replicated in each folder i.e. they are repeated for each chunk.
+for PART in `seq 1 2`; do
+  mkdir part-$PART
+  tpchgen-cli --tables region,nation,orders,customer --output-dir part-$PART --parts 10 --part $PART
+done
+```
 
 ## Performance
 
@@ -77,7 +102,7 @@ benchmarking.
 This crate has extensive tests to ensure correctness and produces exactly the
 same, byte-for-byte output as the original [`dbgen`] implementation. We compare
 the output of this crate with [`dbgen`] as part of every checkin. See
-[TESTING.md](TESTING.md) for more details on testing methodology.
+[TESTING.md](TESTING.md) for more details on testing methodology
 
 ## Crates
 
