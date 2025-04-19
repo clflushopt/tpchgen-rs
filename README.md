@@ -57,14 +57,21 @@ tpchgen-cli -s 10 --output-dir sf10
 # Create a scale factor 1 dataset in Parquet format.
 tpchgen-cli -s 1 --output-dir sf1-parquet --format=parquet
 
-# Create a scale factor 1 partitioned dataset for the orders and customer tables.
+# Create a scale factor 1 (default) partitioned dataset for the region, nation, orders
+# and customer tables.
 tpchgen-cli --tables region,nation,orders,customer --output-dir sf1-partitioned --parts 10 --part 2
 
 # Create a scale factor 1 partitioned into separate folders.
 #
-# Each folder will have a single partition of rows, the parition size will depend on the scale
+# Each folder will have a single partition of rows, the partition size will depend on the scale
 # factor. For tables that have less rows than the minimum partition size like "nation" or "region"
-# they will be replicated in each folder i.e. they are repeated for each chunk.
+# the generator will produce the same file in each part.
+#
+# $ md5sum part-*/{nation,region}.tbl
+# 2f588e0b7fa72939b498c2abecd9fbbe  part-1/nation.tbl
+# 2f588e0b7fa72939b498c2abecd9fbbe  part-2/nation.tbl
+# c235841b00d29ad4f817771fcc851207  part-1/region.tbl
+# c235841b00d29ad4f817771fcc851207  part-2/region.tbl
 for PART in `seq 1 2`; do
   mkdir part-$PART
   tpchgen-cli --tables region,nation,orders,customer --output-dir part-$PART --parts 10 --part $PART
