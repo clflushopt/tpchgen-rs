@@ -57,10 +57,10 @@ tpchgen-cli -s 10 --output-dir sf10
 # Create a scale factor 1 dataset in Parquet format.
 tpchgen-cli -s 1 --output-dir sf1-parquet --format=parquet
 
-# Create a scale factor 1 partitionned dataset for the orders and customer tables.
+# Create a scale factor 1 partitioned dataset for the orders and customer tables.
 tpchgen-cli --tables region,nation,orders,customer --output-dir sf1-partitioned --parts 10 --part 2
 
-# Create a scale factor 1 partitionned into separate folders.
+# Create a scale factor 1 partitioned into separate folders.
 #
 # Each folder will have a single partition of rows, the parition size will depend on the scale
 # factor. For tables that have less rows than the minimum partition size like "nation" or "region"
