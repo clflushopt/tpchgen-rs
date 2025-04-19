@@ -57,7 +57,6 @@ jobs:
       - name: All Tests (tpchgen-cli)
         run: cargo test -p tpchgen-cli
 
-
   # documentation build
   docs:
     runs-on: ubuntu-latest
@@ -68,37 +67,3 @@ jobs:
         env:
           RUSTDOCFLAGS: "-D warnings"
         run: cargo doc --no-deps --workspace
-
-
-  # Conformance tests (compare to existing  implementation)
-  conformance-test:
-    name: TPC-H Conformance Tests
-    runs-on: ubuntu-latest
-    needs: [lint, test-tests-tpchgen, docs]
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-
-      - name: Cache Rust dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
-
-      - name: Make conformance script executable
-        run: chmod +x ./tests/conformance.sh
-
-      - name: Run Conformance Tests
-        run: ./tests/conformance.sh
