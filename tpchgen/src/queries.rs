@@ -691,3 +691,32 @@ group by
 	cntrycode
 order by
 	cntrycode;"#;
+
+/// Returns the TPC-H query string by number.
+pub fn query(num: i32) -> Option<&'static str> {
+    match num {
+        1 => Some(Q1),
+        2 => Some(Q2),
+        3 => Some(Q3),
+        4 => Some(Q4),
+        5 => Some(Q5),
+        6 => Some(Q6),
+        7 => Some(Q7),
+        8 => Some(Q8),
+        9 => Some(Q9),
+        10 => Some(Q10),
+        11 => Some(Q11),
+        12 => Some(Q12),
+        13 => Some(Q13),
+        14 => Some(Q14),
+        15 => Some(Q15),
+        16 => Some(Q16),
+        17 => Some(Q17),
+        18 => Some(Q18),
+        19 => Some(Q19),
+        20 => Some(Q20),
+        21 => Some(Q21),
+        22 => Some(Q22),
+        _ => None,
+    }
+}
