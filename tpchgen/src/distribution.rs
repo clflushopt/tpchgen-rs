@@ -14,7 +14,12 @@ pub struct Distribution {
     name: &'static str,
     values: Vec<&'static str>,
     weights: Vec<i32>,
-    distribution: Option<Vec<&'static str>>,
+    /// Weighted text values generated from the distribution.
+    ///
+    /// If the table this distribution is for isn't actually a valid
+    /// distribution (e.g. 'nation'), then this vec will be empty, and
+    /// `max_weight` set to -1.
+    distribution: Vec<&'static str>,
     max_weight: i32,
 }
 
@@ -49,9 +54,9 @@ impl Distribution {
                 }
             }
 
-            (Some(dist), max)
+            (dist, max)
         } else {
-            (None, -1)
+            (Vec::new(), -1)
         };
 
         let values = distribution.into_iter().map(|(tok, _)| tok).collect();
@@ -92,11 +97,12 @@ impl Distribution {
 
     /// Gets a random value from this distribution using the provided random number.
     pub fn random_value(&self, random: &mut RowRandomInt) -> &str {
-        if let Some(dist) = &self.distribution {
-            let random_value = random.next_int(0, self.max_weight - 1);
-            return dist[random_value as usize];
-        }
-        unreachable!("Cannot get random value from an invalid distribution")
+        debug_assert!(
+            !self.distribution.is_empty(),
+            "Not a valid distribution, cannot get a random value"
+        );
+        let random_value = random.next_int(0, self.max_weight - 1);
+        self.distribution[random_value as usize]
     }
 
     /// Loads a single distribution until its END marker.

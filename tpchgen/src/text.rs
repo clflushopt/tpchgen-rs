@@ -14,8 +14,8 @@ use std::sync::OnceLock;
 /// Pool of random text that follows TPC-H grammar.
 #[derive(Debug, Clone)]
 pub struct TextPool {
+    /// Bytes making up the text pool, exact size.
     text: Vec<u8>,
-    size: i32,
 }
 
 /// The default global text pool is lazily initialized once and shared across
@@ -41,25 +41,22 @@ impl TextPool {
 
     /// Returns a new text pool with a predefined size and set of distributions.
     pub fn new(size: i32, distributions: &Distributions) -> Self {
-        let mut output = ByteArrayBuilder::new(size as usize + Self::MAX_SENTENCE_LENGTH as usize);
         let mut rng = RowRandomInt::new(933588178, i32::MAX);
+        let mut text_bytes = Vec::with_capacity(size as usize + Self::MAX_SENTENCE_LENGTH as usize);
 
-        while output.length() < size as usize {
-            Self::generate_sentence(distributions, &mut output, &mut rng);
+        while text_bytes.len() < size as usize {
+            Self::generate_sentence(distributions, &mut text_bytes, &mut rng);
         }
+        text_bytes.truncate(size as usize);
 
-        output.erase(output.length() - size as usize);
-        let (text_pool_bytes, text_pool_size) = output.into_inner();
-
-        Self {
-            text: text_pool_bytes,
-            size: text_pool_size as i32,
-        }
+        Self { text: text_bytes }
     }
 
     /// Returns the text pool size.
     pub fn size(&self) -> i32 {
-        self.size
+        // Cast is fine since we truncated the bytes to `size` in `new`, which
+        // is an i32.
+        self.text.len() as i32
     }
 
     /// Returns a chunk of text from the pool
@@ -74,7 +71,7 @@ impl TextPool {
 
     fn generate_sentence(
         distributions: &Distributions,
-        builder: &mut ByteArrayBuilder,
+        output: &mut Vec<u8>,
         random: &mut RowRandomInt,
     ) {
         let syntax = distributions.grammar().random_value(random);
@@ -82,31 +79,32 @@ impl TextPool {
 
         for c in syntax.chars().take(max_length).step_by(2) {
             match c {
-                'V' => Self::generate_verb_phrase(distributions, builder, random),
-                'N' => Self::generate_noun_phrase(distributions, builder, random),
+                'V' => Self::generate_verb_phrase(distributions, output, random),
+                'N' => Self::generate_noun_phrase(distributions, output, random),
                 'P' => {
                     let preposition = distributions.prepositions().random_value(random);
-                    builder.append(preposition);
-                    builder.append_bytes(b" the ");
-                    Self::generate_noun_phrase(distributions, builder, random);
+                    output.extend_from_slice(preposition.as_bytes());
+                    output.extend_from_slice(b" the ");
+                    Self::generate_noun_phrase(distributions, output, random);
                 }
                 'T' => {
-                    builder.erase(1);
+                    output.pop().expect("at least one byte");
                     let terminator = distributions.terminators().random_value(random);
-                    builder.append(terminator);
+                    output.extend_from_slice(terminator.as_bytes());
                 }
                 c => panic!("Unknown token '{}'", c),
             };
 
-            if builder.get_last_char() != b' ' {
-                builder.append_bytes(b" ");
+            let last = output.last().copied().expect("at least one byte");
+            if last != b' ' {
+                output.push(b' ');
             }
         }
     }
 
     fn generate_verb_phrase(
         distributions: &Distributions,
-        builder: &mut ByteArrayBuilder,
+        output: &mut Vec<u8>,
         random: &mut RowRandomInt,
     ) {
         let syntax = distributions.verb_phrase().random_value(random);
@@ -122,16 +120,16 @@ impl TextPool {
 
             // pick a random word
             let word = source.random_value(random);
-            builder.append(word);
+            output.extend_from_slice(word.as_bytes());
 
             // add a space
-            builder.append_bytes(b" ");
+            output.push(b' ');
         }
     }
 
     fn generate_noun_phrase(
         distributions: &Distributions,
-        builder: &mut ByteArrayBuilder,
+        output: &mut Vec<u8>,
         random: &mut RowRandomInt,
     ) {
         let syntax = distributions.noun_phrase().random_value(random);
@@ -144,8 +142,8 @@ impl TextPool {
                 'D' => distributions.adverbs(),
                 'N' => distributions.nouns(),
                 ',' => {
-                    builder.erase(1);
-                    builder.append_bytes(b", ");
+                    output.pop().expect("at least one byte");
+                    output.extend_from_slice(b", ");
                     continue;
                 }
                 ' ' => continue,
@@ -154,63 +152,9 @@ impl TextPool {
 
             // pick a random word
             let word = source.random_value(random);
-            builder.append(word);
-            builder.append_bytes(b" ");
+            output.extend_from_slice(word.as_bytes());
+            output.push(b' ');
         }
-    }
-}
-
-/// Helper struct for efficiently building the text pool
-#[derive(Default)]
-struct ByteArrayBuilder {
-    bytes: Vec<u8>,
-    length: usize,
-}
-
-impl ByteArrayBuilder {
-    /// Creates a new builder with the given capacity
-    fn new(capacity: usize) -> Self {
-        Self {
-            bytes: vec![0; capacity],
-            length: 0,
-        }
-    }
-
-    /// Appends the string to the builder.
-    fn append(&mut self, string: &str) {
-        let bytes = string.as_bytes();
-        self.bytes[self.length..self.length + bytes.len()].copy_from_slice(bytes);
-        self.length += bytes.len();
-    }
-
-    /// Appends the fixed size byte array to the builder.
-    ///
-    /// This is more efficient than appending a string because the compiler can
-    /// generate specialized code based on the length of the array.
-    fn append_bytes<const N: usize>(&mut self, bytes: &[u8; N]) {
-        self.bytes[self.length..self.length + N].copy_from_slice(bytes);
-        self.length += N;
-    }
-
-    /// Erases the last `count` bytes from the builder.
-    fn erase(&mut self, count: usize) {
-        assert!(self.length >= count, "Not enough bytes to erase");
-        self.length -= count;
-    }
-
-    /// Returns the length of the data in the builder.
-    fn length(&self) -> usize {
-        self.length
-    }
-
-    /// Return the inner bytes and length of the builder.
-    pub fn into_inner(self) -> (Vec<u8>, usize) {
-        (self.bytes, self.length)
-    }
-
-    /// Returns the last byte of the in progress bytes
-    fn get_last_char(&self) -> u8 {
-        self.bytes[self.length - 1]
     }
 }
 
