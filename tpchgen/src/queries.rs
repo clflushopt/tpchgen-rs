@@ -1,7 +1,7 @@
 //! TPC-H benchmark queries.
 
 /// TPC-H Pricing Summary Report Query (Q1).
-pub const Q1: &'static str = r#"
+pub const Q1: &str = r#"
  select
 	l_returnflag,
 	l_linestatus,
@@ -25,7 +25,7 @@ order by
 	l_linestatus;"#;
 
 /// TPC-H Minimum Cost Supplier Query (Q2).
-pub const Q2: &'static str = r#"
+pub const Q2: &str = r#"
 	select
 	s_acctbal,
 	s_name,
@@ -71,7 +71,7 @@ order by
 	p_partkey;"#;
 
 /// TPC-H Shipping Priority Query (Q3).
-pub const Q3: &'static str = r#"
+pub const Q3: &str = r#"
 select
 	l_orderkey,
 	sum(l_extendedprice * (1 - l_discount)) as revenue,
@@ -96,7 +96,7 @@ order by
 	o_orderdate;"#;
 
 /// TPC-H Order Priority Checking Query (Q4).
-pub const Q4: &'static str = r#"
+pub const Q4: &str = r#"
 select
 	o_orderpriority,
 	count(*) as order_count
@@ -120,7 +120,7 @@ order by
 	o_orderpriority;"#;
 
 /// TPC-H Local Supplier Volume Query (Q5).
-pub const Q5: &'static str = r#"
+pub const Q5: &str = r#"
 select
 	n_name,
 	sum(l_extendedprice * (1 - l_discount)) as revenue
@@ -147,7 +147,7 @@ order by
 	revenue desc;"#;
 
 /// TPC-H Forecasting Revenue Change Query (Q6).
-pub const Q6: &'static str = r#"
+pub const Q6: &str = r#"
 select
 	sum(l_extendedprice * l_discount) as revenue
 from
@@ -159,7 +159,7 @@ where
 	and l_quantity < :3;"#;
 
 /// TPC-H Volume Shipping Query (Q7).
-pub const Q7: &'static str = r#"
+pub const Q7: &str = r#"
 select
 	supp_nation,
 	cust_nation,
@@ -201,7 +201,7 @@ order by
 	l_year;"#;
 
 /// TPC-H National Market Share Query (Q8).
-pub const Q8: &'static str = r#"
+pub const Q8: &str = r#"
 select
 	o_year,
 	sum(case
@@ -241,7 +241,7 @@ order by
 	o_year;"#;
 
 /// TPC-H Product Type Profit Measure Query (Q9).
-pub const Q9: &'static str = r#"
+pub const Q9: &str = r#"
 select
 	nation,
 	o_year,
@@ -276,7 +276,7 @@ order by
 	o_year desc;"#;
 
 /// TPC-H Returned Item Reporting Query (Q10).
-pub const Q10: &'static str = r#"
+pub const Q10: &str = r#"
 select
 	c_custkey,
 	c_name,
@@ -310,7 +310,7 @@ order by
 	revenue desc;"#;
 
 /// TPC-H Important Stock Identification Query (Q11).
-pub const Q11: &'static str = r#"
+pub const Q11: &str = r#"
 select
 	ps_partkey,
 	sum(ps_supplycost * ps_availqty) as value
@@ -340,7 +340,7 @@ order by
 	value desc;"#;
 
 /// TPC-H Shipping Modes and Order Priority Query (Q12).
-pub const Q12: &'static str = r#"
+pub const Q12: &str = r#"
 select
 	l_shipmode,
 	sum(case
@@ -371,7 +371,7 @@ order by
 	l_shipmode;"#;
 
 /// TPC-H Customer Distribution Query (Q13).
-pub const Q13: &'static str = r#"
+pub const Q13: &str = r#"
 select
 	c_count,
 	count(*) as custdist
@@ -394,7 +394,7 @@ order by
 	c_count desc;"#;
 
 /// TPC-H Promotion Effect Query (Q14).
-pub const Q14: &'static str = r#"
+pub const Q14: &str = r#"
 select
 	100.00 * sum(case
 		when p_type like 'PROMO%'
@@ -410,7 +410,7 @@ where
 	and l_shipdate < date ':1' + interval '1' month;"#;
 
 /// TPC-H Top Supplier Query (Q15).
-pub const Q15: &'static str = r#"
+pub const Q15: &str = r#"
 create view revenue:s (supplier_no, total_revenue) as
 	select
 		l_suppkey,
@@ -445,7 +445,7 @@ order by
 drop view revenue:s;"#;
 
 /// TPC-H Parts/Supplier Relationship Query (Q16).
-pub const Q16: &'static str = r#"
+pub const Q16: &str = r#"
 select
 	p_brand,
 	p_type,
@@ -478,7 +478,7 @@ order by
 	p_size;"#;
 
 /// TPC-H Small-Quantity-Order Revenue Query (Q17).
-pub const Q17: &'static str = r#"
+pub const Q17: &str = r#"
 select
 	sum(l_extendedprice) / 7.0 as avg_yearly
 from
@@ -498,7 +498,7 @@ where
 	);"#;
 
 /// TPC-H Large Volume Customer Query (Q18).
-pub const Q18: &'static str = r#"
+pub const Q18: &str = r#"
 select
 	c_name,
 	c_custkey,
@@ -533,7 +533,7 @@ order by
 	o_orderdate;"#;
 
 /// TPC-H Discounted Revenue Query (Q19).
-pub const Q19: &'static str = r#"
+pub const Q19: &str = r#"
 select
 	sum(l_extendedprice* (1 - l_discount)) as revenue
 from
@@ -571,7 +571,7 @@ where
 	);"#;
 
 /// TPC-H Potential Part Promotion Query (Q20).
-pub const Q20: &'static str = r#"
+pub const Q20: &str = r#"
 select
 	s_name,
 	s_address
@@ -611,7 +611,7 @@ order by
 	s_name;"#;
 
 /// TPC-H Suppliers Who Kept Orders Waiting Query (Q21).
-pub const Q21: &'static str = r#"
+pub const Q21: &str = r#"
 select
 	s_name,
 	count(*) as numwait
@@ -653,7 +653,7 @@ order by
 	s_name;"#;
 
 /// TPC-H Global Sales Opportunity Query (Q22).
-pub const Q22: &'static str = r#"
+pub const Q22: &str = r#"
 select
 	cntrycode,
 	count(*) as numcust,
