@@ -204,3 +204,163 @@ fn test_lineitem_sf_0_01() {
         item.to_string()
     })
 }
+
+struct TestIntoIterator<G>
+where
+    G: IntoIterator,
+    G::Item: std::fmt::Display,
+{
+    generator: Option<G>,
+}
+
+impl<G> TestIntoIterator<G>
+where
+    G: IntoIterator,
+    G::Item: std::fmt::Display,
+{
+    fn new(generator: G) -> Self {
+        Self {
+            generator: Some(generator),
+        }
+    }
+
+    pub fn to_string_vec(&mut self, take_num: i32) -> Vec<String> {
+        if let Some(generator) = self.generator.take() {
+            generator
+                .into_iter()
+                .take(take_num as usize)
+                .map(|item| item.to_string())
+                .collect()
+        } else {
+            vec![]
+        }
+    }
+}
+
+#[test]
+fn test_nation_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(NationGenerator::default())
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = NationGenerator::default();
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}
+
+#[test]
+fn test_region_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(RegionGenerator::default())
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = RegionGenerator::default();
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}
+
+#[test]
+fn test_part_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(PartGenerator::new(0.01, 1, 1))
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = PartGenerator::new(0.01, 1, 1);
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}
+
+#[test]
+fn test_supplier_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(SupplierGenerator::new(0.01, 1, 1))
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = SupplierGenerator::new(0.01, 1, 1);
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}
+
+#[test]
+fn test_partsupp_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(PartSuppGenerator::new(0.01, 1, 1))
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = PartSuppGenerator::new(0.01, 1, 1);
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}
+
+#[test]
+fn test_customer_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(CustomerGenerator::new(0.01, 1, 1))
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = CustomerGenerator::new(0.01, 1, 1);
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}
+
+#[test]
+fn test_orders_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(OrderGenerator::new(0.01, 1, 1))
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = OrderGenerator::new(0.01, 1, 1);
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}
+
+#[test]
+fn test_lineitem_into_iter() {
+    {
+        assert_eq!(
+            TestIntoIterator::new(LineItemGenerator::new(0.01, 1, 1))
+                .to_string_vec(5)
+                .len(),
+            5
+        );
+    }
+    {
+        let nation = LineItemGenerator::new(0.01, 1, 1);
+        assert_eq!(TestIntoIterator::new(nation).to_string_vec(5).len(), 5);
+    }
+}

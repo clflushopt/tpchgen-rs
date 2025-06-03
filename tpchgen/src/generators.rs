@@ -254,7 +254,7 @@ impl<'a> RegionGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a RegionGenerator<'a> {
+impl<'a> IntoIterator for RegionGenerator<'a> {
     type Item = Region<'a>;
     type IntoIter = RegionGeneratorIterator<'a>;
 
@@ -466,7 +466,7 @@ impl<'a> PartGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a PartGenerator<'a> {
+impl<'a> IntoIterator for PartGenerator<'a> {
     type Item = Part<'a>;
     type IntoIter = PartGeneratorIterator<'a>;
 
@@ -741,7 +741,7 @@ impl<'a> SupplierGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a SupplierGenerator<'a> {
+impl<'a> IntoIterator for SupplierGenerator<'a> {
     type Item = Supplier;
     type IntoIter = SupplierGeneratorIterator<'a>;
 
@@ -1043,7 +1043,7 @@ impl<'a> CustomerGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a CustomerGenerator<'a> {
+impl<'a> IntoIterator for CustomerGenerator<'a> {
     type Item = Customer<'a>;
     type IntoIter = CustomerGeneratorIterator<'a>;
 
@@ -1264,7 +1264,7 @@ impl<'a> PartSuppGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a PartSuppGenerator<'a> {
+impl<'a> IntoIterator for PartSuppGenerator<'a> {
     type Item = PartSupp<'a>;
     type IntoIter = PartSuppGeneratorIterator<'a>;
 
@@ -1585,7 +1585,7 @@ impl<'a> OrderGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a OrderGenerator<'a> {
+impl<'a> IntoIterator for OrderGenerator<'a> {
     type Item = Order<'a>;
     type IntoIter = OrderGeneratorIterator<'a>;
 
@@ -1986,7 +1986,7 @@ impl<'a> LineItemGenerator<'a> {
     }
 }
 
-impl<'a> IntoIterator for &'a LineItemGenerator<'a> {
+impl<'a> IntoIterator for LineItemGenerator<'a> {
     type Item = LineItem<'a>;
     type IntoIter = LineItemGeneratorIterator<'a>;
 
