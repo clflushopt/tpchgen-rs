@@ -83,24 +83,26 @@ where
     let root_schema = parquet_schema.root_schema_ptr();
     let writer_properties_captured = Arc::clone(&writer_properties);
     let (tx, mut rx): (
-        Sender<Vec<ArrowColumnChunk>>,
-        Receiver<Vec<ArrowColumnChunk>>,
+        Sender<Vec<Vec<ArrowColumnChunk>>>,
+        Receiver<Vec<Vec<ArrowColumnChunk>>>,
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
         // Create parquet writer
         let mut writer =
             SerializedFileWriter::new(writer, root_schema, writer_properties_captured).unwrap();
 
-        while let Some(chunks) = rx.blocking_recv() {
-            // Start row group
-            let mut row_group_writer = writer.next_row_group().unwrap();
+        while let Some(row_group) = rx.blocking_recv() {
+            for chunks in row_group {
+                // Start row group
+                let mut row_group_writer = writer.next_row_group().unwrap();
 
-            // Slap the chunks into the row group
-            for chunk in chunks {
-                chunk.append_to_row_group(&mut row_group_writer).unwrap();
+                // Slap the chunks into the row group
+                for chunk in chunks {
+                    chunk.append_to_row_group(&mut row_group_writer).unwrap();
+                }
+                row_group_writer.close().unwrap();
+                statistics.increment_chunks(1);
             }
-            row_group_writer.close().unwrap();
-            statistics.increment_chunks(1);
         }
         let size = writer.into_inner()?.into_size()?;
         statistics.increment_bytes(size);
@@ -124,39 +126,61 @@ where
     Ok(())
 }
 
-/// Creates the data for a particular row group
+/// Creates the data for some number of row groups
 ///
 /// Note at the moment it does not use multiple tasks/threads but it could
 /// potentially encode multiple columns with different threads .
 ///
-/// Returns an array of [`ArrowColumnChunk`]
+/// Returns an array of [`ArrowColumnChunk`] for each row group
 fn encode_row_group<I>(
     parquet_schema: SchemaDescPtr,
     writer_properties: Arc<WriterProperties>,
     schema: SchemaRef,
     iter: I,
-) -> Vec<ArrowColumnChunk>
+) -> Vec<Vec<ArrowColumnChunk>>
 where
     I: RecordBatchIterator,
 {
-    // Create writers for each of the leaf columns
-    let mut col_writers = get_column_writers(&parquet_schema, &writer_properties, &schema).unwrap();
+    /// TODO - make this configurable
+    const NUM_ROWS_PER_GROUP: usize = 1024 * 1024; // 1 million rows per group
 
-    // generate the data and send it to the tasks (via the sender channels)
-    for batch in iter {
-        let columns = batch.columns().iter();
-        let col_writers = col_writers.iter_mut();
-        let fields = schema.fields().iter();
+    let mut finished_row_groups = Vec::new();
 
-        for ((col_writer, field), arr) in col_writers.zip(fields).zip(columns) {
-            for leaves in compute_leaves(field.as_ref(), arr).unwrap() {
-                col_writer.write(&leaves).unwrap();
+    let mut iter = iter.peekable();
+    loop {
+        // No more input
+        if iter.peek().is_none() {
+            break;
+        }
+        // Create writers for each of the leaf columns
+        let mut col_writers = get_column_writers(&parquet_schema, &writer_properties, &schema).unwrap();
+
+        // otherwise generate a row group with up to NUM_ROWS_PER_GROUP rows
+        let mut num_rows = 0;
+        while let Some(batch) = iter.next() {
+            // encode the columns in the batch
+            let columns = batch.columns().iter();
+            let col_writers = col_writers.iter_mut();
+            let fields = schema.fields().iter();
+
+            for ((col_writer, field), arr) in col_writers.zip(fields).zip(columns) {
+                for leaves in compute_leaves(field.as_ref(), arr).unwrap() {
+                    col_writer.write(&leaves).unwrap();
+                }
+            }
+
+            num_rows += batch.num_rows();
+            if num_rows >= NUM_ROWS_PER_GROUP {
+                break; // we have enough rows for this row group
             }
         }
+        // finish the writers and create the column chunks for the row group
+        let row_group = col_writers
+            .into_iter()
+            .map(|col_writer| col_writer.close().unwrap())
+            .collect();
+        finished_row_groups.push(row_group);
+        // loop back for the next
     }
-    // finish the writers and create the column chunks
-    col_writers
-        .into_iter()
-        .map(|col_writer| col_writer.close().unwrap())
-        .collect()
+    finished_row_groups
 }
