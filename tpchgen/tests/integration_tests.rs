@@ -224,6 +224,7 @@ where
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub fn to_string_vec(&mut self, take_num: i32) -> Vec<String> {
         if let Some(generator) = self.generator.take() {
             generator
