@@ -417,9 +417,20 @@ impl Cli {
     /// - num_parts is the total number of parts to generate
     /// - part_list is the list of parts to generate (1 based)
     fn parallel_target_part_count(&self, table: &Table) -> (i32, Vec<i32>) {
-        // parallel generation disabled if user specifies a part explicitly
+        // If a single part is specified, split it into chunks to enable parallel generation.
         if self.part != 1 || self.parts != 1 {
-            return (self.parts, vec![self.part]);
+            // Heuristic: 4 chunks per thread to maximize throughput.
+            let num_chunks = (self.num_threads * 4) as i32;
+
+            // The new total number of parts is the original number of parts multiplied by the number of chunks.
+            let new_total_parts = self.parts * num_chunks;
+
+            // The new part numbers to generate are the chunks that make up the original part.
+            let start_part = (self.part - 1) * num_chunks + 1;
+            let end_part = self.part * num_chunks;
+            let new_parts_to_generate = (start_part..=end_part).collect();
+
+            return (new_total_parts, new_parts_to_generate);
         }
 
         // Note use part=1, part_count=1 to calculate the total row count
