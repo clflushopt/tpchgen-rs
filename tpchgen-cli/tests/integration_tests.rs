@@ -1,12 +1,16 @@
 use assert_cmd::Command;
+use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
 use std::fs;
 use std::io::Read;
 use std::path::Path;
+use std::sync::Arc;
 use tempfile::tempdir;
+use tpchgen::generators::OrderGenerator;
+use tpchgen_arrow::{OrderArrow, RecordBatchIterator};
 
 /// Test TBL output for scale factor 0.001 using tpchgen-cli
 #[test]
-fn test_tpchgen_cli_scale_factor_0_01() {
+fn test_tpchgen_cli_tbl_scale_factor_0_001() {
     // Create a temporary directory
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
@@ -61,13 +65,13 @@ fn test_tpchgen_cli_scale_factor_0_01() {
     }
 }
 
-/// Test generating the order table in parts
+/// Test generating the order table using --parts and --part options
 #[test]
-fn test_tpchgen_cli_order_in_parts() {
+fn test_tpchgen_cli_parts() {
     // Create a temporary directory
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    // genrate 4 parts of the orders table with scale factor 0.001
+    // generate 4 parts of the orders table with scale factor 0.001
     // into directories /part1, /part2, /part3, /part4
     let num_parts = 4;
     for part in 1..=num_parts {
@@ -123,6 +127,53 @@ fn test_tpchgen_cli_order_in_parts() {
     // load the reference file
     let reference_file = read_reference_file("orders", "0.001");
     assert_eq!(output_contents, reference_file);
+}
+
+#[tokio::test]
+async fn test_write_parquet_orders() {
+    // Run the CLI command to generate parquet data
+    let output_dir = tempdir().unwrap();
+    let output_path = output_dir.path().join("orders.parquet");
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--format")
+        .arg("parquet")
+        .arg("--tables")
+        .arg("orders")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        .assert()
+        .success();
+
+    let batch_size = 4000;
+
+    // Create the reference Arrow data using OrderArrow
+    let generator = OrderGenerator::new(0.001, 1, 1);
+    let mut arrow_generator = OrderArrow::new(generator).with_batch_size(batch_size);
+
+    // Read the generated parquet file
+    let file = std::fs::File::open(&output_path).expect("Failed to open parquet file");
+    let options = ArrowReaderOptions::new().with_schema(Arc::clone(arrow_generator.schema()));
+
+    let reader = ParquetRecordBatchReaderBuilder::try_new_with_options(file, options)
+        .expect("Failed to create ParquetRecordBatchReaderBuilder")
+        .with_batch_size(batch_size)
+        .build()
+        .expect("Failed to build ParquetRecordBatchReader");
+
+    // Compare the record batches
+    for batch in reader {
+        let parquet_batch = batch.expect("Failed to read record batch from parquet");
+        let arrow_batch = arrow_generator
+            .next()
+            .expect("Failed to generate record batch from OrderArrow");
+        assert_eq!(
+            parquet_batch, arrow_batch,
+            "Mismatch between parquet and arrow record batches"
+        );
+    }
 }
 
 fn read_gzipped_file_to_string<P: AsRef<Path>>(path: P) -> Result<String, std::io::Error> {
