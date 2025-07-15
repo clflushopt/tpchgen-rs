@@ -1,10 +1,10 @@
 use assert_cmd::Command;
-use predicates::prelude::*;
 use std::fs;
 use std::io::Read;
+use std::path::Path;
 use tempfile::tempdir;
 
-/// Test TBL output for scale factor 0.01 using tpchgen-cli
+/// Test TBL output for scale factor 0.001 using tpchgen-cli
 #[test]
 fn test_tpchgen_cli_scale_factor_0_01() {
     // Create a temporary directory
@@ -14,7 +14,7 @@ fn test_tpchgen_cli_scale_factor_0_01() {
     Command::cargo_bin("tpchgen-cli")
         .expect("Binary not found")
         .arg("--scale-factor")
-        .arg("0.01")
+        .arg("0.001")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .assert()
@@ -45,15 +45,13 @@ fn test_tpchgen_cli_scale_factor_0_01() {
             .expect("Failed to convert generated contents to string");
 
         // load the reference file
-        let reference_file = format!("../tpchgen/data/sf-0.01/{}.gz", file);
-        let reference_contents = match read_gzipped_file(&reference_file) {
+        let reference_file = format!("../tpchgen/data/sf-0.001/{}.gz", file);
+        let reference_contents = match read_gzipped_file_to_string(&reference_file) {
             Ok(contents) => contents,
             Err(e) => {
                 panic!("Failed to read reference file {reference_file}: {e}");
             }
         };
-        let reference_contents = String::from_utf8(reference_contents)
-            .expect("Failed to convert reference contents to string");
 
         assert_eq!(
             generated_contents, reference_contents,
@@ -63,10 +61,89 @@ fn test_tpchgen_cli_scale_factor_0_01() {
     }
 }
 
-fn read_gzipped_file<P: AsRef<std::path::Path>>(path: P) -> Result<Vec<u8>, std::io::Error> {
+/// Test generating the order table in parts
+#[test]
+fn test_tpchgen_cli_order_in_parts() {
+    // Create a temporary directory
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // genrate 4 parts of the orders table with scale factor 0.001
+    // into directories /part1, /part2, /part3, /part4
+    let num_parts = 4;
+    for part in 1..=num_parts {
+        let part_dir = temp_dir.path().join(format!("part{part}"));
+        fs::create_dir(&part_dir).expect("Failed to create part directory");
+
+        // Run the tpchgen-cli command for each part
+        Command::cargo_bin("tpchgen-cli")
+            .expect("Binary not found")
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--output-dir")
+            .arg(&part_dir)
+            .arg("--parts")
+            .arg(num_parts.to_string())
+            .arg("--part")
+            .arg(part.to_string())
+            .arg("--tables")
+            .arg("orders")
+            .assert()
+            .success();
+    }
+
+    // printout the contents of the temp directory
+    println!(
+        "Temporary directory contents: {:?}",
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read temporary directory")
+            .map(|entry| entry.expect("Failed to read entry").file_name())
+            .collect::<Vec<_>>()
+    );
+
+    // Read the generated files into a single buffer and compare them
+    // to the contents of the reference file
+    let mut output_contents = Vec::new();
+    for part in 1..=4 {
+        let generated_file = temp_dir
+            .path()
+            .join(format!("part{part}"))
+            .join("orders.tbl");
+        assert!(
+            generated_file.exists(),
+            "File {:?} does not exist",
+            generated_file
+        );
+        let generated_contents =
+            fs::read_to_string(generated_file).expect("Failed to read generated file");
+        output_contents.append(&mut generated_contents.into_bytes());
+    }
+    let output_contents =
+        String::from_utf8(output_contents).expect("Failed to convert output contents to string");
+
+    // load the reference file
+    let reference_file = read_reference_file("orders", "0.001");
+    assert_eq!(output_contents, reference_file);
+}
+
+fn read_gzipped_file_to_string<P: AsRef<Path>>(path: P) -> Result<String, std::io::Error> {
     let file = fs::File::open(path)?;
     let mut decoder = flate2::read::GzDecoder::new(file);
     let mut contents = Vec::new();
     decoder.read_to_end(&mut contents)?;
+    let contents = String::from_utf8(contents)
+        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?;
     Ok(contents)
+}
+
+/// Reads the reference file for the specified table and scale factor.
+///
+/// example usage: `read_reference_file("orders", "0.001")`
+fn read_reference_file(table_name: &str, scale_factor: &str) -> String {
+    let reference_file = format!("../tpchgen/data/sf-{scale_factor}/{table_name}.tbl.gz");
+    match read_gzipped_file_to_string(&reference_file) {
+        Ok(contents) => contents,
+        Err(e) => {
+            panic!("Failed to read reference file {reference_file}: {e}");
+        }
+    }
 }
