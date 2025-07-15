@@ -1,6 +1,7 @@
 use assert_cmd::Command;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
 use std::fs;
+use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 use std::sync::Arc;
@@ -154,7 +155,7 @@ async fn test_write_parquet_orders() {
     let mut arrow_generator = OrderArrow::new(generator).with_batch_size(batch_size);
 
     // Read the generated parquet file
-    let file = std::fs::File::open(&output_path).expect("Failed to open parquet file");
+    let file = File::open(&output_path).expect("Failed to open parquet file");
     let options = ArrowReaderOptions::new().with_schema(Arc::clone(arrow_generator.schema()));
 
     let reader = ParquetRecordBatchReaderBuilder::try_new_with_options(file, options)
@@ -177,7 +178,7 @@ async fn test_write_parquet_orders() {
 }
 
 fn read_gzipped_file_to_string<P: AsRef<Path>>(path: P) -> Result<String, std::io::Error> {
-    let file = fs::File::open(path)?;
+    let file = File::open(path)?;
     let mut decoder = flate2::read::GzDecoder::new(file);
     let mut contents = Vec::new();
     decoder.read_to_end(&mut contents)?;
