@@ -2,7 +2,7 @@
 //!
 //! This module exposes a bundled query and answer tuple that makes it
 //! easier to work with them in benchmark contexts.
-use crate::{answers, queries};
+use crate::{answers::answers_sf1, queries};
 
 /// QueryAndAnswer is a struct that contains a TPC-H query and its expected answer.
 pub struct QueryAndAnswer(
@@ -12,10 +12,13 @@ pub struct QueryAndAnswer(
 
 impl QueryAndAnswer {
     /// Creates a new QueryAndAnswer instance.
-    pub fn new(num: i32) -> Self {
-        match num {
-            1..=22 => Self(queries::query(num).unwrap(), answers::answer(num).unwrap()),
-            _ => unreachable!("Invalid TPC-H query number: {}", num),
+    pub fn new(num: i32, scale_factor: f64) -> Result<Self, String> {
+        match (num, scale_factor) {
+            (1..=22, 1.) => Ok(QueryAndAnswer(
+                queries::query(num).unwrap(),
+                answers_sf1::answer(num).unwrap(),
+            )),
+            _ => Err(format!("Invalid TPC-H query number: {} the answers are only available for queries (1 to 22) and a scale factor of 1.0", num)),
         }
     }
 

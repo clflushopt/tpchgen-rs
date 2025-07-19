@@ -1,4 +1,4 @@
-//! TPC-H benchmark answers.
+//! TPC-H benchmark answers for scale factor of 1.
 
 /// TPC-H Pricing Summary Report Answer (Q1).
 pub const Q1_ANSWER: &str = r#"
