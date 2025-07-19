@@ -51,11 +51,13 @@
 //!
 //! If you want an easy way to generate the TPC-H dataset for usage with external
 //! systems you can use CLI tool instead.
+pub mod answers;
 pub mod csv;
 pub mod dates;
 pub mod decimal;
 pub mod distribution;
 pub mod generators;
+pub mod q_and_a;
 pub mod queries;
 pub mod random;
 pub mod text;
