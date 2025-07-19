@@ -1,9 +1,8 @@
+//! TPC-H Queries and Answers.
+//!
+//! This module exposes a bundled query and answer tuple that makes it
+//! easier to work with them in benchmark contexts.
 use crate::{answers, queries};
-
-/// TPC-H Queries and Answers.
-///
-/// This module exposes a bundled query and answer tuple that makes it
-/// easier to work with them in benchmark contexts.
 
 /// QueryAndAnswer is a struct that contains a TPC-H query and its expected answer.
 pub struct QueryAndAnswer(
@@ -22,11 +21,11 @@ impl QueryAndAnswer {
 
     /// Returns the query string.
     pub fn query(&self) -> &str {
-        &self.0
+        self.0
     }
 
     /// Returns the expected answer string.
     pub fn answer(&self) -> &str {
-        &self.1
+        self.1
     }
 }
