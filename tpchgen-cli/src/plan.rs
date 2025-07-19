@@ -68,7 +68,7 @@ impl GenerationPlan {
         cli_part_count: i32,
     ) -> Self {
         // parallel generation disabled if user specifies a part explicitly
-        if cli_part != -1 || cli_part_count != -1 {
+        if cli_part != 1 || cli_part_count != 1 {
             return Self {
                 part_count: cli_part_count,
                 part_list: vec![cli_part],
