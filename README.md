@@ -18,10 +18,12 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencie
 2. Obsessively Tested 📋
 3. Fully parallel, streaming, constant memory usage 🧠
 
-## Try it now!
+## Try it now
 
 ### Install Using Python
+
 Install this tool with Python:
+
 ```shell
 pip install tpchgen-cli
 ```
@@ -32,6 +34,7 @@ tpchgen-cli -s 10 --format=parquet
 ```
 
 ### Install Using Rust
+
 [Install Rust](https://www.rust-lang.org/tools/install) and this tool:
 
 ```shell
@@ -89,10 +92,8 @@ done
 
 - DuckDB (proprietary) is the time required to create TPCH data using the
   proprietary DuckDB format
-- Creating Scale Factor 1000 data in DuckDB [requires 647 GB of memory],
+- Creating Scale Factor 1000 data in DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.
-
-[required 647 GB of memory]: https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator
 
 Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
 
@@ -104,6 +105,12 @@ generates data faster than can be written to SSD. See
 [BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for more details on performance and
 benchmarking.
 
+## Answers
+
+The core `tpchgen` crate provides answers for queries 1 to 22 and for a scale factor
+of 1. The answers exposed were derived from the [TPC-H Tools](https://www.tpc.org/)
+official distribution.
+
 ## Testing
 
 This crate has extensive tests to ensure correctness and produces exactly the
@@ -114,7 +121,7 @@ the output of this crate with [`dbgen`] as part of every checkin. See
 ## Crates
 
 - [`tpchgen`](tpchgen): the core data generator logic for TPC-H. It has no
-  dependencies and is easy to embed in other Rust project. 
+  dependencies and is easy to embed in other Rust project.
 
 - [`tpchgen-arrow`](tpchgen-arrow) generates TPC-H data in [Apache Arrow]
   format. It depends on the arrow-rs library
