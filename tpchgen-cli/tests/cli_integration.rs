@@ -74,28 +74,35 @@ fn test_tpchgen_cli_parts() {
 
     // generate 4 parts of the orders table with scale factor 0.001
     // into directories /part1, /part2, /part3, /part4
+    // use threads to run the command concurrently to minimize the time taken
     let num_parts = 4;
+    let mut threads = vec![];
     for part in 1..=num_parts {
         let part_dir = temp_dir.path().join(format!("part{part}"));
-        fs::create_dir(&part_dir).expect("Failed to create part directory");
+        threads.push(std::thread::spawn(move || {
+            fs::create_dir(&part_dir).expect("Failed to create part directory");
 
-        // Run the tpchgen-cli command for each part
-        Command::cargo_bin("tpchgen-cli")
-            .expect("Binary not found")
-            .arg("--scale-factor")
-            .arg("0.001")
-            .arg("--output-dir")
-            .arg(&part_dir)
-            .arg("--parts")
-            .arg(num_parts.to_string())
-            .arg("--part")
-            .arg(part.to_string())
-            .arg("--tables")
-            .arg("orders")
-            .assert()
-            .success();
+            // Run the tpchgen-cli command for each part
+            Command::cargo_bin("tpchgen-cli")
+                .expect("Binary not found")
+                .arg("--scale-factor")
+                .arg("0.001")
+                .arg("--output-dir")
+                .arg(&part_dir)
+                .arg("--parts")
+                .arg(num_parts.to_string())
+                .arg("--part")
+                .arg(part.to_string())
+                .arg("--tables")
+                .arg("orders")
+                .assert()
+                .success();
+        }));
     }
-
+    // Wait for all threads to finish
+    for thread in threads {
+        thread.join().expect("Thread panicked");
+    }
     // Read the generated files into a single buffer and compare them
     // to the contents of the reference file
     let mut output_contents = Vec::new();
