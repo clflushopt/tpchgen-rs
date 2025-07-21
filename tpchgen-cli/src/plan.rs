@@ -126,7 +126,7 @@ impl GenerationPlan {
     }
 }
 
-/// Converts the `GenerationPlan` into an iterator of (num_parts, part_number)
+/// Converts the `GenerationPlan` into an iterator of (part_number, num_parts)
 impl IntoIterator for GenerationPlan {
     type Item = (i32, i32);
     type IntoIter = std::vec::IntoIter<Self::Item>;
@@ -134,7 +134,7 @@ impl IntoIterator for GenerationPlan {
     fn into_iter(self) -> Self::IntoIter {
         self.part_list
             .into_iter()
-            .map(|part_number| (self.part_count, part_number))
+            .map(|part_number| (part_number, self.part_count))
             .collect::<Vec<_>>()
             .into_iter()
     }

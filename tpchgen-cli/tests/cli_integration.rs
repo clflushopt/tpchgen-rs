@@ -95,7 +95,7 @@ fn test_tpchgen_cli_parts() {
             .assert()
             .success();
     }
-    
+
     // Read the generated files into a single buffer and compare them
     // to the contents of the reference file
     let mut output_contents = Vec::new();
