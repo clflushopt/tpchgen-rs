@@ -95,16 +95,7 @@ fn test_tpchgen_cli_parts() {
             .assert()
             .success();
     }
-
-    // printout the contents of the temp directory
-    println!(
-        "Temporary directory contents: {:?}",
-        fs::read_dir(temp_dir.path())
-            .expect("Failed to read temporary directory")
-            .map(|entry| entry.expect("Failed to read entry").file_name())
-            .collect::<Vec<_>>()
-    );
-
+    
     // Read the generated files into a single buffer and compare them
     // to the contents of the reference file
     let mut output_contents = Vec::new();
