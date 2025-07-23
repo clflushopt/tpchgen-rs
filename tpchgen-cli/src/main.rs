@@ -91,11 +91,11 @@ struct Cli {
     tables: Option<Vec<Table>>,
 
     /// Number of parts to generate (manual parallel generation)
-    #[arg(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = -1)]
     parts: i32,
 
     /// Which part to generate (1-based, only relevant if parts > 1)
-    #[arg(long, default_value_t = 1)]
+    #[arg(long, default_value_t = -1)]
     part: i32,
 
     /// Output format: tbl, csv, parquet (default: tbl)
