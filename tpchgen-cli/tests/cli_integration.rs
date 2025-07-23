@@ -3,7 +3,7 @@ use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderB
 use std::fs;
 use std::fs::File;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use tempfile::tempdir;
 use tpchgen::generators::OrderGenerator;
