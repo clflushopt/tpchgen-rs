@@ -1,8 +1,8 @@
 //! [`GenerationPlan`] that describes how to generate a TPC-H dataset.
 
 use crate::{OutputFormat, Table};
-use std::fmt::Display;
 use log::debug;
+use std::fmt::Display;
 use tpchgen::generators::{
     CustomerGenerator, OrderGenerator, PartGenerator, PartSuppGenerator, SupplierGenerator,
 };
@@ -71,7 +71,15 @@ impl GenerationPlan {
     ) -> Self {
         // If a single part is specified, split it into chunks to enable parallel generation.
         if cli_part != -1 || cli_part_count != -1 {
-            let num_chunks = num_threads  as i32;
+            // These tables are small not parameterized by part count,
+            // so we must create only a single part.
+            if table == &Table::Nation || table == &Table::Region {
+                return Self {
+                    part_count: 1,
+                    part_list: vec![1],
+                };
+            }
+            let num_chunks = num_threads as i32;
 
             // The new total number of parts is the original number of parts multiplied by the number of chunks.
             let new_total_parts = cli_part_count * num_chunks;
@@ -88,10 +96,7 @@ impl GenerationPlan {
                 "CLI part: {}, CLI part count: {}, num_threads: {}",
                 cli_part, cli_part_count, num_threads
             );
-            debug!(
-                "New parts to generate: {:?}",
-                new_parts_to_generate
-            );
+            debug!("New parts to generate: {:?}", new_parts_to_generate);
             return Self {
                 part_count: new_total_parts,
                 part_list: new_parts_to_generate,
@@ -246,7 +251,7 @@ mod tests {
     }
 
     #[test]
-    fn sf1_lineitem_cli_parts() {
+    fn sf1_lineitem_cli_parts_1() {
         Test::new()
             .with_table(Table::Lineitem)
             .with_format(OutputFormat::Tbl)
@@ -254,7 +259,60 @@ mod tests {
             // Generate only part 1 of the lineitem table
             .with_cli_part(1)
             .with_cli_part_count(10)
-            .assert(10, [1])
+            // we expect there are num_threads * 10 parts
+            .assert(40, [1, 2, 3, 4])
+    }
+
+    #[test]
+    fn sf1_lineitem_cli_parts_4() {
+        Test::new()
+            .with_table(Table::Lineitem)
+            .with_format(OutputFormat::Tbl)
+            .with_scale_factor(1.0)
+            // Generate only part 1 of the lineitem table
+            .with_cli_part(4) // part 4 of 10
+            .with_cli_part_count(10)
+            // we expect there are num_threads * 10 parts
+            .assert(40, [13, 14, 15, 16])
+    }
+
+    #[test]
+    fn sf1_lineitem_cli_parts_10() {
+        Test::new()
+            .with_table(Table::Lineitem)
+            .with_format(OutputFormat::Tbl)
+            .with_scale_factor(1.0)
+            // Generate only part 1 of the lineitem table
+            .with_cli_part(10) // part 10 of 10
+            .with_cli_part_count(10)
+            // we expect there are num_threads * 10 parts
+            .assert(40, [37, 38, 39, 40])
+    }
+
+    #[test]
+    fn sf1_lineitem_cli_parts_invalid_small() {
+        Test::new()
+            .with_table(Table::Lineitem)
+            .with_format(OutputFormat::Tbl)
+            .with_scale_factor(1.0)
+            // Generate only part 1 of the lineitem table
+            .with_cli_part(0) // part 0 of 10 (invalid)
+            .with_cli_part_count(10)
+            // we expect there are num_threads * 10 parts
+            .assert(40, [13, 14, 15, 16])
+    }
+
+    #[test]
+    fn sf1_lineitem_cli_parts_invalid_big() {
+        Test::new()
+            .with_table(Table::Lineitem)
+            .with_format(OutputFormat::Tbl)
+            .with_scale_factor(1.0)
+            // Generate only part 1 of the lineitem table
+            .with_cli_part(10) // part 11 of 10 (invalid)
+            .with_cli_part_count(10)
+            // we expect there are num_threads * 10 parts
+            .assert(40, [13, 14, 15, 16])
     }
 
     #[test]
@@ -301,6 +359,7 @@ mod tests {
         scale_factor: f64,
         cli_part: i32,
         cli_part_count: i32,
+        num_cpus: usize,
     }
 
     impl Test {
@@ -321,6 +380,7 @@ mod tests {
                 self.scale_factor,
                 self.cli_part,
                 self.cli_part_count,
+                self.num_cpus,
             );
             assert_eq!(plan.part_count, expected_part_count);
             let expected_part_numbers: Vec<i32> = expected_part_numbers.into_iter().collect();
@@ -366,6 +426,7 @@ mod tests {
                 scale_factor: 1.0,
                 cli_part: -1,
                 cli_part_count: -1,
+                num_cpus: 4, // hard code 4 cores for testing
             }
         }
     }
