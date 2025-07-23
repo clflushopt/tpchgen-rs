@@ -79,6 +79,16 @@ impl GenerationPlan {
                     part_list: vec![1],
                 };
             }
+
+            // sanity check arguments (TODO: real Errors)
+            if cli_part < 1 || cli_part_count < 1 || cli_part > cli_part_count {
+                panic!(
+                    "Invalid CLI part or part count. \
+                    Expect greater than 1 and cli_part <= cli_part_count. \
+                    Got: cli_part={cli_part}, cli_part_count={cli_part_count}",
+                );
+            }
+
             let num_chunks = num_threads as i32;
 
             // The new total number of parts is the original number of parts multiplied by the number of chunks.
@@ -251,6 +261,32 @@ mod tests {
     }
 
     #[test]
+    fn sf1_nation_cli_parts() {
+        Test::new()
+            .with_table(Table::Nation)
+            .with_format(OutputFormat::Tbl)
+            .with_scale_factor(1.0)
+            // nation table is small, so it can not be made in parts
+            .with_cli_part(1)
+            .with_cli_part_count(10)
+            // we expect there is still only one part
+            .assert(1, [1])
+    }
+
+    #[test]
+    fn sf1_region_cli_parts() {
+        Test::new()
+            .with_table(Table::Region)
+            .with_format(OutputFormat::Tbl)
+            .with_scale_factor(1.0)
+            // region table is small, so it can not be made in parts
+            .with_cli_part(1)
+            .with_cli_part_count(10)
+            // we expect there is still only one part
+            .assert(1, [1])
+    }
+
+    #[test]
     fn sf1_lineitem_cli_parts_1() {
         Test::new()
             .with_table(Table::Lineitem)
@@ -269,7 +305,6 @@ mod tests {
             .with_table(Table::Lineitem)
             .with_format(OutputFormat::Tbl)
             .with_scale_factor(1.0)
-            // Generate only part 1 of the lineitem table
             .with_cli_part(4) // part 4 of 10
             .with_cli_part_count(10)
             // we expect there are num_threads * 10 parts
@@ -282,7 +317,6 @@ mod tests {
             .with_table(Table::Lineitem)
             .with_format(OutputFormat::Tbl)
             .with_scale_factor(1.0)
-            // Generate only part 1 of the lineitem table
             .with_cli_part(10) // part 10 of 10
             .with_cli_part_count(10)
             // we expect there are num_threads * 10 parts
@@ -290,28 +324,30 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(
+        expected = "Invalid CLI part or part count. Expect greater than 1 and cli_part <= cli_part_count. Got: cli_part=0, cli_part_count=10"
+    )]
     fn sf1_lineitem_cli_parts_invalid_small() {
         Test::new()
             .with_table(Table::Lineitem)
             .with_format(OutputFormat::Tbl)
             .with_scale_factor(1.0)
-            // Generate only part 1 of the lineitem table
             .with_cli_part(0) // part 0 of 10 (invalid)
             .with_cli_part_count(10)
-            // we expect there are num_threads * 10 parts
             .assert(40, [13, 14, 15, 16])
     }
 
     #[test]
+    #[should_panic(
+        expected = "Invalid CLI part or part count. Expect greater than 1 and cli_part <= cli_part_count. Got: cli_part=11, cli_part_count=10"
+    )]
     fn sf1_lineitem_cli_parts_invalid_big() {
         Test::new()
             .with_table(Table::Lineitem)
             .with_format(OutputFormat::Tbl)
             .with_scale_factor(1.0)
-            // Generate only part 1 of the lineitem table
-            .with_cli_part(10) // part 11 of 10 (invalid)
+            .with_cli_part(11) // part 11 of 10 (invalid)
             .with_cli_part_count(10)
-            // we expect there are num_threads * 10 parts
             .assert(40, [13, 14, 15, 16])
     }
 
