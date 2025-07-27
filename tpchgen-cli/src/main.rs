@@ -13,12 +13,11 @@
 //!     -V, --version                 Prints version information
 //!     -s, --scale-factor <FACTOR>  Scale factor for the data generation (default: 1)
 //!     -T, --tables <TABLES>        Comma-separated list of tables to generate (default: all)
-//!     -f, --format <FORMAT>        Output format: tbl, csv, or parquet (default: tbl)
+//!     -f, --format <FORMAT>        Output format: tbl or csv (default: tbl)
 //!     -o, --output-dir <DIR>       Output directory (default: current directory)
 //!     -p, --parts <N>              Number of parts to split generation into (default: 1)
 //!         --part <N>               Which part to generate (1-based, default: 1)
 //!     -n, --num-threads <N>        Number of threads to use (default: number of CPUs)
-//!     -c, --parquet-compression <C> Parquet compression codec, e.g., SNAPPY, ZSTD(1), UNCOMPRESSED (default: SNAPPY)
 //!     -v, --verbose                Verbose output
 //!         --stdout                 Write output to stdout instead of files
 //!```
@@ -41,18 +40,15 @@
 //! ```
 mod csv;
 mod generate;
-mod parquet;
 mod plan;
 mod statistics;
 mod tbl;
 
 use crate::csv::*;
 use crate::generate::{generate_in_chunks, Sink, Source};
-use crate::parquet::*;
 use crate::plan::GenerationPlan;
 use crate::statistics::WriteStatistics;
 use crate::tbl::*;
-use ::parquet::basic::Compression;
 use clap::builder::TypedValueParser;
 use clap::{Parser, ValueEnum};
 use log::{debug, info, LevelFilter};
@@ -68,10 +64,6 @@ use tpchgen::generators::{
     PartSuppGenerator, RegionGenerator, SupplierGenerator,
 };
 use tpchgen::text::TextPool;
-use tpchgen_arrow::{
-    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow,
-    RecordBatchIterator, RegionArrow, SupplierArrow,
-};
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
@@ -98,7 +90,7 @@ struct Cli {
     #[arg(long, default_value_t = 1)]
     part: i32,
 
-    /// Output format: tbl, csv, parquet (default: tbl)
+    /// Output format: tbl or csv (default: tbl)
     #[arg(short, long, default_value = "tbl")]
     format: OutputFormat,
 
@@ -106,21 +98,6 @@ struct Cli {
     #[arg(short, long, default_value_t = num_cpus::get())]
     num_threads: usize,
 
-    /// Parquet block compression format. Default is SNAPPY
-    ///
-    /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP, LZO, BROTLI, LZ4
-    ///
-    /// Note to use zstd you must supply the "compression" level (1-22)
-    /// as a number in parentheses, e.g. `ZSTD(1)` for level 1 compression.
-    ///
-    /// Using `ZSTD` results in the best compression, but is about 2x slower than
-    /// UNCOMPRESSED. For example, for the lineitem table at SF=10
-    ///
-    ///   ZSTD(1):      1.9G  (0.52 GB/sec)
-    ///   SNAPPY:       2.4G  (0.75 GB/sec)
-    ///   UNCOMPRESSED: 3.8G  (1.41 GB/sec)
-    #[arg(short = 'c', long, default_value = "SNAPPY")]
-    parquet_compression: Compression,
 
     /// Verbose output (default: false)
     #[arg(short, long, default_value_t = false)]
@@ -231,7 +208,6 @@ impl Table {
 enum OutputFormat {
     Tbl,
     Csv,
-    Parquet,
 }
 
 #[tokio::main]
@@ -249,9 +225,8 @@ async fn main() -> io::Result<()> {
 /// $GENERATOR: The generator type to use
 /// $TBL_SOURCE: The [`Source`] type to use for TBL format
 /// $CSV_SOURCE: The [`Source`] type to use for CSV format
-/// $PARQUET_SOURCE: The [`RecordBatchIterator`] type to use for Parquet format
 macro_rules! define_generate {
-    ($FUN_NAME:ident,  $TABLE:expr, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
+    ($FUN_NAME:ident,  $TABLE:expr, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty) => {
         async fn $FUN_NAME(&self) -> io::Result<()> {
             let filename = self.output_filename($TABLE);
             let plan = GenerationPlan::new(
@@ -270,10 +245,6 @@ macro_rules! define_generate {
             match self.format {
                 OutputFormat::Tbl => self.go(&filename, gens.map(<$TBL_SOURCE>::new)).await,
                 OutputFormat::Csv => self.go(&filename, gens.map(<$CSV_SOURCE>::new)).await,
-                OutputFormat::Parquet => {
-                    self.go_parquet(&filename, gens.map(<$PARQUET_SOURCE>::new))
-                        .await
-                }
             }
         }
     };
@@ -343,64 +314,56 @@ impl Cli {
         Table::Nation,
         NationGenerator,
         NationTblSource,
-        NationCsvSource,
-        NationArrow
+        NationCsvSource
     );
     define_generate!(
         generate_region,
         Table::Region,
         RegionGenerator,
         RegionTblSource,
-        RegionCsvSource,
-        RegionArrow
+        RegionCsvSource
     );
     define_generate!(
         generate_part,
         Table::Part,
         PartGenerator,
         PartTblSource,
-        PartCsvSource,
-        PartArrow
+        PartCsvSource
     );
     define_generate!(
         generate_supplier,
         Table::Supplier,
         SupplierGenerator,
         SupplierTblSource,
-        SupplierCsvSource,
-        SupplierArrow
+        SupplierCsvSource
     );
     define_generate!(
         generate_partsupp,
         Table::Partsupp,
         PartSuppGenerator,
         PartSuppTblSource,
-        PartSuppCsvSource,
-        PartSuppArrow
+        PartSuppCsvSource
     );
     define_generate!(
         generate_customer,
         Table::Customer,
         CustomerGenerator,
         CustomerTblSource,
-        CustomerCsvSource,
-        CustomerArrow
+        CustomerCsvSource
     );
     define_generate!(
         generate_orders,
         Table::Orders,
         OrderGenerator,
         OrderTblSource,
-        OrderCsvSource,
-        OrderArrow
+        OrderCsvSource
     );
     define_generate!(
         generate_lineitem,
         Table::Lineitem,
         LineItemGenerator,
         LineItemTblSource,
-        LineItemCsvSource,
-        LineItemArrow
+        LineItemCsvSource
     );
 
     /// return the output filename for the given table
@@ -408,7 +371,6 @@ impl Cli {
         let extension = match self.format {
             OutputFormat::Tbl => "tbl",
             OutputFormat::Csv => "csv",
-            OutputFormat::Parquet => "parquet",
         };
         format!("{}.{extension}", table.name())
     }
@@ -434,38 +396,8 @@ impl Cli {
         }
     }
 
-    /// Generates an output parquet file from the sources
-    async fn go_parquet<I>(&self, filename: &str, sources: I) -> Result<(), io::Error>
-    where
-        I: Iterator<Item: RecordBatchIterator> + 'static,
-    {
-        if self.stdout {
-            // write to stdout
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
-        } else {
-            // write to a file
-            let file = self.new_output_file(filename)?;
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
-        }
-    }
 }
 
-impl IntoSize for BufWriter<Stdout> {
-    fn into_size(self) -> Result<usize, io::Error> {
-        // we can't get the size of stdout, so just return 0
-        Ok(0)
-    }
-}
-
-impl IntoSize for BufWriter<File> {
-    fn into_size(self) -> Result<usize, io::Error> {
-        let file = self.into_inner()?;
-        let metadata = file.metadata()?;
-        Ok(metadata.len() as usize)
-    }
-}
 
 /// Wrapper around a buffer writer that counts the number of buffers and bytes written
 struct WriterSink<W: Write> {

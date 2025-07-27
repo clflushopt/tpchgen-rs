@@ -28,7 +28,7 @@ pip install tpchgen-cli
 
 ```shell
 # create Scale Factor 10 (3.6GB, 8 files, 60M rows in lineitem) in 5 seconds on a modern laptop
-tpchgen-cli -s 10 --format=parquet
+tpchgen-cli -s 10 --format=csv
 ```
 
 ### Install Using Rust
@@ -41,7 +41,7 @@ cargo install tpchgen-cli
 
 ```shell
 # create Scale Factor 10 (3.6GB, 8 files, 60M rows in lineitem) in 5 seconds on a modern laptop
-tpchgen-cli -s 10 --format=parquet
+tpchgen-cli -s 10 --format=csv
 ```
 
 Or watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14) recorded by [@alamb](https://github.com/alamb)
@@ -55,7 +55,7 @@ and the companion blog post in the [Datafusion blog](https://datafusion.apache.o
 tpchgen-cli -s 10 --output-dir sf10
 
 # Create a scale factor 1 dataset in Parquet format.
-tpchgen-cli -s 1 --output-dir sf1-parquet --format=parquet
+tpchgen-cli -s 1 --output-dir sf1-csv --format=csv
 
 # Create a scale factor 1 (default) partitioned dataset for the region, nation, orders
 # and customer tables.
@@ -94,9 +94,6 @@ done
 
 [required 647 GB of memory]: https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator
 
-Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
-
-![Parquet Generation Performance](parquet-performance.png)
 
 [`tpchgen-cli`](./tpchgen-cli/README.md) is more than 10x faster than the next
 fastest TPCH generator we know of. On a 2023 Mac M3 Max laptop, it easily
@@ -116,13 +113,10 @@ the output of this crate with [`dbgen`] as part of every checkin. See
 - [`tpchgen`](tpchgen): the core data generator logic for TPC-H. It has no
   dependencies and is easy to embed in other Rust project. 
 
-- [`tpchgen-arrow`](tpchgen-arrow) generates TPC-H data in [Apache Arrow]
-  format. It depends on the arrow-rs library
 
 - [`tpchgen-cli`](tpchgen-cli) is a [`dbgen`] compatible CLI tool that generates
   benchmark dataset using multiple processes.
 
-[Apache Arrow]: https://arrow.apache.org/
 [`dbgen`]: https://github.com/electrum/tpch-dbgen
 
 ## Contributing

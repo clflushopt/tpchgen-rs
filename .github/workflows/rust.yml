@@ -39,14 +39,6 @@ jobs:
       - name: Doc Tests (tpchgen)
         run: cargo test -p tpchgen --doc
 
-  # All tests for tpchgen-arrow
-  test-all-tpchgen-arrow:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - name: All Tests (tpchgen-arrow)
-        run: cargo test -p tpchgen-arrow
 
   # All tests for tpchgen-cli
   test-all-tpchgen-cli:
