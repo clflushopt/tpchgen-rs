@@ -262,7 +262,6 @@ macro_rules! define_generate {
                 self.scale_factor,
                 self.part,
                 self.parts,
-                self.num_threads,
             )
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
             let scale_factor = self.scale_factor;
