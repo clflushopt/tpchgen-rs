@@ -2,7 +2,8 @@
 //!
 //! This module exposes a bundled query and answer tuple that makes it
 //! easier to work with them in benchmark contexts.
-use crate::{answers::answers_sf1, queries};
+pub mod answers_sf1;
+pub mod queries;
 
 /// QueryAndAnswer is a struct that contains a TPC-H query and its expected answer.
 pub struct QueryAndAnswer(
