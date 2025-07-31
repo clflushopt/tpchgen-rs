@@ -90,13 +90,15 @@ struct Cli {
     #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
     tables: Option<Vec<Table>>,
 
-    /// Number of parts to generate (manual parallel generation)
-    #[arg(short, long, default_value_t = -1)]
-    parts: i32,
+    /// Number of partitions to generate (manual parallel generation)
+    #[arg(short, long)]
+    parts: Option<i32>,
 
-    /// Which part to generate (1-based, only relevant if parts > 1)
-    #[arg(long, default_value_t = -1)]
-    part: i32,
+    /// Which partition to generate (1-based)
+    ///
+    /// If not specified, generates all parts
+    #[arg(long)]
+    part: Option<i32>,
 
     /// Output format: tbl, csv, parquet (default: tbl)
     #[arg(short, long, default_value = "tbl")]
@@ -254,14 +256,15 @@ macro_rules! define_generate {
     ($FUN_NAME:ident,  $TABLE:expr, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
         async fn $FUN_NAME(&self) -> io::Result<()> {
             let filename = self.output_filename($TABLE);
-            let plan = GenerationPlan::new(
+            let plan = GenerationPlan::try_new(
                 &$TABLE,
                 self.format,
                 self.scale_factor,
                 self.part,
                 self.parts,
                 self.num_threads,
-            );
+            )
+            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
             let scale_factor = self.scale_factor;
             info!("Writing table {} (SF={scale_factor}) to {filename}", $TABLE);
             debug!("Plan: {plan}");

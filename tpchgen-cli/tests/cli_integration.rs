@@ -175,6 +175,99 @@ async fn test_write_parquet_orders() {
     }
 }
 
+#[test]
+fn test_tpchgen_cli_part_no_parts() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // CLI Error test --part and but not --parts
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--part")
+        .arg("42")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "The --part option requires the --parts option to be set",
+        ));
+}
+
+#[test]
+fn test_tpchgen_cli_parts_no_part() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // CLI Error test --parts and but not --part
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--parts")
+        .arg("42")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "The --part_count option requires the --part option to be set",
+        ));
+}
+
+#[test]
+fn test_tpchgen_cli_too_many_parts() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // This should fail because --part is 42 which is more than the --parts 10
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--part")
+        .arg("42")
+        .arg("--parts")
+        .arg("10")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Invalid --part. Expected at most the value of --parts (10), got 42",
+        ));
+}
+
+#[test]
+fn test_tpchgen_cli_zero_part() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--part")
+        .arg("0")
+        .arg("--parts")
+        .arg("10")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Invalid --part. Expected a number greater than zero, got 0",
+        ));
+}
+#[test]
+fn test_tpchgen_cli_zero_part_zero_parts() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--part")
+        .arg("0")
+        .arg("--parts")
+        .arg("0")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Invalid --part. Expected a number greater than zero, got 0",
+        ));
+}
+
 fn read_gzipped_file_to_string<P: AsRef<Path>>(path: P) -> Result<String, std::io::Error> {
     let file = File::open(path)?;
     let mut decoder = flate2::read::GzDecoder::new(file);
