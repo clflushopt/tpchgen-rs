@@ -79,7 +79,7 @@ use tpchgen_arrow::{
 #[command(version)]
 #[command(about = "TPC-H Data Generator", long_about = None)]
 struct Cli {
-    /// Scale factor to address
+    /// Scale factor to create
     #[arg(short, long, default_value_t = 1.)]
     scale_factor: f64,
 
