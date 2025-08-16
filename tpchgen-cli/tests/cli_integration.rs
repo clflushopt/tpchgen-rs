@@ -1,5 +1,6 @@
 use assert_cmd::Command;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
+use predicates::prelude::predicate;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -126,6 +127,36 @@ fn test_tpchgen_cli_parts() {
     // load the reference file
     let reference_file = read_reference_file("orders", "0.001");
     assert_eq!(output_contents, reference_file);
+}
+
+/// Test specifying parquet options even when writing tbl output
+#[tokio::test]
+async fn test_incompatible_options_warnings() {
+    let output_dir = tempdir().unwrap();
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--format")
+        .arg("csv")
+        .arg("--tables")
+        .arg("orders")
+        .arg("--scale-factor")
+        .arg("0.0001")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        // pass in parquet options that are incompatible with csv
+        .arg("--parquet-compression")
+        .arg("zstd(1)")
+        .arg("--parquet-row-group-bytes")
+        .arg("8192")
+        .assert()
+        // still success, but should see warnints
+        .success()
+        .stderr(predicates::str::contains(
+            "Warning: Parquet compression option set but not generating Parquet files",
+        ))
+        .stderr(predicates::str::contains(
+            "Warning: Parquet row group size option set but not generating Parquet files",
+        ));
 }
 
 #[tokio::test]
