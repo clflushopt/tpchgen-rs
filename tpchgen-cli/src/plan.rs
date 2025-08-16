@@ -58,6 +58,8 @@ pub struct GenerationPlan {
     part_list: RangeInclusive<i32>,
 }
 
+pub const DEFAULT_PARQUET_ROW_GROUP_BYTES: i64 = 10 * 1024 * 1024; // 10MB
+
 impl GenerationPlan {
     /// Returns a GenerationPlan number of parts to generate
     ///
@@ -729,6 +731,7 @@ mod tests {
         scale_factor: f64,
         cli_part: Option<i32>,
         cli_part_count: Option<i32>,
+        parquet_row_group_bytes: i64,
     }
 
     impl Test {
@@ -745,6 +748,7 @@ mod tests {
                 self.scale_factor,
                 self.cli_part,
                 self.cli_part_count,
+                self.parquet_row_group_bytes,
             )
             .unwrap();
             assert_eq!(plan.part_count, expected_part_count);
@@ -759,6 +763,7 @@ mod tests {
                 self.scale_factor,
                 self.cli_part,
                 self.cli_part_count,
+                self.parquet_row_group_bytes,
             )
             .unwrap_err();
             assert_eq!(actual_error, expected_error);
@@ -803,6 +808,7 @@ mod tests {
                 scale_factor: 1.0,
                 cli_part: None,
                 cli_part_count: None,
+                parquet_row_group_bytes: DEFAULT_PARQUET_ROW_GROUP_BYTES,
             }
         }
     }

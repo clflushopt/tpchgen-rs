@@ -50,7 +50,7 @@ mod tbl;
 use crate::csv::*;
 use crate::generate::{generate_in_chunks, Sink, Source};
 use crate::parquet::*;
-use crate::plan::GenerationPlan;
+use crate::plan::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use crate::statistics::WriteStatistics;
 use crate::tbl::*;
 use ::parquet::basic::Compression;
@@ -79,7 +79,7 @@ use tpchgen_arrow::{
 #[command(version)]
 #[command(about = "TPC-H Data Generator", long_about = None)]
 struct Cli {
-    /// Scale factor to address (default: 1)
+    /// Scale factor to address
     #[arg(short, long, default_value_t = 1.)]
     scale_factor: f64,
 
@@ -91,17 +91,17 @@ struct Cli {
     #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
     tables: Option<Vec<Table>>,
 
-    /// Number of partitions to generate (manual parallel generation)
+    /// Number of part(itions) to generate (manual parallel generation)
     #[arg(short, long)]
     parts: Option<i32>,
 
-    /// Which partition to generate (1-based)
+    /// Which part(tion) to generate (1-based)
     ///
     /// If not specified, generates all parts
     #[arg(long)]
     part: Option<i32>,
 
-    /// Output format: tbl, csv, parquet (default: tbl)
+    /// Output format: tbl, csv, parquet
     #[arg(short, long, default_value = "tbl")]
     format: OutputFormat,
 
@@ -109,7 +109,7 @@ struct Cli {
     #[arg(short, long, default_value_t = num_cpus::get())]
     num_threads: usize,
 
-    /// Parquet block compression format. Default is SNAPPY
+    /// Parquet block compression format.
     ///
     /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP, LZO, BROTLI, LZ4
     ///
@@ -125,7 +125,7 @@ struct Cli {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     parquet_compression: Compression,
 
-    /// Verbose output (default: false)
+    /// Verbose output
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
@@ -133,7 +133,7 @@ struct Cli {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
-    /// Target size in bytes row group in Parquet files (default: 10MB)
+    /// Target size in bytes row group in Parquet files
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// in Parquet. With many query engines, smaller row groups enable better
@@ -145,7 +145,7 @@ struct Cli {
     /// to keep the number of row groups under this limit.
     ///
     /// Typical values range from 10MB to 100MB.
-    #[arg(long, default_value_t = 10485760)]
+    #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
     parquet_row_group_bytes: i64,
 }
 
