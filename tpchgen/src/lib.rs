@@ -56,6 +56,6 @@ pub mod dates;
 pub mod decimal;
 pub mod distribution;
 pub mod generators;
-pub mod queries;
+pub mod q_and_a;
 pub mod random;
 pub mod text;
