@@ -721,6 +721,49 @@ mod tests {
                 "Expected parts {expected_parts:?} should not exceed 32k row groups",
             );
         }
+
+        mod parquet_row_group_size {
+            use super::*;
+            #[test]
+            fn parquet_sf1_lineitem_default_row_group() {
+                Test::new()
+                    .with_table(Table::Lineitem)
+                    .with_format(OutputFormat::Parquet)
+                    .with_scale_factor(10.0)
+                    .assert(524, 1..=524);
+            }
+
+            #[test]
+            fn parquet_sf1_lineitem_small_row_group() {
+                Test::new()
+                    .with_table(Table::Lineitem)
+                    .with_format(OutputFormat::Parquet)
+                    .with_scale_factor(10.0)
+                    .with_parquet_row_group_bytes(1 * 1024 * 1024) // 1MB row groups
+                    .assert(3663, 1..=3663);
+            }
+
+            #[test]
+            fn parquet_sf1_lineitem_large_row_group() {
+                Test::new()
+                    .with_table(Table::Lineitem)
+                    .with_format(OutputFormat::Parquet)
+                    .with_scale_factor(10.0)
+                    .with_parquet_row_group_bytes(20 * 1024 * 1024) // 20MB row groups
+                    .assert(184, 1..=184);
+            }
+
+            #[test]
+            fn parquet_sf1_lineitem_small_row_group_max_groups() {
+                Test::new()
+                    .with_table(Table::Lineitem)
+                    .with_format(OutputFormat::Parquet)
+                    .with_scale_factor(100000.0)
+                    .with_parquet_row_group_bytes(1 * 1024 * 1024) // 1MB row groups
+                    // parquet is limited to no more than 32k actual row groups in a parquet file
+                    .assert(32767, 1..=32767);
+            }
+        }
     }
 
     /// Test fixture for [`GenerationPlan`].
@@ -793,9 +836,15 @@ mod tests {
             self
         }
 
-        /// Set CLI partitition count
+        /// Set CLI partition count
         fn with_cli_part_count(mut self, cli_part_count: i32) -> Self {
             self.cli_part_count = Some(cli_part_count);
+            self
+        }
+
+        /// Set parquet row group size
+        fn with_parquet_row_group_bytes(mut self, parquet_row_group_bytes: i64) -> Self {
+            self.parquet_row_group_bytes = parquet_row_group_bytes;
             self
         }
     }
