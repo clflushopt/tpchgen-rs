@@ -140,9 +140,9 @@ struct Cli {
     /// parallelism and lower peak memory use but may reduce compression
     /// efficiency.
     ///
-    /// Note parquet files are limited to 32k row groups, so for very large
-    /// tables at high scale factors, the row group size may be increased
-    /// to keep the number of row groups under this limit.
+    /// Note parquet files are limited to 32k row groups, so at high scale
+    /// factors, the row group size may be increased to keep the number of row
+    /// groups under this limit.
     ///
     /// Typical values range from 10MB to 100MB.
     #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
