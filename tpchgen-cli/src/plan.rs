@@ -249,7 +249,7 @@ impl OutputSize {
                 Table::Region => 151,
                 Table::Part => 70,
                 Table::Supplier => 164,
-                Table::Partsupp => 140,
+                Table::Partsupp => 141 * 4, // needed to match observed size
                 Table::Customer => 168,
                 Table::Orders => 75,
                 Table::Lineitem => 64,

@@ -227,7 +227,10 @@ async fn test_write_parquet_row_group_size_default() {
             },
             RowGroups {
                 table: "partsupp",
-                row_group_bytes: vec![28236886, 28245974, 28246716, 28246448],
+                row_group_bytes: vec![
+                    7296158, 7278688, 7293668, 7289456, 7287098, 7294237, 7281630, 7302815,
+                    7286591, 7292998, 7288736, 7299556, 7295055, 7297254, 7292243, 7281443,
+                ],
             },
             RowGroups {
                 table: "region",
@@ -287,7 +290,7 @@ async fn test_write_parquet_row_group_size_20mb() {
             },
             RowGroups {
                 table: "partsupp",
-                row_group_bytes: vec![55808475, 55820442],
+                row_group_bytes: vec![18983980, 18996831, 18979486, 18982575, 19001482, 18988488],
             },
             RowGroups {
                 table: "region",
@@ -482,5 +485,5 @@ fn expect_row_group_sizes(output_dir: &Path, expected_row_groups: Vec<RowGroups>
     // for better output / easier comparison
     let expected_row_groups = format!("{expected_row_groups:#?}");
     let actual_row_groups = format!("{actual_row_groups:#?}");
-    assert_eq!(expected_row_groups, actual_row_groups);
+    assert_eq!(actual_row_groups, expected_row_groups);
 }
