@@ -177,7 +177,7 @@ async fn test_write_parquet_orders() {
 }
 
 #[tokio::test]
-async fn test_write_parquet_record_batch_size_default() {
+async fn test_write_parquet_row_group_size_default() {
     // Run the CLI command to generate parquet data with default settings
     let output_dir = tempdir().unwrap();
     Command::cargo_bin("tpchgen-cli")
@@ -228,6 +228,66 @@ async fn test_write_parquet_record_batch_size_default() {
             RowGroups {
                 table: "partsupp",
                 row_group_bytes: vec![28236886, 28245974, 28246716, 28246448],
+            },
+            RowGroups {
+                table: "region",
+                row_group_bytes: vec![756],
+            },
+            RowGroups {
+                table: "supplier",
+                row_group_bytes: vec![1637351],
+            },
+        ],
+    );
+}
+
+#[tokio::test]
+async fn test_write_parquet_row_group_size_20mb() {
+    // Run the CLI command to generate parquet data with larger row group size
+    let output_dir = tempdir().unwrap();
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--format")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        .arg("--parquet-row-group-bytes")
+        .arg("20000000") // 20 MB
+        .assert()
+        .success();
+
+    expect_row_group_sizes(
+        output_dir.path(),
+        vec![
+            RowGroups {
+                table: "customer",
+                row_group_bytes: vec![12849948, 12843398],
+            },
+            RowGroups {
+                table: "lineitem",
+                row_group_bytes: vec![
+                    18120705, 18173631, 18121037, 18098532, 18104251, 18159584, 18143034, 18087872,
+                    18116882, 18146572, 18137133, 18192817, 18109983, 18107897, 18137448, 18126493,
+                    18125071, 18120274, 18113389, 18177883,
+                ],
+            },
+            RowGroups {
+                table: "nation",
+                row_group_bytes: vec![2931],
+            },
+            RowGroups {
+                table: "orders",
+                row_group_bytes: vec![19819201, 19823559, 19814276, 19810582, 19806184, 19799240],
+            },
+            RowGroups {
+                table: "part",
+                row_group_bytes: vec![13923638],
+            },
+            RowGroups {
+                table: "partsupp",
+                row_group_bytes: vec![55808475, 55820442],
             },
             RowGroups {
                 table: "region",
