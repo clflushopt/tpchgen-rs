@@ -58,7 +58,7 @@ pub struct GenerationPlan {
     part_list: RangeInclusive<i32>,
 }
 
-pub const DEFAULT_PARQUET_ROW_GROUP_BYTES: i64 = 10 * 1024 * 1024; // 10MB
+pub const DEFAULT_PARQUET_ROW_GROUP_BYTES: i64 = 7 * 1024 * 1024;
 
 impl GenerationPlan {
     /// Returns a GenerationPlan number of parts to generate
