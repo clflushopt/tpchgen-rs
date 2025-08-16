@@ -462,7 +462,7 @@ mod tests {
                 .with_table(Table::Partsupp)
                 .with_format(OutputFormat::Parquet)
                 .with_scale_factor(1.0)
-                .assert(4, 1..=4)
+                .assert(16, 1..=16)
         }
 
         #[test]
