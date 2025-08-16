@@ -739,7 +739,7 @@ mod tests {
                     .with_table(Table::Lineitem)
                     .with_format(OutputFormat::Parquet)
                     .with_scale_factor(10.0)
-                    .with_parquet_row_group_bytes(1 * 1024 * 1024) // 1MB row groups
+                    .with_parquet_row_group_bytes(1024 * 1024) // 1MB row groups
                     .assert(3663, 1..=3663);
             }
 
@@ -759,7 +759,7 @@ mod tests {
                     .with_table(Table::Lineitem)
                     .with_format(OutputFormat::Parquet)
                     .with_scale_factor(100000.0)
-                    .with_parquet_row_group_bytes(1 * 1024 * 1024) // 1MB row groups
+                    .with_parquet_row_group_bytes(1024 * 1024) // 1MB row groups
                     // parquet is limited to no more than 32k actual row groups in a parquet file
                     .assert(32767, 1..=32767);
             }

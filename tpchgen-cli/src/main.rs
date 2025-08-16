@@ -348,7 +348,7 @@ impl Cli {
                     "Warning: Parquet compression option set but not generating Parquet files"
                 );
             }
-            if self.parquet_row_group_bytes != 10485760 {
+            if self.parquet_row_group_bytes != DEFAULT_PARQUET_ROW_GROUP_BYTES {
                 eprintln!(
                     "Warning: Parquet row group size option set but not generating Parquet files"
                 );
