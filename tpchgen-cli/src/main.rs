@@ -133,13 +133,20 @@ struct Cli {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
-    /// Number of rows per row group in Parquet files (default: 1048576)
+    /// Target size in bytes row group in Parquet files (default: 10MB)
     ///
-    /// Row groups are the unit of parallel processing and compression in Parquet.
-    /// Smaller row groups enable better parallelism but may reduce compression efficiency.
-    /// Typical values range from 100,000 to 10,000,000 rows.
-    #[arg(long, default_value_t = 1024 * 1024)]
-    parquet_row_group_size: usize,
+    /// Row groups are the typical unit of parallel processing and compression
+    /// in Parquet. With many query engines, smaller row groups enable better
+    /// parallelism and lower peak memory use but may reduce compression
+    /// efficiency.
+    ///
+    /// Note parquet files are limited to 32k row groups, so for very large
+    /// tables at high scale factors, the row group size may be increased
+    /// to keep the number of row groups under this limit.
+    ///
+    /// Typical values range from 10MB to 100MB.
+    #[arg(long, default_value_t = 10485760)]
+    parquet_row_group_bytes: i64,
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -271,6 +278,7 @@ macro_rules! define_generate {
                 self.scale_factor,
                 self.part,
                 self.parts,
+                self.parquet_row_group_bytes,
             )
             .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
             let scale_factor = self.scale_factor;
@@ -292,6 +300,7 @@ macro_rules! define_generate {
 }
 
 impl Cli {
+    /// Main function to run the generation
     async fn main(self) -> io::Result<()> {
         if self.verbose {
             // explicitly set logging to info / stdout
@@ -331,6 +340,20 @@ impl Cli {
         TextPool::get_or_init_default();
         let elapsed = start.elapsed();
         info!("Created static distributions and text pools in {elapsed:?}");
+
+        // Warn if parquet specific options are set but not generating parquet
+        if self.format != OutputFormat::Parquet {
+            if self.parquet_compression != Compression::SNAPPY {
+                eprintln!(
+                    "Warning: Parquet compression option set but not generating Parquet files"
+                );
+            }
+            if self.parquet_row_group_bytes != 10485760 {
+                eprintln!(
+                    "Warning: Parquet row group size option set but not generating Parquet files"
+                );
+            }
+        }
 
         // Generate each table
         for table in tables {
@@ -454,26 +477,12 @@ impl Cli {
         if self.stdout {
             // write to stdout
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet(
-                writer,
-                sources,
-                self.num_threads,
-                self.parquet_compression,
-                self.parquet_row_group_size,
-            )
-            .await
+            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
         } else {
             // write to a file
             let file = self.new_output_file(filename)?;
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet(
-                writer,
-                sources,
-                self.num_threads,
-                self.parquet_compression,
-                self.parquet_row_group_size,
-            )
-            .await
+            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
         }
     }
 }

@@ -64,12 +64,14 @@ impl GenerationPlan {
     /// # Arguments
     /// * `cli_part`: optional part number to generate (1-based), `--part` CLI argument
     /// * `cli_part_count`: optional total number of parts, `--parts` CLI argument
+    /// * `parquet_row_group_size`: optional parquet row group size, `--parquet-row-group-size` CLI argument
     pub fn try_new(
         table: &Table,
         format: OutputFormat,
         scale_factor: f64,
         cli_part: Option<i32>,
         cli_part_count: Option<i32>,
+        parquet_row_group_bytes: i64,
     ) -> Result<Self, String> {
         // If a single part is specified, split it into chunks to enable parallel generation.
         match (cli_part, cli_part_count) {
@@ -83,10 +85,17 @@ impl GenerationPlan {
                     "The --part_count option requires the --part option to be set",
                 ))
             }
-            (Some(part), Some(part_count)) => {
-                Self::try_new_with_parts(table, format, scale_factor, part, part_count)
+            (Some(part), Some(part_count)) => Self::try_new_with_parts(
+                table,
+                format,
+                scale_factor,
+                part,
+                part_count,
+                parquet_row_group_bytes,
+            ),
+            (None, None) => {
+                Self::try_new_without_parts(table, format, scale_factor, parquet_row_group_bytes)
             }
-            (None, None) => Self::try_new_without_parts(table, format, scale_factor),
         }
     }
 
@@ -99,6 +108,7 @@ impl GenerationPlan {
         scale_factor: f64,
         cli_part: i32,
         cli_part_count: i32,
+        parquet_row_group_bytes: i64,
     ) -> Result<Self, String> {
         if cli_part < 1 {
             return Err(format!(
@@ -126,7 +136,7 @@ impl GenerationPlan {
 
         // scale down the row count by the number of partitions being generated
         // so that the output is consistent with the original part count
-        let num_chunks = OutputSize::new(table, scale_factor, format)
+        let num_chunks = OutputSize::new(table, scale_factor, format, parquet_row_group_bytes)
             .with_scaled_row_count(cli_part_count)
             .part_count();
 
@@ -161,8 +171,9 @@ impl GenerationPlan {
         table: &Table,
         format: OutputFormat,
         scale_factor: f64,
+        parquet_row_group_bytes: i64,
     ) -> Result<Self, String> {
-        let output_size = OutputSize::new(table, scale_factor, format);
+        let output_size = OutputSize::new(table, scale_factor, format, parquet_row_group_bytes);
         let num_parts = output_size.part_count();
 
         Ok(Self {
@@ -205,7 +216,12 @@ struct OutputSize {
 }
 
 impl OutputSize {
-    pub fn new(table: &Table, scale_factor: f64, format: OutputFormat) -> Self {
+    pub fn new(
+        table: &Table,
+        scale_factor: f64,
+        format: OutputFormat,
+        parquet_row_group_bytes: i64,
+    ) -> Self {
         let row_count = Self::row_count_for_table(table, scale_factor);
 
         // The average row size in bytes for each table in the TPC-H schema
@@ -239,13 +255,12 @@ impl OutputSize {
         };
 
         let target_chunk_size_bytes = match format {
-            // for tbl/csv target chunks of about the same as the output buffer
-            // size, 16MB. Use 15MB to ensure we don't exceed the buffer size.
+            // for tbl/csv target chunks, this value does not affect the output
+            // file. Use 15MB, slightly smaller than the 16MB buffer size,  to
+            // ensure small overages don't exceed the buffer size and require a
+            // reallocation
             OutputFormat::Tbl | OutputFormat::Csv => 15 * 1024 * 1024,
-            // target 7MB row groups
-            // todo make this configurable
-            // https://github.com/clflushopt/tpchgen-rs/issues/146
-            OutputFormat::Parquet => 7 * 1024 * 1024,
+            OutputFormat::Parquet => parquet_row_group_bytes,
         };
 
         // parquet files can have at most 32767 row groups so cap the number of parts at that number
