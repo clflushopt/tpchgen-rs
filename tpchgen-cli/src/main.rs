@@ -95,7 +95,7 @@ struct Cli {
     #[arg(short, long)]
     parts: Option<i32>,
 
-    /// Which part(tion) to generate (1-based)
+    /// Which part(ition) to generate (1-based)
     ///
     /// If not specified, generates all parts
     #[arg(long)]
@@ -133,14 +133,14 @@ struct Cli {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
-    /// Target size in bytes row group in Parquet files
+    /// Target size in row group bytes in Parquet files
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// in Parquet. With many query engines, smaller row groups enable better
     /// parallelism and lower peak memory use but may reduce compression
     /// efficiency.
     ///
-    /// Note parquet files are limited to 32k row groups, so at high scale
+    /// Note: parquet files are limited to 32k row groups, so at high scale
     /// factors, the row group size may be increased to keep the number of row
     /// groups under this limit.
     ///
