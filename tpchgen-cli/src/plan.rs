@@ -1,13 +1,116 @@
-//! [`GenerationPlan`] that describes how to generate a TPC-H dataset.
-//! [`GenerationPlan`] that describes how to generate a TPC-H dataset.
+//! * [`OutputPartitionPlan`]: an output file that will be generated
+//! * [`GenerationPlan`]: how to generate a TPC-H dataset.
 
 use crate::{OutputFormat, Table};
 use log::debug;
-use std::fmt::Display;
+use parquet::basic::Compression;
+use std::fmt::{Display, Formatter};
 use std::ops::RangeInclusive;
+use std::path::PathBuf;
 use tpchgen::generators::{
     CustomerGenerator, OrderGenerator, PartGenerator, PartSuppGenerator, SupplierGenerator,
 };
+
+/// Where a partition will be output
+#[derive(Debug, Clone, PartialEq)]
+pub enum OutputLocation {
+    /// Output to a file
+    File(PathBuf),
+    /// Output to stdout
+    Stdout,
+}
+
+impl Display for OutputLocation {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputLocation::File(path) => {
+                let Some(file) = path.file_name() else {
+                    return write!(f, "{}", path.display());
+                };
+                // Display the file name only, not the full path
+                write!(f, "{}", file.to_string_lossy())
+            }
+            OutputLocation::Stdout => write!(f, "Stdout"),
+        }
+    }
+}
+
+/// Describes an output partition that will be generated
+#[derive(Debug, Clone, PartialEq)]
+pub struct OutputPartitionPlan {
+    /// The table
+    table: Table,
+    /// The scale factor
+    scale_factor: f64,
+    /// The output format (TODO don't depend back on something in main)
+    output_format: OutputFormat,
+    /// If the output is parquet, what compression level to use
+    parquet_compression: Compression,
+    /// Where to output
+    output_location: OutputLocation,
+    /// Plan for generating the table
+    generation_plan: GenerationPlan,
+}
+
+impl OutputPartitionPlan {
+    pub fn new(
+        table: Table,
+        scale_factor: f64,
+        output_format: OutputFormat,
+        parquet_compression: Compression,
+        output_location: OutputLocation,
+        generation_plan: GenerationPlan,
+    ) -> Self {
+        Self {
+            table,
+            scale_factor,
+            output_format,
+            parquet_compression,
+            output_location,
+            generation_plan,
+        }
+    }
+
+    /// Return the table this partition is for
+    pub fn table(&self) -> Table {
+        self.table
+    }
+
+    /// Return the scale factor for this partition
+    pub fn scale_factor(&self) -> f64 {
+        self.scale_factor
+    }
+
+    /// Return the output format for this partition
+    pub fn output_format(&self) -> OutputFormat {
+        self.output_format
+    }
+
+    /// return the output location
+    pub fn output_location(&self) -> &OutputLocation {
+        &self.output_location
+    }
+
+    /// Return the parquet compression level for this partition
+    pub fn parquet_compression(&self) -> Compression {
+        self.parquet_compression
+    }
+
+    /// return the generation plan for this partition
+    pub fn generation_plan(&self) -> &GenerationPlan {
+        &self.generation_plan
+    }
+}
+
+impl Display for OutputPartitionPlan {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Writing table {} (SF={}) to {}",
+            self.table, self.scale_factor, self.output_location
+        )
+    }
+}
 
 /// A list of generator "parts" (data generator chunks, not TPCH parts)
 ///
@@ -50,7 +153,7 @@ use tpchgen::generators::{
 /// let results = plan.into_iter().collect::<Vec<_>>();
 /// /// assert_eq!(results.len(), 1);
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct GenerationPlan {
     /// Total number of parts to generate
     part_count: i32,
@@ -68,7 +171,7 @@ impl GenerationPlan {
     /// * `cli_part_count`: optional total number of parts, `--parts` CLI argument
     /// * `parquet_row_group_size`: optional parquet row group size, `--parquet-row-group-size` CLI argument
     pub fn try_new(
-        table: &Table,
+        table: Table,
         format: OutputFormat,
         scale_factor: f64,
         cli_part: Option<i32>,
@@ -105,7 +208,7 @@ impl GenerationPlan {
     ///
     /// See [`GenerationPlan::try_new`] for argument documentation.
     fn try_new_with_parts(
-        table: &Table,
+        table: Table,
         format: OutputFormat,
         scale_factor: f64,
         cli_part: i32,
@@ -129,7 +232,7 @@ impl GenerationPlan {
 
         // These tables are so small they are not parameterized by part count,
         // so only a single part.
-        if table == &Table::Nation || table == &Table::Region {
+        if table == Table::Nation || table == Table::Region {
             return Ok(Self {
                 part_count: 1,
                 part_list: 1..=1,
@@ -170,7 +273,7 @@ impl GenerationPlan {
 
     /// Returns a new `GenerationPlan` when no partitioning is specified on the command line
     fn try_new_without_parts(
-        table: &Table,
+        table: Table,
         format: OutputFormat,
         scale_factor: f64,
         parquet_row_group_bytes: i64,
@@ -219,7 +322,7 @@ struct OutputSize {
 
 impl OutputSize {
     pub fn new(
-        table: &Table,
+        table: Table,
         scale_factor: f64,
         format: OutputFormat,
         parquet_row_group_bytes: i64,
@@ -318,7 +421,7 @@ impl OutputSize {
         }
     }
 
-    fn row_count_for_table(table: &Table, scale_factor: f64) -> i64 {
+    fn row_count_for_table(table: Table, scale_factor: f64) -> i64 {
         //let (avg_row_size_bytes, row_count) = match table {
         match table {
             Table::Nation => 1,
@@ -786,7 +889,7 @@ mod tests {
         /// expected number of parts and part numbers.
         fn assert(self, expected_part_count: i32, expected_part_numbers: RangeInclusive<i32>) {
             let plan = GenerationPlan::try_new(
-                &self.table,
+                self.table,
                 self.format,
                 self.scale_factor,
                 self.cli_part,
@@ -801,7 +904,7 @@ mod tests {
         /// Assert that creating a [`GenerationPlan`] returns the specified error
         fn assert_err(self, expected_error: &str) {
             let actual_error = GenerationPlan::try_new(
-                &self.table,
+                self.table,
                 self.format,
                 self.scale_factor,
                 self.cli_part,

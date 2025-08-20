@@ -44,15 +44,16 @@ mod csv;
 mod generate;
 mod parquet;
 mod plan;
+mod runner;
 mod statistics;
 mod tbl;
 
-use crate::csv::*;
-use crate::generate::{generate_in_chunks, Sink, Source};
+use crate::generate::Sink;
 use crate::parquet::*;
-use crate::plan::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+use crate::plan::{
+    GenerationPlan, OutputLocation, OutputPartitionPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES,
+};
 use crate::statistics::WriteStatistics;
-use crate::tbl::*;
 use ::parquet::basic::Compression;
 use clap::builder::TypedValueParser;
 use clap::{Parser, ValueEnum};
@@ -64,15 +65,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Instant;
 use tpchgen::distribution::Distributions;
-use tpchgen::generators::{
-    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
-    PartSuppGenerator, RegionGenerator, SupplierGenerator,
-};
 use tpchgen::text::TextPool;
-use tpchgen_arrow::{
-    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow,
-    RecordBatchIterator, RegionArrow, SupplierArrow,
-};
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
@@ -259,46 +252,6 @@ async fn main() -> io::Result<()> {
     cli.main().await
 }
 
-/// macro to create a Cli function for generating a table
-///
-/// Arguments:
-/// $FUN_NAME: name of the function to create
-/// $TABLE: The [`Table`] to generate
-/// $GENERATOR: The generator type to use
-/// $TBL_SOURCE: The [`Source`] type to use for TBL format
-/// $CSV_SOURCE: The [`Source`] type to use for CSV format
-/// $PARQUET_SOURCE: The [`RecordBatchIterator`] type to use for Parquet format
-macro_rules! define_generate {
-    ($FUN_NAME:ident,  $TABLE:expr, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        async fn $FUN_NAME(&self) -> io::Result<()> {
-            let filename = self.output_filename($TABLE);
-            let plan = GenerationPlan::try_new(
-                &$TABLE,
-                self.format,
-                self.scale_factor,
-                self.part,
-                self.parts,
-                self.parquet_row_group_bytes,
-            )
-            .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-            let scale_factor = self.scale_factor;
-            info!("Writing table {} (SF={scale_factor}) to {filename}", $TABLE);
-            debug!("Plan: {plan}");
-            let gens = plan
-                .into_iter()
-                .map(move |(part, num_parts)| $GENERATOR::new(scale_factor, part, num_parts));
-            match self.format {
-                OutputFormat::Tbl => self.go(&filename, gens.map(<$TBL_SOURCE>::new)).await,
-                OutputFormat::Csv => self.go(&filename, gens.map(<$CSV_SOURCE>::new)).await,
-                OutputFormat::Parquet => {
-                    self.go_parquet(&filename, gens.map(<$PARQUET_SOURCE>::new))
-                        .await
-                }
-            }
-        }
-    };
-}
-
 impl Cli {
     /// Main function to run the generation
     async fn main(self) -> io::Result<()> {
@@ -332,15 +285,6 @@ impl Cli {
             ]
         };
 
-        // force the creation of the distributions and text pool to so it doesn't
-        // get charged to the first table
-        let start = Instant::now();
-        debug!("Creating distributions and text pool");
-        Distributions::static_default();
-        TextPool::get_or_init_default();
-        let elapsed = start.elapsed();
-        info!("Created static distributions and text pools in {elapsed:?}");
-
         // Warn if parquet specific options are set but not generating parquet
         if self.format != OutputFormat::Parquet {
             if self.parquet_compression != Compression::SNAPPY {
@@ -355,88 +299,63 @@ impl Cli {
             }
         }
 
-        // Generate each table
-        for table in tables {
-            match table {
-                Table::Nation => self.generate_nation().await?,
-                Table::Region => self.generate_region().await?,
-                Table::Part => self.generate_part().await?,
-                Table::Supplier => self.generate_supplier().await?,
-                Table::Partsupp => self.generate_partsupp().await?,
-                Table::Customer => self.generate_customer().await?,
-                Table::Orders => self.generate_orders().await?,
-                Table::Lineitem => self.generate_lineitem().await?,
-            }
+        // Determine what files to generate
+        let mut output_partition_plans = vec![];
+        for table in &tables {
+            self.create_plans(*table, &mut output_partition_plans)?;
         }
 
+        // force the creation of the distributions and text pool to so it doesn't
+        // get charged to the first table
+        let start = Instant::now();
+        debug!("Creating distributions and text pool");
+        Distributions::static_default();
+        TextPool::get_or_init_default();
+        let elapsed = start.elapsed();
+        info!("Created static distributions and text pools in {elapsed:?}");
+
+        // Run
+        let runner = runner::PlanRunner::new(output_partition_plans, self.num_threads);
+        runner.run().await?;
         info!("Generation complete!");
         Ok(())
     }
 
-    define_generate!(
-        generate_nation,
-        Table::Nation,
-        NationGenerator,
-        NationTblSource,
-        NationCsvSource,
-        NationArrow
-    );
-    define_generate!(
-        generate_region,
-        Table::Region,
-        RegionGenerator,
-        RegionTblSource,
-        RegionCsvSource,
-        RegionArrow
-    );
-    define_generate!(
-        generate_part,
-        Table::Part,
-        PartGenerator,
-        PartTblSource,
-        PartCsvSource,
-        PartArrow
-    );
-    define_generate!(
-        generate_supplier,
-        Table::Supplier,
-        SupplierGenerator,
-        SupplierTblSource,
-        SupplierCsvSource,
-        SupplierArrow
-    );
-    define_generate!(
-        generate_partsupp,
-        Table::Partsupp,
-        PartSuppGenerator,
-        PartSuppTblSource,
-        PartSuppCsvSource,
-        PartSuppArrow
-    );
-    define_generate!(
-        generate_customer,
-        Table::Customer,
-        CustomerGenerator,
-        CustomerTblSource,
-        CustomerCsvSource,
-        CustomerArrow
-    );
-    define_generate!(
-        generate_orders,
-        Table::Orders,
-        OrderGenerator,
-        OrderTblSource,
-        OrderCsvSource,
-        OrderArrow
-    );
-    define_generate!(
-        generate_lineitem,
-        Table::Lineitem,
-        LineItemGenerator,
-        LineItemTblSource,
-        LineItemCsvSource,
-        LineItemArrow
-    );
+    /// Appends  OutputPartitionPlan(s) for the given table to `plans`
+    fn create_plans(
+        &self,
+        table: Table,
+        plans: &mut Vec<OutputPartitionPlan>,
+    ) -> Result<(), io::Error> {
+        let generation_plan = GenerationPlan::try_new(
+            table,
+            self.format,
+            self.scale_factor,
+            self.part,
+            self.parts,
+            self.parquet_row_group_bytes,
+        )
+        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+        let output_location = if self.stdout {
+            OutputLocation::Stdout
+        } else {
+            // todo add partition names here (.1, .2, etc)
+            let file_name = self.output_filename(table);
+            OutputLocation::File(self.output_dir.join(file_name))
+        };
+
+        let plan = OutputPartitionPlan::new(
+            table,
+            self.scale_factor,
+            self.format,
+            self.parquet_compression,
+            output_location,
+            generation_plan,
+        );
+
+        plans.push(plan);
+        Ok(())
+    }
 
     /// return the output filename for the given table
     fn output_filename(&self, table: Table) -> String {
@@ -446,44 +365,6 @@ impl Cli {
             OutputFormat::Parquet => "parquet",
         };
         format!("{}.{extension}", table.name())
-    }
-
-    /// return a file for writing the given filename in the output directory
-    fn new_output_file(&self, filename: &str) -> io::Result<File> {
-        let path = self.output_dir.join(filename);
-        File::create(path)
-    }
-
-    /// Generates the output file from the sources
-    async fn go<I>(&self, filename: &str, sources: I) -> Result<(), io::Error>
-    where
-        I: Iterator<Item: Source> + 'static,
-    {
-        // Since generate_in_chunks already buffers, there is no need to buffer again
-        if self.stdout {
-            let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, self.num_threads).await
-        } else {
-            let sink = WriterSink::new(self.new_output_file(filename)?);
-            generate_in_chunks(sink, sources, self.num_threads).await
-        }
-    }
-
-    /// Generates an output parquet file from the sources
-    async fn go_parquet<I>(&self, filename: &str, sources: I) -> Result<(), io::Error>
-    where
-        I: Iterator<Item: RecordBatchIterator> + 'static,
-    {
-        if self.stdout {
-            // write to stdout
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
-        } else {
-            // write to a file
-            let file = self.new_output_file(filename)?;
-            let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet(writer, sources, self.num_threads, self.parquet_compression).await
-        }
     }
 }
 
