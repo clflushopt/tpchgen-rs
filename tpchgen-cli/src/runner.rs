@@ -48,8 +48,8 @@ impl PlanRunner {
 
         // Sort the plans by the number of parts so the largest are first
         plans.sort_unstable_by(|a, b| {
-            let a_cnt = a.part_count();
-            let b_cnt = b.part_count();
+            let a_cnt = a.chunk_count();
+            let b_cnt = b.chunk_count();
             a_cnt.cmp(&b_cnt)
         });
 
@@ -130,12 +130,9 @@ impl WorkerQueue {
 
             // figure out how many threads to allocate to this plan. Each plan
             // can use up to `part_count` threads.
-            let part_count: usize = plan
-                .part_count()
-                .try_into()
-                .expect("part count should fit into usize");
+            let chunk_count = plan.chunk_count();
 
-            let num_plan_threads = self.available_threads.min(part_count);
+            let num_plan_threads = self.available_threads.min(chunk_count);
 
             // run the plan in a separate task, which returns the number of threads it used
             debug!("Spawning plan {plan} with {num_plan_threads} threads");

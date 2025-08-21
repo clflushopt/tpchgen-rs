@@ -96,10 +96,10 @@ impl OutputPlan {
         self.parquet_compression
     }
 
-    /// Return the part(ition) count (the number of data chunks in the
-    /// underlying generation plan)
-    pub fn part_count(&self) -> i32 {
-        self.generation_plan.part_count()
+    /// Return the number of chunks part(ition) count (the number of data chunks
+    /// in the underlying generation plan)
+    pub fn chunk_count(&self) -> usize {
+        self.generation_plan.chunk_count()
     }
 
     /// return the generation plan for this partition
@@ -112,10 +112,10 @@ impl Display for OutputPlan {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "table {} (SF={}, {} parts) to {}",
+            "table {} (SF={}, {} chunks) to {}",
             self.table,
             self.scale_factor,
-            self.part_count(),
+            self.chunk_count(),
             self.output_location
         )
     }
