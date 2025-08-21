@@ -4,44 +4,10 @@
 //! API wise to the original dbgen tool, as in we use the same command line flags
 //! and arguments.
 //!
-//! ```
-//! USAGE:
-//!     tpchgen-cli [OPTIONS]
-//!
-//! OPTIONS:
-//!     -h, --help                    Prints help information
-//!     -V, --version                 Prints version information
-//!     -s, --scale-factor <FACTOR>  Scale factor for the data generation (default: 1)
-//!     -T, --tables <TABLES>        Comma-separated list of tables to generate (default: all)
-//!     -f, --format <FORMAT>        Output format: tbl, csv, or parquet (default: tbl)
-//!     -o, --output-dir <DIR>       Output directory (default: current directory)
-//!     -p, --parts <N>              Number of parts to split generation into (default: 1)
-//!         --part <N>               Which part to generate (1-based, default: 1)
-//!     -n, --num-threads <N>        Number of threads to use (default: number of CPUs)
-//!     -c, --parquet-compression <C> Parquet compression codec, e.g., SNAPPY, ZSTD(1), UNCOMPRESSED (default: SNAPPY)
-//!         --parquet-row-group-size <N> Number of rows per row group in Parquet files (default: 1048576)
-//!     -v, --verbose                Verbose output
-//!         --stdout                 Write output to stdout instead of files
-//!```
-//!
-//! # Logging:
-//! Use the `-v` flag or `RUST_LOG` environment variable to control logging output.
-//!
-//! `-v` sets the log level to `info` and ignores the `RUST_LOG` environment variable.
-//!
-//! # Examples
-//! ```
-//! # see all info output
-//! tpchgen-cli -s 1 -v
-//!
-//! # same thing using RUST_LOG
-//! RUST_LOG=info tpchgen-cli -s 1
-//!
-//! # see all debug output
-//! RUST_LOG=debug tpchgen -s 1
-//! ```
+//! See the documentation on [`Cli`] for more information on the command line
 mod csv;
 mod generate;
+mod output_plan;
 mod parquet;
 mod plan;
 mod runner;
@@ -49,10 +15,9 @@ mod statistics;
 mod tbl;
 
 use crate::generate::Sink;
+use crate::output_plan::OutputPlanGenerator;
 use crate::parquet::*;
-use crate::plan::{
-    GenerationPlan, OutputLocation, OutputPartitionPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES,
-};
+use crate::plan::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use crate::statistics::WriteStatistics;
 use ::parquet::basic::Compression;
 use clap::builder::TypedValueParser;
@@ -70,7 +35,34 @@ use tpchgen::text::TextPool;
 #[derive(Parser)]
 #[command(name = "tpchgen")]
 #[command(version)]
-#[command(about = "TPC-H Data Generator", long_about = None)]
+#[command(
+    // -h output
+    about = "TPC-H Data Generator",
+    // --help output
+    long_about = r#"
+TPCH Data Generator (https://github.com/clflushopt/tpchgen-rs)
+
+By default each table is written to a single file named <output_dir>/<table>.<format>
+
+If `--part` option is specified, each table is written to a subdirectory in
+multiple files named <output_dir>/<table>/<table>.<part>.<format>
+
+Examples
+
+# Generate all tables at scale factor 1 (1GB) in TBL format to /tmp/tpch directory:
+
+tpchgen-cli -s 1 --output-dir=/tmp/tpch
+
+# Generate the lineitem table at scale factor 100 in 10 Apache Parquet files to
+# /tmp/tpch/lineitem
+
+tpchgen-cli -s 100 --tables=lineitem --format=parquet --parts=10 --output-dir=/tmp/tpch
+
+# Generate scale factor one in current directory, seeing debug output
+
+RUST_LOG=debug tpchgen -s 1
+"#
+)]
 struct Cli {
     /// Scale factor to create
     #[arg(short, long, default_value_t = 1.)]
@@ -84,13 +76,11 @@ struct Cli {
     #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
     tables: Option<Vec<Table>>,
 
-    /// Number of part(itions) to generate (manual parallel generation)
+    /// Number of part(itions) to generate. If not specified creates a single file per table
     #[arg(short, long)]
     parts: Option<i32>,
 
-    /// Which part(ition) to generate (1-based)
-    ///
-    /// If not specified, generates all parts
+    /// Which part(ition) to generate (1-based). If not specified, generates all parts
     #[arg(long)]
     part: Option<i32>,
 
@@ -119,6 +109,9 @@ struct Cli {
     parquet_compression: Compression,
 
     /// Verbose output
+    ///
+    /// When specified, sets the log level to `info` and ignores the `RUST_LOG`
+    /// environment variable. When not specified, uses `RUST_LOG`
     #[arg(short, long, default_value_t = false)]
     verbose: bool,
 
@@ -129,11 +122,11 @@ struct Cli {
     /// Target size in row group bytes in Parquet files
     ///
     /// Row groups are the typical unit of parallel processing and compression
-    /// in Parquet. With many query engines, smaller row groups enable better
+    /// with many query engines. Therfore, smaller row groups enable better
     /// parallelism and lower peak memory use but may reduce compression
     /// efficiency.
     ///
-    /// Note: parquet files are limited to 32k row groups, so at high scale
+    /// Note: Parquet files are limited to 32k row groups, so at high scale
     /// factors, the row group size may be increased to keep the number of row
     /// groups under this limit.
     ///
@@ -300,10 +293,19 @@ impl Cli {
         }
 
         // Determine what files to generate
-        let mut output_partition_plans = vec![];
-        for table in &tables {
-            self.create_plans(*table, &mut output_partition_plans)?;
+        let mut output_plan_generator = OutputPlanGenerator::new(
+            self.format,
+            self.scale_factor,
+            self.parquet_compression,
+            self.parquet_row_group_bytes,
+            self.stdout,
+            self.output_dir.clone(),
+        );
+
+        for table in tables {
+            output_plan_generator.generate_plans(table, self.part, self.parts)?;
         }
+        let output_plans = output_plan_generator.build();
 
         // force the creation of the distributions and text pool to so it doesn't
         // get charged to the first table
@@ -315,56 +317,10 @@ impl Cli {
         info!("Created static distributions and text pools in {elapsed:?}");
 
         // Run
-        let runner = runner::PlanRunner::new(output_partition_plans, self.num_threads);
+        let runner = runner::PlanRunner::new(output_plans, self.num_threads);
         runner.run().await?;
         info!("Generation complete!");
         Ok(())
-    }
-
-    /// Appends  OutputPartitionPlan(s) for the given table to `plans`
-    fn create_plans(
-        &self,
-        table: Table,
-        plans: &mut Vec<OutputPartitionPlan>,
-    ) -> Result<(), io::Error> {
-        let generation_plan = GenerationPlan::try_new(
-            table,
-            self.format,
-            self.scale_factor,
-            self.part,
-            self.parts,
-            self.parquet_row_group_bytes,
-        )
-        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
-        let output_location = if self.stdout {
-            OutputLocation::Stdout
-        } else {
-            // todo add partition names here (.1, .2, etc)
-            let file_name = self.output_filename(table);
-            OutputLocation::File(self.output_dir.join(file_name))
-        };
-
-        let plan = OutputPartitionPlan::new(
-            table,
-            self.scale_factor,
-            self.format,
-            self.parquet_compression,
-            output_location,
-            generation_plan,
-        );
-
-        plans.push(plan);
-        Ok(())
-    }
-
-    /// return the output filename for the given table
-    fn output_filename(&self, table: Table) -> String {
-        let extension = match self.format {
-            OutputFormat::Tbl => "tbl",
-            OutputFormat::Csv => "csv",
-            OutputFormat::Parquet => "parquet",
-        };
-        format!("{}.{extension}", table.name())
     }
 }
 

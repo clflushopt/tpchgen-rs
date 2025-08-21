@@ -1,118 +1,15 @@
-//! * [`OutputPartitionPlan`]: an output file that will be generated
-//! * [`GenerationPlan`]: how to generate a TPC-H dataset.
+//! * [`GenerationPlan`]: how to generate a specific TPC-H dataset.
 
 use crate::{OutputFormat, Table};
 use log::debug;
-use parquet::basic::Compression;
-use std::fmt::{Display, Formatter};
+use std::fmt::Display;
 use std::ops::RangeInclusive;
-use std::path::PathBuf;
 use tpchgen::generators::{
     CustomerGenerator, OrderGenerator, PartGenerator, PartSuppGenerator, SupplierGenerator,
 };
 
-/// Where a partition will be output
-#[derive(Debug, Clone, PartialEq)]
-pub enum OutputLocation {
-    /// Output to a file
-    File(PathBuf),
-    /// Output to stdout
-    Stdout,
-}
-
-impl Display for OutputLocation {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OutputLocation::File(path) => {
-                let Some(file) = path.file_name() else {
-                    return write!(f, "{}", path.display());
-                };
-                // Display the file name only, not the full path
-                write!(f, "{}", file.to_string_lossy())
-            }
-            OutputLocation::Stdout => write!(f, "Stdout"),
-        }
-    }
-}
-
-/// Describes an output partition that will be generated
-#[derive(Debug, Clone, PartialEq)]
-pub struct OutputPartitionPlan {
-    /// The table
-    table: Table,
-    /// The scale factor
-    scale_factor: f64,
-    /// The output format (TODO don't depend back on something in main)
-    output_format: OutputFormat,
-    /// If the output is parquet, what compression level to use
-    parquet_compression: Compression,
-    /// Where to output
-    output_location: OutputLocation,
-    /// Plan for generating the table
-    generation_plan: GenerationPlan,
-}
-
-impl OutputPartitionPlan {
-    pub fn new(
-        table: Table,
-        scale_factor: f64,
-        output_format: OutputFormat,
-        parquet_compression: Compression,
-        output_location: OutputLocation,
-        generation_plan: GenerationPlan,
-    ) -> Self {
-        Self {
-            table,
-            scale_factor,
-            output_format,
-            parquet_compression,
-            output_location,
-            generation_plan,
-        }
-    }
-
-    /// Return the table this partition is for
-    pub fn table(&self) -> Table {
-        self.table
-    }
-
-    /// Return the scale factor for this partition
-    pub fn scale_factor(&self) -> f64 {
-        self.scale_factor
-    }
-
-    /// Return the output format for this partition
-    pub fn output_format(&self) -> OutputFormat {
-        self.output_format
-    }
-
-    /// return the output location
-    pub fn output_location(&self) -> &OutputLocation {
-        &self.output_location
-    }
-
-    /// Return the parquet compression level for this partition
-    pub fn parquet_compression(&self) -> Compression {
-        self.parquet_compression
-    }
-
-    /// return the generation plan for this partition
-    pub fn generation_plan(&self) -> &GenerationPlan {
-        &self.generation_plan
-    }
-}
-
-impl Display for OutputPartitionPlan {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Writing table {} (SF={}) to {}",
-            self.table, self.scale_factor, self.output_location
-        )
-    }
-}
-
-/// A list of generator "parts" (data generator chunks, not TPCH parts)
+/// A list of generator "parts" (data generator chunks, not TPCH parts) for a
+/// single output file.
 ///
 /// Controls the parallelization and layout of Parquet files in `tpchgen-cli`.
 ///
@@ -204,6 +101,12 @@ impl GenerationPlan {
         }
     }
 
+    /// Return true if the tables is unpartitionable (not parameterized by part
+    /// count)
+    pub fn partitioned_table(table: Table) -> bool {
+        table != Table::Nation && table != Table::Region
+    }
+
     /// Returns a new `GenerationPlan` when partitioning
     ///
     /// See [`GenerationPlan::try_new`] for argument documentation.
@@ -232,7 +135,7 @@ impl GenerationPlan {
 
         // These tables are so small they are not parameterized by part count,
         // so only a single part.
-        if table == Table::Nation || table == Table::Region {
+        if !Self::partitioned_table(table) {
             return Ok(Self {
                 part_count: 1,
                 part_list: 1..=1,
@@ -285,6 +188,11 @@ impl GenerationPlan {
             part_count: num_parts,
             part_list: 1..=num_parts,
         })
+    }
+
+    /// Return the number of part(ititions) this plan will generate
+    pub fn part_count(&self) -> i32 {
+        self.part_count
     }
 }
 

@@ -13,7 +13,6 @@ use tpchgen_arrow::{OrderArrow, RecordBatchIterator};
 /// Test TBL output for scale factor 0.001 using tpchgen-cli
 #[test]
 fn test_tpchgen_cli_tbl_scale_factor_0_001() {
-    // Create a temporary directory
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // Run the tpchgen-cli command
@@ -67,29 +66,136 @@ fn test_tpchgen_cli_tbl_scale_factor_0_001() {
     }
 }
 
-/// Test generating the order table using --parts and --part options
+/// Test that when creating output, if the file already exists it is not overwritten
+#[test]
+fn test_tpchgen_cli_tbl_no_overwrite() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let expected_file = temp_dir.path().join("part.tbl");
+
+    let run_command = || {
+        Command::cargo_bin("tpchgen-cli")
+            .expect("Binary not found")
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg("part")
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .assert()
+            .success()
+    };
+
+    run_command();
+    let original_metadata =
+        fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
+    assert_eq!(original_metadata.len(), 23498);
+
+    // Run the tpchgen-cli command again with the same parameters and expect the
+    // file to not be overwritten
+    run_command();
+    let new_metadata =
+        fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
+    assert_eq!(original_metadata.len(), new_metadata.len());
+    assert_eq!(
+        original_metadata
+            .modified()
+            .expect("Failed to get modified time"),
+        new_metadata
+            .modified()
+            .expect("Failed to get modified time")
+    );
+}
+
+// Test that when creating output, if the file already exists it is not for parquet
+#[test]
+fn test_tpchgen_cli_parquet_no_overwrite() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let expected_file = temp_dir.path().join("part.parquet");
+
+    let run_command = || {
+        Command::cargo_bin("tpchgen-cli")
+            .expect("Binary not found")
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg("part")
+            .arg("--format")
+            .arg("parquet")
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .assert()
+            .success()
+    };
+
+    run_command();
+    let original_metadata =
+        fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
+    assert_eq!(original_metadata.len(), 12380);
+
+    // Run the tpchgen-cli command again with the same parameters and expect the
+    // file to not be overwritten
+    run_command();
+
+    let new_metadata =
+        fs::metadata(&expected_file).expect("Failed to get metadata of generated file");
+    assert_eq!(original_metadata.len(), new_metadata.len());
+    assert_eq!(
+        original_metadata
+            .modified()
+            .expect("Failed to get modified time"),
+        new_metadata
+            .modified()
+            .expect("Failed to get modified time")
+    );
+}
+
+/// Test generating the order table using 4 parts implicitly
 #[test]
 fn test_tpchgen_cli_parts() {
-    // Create a temporary directory
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // generate 4 parts of the orders table with scale factor 0.001 and let
+    // tpchgen-cli generate the multiple files
+
+    let num_parts = 4;
+    let output_dir = temp_dir.path().to_path_buf();
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(&output_dir)
+        .arg("--parts")
+        .arg(num_parts.to_string())
+        .arg("--tables")
+        .arg("orders")
+        .assert()
+        .success();
+
+    verify_table(temp_dir.path(), "orders", num_parts, "0.001");
+}
+
+/// Test generating the order table with multiple invocations using --parts and
+/// --part options
+#[test]
+fn test_tpchgen_cli_parts_explicit() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // generate 4 parts of the orders table with scale factor 0.001
-    // into directories /part1, /part2, /part3, /part4
     // use threads to run the command concurrently to minimize the time taken
     let num_parts = 4;
     let mut threads = vec![];
     for part in 1..=num_parts {
-        let part_dir = temp_dir.path().join(format!("part{part}"));
+        let output_dir = temp_dir.path().to_path_buf();
         threads.push(std::thread::spawn(move || {
-            fs::create_dir(&part_dir).expect("Failed to create part directory");
-
             // Run the tpchgen-cli command for each part
+            // output goes into `output_dir/orders/orders.{part}.tbl`
             Command::cargo_bin("tpchgen-cli")
                 .expect("Binary not found")
                 .arg("--scale-factor")
                 .arg("0.001")
                 .arg("--output-dir")
-                .arg(&part_dir)
+                .arg(&output_dir)
                 .arg("--parts")
                 .arg(num_parts.to_string())
                 .arg("--part")
@@ -104,14 +210,46 @@ fn test_tpchgen_cli_parts() {
     for thread in threads {
         thread.join().expect("Thread panicked");
     }
-    // Read the generated files into a single buffer and compare them
-    // to the contents of the reference file
+    verify_table(temp_dir.path(), "orders", num_parts, "0.001");
+}
+
+/// Create all tables using --parts option and verify the output layouts
+#[test]
+fn test_tpchgen_cli_parts_all_tables() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let num_parts = 8;
+    let output_dir = temp_dir.path().to_path_buf();
+    Command::cargo_bin("tpchgen-cli")
+        .expect("Binary not found")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(&output_dir)
+        .arg("--parts")
+        .arg(num_parts.to_string())
+        .assert()
+        .success();
+
+    verify_table(temp_dir.path(), "lineitem", num_parts, "0.001");
+    verify_table(temp_dir.path(), "orders", num_parts, "0.001");
+    verify_table(temp_dir.path(), "part", num_parts, "0.001");
+    verify_table(temp_dir.path(), "partsupp", num_parts, "0.001");
+    verify_table(temp_dir.path(), "customer", num_parts, "0.001");
+    verify_table(temp_dir.path(), "supplier", num_parts, "0.001");
+    // Note, nation and region have only a single part regardless of --parts
+    verify_table(temp_dir.path(), "nation", 1, "0.001");
+    verify_table(temp_dir.path(), "region", 1, "0.001");
+}
+
+/// Read the N files from `output_dir/table_name/table_name.part.tml` into a
+/// single buffer and compare them to the contents of the reference file
+fn verify_table(output_dir: &Path, table_name: &str, parts: usize, scale_factor: &str) {
     let mut output_contents = Vec::new();
-    for part in 1..=4 {
-        let generated_file = temp_dir
-            .path()
-            .join(format!("part{part}"))
-            .join("orders.tbl");
+    for part in 1..=parts {
+        let generated_file = output_dir
+            .join(table_name)
+            .join(format!("{table_name}.{part}.tbl"));
         assert!(
             generated_file.exists(),
             "File {:?} does not exist",
@@ -125,7 +263,7 @@ fn test_tpchgen_cli_parts() {
         String::from_utf8(output_contents).expect("Failed to convert output contents to string");
 
     // load the reference file
-    let reference_file = read_reference_file("orders", "0.001");
+    let reference_file = read_reference_file(table_name, scale_factor);
     assert_eq!(output_contents, reference_file);
 }
 
@@ -319,24 +457,6 @@ fn test_tpchgen_cli_part_no_parts() {
         .failure()
         .stderr(predicates::str::contains(
             "The --part option requires the --parts option to be set",
-        ));
-}
-
-#[test]
-fn test_tpchgen_cli_parts_no_part() {
-    let temp_dir = tempdir().expect("Failed to create temporary directory");
-
-    // CLI Error test --parts and but not --part
-    Command::cargo_bin("tpchgen-cli")
-        .expect("Binary not found")
-        .arg("--output-dir")
-        .arg(temp_dir.path())
-        .arg("--parts")
-        .arg("42")
-        .assert()
-        .failure()
-        .stderr(predicates::str::contains(
-            "The --part_count option requires the --part option to be set",
         ));
 }
 
