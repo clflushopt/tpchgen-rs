@@ -20,68 +20,18 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencie
 
 ## Try it now
 
-### Install Using Python
-
-Install this tool with Python:
-
-```shell
-pip install tpchgen-cli
-```
-
-```shell
-# create Scale Factor 10 (3.6GB, 8 files, 60M rows in lineitem) in 5 seconds on a modern laptop
-tpchgen-cli -s 10 --format=parquet
-```
-
-### Install Using Rust
-
-[Install Rust](https://www.rust-lang.org/tools/install) and this tool:
-
-```shell
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo install tpchgen-cli
-```
-
-```shell
-# create Scale Factor 10 (3.6GB, 8 files, 60M rows in lineitem) in 5 seconds on a modern laptop
-tpchgen-cli -s 10 --format=parquet
-```
-
-Or watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14) recorded by [@alamb](https://github.com/alamb)
-and the companion blog post in the [Datafusion blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/).
-
-### Examples
-
-```shell
-
-# Create a scale factor 10 dataset in the native table format.
-tpchgen-cli -s 10 --output-dir sf10
-
-# Create a scale factor 1 dataset in Parquet format.
-tpchgen-cli -s 1 --output-dir sf1-parquet --format=parquet
-
-# Create a scale factor 1 (default) partitioned dataset for the region, nation, orders
-# and customer tables.
-tpchgen-cli --tables region,nation,orders,customer --output-dir sf1-partitioned --parts 10 --part 2
-
-# Create a scale factor 1 partitioned into separate folders.
-#
-# Each folder will have a single partition of rows, the partition size will depend on the scale
-# factor. For tables that have less rows than the minimum partition size like "nation" or "region"
-# the generator will produce the same file in each part.
-#
-# $ md5sum part-*/{nation,region}.tbl
-# 2f588e0b7fa72939b498c2abecd9fbbe  part-1/nation.tbl
-# 2f588e0b7fa72939b498c2abecd9fbbe  part-2/nation.tbl
-# c235841b00d29ad4f817771fcc851207  part-1/region.tbl
-# c235841b00d29ad4f817771fcc851207  part-2/region.tbl
-for PART in `seq 1 2`; do
-  mkdir part-$PART
-  tpchgen-cli --tables region,nation,orders,customer --output-dir part-$PART --parts 10 --part $PART
-done
-```
+The easiest way to use this software is via the [`tpchgen-cli`] tool.
 
 ## Performance
+
+[`tpchgen-cli`] is more than 10x faster than the next fastest TPCH generator we
+know of. On a 2023 Mac M3 Max laptop, it easily generates data faster than can
+be written to SSD. See [BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for more
+details on performance and benchmarking.
+
+[`tpchgen-cli`]: ./tpchgen-cli/README.md
+
+Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
 
 | Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
 | ------------ | ------------- | ---------- | -------------------- |
@@ -92,18 +42,11 @@ done
 
 - DuckDB (proprietary) is the time required to create TPCH data using the
   proprietary DuckDB format
-- Creating Scale Factor 1000 data in DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
+- Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.
-
-Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
 
 ![Parquet Generation Performance](parquet-performance.png)
 
-[`tpchgen-cli`](./tpchgen-cli/README.md) is more than 10x faster than the next
-fastest TPCH generator we know of. On a 2023 Mac M3 Max laptop, it easily
-generates data faster than can be written to SSD. See
-[BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for more details on performance and
-benchmarking.
 
 ## Answers
 

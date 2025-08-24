@@ -1,8 +1,9 @@
 # TPC-H Data Generator in Arrow format
 
-This crate generates TPCH data directly into [Apache Arrow] format using the [arrow] crate
+Generate TPCH data directly into [Apache Arrow] format using the [tpchgen] and [arrow] crate.
 
 [Apache Arrow]: https://arrow.apache.org/
+[tpchgen]: https://crates.io/crates/tpchgen
 [arrow]: https://crates.io/crates/arrow
 
 # Example usage: 

@@ -1,62 +1,76 @@
 # TPC-H Data Generator CLI
 
-See the main [README.md](https://github.com/clflushopt/tpchgen-rs) for full documentation.
+`tpchgen-cli` is a high-performance, parallel TPC-H data generator command line
+tool, which easily generates data faster than can be written to SSD.
 
-## Installation
+* See the tpchgen [README.md](https://github.com/clflushopt/tpchgen-rs) for
+project details
+* Watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14)  by
+[@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
+* Read the companion blog post in the
+[Datafusion
+blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history
+* Try it yourself by following the instructions below
 
-### Install Using Python
+## Install via `pip`
 
-Install this tool with Python:
 ```shell
 pip install tpchgen-cli
 ```
 
-### Install Using Rust
+## Install via Rust
 
-[Install Rust](https://www.rust-lang.org/tools/install) and this tool:
+[Install Rust](https://www.rust-lang.org/tools/install) and compile
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-cargo install tpchgen-cli
+RUSTFLAGS='-C target-cpu=native' cargo install tpchgen-cli
 ```
 
-## CLI Usage
-
-We tried to make the `tpchgen-cli` experience as close to `dbgen` as possible for no other
-reason than maybe make it easier for you to have a drop-in replacement.
+## Examples
 
 ```shell
-$ tpchgen-cli -h
-TPC-H Data Generator
+# Scale Factor 10, all tables, in Apache Parquet format in the current directory
+# (3.6GB, 8 files, 60M lineitem rows, in 5 seconds on a modern laptop)
+tpchgen-cli -s 10 --format=parquet
 
-Usage: tpchgen-cli [OPTIONS]
+# Scale Factor 10, all tables, in `tbl`(csv like) format in the `sf10` directory
+# (10GB, 8 files, 60M lineitem rows)
+tpchgen-cli -s 10 --output-dir sf10
 
-Options:
-  -s, --scale-factor <SCALE_FACTOR>
-          Scale factor to address (default: 1) [default: 1]
-  -o, --output-dir <OUTPUT_DIR>
-          Output directory for generated files (default: current directory) [default: .]
-  -T, --tables <TABLES>
-          Which tables to generate (default: all) [possible values: region, nation, supplier, customer, part, partsupp, orders, lineitem]
-  -p, --parts <PARTS>
-          Number of parts to generate (manual parallel generation) [default: 1]
-      --part <PART>
-          Which part to generate (1-based, only relevant if parts > 1) [default: 1]
-  -f, --format <FORMAT>
-          Output format: tbl, csv, parquet (default: tbl) [default: tbl] [possible values: tbl, csv, parquet]
-  -n, --num-threads <NUM_THREADS>
-          The number of threads for parallel generation, defaults to the number of CPUs [default: 8]
-  -c, --parquet-compression <PARQUET_COMPRESSION>
-          Parquet block compression format. Default is SNAPPY [default: SNAPPY]
-  -v, --verbose
-          Verbose output (default: false)
-      --stdout
-          Write the output to stdout instead of a file
-  -h, --help
-          Print help (see more with '--help')
+# Scale Factor 1000, lineitem table, in Apache Parquet format in sf1000 directory, 
+# 20 part(ititons), 100MB row groups
+# (220GB, 20 files, 6B lineitem rows, 3.5 minutes on a modern laptop)
+tpchgen-cli -s 1000 --tables lineitem --parts 20 --format=parquet --parquet-row-group-bytes=100000000 --output-dir sf1000
+
+# Scale Factor 10, partition 2 and 3 of 10 in sf10 directory
+#
+# partitioned/
+# ├── lineitem
+# │   ├── lineitem.2.tbl
+# │   └── lineitem.3.tbl
+# └── orders
+#    ├── orders.2.tbl
+#    └── orders.3.tbl
+#     
+for PART in `seq 2 3`; do
+  tpchgen-cli --tables lineitem,orders --scale-factor=10 --output-dir partitioned --parts 10 --part $PART
+done
 ```
 
-For example generating a dataset with a scale factor of 1 (1GB) can be done like this:
-```shell
-$ tpchgen-cli -s 1 --output-dir=/tmp/tpch
-```
+## Performance
+
+| Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
+| ------------ | ------------- | ---------- | -------------------- |
+| 1            | `0:02.24`     | `0:12.29`  | `0:10.68`            |
+| 10           | `0:09.97`     | `1:46.80`  | `1:41.14`            |
+| 100          | `1:14.22`     | `17:48.27` | `16:40.88`           |
+| 1000         | `10:26.26`    | N/A (OOM)  | N/A (OOM)            |
+
+- DuckDB (proprietary) is the time required to create TPCH data using the
+  proprietary DuckDB format
+- Creating Scale Factor 1000 data in DuckDB [required 647 GB of memory](https://duckdb.org/docs/stable/extensions/tpch.html#resource-usage-of-the-data-generator),
+  which is why it is not included in the table above.
+
+Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
+
