@@ -108,8 +108,7 @@ impl WorkerQueue {
             if self.available_threads == 0 {
                 debug!("no threads left, wait for one to finish");
                 let Some(result) = self.join_set.join_next().await else {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other,
+                    return Err(io::Error::other(
                         "Internal Error No more tasks to wait for, but had no threads",
                     ));
                 };
@@ -157,7 +156,7 @@ impl WorkerQueue {
 
 /// unwraps the result of a task and converts it to an `io::Result<T>`.
 fn task_result<T>(result: Result<io::Result<T>, JoinError>) -> io::Result<T> {
-    result.map_err(|e| io::Error::new(io::ErrorKind::Other, format!("Task Panic: {e}")))?
+    result.map_err(|e| io::Error::other(format!("Task Panic: {e}")))?
 }
 
 /// Run a single [`OutputPlan`]
@@ -195,19 +194,15 @@ where
             // write to a temp file and then rename to avoid partial files
             let temp_path = path.with_extension("inprogress");
             let file = std::fs::File::create(&temp_path).map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Failed to create {temp_path:?}: {err}"),
-                )
+                io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let sink = WriterSink::new(file);
             generate_in_chunks(sink, sources, num_threads).await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Failed to rename {temp_path:?} to {path:?} file: {e}"),
-                )
+                io::Error::other(format!(
+                    "Failed to rename {temp_path:?} to {path:?} file: {e}"
+                ))
             })?;
             Ok(())
         }
@@ -233,19 +228,15 @@ where
             // write to a temp file and then rename to avoid partial files
             let temp_path = path.with_extension("inprogress");
             let file = std::fs::File::create(&temp_path).map_err(|err| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Failed to create {temp_path:?}: {err}"),
-                )
+                io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
             generate_parquet(writer, sources, num_threads, plan.parquet_compression()).await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
-                io::Error::new(
-                    io::ErrorKind::Other,
-                    format!("Failed to rename {temp_path:?} to {path:?} file: {e}"),
-                )
+                io::Error::other(format!(
+                    "Failed to rename {temp_path:?} to {path:?} file: {e}"
+                ))
             })?;
             Ok(())
         }
