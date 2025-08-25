@@ -43,14 +43,14 @@
 //! [`LineItem`]: generators::LineItem
 //! [`LineItemCsv`]: csv::LineItemCsv
 //!
-//!
 //! The library was designed to be easily integrated in existing Rust projects as
 //! such it avoids exposing a malleable API and purposely does not have any dependencies
-//! on other Rust crates. It is focused entire on the core
+//! on other Rust crates. It is focused entirely on the core
 //! generation logic.
 //!
 //! If you want an easy way to generate the TPC-H dataset for usage with external
-//! systems you can use CLI tool instead.
+//! see the [`tpchgen-cli`](https://github.com/alamb/tpchgen-rs/tree/main/tpchgen-cli)
+//! tool instead.
 pub mod csv;
 pub mod dates;
 pub mod decimal;
