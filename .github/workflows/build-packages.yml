@@ -33,10 +33,6 @@ jobs:
             manylinux: auto
             os: linux
           - runner: ubuntu-22.04
-            target: s390x
-            manylinux: auto
-            os: linux
-          - runner: ubuntu-22.04
             target: ppc64le
             manylinux: auto
             os: linux
