@@ -1,4 +1,4 @@
-name: Build Packages
+name: Build Python Packages
 
 on:
   workflow_call:
