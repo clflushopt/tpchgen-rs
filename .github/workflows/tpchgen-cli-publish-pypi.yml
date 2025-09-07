@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build:
-    uses: ./.github/workflows/build-packages.yml
+    uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: true
 

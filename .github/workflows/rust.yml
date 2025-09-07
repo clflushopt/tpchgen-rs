@@ -70,6 +70,6 @@ jobs:
 
   # Build wheels + sdist (but don’t upload artifacts)
   build-packages:
-    uses: ./.github/workflows/build-packages.yml
+    uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
