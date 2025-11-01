@@ -13,7 +13,7 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run cargo-fmt
         run: cargo fmt --all -- --check
       - name: Run cargo-clippy
@@ -26,7 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Tests (tpchgen)
         run: cargo test -p tpchgen --tests
 
@@ -35,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Doc Tests (tpchgen)
         run: cargo test -p tpchgen --doc
 
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: All Tests (tpchgen-arrow)
         run: cargo test -p tpchgen-arrow
 
@@ -53,7 +53,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: All Tests (tpchgen-cli)
         run: cargo test -p tpchgen-cli
 
@@ -62,7 +62,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: lint
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name : Build docs
         env:
           RUSTDOCFLAGS: "-D warnings"
