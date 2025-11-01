@@ -9,7 +9,7 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-arrow = { version = "56", default-features = false, features = ["prettyprint"] }
+arrow = { version = "57", default-features = false, features = ["prettyprint"] }
 tpchgen = { path = "../tpchgen", version = "2.0.1" }
 
 [dev-dependencies]
