@@ -141,7 +141,12 @@ where
 {
     // Create writers for each of the leaf columns
     #[allow(deprecated)]
-    let mut col_writers = parquet::arrow::arrow_writer::get_column_writers(&parquet_schema, &writer_properties, &schema).unwrap();
+    let mut col_writers = parquet::arrow::arrow_writer::get_column_writers(
+        &parquet_schema,
+        &writer_properties,
+        &schema,
+    )
+    .unwrap();
 
     // generate the data and send it to the tasks (via the sender channels)
     for batch in iter {
