@@ -184,7 +184,9 @@ impl FromStr for OutputFormat {
             "tbl" => Ok(OutputFormat::Tbl),
             "csv" => Ok(OutputFormat::Csv),
             "parquet" => Ok(OutputFormat::Parquet),
-            _ => Err(format!("Invalid output format: {s}. Valid formats are: tbl, csv, parquet")),
+            _ => Err(format!(
+                "Invalid output format: {s}. Valid formats are: tbl, csv, parquet"
+            )),
         }
     }
 }

@@ -7,15 +7,15 @@
 //! See the documentation on [`Cli`] for more information on the command line
 
 // Use the library public API
-use tpchgen_cli::{
-    Compression, OutputFormat, Table, TpchGenerator, DEFAULT_PARQUET_ROW_GROUP_BYTES,
-};
 use clap::builder::TypedValueParser;
 use clap::Parser;
 use log::{info, LevelFilter};
 use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
+use tpchgen_cli::{
+    Compression, OutputFormat, Table, TpchGenerator, DEFAULT_PARQUET_ROW_GROUP_BYTES,
+};
 
 #[derive(Parser)]
 #[command(name = "tpchgen")]
