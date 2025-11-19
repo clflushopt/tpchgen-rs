@@ -2,12 +2,20 @@
 name = "tpchgen-cli"
 version = "2.0.1"
 authors = { workspace = true }
-description = "Blazing fast pure Rust TPC-H data generator command line tool."
+description = "Blazing fast pure Rust TPC-H data generator command line tool and library."
 readme = "README.md"
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
+
+[lib]
+name = "tpchgen_cli"
+path = "src/lib.rs"
+
+[[bin]]
+name = "tpchgen-cli"
+path = "src/main.rs"
 
 [dependencies]
 arrow = "56"
