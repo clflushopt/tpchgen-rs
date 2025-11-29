@@ -194,25 +194,25 @@ impl Cli {
 
         // Build the generator using the library API
         let mut builder = TpchGenerator::builder()
-            .scale_factor(self.scale_factor)
-            .output_dir(self.output_dir)
-            .format(self.format)
-            .num_threads(self.num_threads)
-            .parquet_compression(self.parquet_compression)
-            .parquet_row_group_bytes(self.parquet_row_group_bytes)
-            .stdout(self.stdout);
+            .with_scale_factor(self.scale_factor)
+            .with_output_dir(self.output_dir)
+            .with_format(self.format)
+            .with_num_threads(self.num_threads)
+            .with_parquet_compression(self.parquet_compression)
+            .with_parquet_row_group_bytes(self.parquet_row_group_bytes)
+            .with_stdout(self.stdout);
 
         // Add tables if specified
         if let Some(tables) = self.tables {
-            builder = builder.tables(tables);
+            builder = builder.with_tables(tables);
         }
 
         // Add parts/part if specified
         if let Some(parts) = self.parts {
-            builder = builder.parts(parts);
+            builder = builder.with_parts(parts);
         }
         if let Some(part) = self.part {
-            builder = builder.part(part);
+            builder = builder.with_part(part);
         }
 
         // Generate using the library

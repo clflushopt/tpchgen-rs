@@ -15,7 +15,7 @@ path = "src/lib.rs"
 
 [[bin]]
 name = "tpchgen-cli"
-path = "src/main.rs"
+path = "bin/main.rs"
 
 [dependencies]
 arrow = "56"

@@ -40,12 +40,15 @@ use tpchgen::generators::{
 ///
 /// # Example
 /// ```
-/// let plan = GenerationPlan::new(
-///   &Table::Orders,
+/// use tpchgen_cli::{GenerationPlan, OutputFormat, Table};
+///
+/// let plan = GenerationPlan::try_new(
+///   Table::Orders,
 ///   OutputFormat::Parquet,
 ///   1.0, // scale factor
-///   -1, // cli_part
-///   -1, // cli_parts
+///   Some(-1), // cli_part
+///   Some(-1), // cli_parts
+///    0,
 ///  );
 /// let results = plan.into_iter().collect::<Vec<_>>();
 /// /// assert_eq!(results.len(), 1);

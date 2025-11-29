@@ -11,11 +11,11 @@
 //!
 //! # async fn example() -> std::io::Result<()> {
 //! let generator = TpchGenerator::builder()
-//!     .scale_factor(10.0)
-//!     .output_dir(PathBuf::from("./data"))
-//!     .tables(vec![Table::Customer, Table::Orders])
-//!     .format(OutputFormat::Parquet)
-//!     .num_threads(8)
+//!     .with_scale_factor(10.0)
+//!     .with_output_dir(PathBuf::from("./data"))
+//!     .with_tables(vec![Table::Customer, Table::Orders])
+//!     .with_format(OutputFormat::Parquet)
+//!     .with_num_threads(8)
 //!     .build();
 //!
 //! generator.generate().await?;
@@ -272,24 +272,24 @@ impl Default for GeneratorConfig {
 /// ```no_run
 /// use tpchgen_cli::{TpchGenerator, Table, OutputFormat};
 /// use std::path::PathBuf;
-///
+/// use ::parquet::basic::ZstdLevel;
 /// # async fn example() -> std::io::Result<()> {
 /// // Generate all tables at scale factor 1 in TBL format
 /// TpchGenerator::builder()
-///     .scale_factor(1.0)
-///     .output_dir(PathBuf::from("./data"))
+///     .with_scale_factor(1.0)
+///     .with_output_dir(PathBuf::from("./data"))
 ///     .build()
 ///     .generate()
 ///     .await?;
 ///
 /// // Generate specific tables in Parquet format with compression
 /// TpchGenerator::builder()
-///     .scale_factor(10.0)
-///     .output_dir(PathBuf::from("./benchmark_data"))
-///     .tables(vec![Table::Orders, Table::Lineitem])
-///     .format(OutputFormat::Parquet)
-///     .parquet_compression(tpchgen_cli::Compression::ZSTD(Some(1)))
-///     .num_threads(16)
+///     .with_scale_factor(10.0)
+///     .with_output_dir(PathBuf::from("./benchmark_data"))
+///     .with_tables(vec![Table::Orders, Table::Lineitem])
+///     .with_format(OutputFormat::Parquet)
+///     .with_parquet_compression(tpchgen_cli::Compression::ZSTD(ZstdLevel::try_new(1).unwrap()))
+///     .with_num_threads(16)
 ///     .build()
 ///     .generate()
 ///     .await?;
@@ -311,7 +311,7 @@ impl TpchGenerator {
     /// use tpchgen_cli::TpchGenerator;
     ///
     /// let generator = TpchGenerator::builder()
-    ///     .scale_factor(1.0)
+    ///     .with_scale_factor(1.0)
     ///     .build();
     /// ```
     pub fn builder() -> TpchGeneratorBuilder {
@@ -335,7 +335,7 @@ impl TpchGenerator {
     ///
     /// # async fn example() -> std::io::Result<()> {
     /// TpchGenerator::builder()
-    ///     .scale_factor(1.0)
+    ///     .with_scale_factor(1.0)
     ///     .build()
     ///     .generate()
     ///     .await?;
@@ -425,15 +425,16 @@ impl TpchGenerator {
 /// ```no_run
 /// use tpchgen_cli::{TpchGenerator, Table, OutputFormat, Compression};
 /// use std::path::PathBuf;
+/// use ::parquet::basic::ZstdLevel;
 ///
 /// # async fn example() -> std::io::Result<()> {
 /// let generator = TpchGenerator::builder()
-///     .scale_factor(100.0)
-///     .output_dir(PathBuf::from("/data/tpch"))
-///     .tables(vec![Table::Lineitem, Table::Orders])
-///     .format(OutputFormat::Parquet)
-///     .parquet_compression(Compression::ZSTD(Some(3)))
-///     .num_threads(32)
+///     .with_scale_factor(100.0)
+///     .with_output_dir(PathBuf::from("/data/tpch"))
+///     .with_tables(vec![Table::Lineitem, Table::Orders])
+///     .with_format(OutputFormat::Parquet)
+///     .with_parquet_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
+///     .with_num_threads(32)
 ///     .build();
 ///
 /// generator.generate().await?;
@@ -462,61 +463,61 @@ impl TpchGeneratorBuilder {
     }
 
     /// Set the scale factor (e.g., 1.0 for 1GB, 10.0 for 10GB)
-    pub fn scale_factor(mut self, scale_factor: f64) -> Self {
+    pub fn with_scale_factor(mut self, scale_factor: f64) -> Self {
         self.config.scale_factor = scale_factor;
         self
     }
 
     /// Set the output directory
-    pub fn output_dir(mut self, output_dir: impl Into<std::path::PathBuf>) -> Self {
+    pub fn with_output_dir(mut self, output_dir: impl Into<std::path::PathBuf>) -> Self {
         self.config.output_dir = output_dir.into();
         self
     }
 
     /// Set which tables to generate (default: all tables)
-    pub fn tables(mut self, tables: Vec<Table>) -> Self {
+    pub fn with_tables(mut self, tables: Vec<Table>) -> Self {
         self.config.tables = Some(tables);
         self
     }
 
     /// Set the output format (default: TBL)
-    pub fn format(mut self, format: OutputFormat) -> Self {
+    pub fn with_format(mut self, format: OutputFormat) -> Self {
         self.config.format = format;
         self
     }
 
     /// Set the number of threads for parallel generation (default: number of CPUs)
-    pub fn num_threads(mut self, num_threads: usize) -> Self {
+    pub fn with_num_threads(mut self, num_threads: usize) -> Self {
         self.config.num_threads = num_threads;
         self
     }
 
     /// Set Parquet compression format (default: SNAPPY)
-    pub fn parquet_compression(mut self, compression: Compression) -> Self {
+    pub fn with_parquet_compression(mut self, compression: Compression) -> Self {
         self.config.parquet_compression = compression;
         self
     }
 
     /// Set target row group size in bytes for Parquet files (default: 7MB)
-    pub fn parquet_row_group_bytes(mut self, bytes: i64) -> Self {
+    pub fn with_parquet_row_group_bytes(mut self, bytes: i64) -> Self {
         self.config.parquet_row_group_bytes = bytes;
         self
     }
 
     /// Set the number of partitions to generate
-    pub fn parts(mut self, parts: i32) -> Self {
+    pub fn with_parts(mut self, parts: i32) -> Self {
         self.config.parts = Some(parts);
         self
     }
 
     /// Set the specific partition to generate (1-based, requires parts to be set)
-    pub fn part(mut self, part: i32) -> Self {
+    pub fn with_part(mut self, part: i32) -> Self {
         self.config.part = Some(part);
         self
     }
 
     /// Write output to stdout instead of files
-    pub fn stdout(mut self, stdout: bool) -> Self {
+    pub fn with_stdout(mut self, stdout: bool) -> Self {
         self.config.stdout = stdout;
         self
     }
