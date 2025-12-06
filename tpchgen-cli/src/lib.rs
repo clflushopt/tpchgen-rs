@@ -23,10 +23,9 @@
 //! # }
 //! ```
 
-// Re-export commonly used types
+pub use crate::plan::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 pub use ::parquet::basic::Compression;
 
-// Internal modules (pub for use by binary, but considered internal API)
 pub mod csv;
 pub mod generate;
 pub mod output_plan;
@@ -36,9 +35,6 @@ pub mod runner;
 pub mod statistics;
 pub mod tbl;
 
-// Re-export key types
-pub use crate::plan::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
-
 use crate::generate::Sink;
 use crate::parquet::IntoSize;
 use crate::statistics::WriteStatistics;
@@ -47,7 +43,6 @@ use std::fs::File;
 use std::io::{self, BufWriter, Stdout, Write};
 use std::str::FromStr;
 
-// WriterSink and IntoSize implementations (used by runner)
 /// Wrapper around a buffer writer that counts the number of buffers and bytes written
 pub struct WriterSink<W: Write> {
     statistics: WriteStatistics,
@@ -200,10 +195,6 @@ impl Display for OutputFormat {
         }
     }
 }
-
-// ============================================================================
-// Public Library API
-// ============================================================================
 
 /// Configuration for TPC-H data generation
 ///
@@ -460,6 +451,11 @@ impl TpchGeneratorBuilder {
         Self {
             config: GeneratorConfig::default(),
         }
+    }
+
+    /// Returns the scale factor.
+    pub fn scale_factor(&self) -> f64 {
+        self.config.scale_factor
     }
 
     /// Set the scale factor (e.g., 1.0 for 1GB, 10.0 for 10GB)
