@@ -64,11 +64,11 @@ jobs:
             os: windows
 
           # macOS
-          - runner: macos-13
-            target: x86_64
-            os: macos
           - runner: macos-14
             target: aarch64
+            os: macos
+          - runner: macos-15-intel
+            target: x86_64
             os: macos
 
     steps:
