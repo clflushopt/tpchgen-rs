@@ -1,6 +1,6 @@
 [package]
 name = "tpchgen-arrow"
-version = "2.0.1"
+version = "2.0.2"
 edition = "2024"
 authors = ["clflushopt", "alamb"]
 description = "TPC-H data generator into Apache Arrow format"
@@ -10,7 +10,7 @@ license = "Apache-2.0"
 
 [dependencies]
 arrow = { version = "57.1", default-features = false, features = ["prettyprint"] }
-tpchgen = { path = "../tpchgen", version = "2.0.1" }
+tpchgen = { path = "../tpchgen", version = "2.0.2" }
 
 [dev-dependencies]
 arrow-csv = "57.1"
