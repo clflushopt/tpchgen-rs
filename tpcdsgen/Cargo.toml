@@ -1,0 +1,18 @@
+[package]
+name = "tpcdsgen"
+authors = ["clflushopt", "alamb"]
+description = "TPC-DS data generation library."
+repository = "https://github.com/clflushopt/tpchgen-rs"
+version = "0.1.0"
+edition = "2021"
+default-run = "tpcdsgen"
+license = { workspace = true }
+homepage = { workspace = true }
+
+[dependencies]
+clap = { version = "4.0", features = ["derive"] }
+chrono = "0.4"
+
+[[bin]]
+name = "tpcdsgen"
+path = "src/main.rs"

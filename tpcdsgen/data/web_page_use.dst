@@ -1,0 +1,13 @@
+------
+-- web_page_use
+-- values           weights
+-- -----------------------
+--  1. type     1. uniform
+------
+general: 1
+order: 1
+welcome: 1
+ad: 1
+feedback: 1
+protected: 1
+dynamic: 1

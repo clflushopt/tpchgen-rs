@@ -1,0 +1,12 @@
+------
+-- music_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+rock, 2: 1
+country, 2: 1
+pop, 2: 1
+classical, 2: 1

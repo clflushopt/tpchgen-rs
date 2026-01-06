@@ -1,0 +1,26 @@
+------
+-- ship_mode_carrier
+-- values           weights
+-- -----------------------
+--  1. carrier      1. uniform
+------
+UPS: 1
+FEDEX: 1
+AIRBORNE: 1
+USPS: 1
+DHL: 1
+TBS: 1
+ZHOU: 1
+ZOUROS: 1
+MSC: 1
+LATVIAN: 1
+ALLIANCE: 1
+ORIENTAL: 1
+BARIAN: 1
+BOXBUNDLES: 1
+GREAT EASTERN: 1
+DIAMOND: 1
+RUPEKSA: 1
+GERMA: 1
+HARMSTORF: 1
+PRIVATECARRIER: 1

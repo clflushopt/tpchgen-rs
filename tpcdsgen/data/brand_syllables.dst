@@ -1,0 +1,16 @@
+------
+-- brand_syllables
+-- values           weights
+-- --------------------------
+--  1. syllable    1. uniform
+------
+univ: 1
+amalg: 1
+importo:1
+exporti:1
+edu pack:1
+scholar:1
+corp:1
+brand:1
+nameless:1
+maxi:1

@@ -1,0 +1,24 @@
+------
+-- home_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+bathroom, 10: 1
+bedding, 10: 1
+kids, 10: 1
+curtains/drapes, 10: 1
+blinds/shades, 10: 1
+rugs, 10: 1
+decor, 10: 1
+lighting, 10: 1
+mattresses, 10: 1
+flatware, 10: 1
+accent, 10: 1
+paint, 10: 1
+wallpaper, 10: 1
+glassware, 10: 1
+tables, 10: 1
+furniture, 10: 1

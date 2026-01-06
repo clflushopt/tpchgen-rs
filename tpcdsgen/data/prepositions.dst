@@ -1,0 +1,221 @@
+-- prepositions
+-- from the common word list
+-- values             weights
+-- ======            ========
+-- 1. preposition    1. weight
+in:169586
+to:84535
+for:76889
+with:60602
+on:59030
+by:49067
+at:43557
+from:39087
+into:15239
+about:11594
+as:10556
+like:8786
+between:8703
+through:6762
+after:5897
+against:5354
+under:5319
+over:5024
+out of:4393
+without:4351
+within:4249
+during:4243
+before:3662
+such as:3161
+towards:2732
+up:2445
+including:2265
+among:2259
+upon:2257
+up to:2236
+across:2023
+behind:1949
+off:1819
+rather than:1684
+around:1650
+because of:1635
+according to:1534
+despite:1436
+since:1368
+down:1305
+per:1275
+near:1245
+above:1244
+throughout:1132
+away from:1096
+outside:1066
+beyond:1036
+until:895
+in terms of:856
+due to:856
+worth:817
+along:787
+on to:781
+as to:738
+inside:661
+plus:619
+apart from:592
+in front of:589
+together with:569
+beside:563
+below:549
+onto:522
+subject to:497
+beneath:488
+along with:475
+past:472
+via:456
+in relation to:428
+amongst:423
+other than:401
+in addition to:331
+in favour of:327
+unlike:309
+aged:306
+concerning:305
+prior to:296
+but for:294
+in spite of:275
+in respect of:273
+alongside:266
+next to:265
+as for:260
+ahead of:246
+on behalf of:245
+on top of:223
+regarding:219
+depending on:208
+in response to:195
+in accordance with:195
+except for:190
+in the light of:170
+except:170
+instead of:158
+in charge of:152
+with regard to:151
+in connection with:151
+by means of:149
+on the part of:148
+out:145
+in view of:145
+as opposed to:143
+by way of:133
+with respect to:128
+contrary to:128
+toward:125
+in conjunction with:122
+in line with:117
+till:113
+following:113
+in touch with:110
+amid:109
+in support of:103
+in search of:100
+relative to:96
+in return for:93
+versus:92
+let alone:82
+irrespective of:82
+besides:81
+with a view to:80
+considering:79
+owing to:77
+near to:77
+in excess of:77
+in place of:76
+in need of:76
+in common with:76
+as of:69
+underneath:65
+outside of:65
+excluding:64
+up until:59
+as regards:59
+aboard:54
+pending:53
+on board:53
+notwithstanding:53
+adjacent to:51
+on account of:49
+amidst:48
+in keeping with:44
+opposite:43
+in comparison with:43
+pursuant to:42
+as against:41
+minus:40
+in contact with:40
+in association with:40
+thanks to:38
+unto:37
+with reference to:36
+for fear of:36
+nearer to:34
+in pursuit of:33
+in possession of:32
+in case of:32
+by reason of:31
+in between:29
+aside from:29
+in answer to:28
+in aid of:27
+in regard to:25
+in proportion to:25
+as from:25
+as between:25
+save:23
+into line with:23
+in defence of:21
+save for:20
+as well as:20
+vice:19
+in receipt of:19
+pro:18
+than:16
+of:15
+nearest to:15
+in reply to:15
+in consultation with:15
+nearer:14
+in lieu of:14
+in accord with:14
+atop:14
+in defiance of:13
+pertaining to:12
+off of:12
+given:12
+astride:12
+nearest:11
+in light of:11
+subsequent to:10
+out of touch with:10
+alias:10
+respecting:9
+a la:9
+barring:7
+vis-a-vis:6
+times:6
+in face of:6
+but:6
+out of line with:5
+due:5
+in cooperation with:4
+excepting:4
+thru:3
+top of:2
+prp:2
+in-between:2
+in favor of:2
+ere:2
+afore:2
+terms of:1
+saving:1
+in quest of:1
+apropos:1
+addition to:1
+according:1

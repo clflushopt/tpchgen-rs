@@ -1,0 +1,82 @@
+------
+-- return_reasons
+------
+-- values           weights
+-- -----------------------
+--  1. reason       1-6. not sure... none are ever used
+------
+Package was damaged: 1, 0, 0, 0, 0, 0
+Stopped working: 1, 0, 0, 0, 0, 0
+Did not get it on time: 1, 0, 0, 0, 0, 0
+Not the product that was ordred: 1, 0, 0, 0, 0, 0
+Parts missing: 1, 0, 0, 0, 0, 0
+Does not work with a product that I have: 1, 0, 0, 0, 0, 0
+Gift exchange: 1, 0, 0, 0, 0, 0
+Did not like the color: 1, 0, 0, 0, 0, 0
+Did not like the model: 1, 0, 0, 0, 0, 0
+Did not like the make: 1, 0, 0, 0, 0, 0
+Did not like the warranty: 1, 0, 0, 0, 0, 0
+No service location in my area: 1, 0, 0, 0, 0, 0
+Found a better price in a store: 1, 0, 0, 0, 0, 0
+Found a better extended warranty in a store: 1, 0, 0, 0, 0, 0
+Not working any more: 1, 0, 0, 0, 0, 0
+Did not fit: 1, 0, 0, 0, 0, 0
+Wrong size: 1, 0, 0, 0, 0, 0
+Lost my job: 1, 0, 0, 0, 0, 0
+unauthoized purchase: 1, 0, 0, 0, 0, 0
+duplicate purchase: 1, 0, 0, 0, 0, 0
+its is a boy: 1, 0, 0, 0, 0, 0
+it is a girl: 1, 0, 0, 0, 0, 0
+reason 23: 1, 0, 0, 0, 0, 0
+reason 24: 1, 0, 0, 0, 0, 0
+reason 25: 1, 0, 0, 0, 0, 0
+reason 26: 1, 0, 0, 0, 0, 0
+reason 27: 1, 0, 0, 0, 0, 0
+reason 28: 1, 0, 0, 0, 0, 0
+reason 29: 1, 0, 0, 0, 0, 0
+reason 31: 1, 0, 0, 0, 0, 0
+reason 31: 1, 0, 0, 0, 0, 0
+reason 32: 1, 0, 0, 0, 0, 0
+reason 33: 1, 0, 0, 0, 0, 0
+reason 34: 1, 0, 0, 0, 0, 0
+reason 35: 1, 0, 0, 0, 0, 0
+reason 36: 1, 1, 0, 0, 0, 0
+reason 37: 1, 1, 0, 0, 0, 0
+reason 38: 1, 1, 0, 0, 0, 0
+reason 39: 1, 1, 0, 0, 0, 0
+reason 40: 1, 1, 0, 0, 0, 0
+reason 41: 1, 1, 0, 0, 0, 0
+reason 42: 1, 1, 0, 0, 0, 0
+reason 43: 1, 1, 0, 0, 0, 0
+reason 44: 1, 1, 0, 0, 0, 0
+reason 45: 1, 1, 0, 0, 0, 0
+reason 46: 1, 1, 1, 0, 0, 0
+reason 47: 1, 1, 1, 0, 0, 0
+reason 48: 1, 1, 1, 0, 0, 0
+reason 49: 1, 1, 1, 0, 0, 0
+reason 50: 1, 1, 1, 0, 0, 0
+reason 51: 1, 1, 1, 0, 0, 0
+reason 52: 1, 1, 1, 0, 0, 0
+reason 53: 1, 1, 1, 0, 0, 0
+reason 54: 1, 1, 1, 0, 0, 0
+reason 55: 1, 1, 1, 0, 0, 0
+reason 56: 1, 1, 1, 1, 0, 0
+reason 57: 1, 1, 1, 1, 0, 0
+reason 58: 1, 1, 1, 1, 0, 0
+reason 59: 1, 1, 1, 1, 0, 0
+reason 60: 1, 1, 1, 1, 0, 0
+reason 61: 1, 1, 1, 1, 0, 0
+reason 62: 1, 1, 1, 1, 0, 0
+reason 63: 1, 1, 1, 1, 0, 0
+reason 64: 1, 1, 1, 1, 0, 0
+reason 65: 1, 1, 1, 1, 0, 0
+reason 66: 1, 1, 1, 1, 1, 0
+reason 67: 1, 1, 1, 1, 1, 0
+reason 68: 1, 1, 1, 1, 1, 0
+reason 69: 1, 1, 1, 1, 1, 0
+reason 70: 1, 1, 1, 1, 1, 0
+reason 71: 1, 1, 1, 1, 1, 1
+reason 72: 1, 1, 1, 1, 1, 1
+reason 73: 1, 1, 1, 1, 1, 1
+reason 74: 1, 1, 1, 1, 1, 1
+reason 75: 1, 1, 1, 1, 1, 1

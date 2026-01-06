@@ -1,0 +1,1053 @@
+--
+-- Legal Notice
+--
+-- This document and associated source code (the Work) is a part of a
+-- benchmark specification maintained by the TPC.
+--
+-- The TPC reserves all right, title, and interest to the Work as provided
+-- under U.S. and international laws, including without limitation all patent
+-- and trademark rights therein.
+--
+-- No Warranty
+--
+-- 1.1 TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, THE INFORMATION
+--     CONTAINED HEREIN IS PROVIDED AS IS AND WITH ALL FAULTS, AND THE
+--     AUTHORS AND DEVELOPERS OF THE WORK HEREBY DISCLAIM ALL OTHER
+--     WARRANTIES AND CONDITIONS, EITHER EXPRESS, IMPLIED OR STATUTORY,
+--     INCLUDING, BUT NOT LIMITED TO, ANY (IF ANY) IMPLIED WARRANTIES,
+--     DUTIES OR CONDITIONS OF MERCHANTABILITY, OF FITNESS FOR A PARTICULAR
+--     PURPOSE, OF ACCURACY OR COMPLETENESS OF RESPONSES, OF RESULTS, OF
+--     WORKMANLIKE EFFORT, OF LACK OF VIRUSES, AND OF LACK OF NEGLIGENCE.
+--     ALSO, THERE IS NO WARRANTY OR CONDITION OF TITLE, QUIET ENJOYMENT,
+--     QUIET POSSESSION, CORRESPONDENCE TO DESCRIPTION OR NON-INFRINGEMENT
+--     WITH REGARD TO THE WORK.
+-- 1.2 IN NO EVENT WILL ANY AUTHOR OR DEVELOPER OF THE WORK BE LIABLE TO
+--     ANY OTHER PARTY FOR ANY DAMAGES, INCLUDING BUT NOT LIMITED TO THE
+--     COST OF PROCURING SUBSTITUTE GOODS OR SERVICES, LOST PROFITS, LOSS
+--     OF USE, LOSS OF DATA, OR ANY INCIDENTAL, CONSEQUENTIAL, DIRECT,
+--     INDIRECT, OR SPECIAL DAMAGES WHETHER UNDER CONTRACT, TORT, WARRANTY,
+--     OR OTHERWISE, ARISING IN ANY WAY OUT OF THIS OR ANY OTHER AGREEMENT
+--     RELATING TO THE WORK, WHETHER OR NOT SUCH AUTHOR OR DEVELOPER HAD
+--     ADVANCE NOTICE OF THE POSSIBILITY OF SUCH DAMAGES.
+--
+-- Contributors:
+-- Gradient Systems
+--
+--
+--
+--
+--
+------
+-- cities.dst
+-- the 1000 most common place names, from the USGS list of populated places
+--   second level used to populate the item hierarchy
+-- values			weights
+-- ======          =========
+--	1. city name	1. skewed from USGS (usgs)
+--			        2. uniform (uniform)
+--			        3. large cities (large)
+--			        4. medium step (medium)
+--			        5. small cities (small)
+--			        6. unified step function
+------
+Midway:212, 1, 1, 0, 0, 600
+Fairview:199, 1, 1, 0, 0, 600
+Oak Grove:160, 1, 1, 0, 0, 600
+Five Points:147, 1, 1, 0, 0, 600
+Pleasant Hill:119, 1, 1, 0, 0, 600
+Riverside:117, 1, 1, 0, 0, 600
+Mount Pleasant:116, 1, 1, 0, 0, 600
+Centerville:108, 1, 1, 0, 0, 600
+Bethel:108, 1, 1, 0, 0, 600
+New Hope:105, 1, 1, 0, 0, 600
+Liberty:98, 1, 1, 0, 0, 600
+Union:94, 1, 1, 0, 0, 600
+Pleasant Valley:90, 1, 1, 0, 0, 600
+Oakland:87, 1, 1, 0, 0, 600
+Salem:86, 1, 1, 0, 0, 600
+Pleasant Grove:86, 1, 1, 0, 0, 600
+Greenwood:85, 1, 1, 0, 0, 600
+Shady Grove:84, 1, 1, 0, 0, 600
+Pine Grove:82, 1, 1, 0, 0, 600
+Shiloh:78, 1, 1, 0, 0, 600
+Oak Hill:77, 1, 1, 0, 0, 600
+Concord:74, 1, 1, 0, 0, 600
+Georgetown:73, 1, 1, 0, 0, 600
+Cedar Grove:73, 1, 1, 0, 0, 600
+Lakeview:72, 1, 1, 0, 0, 600
+Antioch:71, 1, 1, 0, 0, 600
+Glendale:70, 1, 1, 0, 0, 600
+Hopewell:67, 1, 1, 0, 0, 600
+Friendship:67, 1, 1, 0, 0, 600
+Sunnyside:66, 1, 1, 0, 0, 600
+Spring Hill:65, 1, 1, 0, 0, 600
+Lakewood:65, 1, 1, 0, 0, 600
+Springfield:64, 1, 1, 0, 0, 600
+Stringtown:62, 1, 1, 0, 0, 600
+Harmony:62, 1, 1, 0, 0, 600
+Riverview:60, 1, 1, 0, 0, 600
+Buena Vista:60, 1, 1, 0, 0, 600
+Highland:59, 1, 1, 0, 0, 600
+Highland Park:58, 1, 1, 0, 0, 600
+Franklin:58, 1, 1, 0, 0, 600
+Woodlawn:56, 1, 1, 0, 0, 600
+Mount Vernon:56, 1, 1, 0, 0, 600
+Lakeside:56, 1, 1, 0, 0, 600
+Glenwood:55, 1, 1, 0, 0, 600
+Fairfield:55, 1, 1, 0, 0, 600
+Oakdale:54, 1, 1, 0, 0, 600
+Spring Valley:53, 1, 1, 0, 0, 600
+Walnut Grove:52, 1, 1, 0, 0, 600
+Providence:52, 1, 1, 0, 0, 600
+Mount Zion:52, 1, 1, 0, 0, 600
+Greenville:52, 1, 1, 0, 0, 600
+Mount Olive:51, 1, 1, 0, 0, 600
+Wildwood:50, 1, 1, 0, 0, 600
+Hillcrest:50, 1, 1, 0, 0, 600
+Crossroads:50, 1, 1, 0, 0, 600
+Belmont:50, 1, 1, 0, 0, 600
+Wilson:49, 1, 1, 0, 0, 600
+Riverdale:49, 1, 1, 0, 0, 600
+Newport:49, 1, 1, 0, 0, 600
+Springdale:48, 1, 1, 0, 0, 600
+Mountain View:48, 1, 1, 0, 0, 600
+Forest Hills:48, 1, 1, 0, 0, 600
+Bridgeport:48, 1, 1, 0, 0, 600
+White Oak:47, 1, 1, 0, 0, 600
+Oakwood:47, 1, 1, 0, 0, 600
+Newtown:47, 1, 1, 0, 0, 600
+Macedonia:47, 1, 1, 0, 0, 600
+Five Forks:47, 1, 1, 0, 0, 600
+Edgewood:47, 1, 1, 0, 0, 600
+Arlington:47, 1, 1, 0, 0, 600
+Unionville:46, 1, 1, 0, 0, 600
+Red Hill:46, 1, 1, 0, 0, 600
+Clinton:46, 1, 1, 0, 0, 600
+Woodville:45, 1, 1, 0, 0, 600
+Summit:45, 1, 1, 0, 0, 600
+Jamestown:45, 1, 1, 0, 0, 600
+Hamilton:45, 1, 1, 0, 0, 600
+Clifton:45, 1, 1, 0, 0, 600
+Union Hill:44, 1, 1, 0, 0, 600
+Sulphur Springs:44, 1, 1, 0, 0, 600
+Lincoln:44, 1, 1, 0, 0, 600
+Lebanon:44, 1, 1, 0, 0, 600
+Farmington:44, 1, 1, 0, 0, 600
+Enterprise:43, 1, 1, 0, 0, 600
+Brownsville:43, 1, 1, 0, 0, 600
+Ashland:43, 1, 1, 0, 0, 600
+Woodland:42, 1, 1, 0, 0, 600
+Waterloo:42, 1, 1, 0, 0, 600
+Valley View:42, 1, 1, 0, 0, 600
+Oak Ridge:42, 1, 1, 0, 0, 600
+Maple Grove:42, 1, 1, 0, 0, 600
+Kingston:42, 1, 1, 0, 0, 600
+Jackson:42, 1, 1, 0, 0, 600
+Greenfield:42, 1, 1, 0, 0, 600
+Green Acres:42, 1, 1, 0, 0, 600
+Plainview:41, 1, 1, 0, 0, 600
+Marion:41, 1, 1, 0, 0, 600
+Florence:41, 1, 1, 0, 0, 600
+Deerfield:41, 1, 1, 0, 0, 600
+Bunker Hill:41, 1, 1, 0, 0, 600
+Smithville:40, 1, 0, 0, 1, 1
+Rockville:40, 1, 0, 0, 1, 1
+Melrose:40, 1, 0, 0, 1, 1
+Magnolia:40, 1, 0, 0, 1, 1
+Jefferson:40, 1, 0, 0, 1, 1
+Jacksonville:40, 1, 0, 0, 1, 1
+Hebron:40, 1, 0, 0, 1, 1
+Avondale:40, 1, 0, 0, 1, 1
+Petersburg:39, 1, 0, 0, 1, 1
+Needmore:39, 1, 0, 0, 1, 1
+Mount Carmel:39, 1, 0, 0, 1, 1
+Eureka:39, 1, 0, 0, 1, 1
+Eden:39, 1, 0, 0, 1, 1
+Dover:39, 1, 0, 0, 1, 1
+Corinth:39, 1, 0, 0, 1, 1
+Buffalo:39, 1, 0, 0, 1, 1
+Rosedale:38, 1, 0, 0, 1, 1
+Pleasant View:38, 1, 0, 0, 1, 1
+Milton:38, 1, 0, 0, 1, 1
+Independence:38, 1, 0, 0, 1, 1
+Grandview:38, 1, 0, 0, 1, 1
+Four Corners:38, 1, 0, 0, 1, 1
+Cloverdale:38, 1, 0, 0, 1, 1
+Westwood:37, 1, 0, 0, 1, 1
+Vernon:37, 1, 0, 0, 1, 1
+Sharon:37, 1, 0, 0, 1, 1
+Richland:37, 1, 0, 0, 1, 1
+Beulah:37, 1, 0, 0, 1, 1
+Williamsburg:36, 1, 0, 0, 1, 1
+Hollywood:36, 1, 0, 0, 1, 1
+Hillsdale:36, 1, 0, 0, 1, 1
+Ebenezer:36, 1, 0, 0, 1, 1
+Cross Roads:36, 1, 0, 0, 1, 1
+Winchester:35, 1, 0, 0, 1, 1
+Washington:35, 1, 0, 0, 1, 1
+Troy:35, 1, 0, 0, 1, 1
+Prospect:35, 1, 0, 0, 1, 1
+Oxford:35, 1, 0, 0, 1, 1
+Norwood:35, 1, 0, 0, 1, 1
+Mill Creek:35, 1, 0, 0, 1, 1
+Middletown:35, 1, 0, 0, 1, 1
+Jericho:35, 1, 0, 0, 1, 1
+Forest Hills:35, 1, 0, 0, 1, 1
+Columbia:35, 1, 0, 0, 1, 1
+Bethlehem:35, 1, 0, 0, 1, 1
+Anderson:35, 1, 0, 0, 1, 1
+Waverly:34, 1, 0, 0, 1, 1
+Watson:34, 1, 0, 0, 1, 1
+Rose Hill:34, 1, 0, 0, 1, 1
+Pine Hill:34, 1, 0, 0, 1, 1
+Monroe:34, 1, 0, 0, 1, 1
+Milltown:34, 1, 0, 0, 1, 1
+Manchester:34, 1, 0, 0, 1, 1
+Hilltop:34, 1, 0, 0, 1, 1
+Harrisburg:34, 1, 0, 0, 1, 1
+Dixie:34, 1, 0, 0, 1, 1
+Bellevue:34, 1, 0, 0, 1, 1
+Smyrna:33, 1, 0, 0, 1, 1
+Sherwood Forest:33, 1, 0, 0, 1, 1
+Pleasant Ridge:33, 1, 0, 0, 1, 1
+Forest Park:33, 1, 0, 0, 1, 1
+Dayton:33, 1, 0, 0, 1, 1
+Clayton:33, 1, 0, 0, 1, 1
+Chester:33, 1, 0, 0, 1, 1
+Webster:32, 1, 0, 0, 1, 1
+Warren:32, 1, 0, 0, 1, 1
+Somerset:32, 1, 0, 0, 1, 1
+Richmond:32, 1, 0, 0, 1, 1
+Milford:32, 1, 0, 0, 1, 1
+Johnson:32, 1, 0, 0, 1, 1
+Evergreen:32, 1, 0, 0, 1, 1
+Elmwood:32, 1, 0, 0, 1, 1
+Bloomfield:32, 1, 0, 0, 1, 1
+Bethany:32, 1, 0, 0, 1, 1
+Auburn:32, 1, 0, 0, 1, 1
+Williams:31, 1, 0, 0, 1, 1
+Walker:31, 1, 0, 0, 1, 1
+Rosemont:31, 1, 0, 0, 1, 1
+Millville:31, 1, 0, 0, 1, 1
+Mechanicsville:31, 1, 0, 0, 1, 1
+Liberty Hill:31, 1, 0, 0, 1, 1
+Huntington:31, 1, 0, 0, 1, 1
+Hillsboro:31, 1, 0, 0, 1, 1
+Hickory Grove:31, 1, 0, 0, 1, 1
+Germantown:31, 1, 0, 0, 1, 1
+Flat Rock:31, 1, 0, 0, 1, 1
+Douglas:31, 1, 0, 0, 1, 1
+Cleveland:31, 1, 0, 0, 1, 1
+Central:31, 1, 0, 0, 1, 1
+Brooklyn:31, 1, 0, 0, 1, 1
+Brighton:31, 1, 0, 0, 1, 1
+Alpine:31, 1, 0, 0, 1, 1
+Weston:30, 1, 0, 0, 1, 1
+Taylor:30, 1, 0, 0, 1, 1
+Sherwood Forest:30, 1, 0, 0, 1, 1
+Rockdale:30, 1, 0, 0, 1, 1
+Princeton:30, 1, 0, 0, 1, 1
+Preston:30, 1, 0, 0, 1, 1
+Nelson:30, 1, 0, 0, 1, 1
+Martin:30, 1, 0, 0, 1, 1
+Madison:30, 1, 0, 0, 1, 1
+Logan:30, 1, 0, 0, 1, 1
+Linwood:30, 1, 0, 0, 1, 1
+Hope:30, 1, 0, 0, 1, 1
+Holland:30, 1, 0, 0, 1, 1
+High Point:30, 1, 0, 0, 1, 1
+Goshen:30, 1, 0, 0, 1, 1
+Danville:30, 1, 0, 0, 1, 1
+Burlington:30, 1, 0, 0, 1, 1
+Wallace:29, 1, 0, 0, 1, 1
+Rock Creek:29, 1, 0, 0, 1, 1
+Oak Park:29, 1, 0, 0, 1, 1
+Meadowbrook:29, 1, 0, 0, 1, 1
+Locust Grove:29, 1, 0, 0, 1, 1
+Lexington:29, 1, 0, 0, 1, 1
+Howard:29, 1, 0, 0, 1, 1
+Henderson:29, 1, 0, 0, 1, 1
+Hanover:29, 1, 0, 0, 1, 1
+Hampton:29, 1, 0, 0, 1, 1
+Hamburg:29, 1, 0, 0, 1, 1
+Five Corners:29, 1, 0, 0, 1, 1
+Fairmount:29, 1, 0, 0, 1, 1
+Chapel Hill:29, 1, 0, 0, 1, 1
+Canton:29, 1, 0, 0, 1, 1
+Campbell:29, 1, 0, 0, 1, 1
+Berlin:29, 1, 0, 0, 1, 1
+Baker:29, 1, 0, 0, 1, 1
+Avon:29, 1, 0, 0, 1, 1
+Arcadia:29, 1, 0, 0, 1, 1
+Windsor:28, 1, 0, 0, 1, 1
+Westfield:28, 1, 0, 0, 1, 1
+Sardis:28, 1, 0, 0, 1, 1
+Russellville:28, 1, 0, 0, 1, 1
+Rogers:28, 1, 0, 0, 1, 1
+Rock Springs:28, 1, 0, 0, 1, 1
+Riverton:28, 1, 0, 0, 1, 1
+Randolph:28, 1, 0, 0, 1, 1
+Plymouth:28, 1, 0, 0, 1, 1
+Piney Grove:28, 1, 0, 0, 1, 1
+Pinehurst:28, 1, 0, 0, 1, 1
+Mount Hope:28, 1, 0, 0, 1, 1
+Montrose:28, 1, 0, 0, 1, 1
+Miller:28, 1, 0, 0, 1, 1
+Marshall:28, 1, 0, 0, 1, 1
+Lowell:28, 1, 0, 0, 1, 1
+Keystone:28, 1, 0, 0, 1, 1
+Indian Hills:28, 1, 0, 0, 1, 1
+Hudson:28, 1, 0, 0, 1, 1
+Geneva:28, 1, 0, 0, 1, 1
+Englewood:28, 1, 0, 0, 1, 1
+Cottonwood:28, 1, 0, 0, 1, 1
+Clyde:28, 1, 0, 0, 1, 1
+Cedar Hill:28, 1, 0, 0, 1, 1
+Bristol:28, 1, 0, 0, 1, 1
+Beechwood:28, 1, 0, 0, 1, 1
+Aurora:28, 1, 0, 0, 1, 1
+West Point:27, 1, 0, 0, 1, 1
+Trenton:27, 1, 0, 0, 1, 1
+Sunset:27, 1, 0, 0, 1, 1
+Sunrise:27, 1, 0, 0, 1, 1
+Spring Creek:27, 1, 0, 0, 1, 1
+Rolling Hills:27, 1, 0, 0, 1, 1
+Portland:27, 1, 0, 0, 1, 1
+Pine Ridge:27, 1, 0, 0, 1, 1
+Paradise:27, 1, 0, 0, 1, 1
+Monticello:27, 1, 0, 0, 1, 1
+Monterey:27, 1, 0, 0, 1, 1
+Mitchell:27, 1, 0, 0, 1, 1
+Midland:27, 1, 0, 0, 1, 1
+Jordan:27, 1, 0, 0, 1, 1
+Green Valley:27, 1, 0, 0, 1, 1
+Garfield:27, 1, 0, 0, 1, 1
+Garden City:27, 1, 0, 0, 1, 1
+Cold Spring:27, 1, 0, 0, 1, 1
+Clarksville:27, 1, 0, 0, 1, 1
+Cameron:27, 1, 0, 0, 1, 1
+Cambridge:27, 1, 0, 0, 1, 1
+Asbury:27, 1, 0, 0, 1, 1
+Adams:27, 1, 0, 0, 1, 1
+York:26, 1, 0, 0, 1, 1
+White Rock:26, 1, 0, 0, 1, 1
+Wakefield:26, 1, 0, 0, 1, 1
+Victoria:26, 1, 0, 0, 1, 1
+Unity:26, 1, 0, 0, 1, 1
+Twin Lakes:26, 1, 0, 0, 1, 1
+Three Forks:26, 1, 0, 0, 1, 1
+Sycamore:26, 1, 0, 0, 1, 1
+Springville:26, 1, 0, 0, 1, 1
+Russell:26, 1, 0, 0, 1, 1
+Ridgeway:26, 1, 0, 0, 1, 1
+Pisgah:26, 1, 0, 0, 1, 1
+Morgan:26, 1, 0, 0, 1, 1
+Mayfield:26, 1, 0, 0, 1, 1
+Maplewood:26, 1, 0, 0, 1, 1
+Longview:26, 1, 0, 0, 1, 1
+Linden:26, 1, 0, 0, 1, 1
+Lancaster:26, 1, 0, 0, 1, 1
+Harris:26, 1, 0, 0, 1, 1
+Good Hope:26, 1, 0, 0, 1, 1
+Gibson:26, 1, 0, 0, 1, 1
+Fulton:26, 1, 0, 0, 1, 1
+Deer Park:26, 1, 0, 0, 1, 1
+Charleston:26, 1, 0, 0, 1, 1
+Center:26, 1, 0, 0, 1, 1
+Canaan:26, 1, 0, 0, 1, 1
+Boston:26, 1, 0, 0, 1, 1
+Beverly Hills:26, 1, 0, 0, 1, 1
+Benton:26, 1, 0, 0, 1, 1
+Woodstock:25, 1, 0, 0, 1, 1
+White City:25, 1, 0, 0, 1, 1
+Westville:25, 1, 0, 0, 1, 1
+Waterford:25, 1, 0, 0, 1, 1
+Walnut Hill:25, 1, 0, 0, 1, 1
+Verona:25, 1, 0, 0, 1, 1
+Turner:25, 1, 0, 0, 1, 1
+Sterling:25, 1, 0, 0, 1, 1
+Sheridan:25, 1, 0, 0, 1, 1
+Sand Hill:25, 1, 0, 0, 1, 1
+Pumpkin Center:25, 1, 0, 0, 1, 1
+Powell:25, 1, 0, 0, 1, 1
+Poplar Grove:25, 1, 0, 0, 1, 1
+Perry:25, 1, 0, 0, 1, 1
+Parker:25, 1, 0, 0, 1, 1
+Old Town:25, 1, 0, 0, 1, 1
+Oakley:25, 1, 0, 0, 1, 1
+Newton:25, 1, 0, 0, 1, 1
+New Salem:25, 1, 0, 0, 1, 1
+Nashville:25, 1, 0, 0, 1, 1
+Lyons:25, 1, 0, 0, 1, 1
+Lone Star:25, 1, 0, 0, 1, 1
+Klondike:25, 1, 0, 0, 1, 1
+Johnstown:25, 1, 0, 0, 1, 1
+Holly Springs:25, 1, 0, 0, 1, 1
+Harrison:25, 1, 0, 0, 1, 1
+Garland:25, 1, 0, 0, 1, 1
+Foster:25, 1, 0, 0, 1, 1
+Egypt:25, 1, 0, 0, 1, 1
+Davis:25, 1, 0, 0, 1, 1
+Chestnut Hill:25, 1, 0, 0, 1, 1
+Camden:25, 1, 0, 0, 1, 1
+Buckeye:25, 1, 0, 0, 1, 1
+Brookside:25, 1, 0, 0, 1, 1
+Brentwood:25, 1, 0, 0, 1, 1
+Austin:25, 1, 0, 0, 1, 1
+Allen:25, 1, 0, 0, 1, 1
+Woodside:24, 1, 0, 0, 1, 1
+Stony Point:24, 1, 0, 0, 1, 1
+Stanley:24, 1, 0, 0, 1, 1
+Simpson:24, 1, 0, 0, 1, 1
+Silver Lake:24, 1, 0, 0, 1, 1
+Saint Paul:24, 1, 0, 0, 1, 1
+Rome:24, 1, 0, 0, 1, 1
+Rockland:24, 1, 0, 0, 1, 1
+Ridgewood:24, 1, 0, 0, 1, 1
+Raymond:24, 1, 0, 0, 1, 1
+Piedmont:24, 1, 0, 0, 1, 1
+Paris:24, 1, 0, 0, 1, 1
+Palmyra:24, 1, 0, 0, 1, 1
+Orange:24, 1, 0, 0, 1, 1
+Oakville:24, 1, 0, 0, 1, 1
+Montgomery:24, 1, 0, 0, 1, 1
+Lincoln Park:24, 1, 0, 0, 1, 1
+Laurel:24, 1, 0, 0, 1, 1
+Lake City:24, 1, 0, 0, 1, 1
+Kenwood:24, 1, 0, 0, 1, 1
+Jonesville:24, 1, 0, 0, 1, 1
+Huntsville:24, 1, 0, 0, 1, 1
+Hickory Hill:24, 1, 0, 0, 1, 1
+Grant:24, 1, 0, 0, 1, 1
+Fernwood:24, 1, 0, 0, 1, 1
+Enon:24, 1, 0, 0, 1, 1
+Columbus:24, 1, 0, 0, 1, 1
+Carlisle:24, 1, 0, 0, 1, 1
+Brookfield:24, 1, 0, 0, 1, 1
+Bradford:24, 1, 0, 0, 1, 1
+Boyd:24, 1, 0, 0, 1, 1
+Baldwin:24, 1, 0, 0, 1, 1
+Alton:24, 1, 0, 0, 1, 1
+Allendale:24, 1, 0, 0, 1, 1
+Whitehall:23, 1, 0, 0, 1, 1
+Westwood:23, 1, 0, 0, 1, 1
+Wayne:23, 1, 0, 0, 1, 1
+Utica:23, 1, 0, 0, 1, 1
+Union Grove:23, 1, 0, 0, 1, 1
+Thornton:23, 1, 0, 0, 1, 1
+Shirley:23, 1, 0, 0, 1, 1
+Robinson:23, 1, 0, 0, 1, 1
+Patterson:23, 1, 0, 0, 1, 1
+Palestine:23, 1, 0, 0, 1, 1
+Norton:23, 1, 0, 0, 1, 1
+Northwood:23, 1, 0, 0, 1, 1
+New Haven:23, 1, 0, 0, 1, 1
+Moscow:23, 1, 0, 0, 1, 1
+Lakeland:23, 1, 0, 0, 1, 1
+Indian Springs:23, 1, 0, 0, 1, 1
+Hillside:23, 1, 0, 0, 1, 1
+Helena:23, 1, 0, 0, 1, 1
+Harrisville:23, 1, 0, 0, 1, 1
+Green Acres:23, 1, 0, 0, 1, 1
+Fairfax:23, 1, 0, 0, 1, 1
+Ellis:23, 1, 0, 0, 1, 1
+Easton:23, 1, 0, 0, 1, 1
+Durham:23, 1, 0, 0, 1, 1
+Diamond:23, 1, 0, 0, 1, 1
+Dale:23, 1, 0, 0, 1, 1
+Cuba:23, 1, 0, 0, 1, 1
+Cooper:23, 1, 0, 0, 1, 1
+Cold Springs:23, 1, 0, 0, 1, 1
+Cherry Hill:23, 1, 0, 0, 1, 1
+Center Point:23, 1, 0, 0, 1, 1
+Cairo:23, 1, 0, 0, 1, 1
+Butler:23, 1, 0, 0, 1, 1
+Buckhorn:23, 1, 0, 0, 1, 1
+Beech Grove:23, 1, 0, 0, 1, 1
+Augusta:23, 1, 0, 0, 1, 1
+Athens:23, 1, 0, 0, 1, 1
+Albion:23, 1, 0, 0, 1, 1
+Winona:22, 1, 0, 0, 1, 1
+Willard:22, 1, 0, 0, 1, 1
+Westport:22, 1, 0, 0, 1, 1
+West End:22, 1, 0, 0, 1, 1
+Wellington:22, 1, 0, 0, 1, 1
+Ward:22, 1, 0, 0, 1, 1
+Victor:22, 1, 0, 0, 1, 1
+Sunset Beach:22, 1, 0, 0, 1, 1
+Stanton:22, 1, 0, 0, 1, 1
+Spencer:22, 1, 0, 0, 1, 1
+Smithfield:22, 1, 0, 0, 1, 1
+Slabtown:22, 1, 0, 0, 1, 1
+Sidney:22, 1, 0, 0, 1, 1
+Sherwood:22, 1, 0, 0, 1, 1
+Rock Hill:22, 1, 0, 0, 1, 1
+Ramsey:22, 1, 0, 0, 1, 1
+Porter:22, 1, 0, 0, 1, 1
+Poplar Springs:22, 1, 0, 0, 1, 1
+Perryville:22, 1, 0, 0, 1, 1
+Palmer:22, 1, 0, 0, 1, 1
+Newburg:22, 1, 0, 0, 1, 1
+Middleton:22, 1, 0, 0, 1, 1
+Mapleton:22, 1, 0, 0, 1, 1
+Lawrence:22, 1, 0, 0, 1, 1
+Lafayette:22, 1, 0, 0, 1, 1
+Jonestown:22, 1, 0, 0, 1, 1
+Jimtown:22, 1, 0, 0, 1, 1
+Hunter:22, 1, 0, 0, 1, 1
+Houston:22, 1, 0, 0, 1, 1
+Happy Valley:22, 1, 0, 0, 1, 1
+Hammond:22, 1, 0, 0, 1, 1
+Green Hill:22, 1, 0, 0, 1, 1
+Gordon:22, 1, 0, 0, 1, 1
+Glencoe:22, 1, 0, 0, 1, 1
+Elgin:22, 1, 0, 0, 1, 1
+Dundee:22, 1, 0, 0, 1, 1
+Duncan:22, 1, 0, 0, 1, 1
+Delta:22, 1, 0, 0, 1, 1
+Dalton:22, 1, 0, 0, 1, 1
+Crawford:22, 1, 0, 0, 1, 1
+Country Club Estates:22, 1, 0, 0, 1, 1
+Cedar Springs:22, 1, 0, 0, 1, 1
+Briarwood:22, 1, 0, 0, 1, 1
+Bradley:22, 1, 0, 0, 1, 1
+Bloomington:22, 1, 0, 0, 1, 1
+Arnold:22, 1, 0, 0, 1, 1
+Albany:22, 1, 0, 0, 1, 1
+Adamsville:22, 1, 0, 0, 1, 1
+Zion:21, 1, 0, 0, 1, 1
+Westover:21, 1, 0, 0, 1, 1
+Waterville:21, 1, 0, 0, 1, 1
+Upton:21, 1, 0, 0, 1, 1
+Trinity:21, 1, 0, 0, 1, 1
+Thompson:21, 1, 0, 0, 1, 1
+Thomas:21, 1, 0, 0, 1, 1
+Tanglewood:21, 1, 0, 0, 1, 1
+Sunshine:21, 1, 0, 0, 1, 1
+Sugar Grove:21, 1, 0, 0, 1, 1
+Stockton:21, 1, 0, 0, 1, 1
+Snow Hill:21, 1, 0, 0, 1, 1
+Sherman:21, 1, 0, 0, 1, 1
+Scotland:21, 1, 0, 0, 1, 1
+Roseville:21, 1, 0, 0, 1, 1
+Roosevelt:21, 1, 0, 0, 1, 1
+Rockport:21, 1, 0, 0, 1, 1
+Rochester:21, 1, 0, 0, 1, 1
+Plainfield:21, 1, 0, 0, 1, 1
+Osceola:21, 1, 0, 0, 1, 1
+Mulberry:21, 1, 0, 0, 1, 1
+Millwood:21, 1, 0, 0, 1, 1
+McDonald:21, 1, 0, 0, 1, 1
+Maysville:21, 1, 0, 0, 1, 1
+Mason:21, 1, 0, 0, 1, 1
+Marysville:21, 1, 0, 0, 1, 1
+Mansfield:21, 1, 0, 0, 1, 1
+Lodi:21, 1, 0, 0, 1, 1
+Livingston:21, 1, 0, 0, 1, 1
+Kirkwood:21, 1, 0, 0, 1, 1
+Kent:21, 1, 0, 0, 1, 1
+Ingleside:21, 1, 0, 0, 1, 1
+Hyde Park:21, 1, 0, 0, 1, 1
+Homer:21, 1, 0, 0, 1, 1
+Hickory Hills:21, 1, 0, 0, 1, 1
+Hawthorne:21, 1, 0, 0, 1, 1
+Hartford:21, 1, 0, 0, 1, 1
+Fredonia:21, 1, 0, 0, 1, 1
+Evansville:21, 1, 0, 0, 1, 1
+Etna:21, 1, 0, 0, 1, 1
+Edgemont:21, 1, 0, 0, 1, 1
+Dexter:21, 1, 0, 0, 1, 1
+Crestwood:21, 1, 0, 0, 1, 1
+Crescent:21, 1, 0, 0, 1, 1
+Covington:21, 1, 0, 0, 1, 1
+Country Club Estates:21, 1, 0, 0, 1, 1
+Coleman:21, 1, 0, 0, 1, 1
+Chelsea:21, 1, 0, 0, 1, 1
+Chapman:21, 1, 0, 0, 1, 1
+Cedarville:21, 1, 0, 0, 1, 1
+Burton:21, 1, 0, 0, 1, 1
+Bryant:21, 1, 0, 0, 1, 1
+Browntown:21, 1, 0, 0, 1, 1
+Beverly:21, 1, 0, 0, 1, 1
+Beaver:21, 1, 0, 0, 1, 1
+Baxter:21, 1, 0, 0, 1, 1
+Barton:21, 1, 0, 0, 1, 1
+Ashton:21, 1, 0, 0, 1, 1
+Armstrong:21, 1, 0, 0, 1, 1
+Afton:21, 1, 0, 0, 1, 1
+Warsaw:20, 1, 0, 0, 1, 1
+Viola:20, 1, 0, 0, 1, 1
+Uniontown:20, 1, 0, 0, 1, 1
+Twin Oaks:20, 1, 0, 0, 1, 1
+Sweetwater:20, 1, 0, 0, 1, 1
+Stonewall:20, 1, 0, 0, 1, 1
+Spring Lake:20, 1, 0, 0, 1, 1
+Sparta:20, 1, 0, 0, 1, 1
+Ruby:20, 1, 0, 0, 1, 1
+Roseland:20, 1, 0, 0, 1, 1
+Pleasantville:20, 1, 0, 0, 1, 1
+Pittsburg:20, 1, 0, 0, 1, 1
+Pioneer:20, 1, 0, 0, 1, 1
+Pineville:20, 1, 0, 0, 1, 1
+Oak Forest:20, 1, 0, 0, 1, 1
+Northfield:20, 1, 0, 0, 1, 1
+Mount Airy:20, 1, 0, 0, 1, 1
+Maxwell:20, 1, 0, 0, 1, 1
+Marietta:20, 1, 0, 0, 1, 1
+Lamont:20, 1, 0, 0, 1, 1
+Lake View:20, 1, 0, 0, 1, 1
+Knoxville:20, 1, 0, 0, 1, 1
+Idlewild:20, 1, 0, 0, 1, 1
+Holt:20, 1, 0, 0, 1, 1
+Hastings:20, 1, 0, 0, 1, 1
+Hancock:20, 1, 0, 0, 1, 1
+Gilbert:20, 1, 0, 0, 1, 1
+Gardner:20, 1, 0, 0, 1, 1
+Freedom:20, 1, 0, 0, 1, 1
+Emerson:20, 1, 0, 0, 1, 1
+Echo:20, 1, 0, 0, 1, 1
+Dixon:20, 1, 0, 0, 1, 1
+Denver:20, 1, 0, 0, 1, 1
+Denton:20, 1, 0, 0, 1, 1
+Curtis:20, 1, 0, 0, 1, 1
+Creston:20, 1, 0, 0, 1, 1
+Clark:20, 1, 0, 0, 1, 1
+Chesterfield:20, 1, 0, 0, 1, 1
+Cedar Point:20, 1, 0, 0, 1, 1
+Cedar Creek:20, 1, 0, 0, 1, 1
+Cascade:20, 1, 0, 0, 1, 1
+Brandon:20, 1, 0, 0, 1, 1
+Blaine:20, 1, 0, 0, 1, 1
+Bancroft:20, 1, 0, 0, 1, 1
+Avalon:20, 1, 0, 0, 1, 1
+Atwood:20, 1, 0, 0, 1, 1
+Alma:20, 1, 0, 0, 1, 1
+Wheatland:19, 1, 0, 0, 1, 1
+Wells:19, 1, 0, 0, 1, 1
+Sun Valley:19, 1, 0, 0, 1, 1
+State Line:19, 1, 0, 0, 1, 1
+Silver City:19, 1, 0, 0, 1, 1
+Seneca:19, 1, 0, 0, 1, 1
+Selma:19, 1, 0, 0, 1, 1
+Saint Joseph:19, 1, 0, 0, 1, 1
+Saint John:19, 1, 0, 0, 1, 1
+Ross:19, 1, 0, 0, 1, 1
+Roberts:19, 1, 0, 0, 1, 1
+Reynolds:19, 1, 0, 0, 1, 1
+Red Rock:19, 1, 0, 0, 1, 1
+Ogden:19, 1, 0, 0, 1, 1
+Newark:19, 1, 0, 0, 1, 1
+New London:19, 1, 0, 0, 1, 1
+Mineral Springs:19, 1, 0, 0, 1, 1
+Meridian:19, 1, 0, 0, 1, 1
+Lynn:19, 1, 0, 0, 1, 1
+Lisbon:19, 1, 0, 0, 1, 1
+Lamar:19, 1, 0, 0, 1, 1
+Knollwood:19, 1, 0, 0, 1, 1
+Kensington:19, 1, 0, 0, 1, 1
+Horton:19, 1, 0, 0, 1, 1
+Homewood:19, 1, 0, 0, 1, 1
+Homestead:19, 1, 0, 0, 1, 1
+Holiday Hills:19, 1, 0, 0, 1, 1
+Henry:19, 1, 0, 0, 1, 1
+Harper:19, 1, 0, 0, 1, 1
+Greenbriar:19, 1, 0, 0, 1, 1
+Granville:19, 1, 0, 0, 1, 1
+Graham:19, 1, 0, 0, 1, 1
+Grafton:19, 1, 0, 0, 1, 1
+Genoa:19, 1, 0, 0, 1, 1
+Fruitland:19, 1, 0, 0, 1, 1
+Fremont:19, 1, 0, 0, 1, 1
+Forest Hill:19, 1, 0, 0, 1, 1
+Forest Grove:19, 1, 0, 0, 1, 1
+Folsom:19, 1, 0, 0, 1, 1
+Flint Hill:19, 1, 0, 0, 1, 1
+Fillmore:19, 1, 0, 0, 1, 1
+Ferndale:19, 1, 0, 0, 1, 1
+Fayette:19, 1, 0, 0, 1, 1
+Fairmont:19, 1, 0, 0, 1, 1
+Eastwood:19, 1, 0, 0, 1, 1
+Dudley:19, 1, 0, 0, 1, 1
+Dublin:19, 1, 0, 0, 1, 1
+Dogtown:19, 1, 0, 0, 1, 1
+Dawson:19, 1, 0, 0, 1, 1
+Cunningham:19, 1, 0, 0, 1, 1
+Conway:19, 1, 0, 0, 1, 1
+Collins:19, 1, 0, 0, 1, 1
+College Park:19, 1, 0, 0, 1, 1
+Chestnut Grove:19, 1, 0, 0, 1, 1
+Cherry Grove:19, 1, 0, 0, 1, 1
+Cherokee:19, 1, 0, 0, 1, 1
+Chatham:19, 1, 0, 0, 1, 1
+Camelot:19, 1, 0, 0, 1, 1
+Brooks:19, 1, 0, 0, 1, 1
+Big Springs:19, 1, 0, 0, 1, 1
+Big Creek:19, 1, 0, 0, 1, 1
+Benson:19, 1, 0, 0, 1, 1
+Bedford:19, 1, 0, 0, 1, 1
+Bartlett:19, 1, 0, 0, 1, 1
+Bailey:19, 1, 0, 0, 1, 1
+Atlanta:19, 1, 0, 0, 1, 1
+Alpha:19, 1, 0, 0, 1, 1
+Woodland Hills:18, 1, 0, 0, 1, 1
+Winfield:18, 1, 0, 0, 1, 1
+Willow Springs:18, 1, 0, 0, 1, 1
+Willow Grove:18, 1, 0, 0, 1, 1
+Williamstown:18, 1, 0, 0, 1, 1
+Wheeler:18, 1, 0, 0, 1, 1
+Westchester:18, 1, 0, 0, 1, 1
+Walton:18, 1, 0, 0, 1, 1
+Tyler:18, 1, 0, 0, 1, 1
+Taylorsville:18, 1, 0, 0, 1, 1
+Stillwater:18, 1, 0, 0, 1, 1
+Shawnee:18, 1, 0, 0, 1, 1
+Shamrock:18, 1, 0, 0, 1, 1
+Scott:18, 1, 0, 0, 1, 1
+Sanford:18, 1, 0, 0, 1, 1
+Saint Charles:18, 1, 0, 0, 1, 1
+Rocky Hill:18, 1, 0, 0, 1, 1
+Rockford:18, 1, 0, 0, 1, 1
+Ripley:18, 1, 0, 0, 1, 1
+Pulaski:18, 1, 0, 0, 1, 1
+Phillips:18, 1, 0, 0, 1, 1
+Pearl:18, 1, 0, 0, 1, 1
+New Market:18, 1, 0, 0, 1, 1
+New Boston:18, 1, 0, 0, 1, 1
+Nebo:18, 1, 0, 0, 1, 1
+Mount Tabor:18, 1, 0, 0, 1, 1
+Morton:18, 1, 0, 0, 1, 1
+Moore:18, 1, 0, 0, 1, 1
+Long Branch:18, 1, 0, 0, 1, 1
+London:18, 1, 0, 0, 1, 1
+Lewisville:18, 1, 0, 0, 1, 1
+Lewiston:18, 1, 0, 0, 1, 1
+Jerusalem:18, 1, 0, 0, 1, 1
+Jasper:18, 1, 0, 0, 1, 1
+Hadley:18, 1, 0, 0, 1, 1
+Grove:18, 1, 0, 0, 1, 1
+Greenbrier:18, 1, 0, 0, 1, 1
+Gray:18, 1, 0, 0, 1, 1
+Glasgow:18, 1, 0, 0, 1, 1
+Fletcher:18, 1, 0, 0, 1, 1
+Fair Oaks:18, 1, 0, 0, 1, 1
+Essex:18, 1, 0, 0, 1, 1
+Elwood:18, 1, 0, 0, 1, 1
+Eldorado:18, 1, 0, 0, 1, 1
+Dunlap:18, 1, 0, 0, 1, 1
+Dunbar:18, 1, 0, 0, 1, 1
+Decatur:18, 1, 0, 0, 1, 1
+Darlington:18, 1, 0, 0, 1, 1
+Damascus:18, 1, 0, 0, 1, 1
+Crystal Springs:18, 1, 0, 0, 1, 1
+Crestview:18, 1, 0, 0, 1, 1
+Coldwater:18, 1, 0, 0, 1, 1
+Climax:18, 1, 0, 0, 1, 1
+Center Hill:18, 1, 0, 0, 1, 1
+Carrollton:18, 1, 0, 0, 1, 1
+Carlton:18, 1, 0, 0, 1, 1
+Caldwell:18, 1, 0, 0, 1, 1
+Byron:18, 1, 0, 0, 1, 1
+Browns Corner:18, 1, 0, 0, 1, 1
+Bridgewater:18, 1, 0, 0, 1, 1
+Bolton:18, 1, 0, 0, 1, 1
+Blue Springs:18, 1, 0, 1, 0, 30
+Bloomingdale:18, 1, 0, 1, 0, 30
+Blair:18, 1, 0, 1, 0, 30
+Bethesda:18, 1, 0, 1, 0, 30
+Belleville:18, 1, 0, 1, 0, 30
+Bear Creek:18, 1, 0, 1, 0, 30
+Bayview:18, 1, 0, 1, 0, 30
+Avoca:18, 1, 0, 1, 0, 30
+Argyle:18, 1, 0, 1, 0, 30
+Wyoming:17, 1, 0, 1, 0, 30
+Woodland Park:17, 1, 0, 1, 0, 30
+Wilton:17, 1, 0, 1, 0, 30
+White Hall:17, 1, 0, 1, 0, 30
+Watkins:17, 1, 0, 1, 0, 30
+Warwick:17, 1, 0, 1, 0, 30
+Walnut:17, 1, 0, 1, 0, 30
+Vienna:17, 1, 0, 1, 0, 30
+Union City:17, 1, 0, 1, 0, 30
+Texas:17, 1, 0, 1, 0, 30
+Sumner:17, 1, 0, 1, 0, 30
+Summerfield:17, 1, 0, 1, 0, 30
+Sugar Hill:17, 1, 0, 1, 0, 30
+Stratford:17, 1, 0, 1, 0, 30
+Springtown:17, 1, 0, 1, 0, 30
+Saratoga:17, 1, 0, 1, 0, 30
+San Jose:17, 1, 0, 1, 0, 30
+Saint Johns:17, 1, 0, 1, 0, 30
+Royal:17, 1, 0, 1, 0, 30
+Rosebud:17, 1, 0, 1, 0, 30
+Rockwood:17, 1, 0, 1, 0, 30
+Riley:17, 1, 0, 1, 0, 30
+Red Oak:17, 1, 0, 1, 0, 30
+Quincy:17, 1, 0, 1, 0, 30
+Pomona:17, 1, 0, 1, 0, 30
+Point Pleasant:17, 1, 0, 1, 0, 30
+Philadelphia:17, 1, 0, 1, 0, 30
+Peoria:17, 1, 0, 1, 0, 30
+Murray:17, 1, 0, 1, 0, 30
+Millbrook:17, 1, 0, 1, 0, 30
+Maywood:17, 1, 0, 1, 0, 30
+Macon:17, 1, 0, 1, 0, 30
+Lone Oak:17, 1, 0, 1, 0, 30
+Lewis:17, 1, 0, 1, 0, 30
+Leon:17, 1, 0, 1, 0, 30
+Lee:17, 1, 0, 1, 0, 30
+Jones:17, 1, 0, 1, 0, 30
+Hubbard:17, 1, 0, 1, 0, 30
+Gum Springs:17, 1, 0, 1, 0, 30
+Guilford:17, 1, 0, 1, 0, 30
+Galena:17, 1, 0, 1, 0, 30
+Frenchtown:17, 1, 0, 1, 0, 30
+Freeport:17, 1, 0, 1, 0, 30
+Frankfort:17, 1, 0, 1, 0, 30
+Fowler:17, 1, 0, 1, 0, 30
+Floyd:17, 1, 0, 1, 0, 30
+Fisher:17, 1, 0, 1, 0, 30
+Fairbanks:17, 1, 0, 1, 0, 30
+Evans:17, 1, 0, 1, 0, 30
+Empire:17, 1, 0, 1, 0, 30
+Elm Grove:17, 1, 0, 1, 0, 30
+Ellsworth:17, 1, 0, 1, 0, 30
+Edgewater:17, 1, 0, 1, 0, 30
+Dewey:17, 1, 0, 1, 0, 30
+Derby:17, 1, 0, 1, 0, 30
+Denmark:17, 1, 0, 1, 0, 30
+Cordova:17, 1, 0, 1, 0, 30
+Colonial Heights:17, 1, 0, 1, 0, 30
+Colfax:17, 1, 0, 1, 0, 30
+Clearview:17, 1, 0, 1, 0, 30
+Chestnut Ridge:17, 1, 0, 1, 0, 30
+Carthage:17, 1, 0, 1, 0, 30
+Carpenter:17, 1, 0, 1, 0, 30
+Calhoun:17, 1, 0, 1, 0, 30
+Brookwood:17, 1, 0, 1, 0, 30
+Brookville:17, 1, 0, 1, 0, 30
+Brentwood:17, 1, 0, 1, 0, 30
+Birmingham:17, 1, 0, 1, 0, 30
+Arcola:17, 1, 0, 1, 0, 30
+Andover:17, 1, 0, 1, 0, 30
+Aberdeen:17, 1, 0, 1, 0, 30
+Yorktown:16, 1, 0, 1, 0, 30
+Wright:16, 1, 0, 1, 0, 30
+Woodrow:16, 1, 0, 1, 0, 30
+Woodbury:16, 1, 0, 1, 0, 30
+Winslow:16, 1, 0, 1, 0, 30
+Whitney:16, 1, 0, 1, 0, 30
+Whispering Pines:16, 1, 0, 1, 0, 30
+Welcome:16, 1, 0, 1, 0, 30
+Webb:16, 1, 0, 1, 0, 30
+Washington Heights:16, 1, 0, 1, 0, 30
+Summerville:16, 1, 0, 1, 0, 30
+Sullivan:16, 1, 0, 1, 0, 30
+Stewart:16, 1, 0, 1, 0, 30
+Spring Grove:16, 1, 0, 1, 0, 30
+Silver Springs:16, 1, 0, 1, 0, 30
+Sheffield:16, 1, 0, 1, 0, 30
+Shannon:16, 1, 0, 1, 0, 30
+Scottsville:16, 1, 0, 1, 0, 30
+Saint George:16, 1, 0, 1, 0, 30
+Ryan:16, 1, 0, 1, 0, 30
+Ruth:16, 1, 0, 1, 0, 30
+Roy:16, 1, 0, 1, 0, 30
+Roxbury:16, 1, 0, 1, 0, 30
+Rosewood:16, 1, 0, 1, 0, 30
+Roscoe:16, 1, 0, 1, 0, 30
+Rocky Point:16, 1, 0, 1, 0, 30
+Richfield:16, 1, 0, 1, 0, 30
+Richardson:16, 1, 0, 1, 0, 30
+Proctor:16, 1, 0, 1, 0, 30
+Pinecrest:16, 1, 0, 1, 0, 30
+Pine Valley:16, 1, 0, 1, 0, 30
+Pierce:16, 1, 0, 1, 0, 30
+Perkins:16, 1, 0, 1, 0, 30
+Paxton:16, 1, 0, 1, 0, 30
+Omega:16, 1, 0, 1, 0, 30
+Nottingham:16, 1, 0, 1, 0, 30
+Montezuma:16, 1, 0, 1, 0, 30
+Montague:16, 1, 0, 1, 0, 30
+Milo:16, 1, 0, 1, 0, 30
+Milan:16, 1, 0, 1, 0, 30
+Martinsville:16, 1, 0, 1, 0, 30
+Maple Hill:16, 1, 0, 1, 0, 30
+Ludlow:16, 1, 0, 1, 0, 30
+Louisville:16, 1, 0, 1, 0, 30
+Longwood:16, 1, 0, 1, 0, 30
+Lewisburg:16, 1, 0, 1, 0, 30
+Lenox:16, 1, 0, 1, 0, 30
+Leesville:16, 1, 0, 1, 0, 30
+Leesburg:16, 1, 0, 1, 0, 30
+Lawrenceville:16, 1, 0, 1, 0, 30
+Kirkland:16, 1, 0, 1, 0, 30
+Kelly:16, 1, 0, 1, 0, 30
+Jerome:16, 1, 0, 1, 0, 30
+Jenkins:16, 1, 0, 1, 0, 30
+Indian Village:16, 1, 0, 1, 0, 30
+Hurricane:16, 1, 0, 1, 0, 30
+Howell:16, 1, 0, 1, 0, 30
+Hillcrest:16, 1, 0, 1, 0, 30
+Hidden Valley:16, 1, 0, 1, 0, 30
+Harvey:16, 1, 0, 1, 0, 30
+Harmon:16, 1, 0, 1, 0, 30
+Greendale:16, 1, 0, 1, 0, 30
+Granite:16, 1, 0, 1, 0, 30
+Glenville:16, 1, 0, 1, 0, 30
+Gladstone:16, 1, 0, 1, 0, 30
+Gilmore:16, 1, 0, 1, 0, 30
+Garrison:16, 1, 0, 1, 0, 30
+Freeman:16, 1, 0, 1, 0, 30
+Fox:16, 1, 0, 1, 0, 30
+Forestville:16, 1, 0, 1, 0, 30
+Flatwoods:16, 1, 0, 1, 0, 30
+Elkton:16, 1, 0, 1, 0, 30
+Elizabeth:16, 1, 0, 1, 0, 30
+Elba:16, 1, 0, 1, 0, 30
+Cumberland:16, 1, 0, 1, 0, 30
+Clearwater:16, 1, 0, 1, 0, 30
+Carter:16, 1, 0, 1, 0, 30
+California:16, 1, 0, 1, 0, 30
+Caledonia:16, 1, 0, 1, 0, 30
+Burns:16, 1, 0, 1, 0, 30
+Buckingham:16, 1, 0, 1, 0, 30
+Brunswick:16, 1, 0, 1, 0, 30
+Bennett:16, 1, 0, 1, 0, 30
+Bay View:16, 1, 0, 1, 0, 30
+Barnes:16, 1, 0, 1, 0, 30
+Arthur:16, 1, 0, 1, 0, 30
+Appleton:16, 1, 0, 1, 0, 30
+Amherst:16, 1, 0, 1, 0, 30
+Allison:16, 1, 0, 1, 0, 30
+Allentown:16, 1, 0, 1, 0, 30
+Acme:16, 1, 0, 1, 0, 30
+Woodbine:15, 1, 0, 1, 0, 30
+Wolf Creek:15, 1, 0, 1, 0, 30
+Williamsville:15, 1, 0, 1, 0, 30
+White Plains:15, 1, 0, 1, 0, 30
+Wesley:15, 1, 0, 1, 0, 30
+Weldon:15, 1, 0, 1, 0, 30
+Wayland:15, 1, 0, 1, 0, 30
+Tyrone:15, 1, 0, 1, 0, 30
+Tremont:15, 1, 0, 1, 0, 30
+Tracy:15, 1, 0, 1, 0, 30
+Tipton:15, 1, 0, 1, 0, 30
+Thompsonville:15, 1, 0, 1, 0, 30
+Tanglewood:15, 1, 0, 1, 0, 30
+Tabor:15, 1, 0, 1, 0, 30
+Sutton:15, 1, 0, 1, 0, 30
+Superior:15, 1, 0, 1, 0, 30
+Star:15, 1, 0, 1, 0, 30
+Stafford:15, 1, 0, 1, 0, 30
+Sleepy Hollow:15, 1, 0, 1, 0, 30
+Siloam:15, 1, 0, 1, 0, 30
+Shelby:15, 1, 0, 1, 0, 30
+Shaw:15, 1, 0, 1, 0, 30
+Sawyer:15, 1, 0, 1, 0, 30
+Saint James:15, 1, 0, 1, 0, 30
+Saint Clair:15, 1, 0, 1, 0, 30
+Red Bank:15, 1, 0, 1, 0, 30
+Rankin:15, 1, 0, 1, 0, 30
+Price:15, 1, 0, 1, 0, 30
+Peru:15, 1, 0, 1, 0, 30
+Page:15, 1, 0, 1, 0, 30
+Owens:15, 1, 0, 1, 0, 30
+Oneida:15, 1, 0, 1, 0, 30
+Northwood:15, 1, 0, 1, 0, 30
+Nichols:15, 1, 0, 1, 0, 30
+New Town:15, 1, 0, 1, 0, 30
+Murphy:15, 1, 0, 1, 0, 30
+Morris:15, 1, 0, 1, 0, 30
+Morgantown:15, 1, 0, 1, 0, 30
+Montpelier:15, 1, 0, 1, 0, 30
+Mechanicsburg:15, 1, 0, 1, 0, 30
+Lucas:15, 1, 0, 1, 0, 30
+Lone Pine:15, 1, 0, 1, 0, 30
+Littleton:15, 1, 0, 1, 0, 30
+Little River:15, 1, 0, 1, 0, 30
+Leland:15, 1, 0, 1, 0, 30
+Langdon:15, 1, 0, 1, 0, 30
+Lakeville:15, 1, 0, 1, 0, 30
+Lake Forest:15, 1, 0, 1, 0, 30
+La Grange:15, 1, 0, 1, 0, 30
+King:15, 1, 0, 1, 0, 30
+Kimball:15, 1, 0, 1, 0, 30
+Johnsonville:15, 1, 0, 1, 0, 30
+Highland Park:15, 1, 0, 1, 0, 30
+Hazelwood:15, 1, 0, 1, 0, 30
+Hartland:15, 1, 0, 1, 0, 30
+Hardy:15, 1, 0, 1, 0, 30
+Guthrie:15, 1, 0, 1, 0, 30
+Griffin:15, 1, 0, 1, 0, 30
+Gravel Hill:15, 1, 0, 1, 0, 30
+Golden:15, 1, 0, 1, 0, 30
+Globe:15, 1, 0, 1, 0, 30
+Gary:15, 1, 0, 1, 0, 30
+Frogtown:15, 1, 0, 1, 0, 30
+Four Points:15, 1, 0, 1, 0, 30
+Forest:15, 1, 0, 1, 0, 30
+Flint:15, 1, 0, 1, 0, 30
+Ferguson:15, 1, 0, 1, 0, 30
+Fayetteville:15, 1, 0, 1, 0, 30
+Farmersville:15, 1, 0, 1, 0, 30
+Ellisville:15, 1, 0, 1, 0, 30
+Edwards:15, 1, 0, 1, 0, 30
+Edgewood:15, 1, 0, 1, 0, 30
+Doyle:15, 1, 0, 1, 0, 30
+Delmar:15, 1, 0, 1, 0, 30
+Dallas:15, 1, 0, 1, 0, 30
+Crystal:15, 1, 0, 1, 0, 30
+Collinsville:15, 1, 0, 1, 0, 30
+Clifford:15, 1, 0, 1, 0, 30
+Church Hill:15, 1, 0, 1, 0, 30
+Cherry Valley:15, 1, 0, 1, 0, 30
+Cedar:15, 1, 0, 1, 0, 30
+Brookwood:15, 1, 0, 1, 0, 30
+Blanchard:15, 1, 0, 1, 0, 30
+Berea:15, 1, 0, 1, 0, 30
+Belleview:15, 1, 0, 1, 0, 30
+Belfast:15, 1, 0, 1, 0, 30
+Bayside:15, 1, 0, 1, 0, 30
+Bath:15, 1, 0, 1, 0, 30
+Avery:15, 1, 0, 1, 0, 30
+Ashley:15, 1, 0, 1, 0, 30
+Amity:15, 1, 0, 1, 0, 30
+Altamont:15, 1, 0, 1, 0, 30
+Adrian:15, 1, 0, 1, 0, 30
+Youngstown:14, 1, 0, 1, 0, 30
+Woodruff:14, 1, 0, 1, 0, 30
+Woodcrest:14, 1, 0, 1, 0, 30
+Willow:14, 1, 0, 1, 0, 30
+Willis:14, 1, 0, 1, 0, 30
+Wildwood:14, 1, 0, 1, 0, 30
+Whitesville:14, 1, 0, 1, 0, 30
+Westminster:14, 1, 0, 1, 0, 30
+Westgate:14, 1, 0, 1, 0, 30
+West Liberty:14, 1, 0, 1, 0, 30
+Vista:14, 1, 0, 1, 0, 30
+Vance:14, 1, 0, 1, 0, 30
+The Meadows:14, 1, 0, 1, 0, 30
+Taft:14, 1, 0, 1, 0, 30
+Springhill:14, 1, 0, 1, 0, 30
+Somerville:14, 1, 0, 1, 0, 30
+Snug Harbor:14, 1, 0, 1, 0, 30
+Smith:14, 1, 0, 1, 0, 30
+Silver Creek:14, 1, 0, 1, 0, 30
+Shore Acres:14, 1, 0, 1, 0, 30
+Rutland:14, 1, 0, 1, 0, 30
+Rossville:14, 1, 0, 1, 0, 30
+Rolling Hills:14, 1, 0, 1, 0, 30
+River Oaks:14, 1, 0, 1, 0, 30
+Ridgeville:14, 1, 0, 1, 0, 30
+Richville:14, 1, 0, 1, 0, 30
+Riceville:14, 1, 0, 1, 0, 30
+Reno:14, 1, 0, 1, 0, 30
+Redland:14, 1, 0, 1, 0, 30
+Prosperity:14, 1, 0, 1, 0, 30
+Post Oak:14, 1, 0, 1, 0, 30
+Plainville:14, 1, 0, 1, 0, 30
+Pinhook:14, 1, 0, 1, 0, 30
+Phoenix:14, 1, 0, 1, 0, 30
+Payne:14, 1, 0, 1, 0, 30
+Parkwood:14, 1, 0, 1, 0, 30
+

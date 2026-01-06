@@ -1,0 +1,7 @@
+-- gender
+-- values           weights
+-- ======         ==========
+--  1. gender     1. uniform
+------
+M: 50
+F: 50

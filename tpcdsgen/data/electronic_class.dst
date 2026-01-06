@@ -1,0 +1,24 @@
+------
+-- electronic_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+cameras, 17: 1
+camcorders, 17: 1
+dvd/vcr players, 17: 1
+audio, 17: 1
+karoke, 17: 1
+musical, 17: 1
+personal, 17: 1
+scanners, 17: 1
+televisions, 17: 1
+memory, 17: 1
+disk drives, 17: 1
+monitors, 17: 1
+stereo, 17: 1
+automotive, 17: 1
+portable, 17: 1
+wireless, 17: 1

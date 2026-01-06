@@ -1,0 +1,24 @@
+------
+-- sport_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+athletic shoes, 10: 1
+baseball, 10: 1
+basketball, 10: 1
+camping, 10: 1
+fitness, 10: 1
+football, 10: 1
+hockey, 10: 1
+outdoor, 10: 1
+optics, 10: 1
+pools, 10: 1
+archery, 10: 1
+guns, 10: 1
+sailing, 10: 1
+tennis, 10: 1
+fishing, 10: 1
+golf, 10: 1

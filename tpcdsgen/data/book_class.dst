@@ -1,0 +1,24 @@
+------
+-- book_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+arts, 12: 1
+business, 12: 1
+computers, 12: 1
+entertainments, 12: 1
+history, 12: 1
+parenting, 12: 1
+reference, 12: 1
+romance, 12: 1
+science, 12: 1
+travel, 12: 1
+cooking, 12: 1
+home repair, 12: 1
+self-help, 12: 1
+sports, 12: 1
+fiction, 12: 1
+mystery, 12: 1

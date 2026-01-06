@@ -1,0 +1,12 @@
+------
+-- women_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+dresses, 2: 1
+fragrances, 2: 1
+maternity, 2: 1
+swimwear, 2: 1

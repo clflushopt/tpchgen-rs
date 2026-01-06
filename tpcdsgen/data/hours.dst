@@ -1,0 +1,33 @@
+-- hours
+-- values           weights
+-- ======         ==========
+--  1. hour     1. uniform
+--  2.  AM/PM   2. store shopping (skewed)
+--  3.  shift   3. catalog/web shopping (skewed)
+--  4.  sub-shift
+--  5.  meal
+------
+0, AM, third, night, : 1, 0, 1
+1, AM, third, night, : 1, 0, 2
+2, AM, third, night, : 1, 0, 2
+3, AM, third, night, : 1, 0, 2
+4, AM, third, night, : 1, 0, 3
+5, AM, third, night, : 1, 0, 3
+6, AM, third, morning, breakfast: 1, 0, 3
+7, AM, first, morning, breakfast: 1, 0, 4
+8, AM, first, morning, breakfast: 1, 4, 4
+9, AM, first, morning, breakfast: 1, 8, 5
+10, AM, first, morning, : 1, 12, 5
+11, AM, first, morning, : 1, 7, 5
+12, PM, first, afternoon, lunch: 1, 8, 7
+13, PM, first, afternoon, lunch: 1, 9, 5
+14, PM, first, afternoon, lunch: 1, 12, 3
+15, PM, second, afternoon, : 1, 4, 4
+16, PM, second, afternoon, : 1, 4, 5
+17, PM, second, evening, dinner: 1, 12, 6
+18, PM, second, evening, dinner: 1, 8, 7
+19, PM, second, evening, dinner: 1, 8, 8
+20, PM, second, evening, : 1, 4, 7
+21, PM, second, evening, : 1, 0, 5
+22, PM, second, evening, : 1, 0, 3
+23, PM, third, evening, : 1, 0, 1

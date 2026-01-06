@@ -1,0 +1,24 @@
+------
+-- jewelry_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+birdal, 8: 1
+diamonds, 8: 1
+gold, 8: 1
+bracelets, 8: 1
+earings, 8: 1
+rings, 8: 1
+pendants, 8: 1
+mens watch, 8: 1
+womens watch, 8: 1
+jewelry boxes, 8: 1
+semi-precious, 8: 1
+costume, 8: 1
+loose stones, 8: 1
+estate, 8: 1
+custom, 8: 1
+consignment, 8: 1

@@ -1,0 +1,12 @@
+------
+-- ship_mode_type
+-- values           weights
+-- -----------------------
+--  1. type     1. uniform
+------
+REGULAR: 1
+EXPRESS: 1
+NEXT DAY: 1
+OVERNIGHT: 1
+TWO DAY: 1
+LIBRARY: 1

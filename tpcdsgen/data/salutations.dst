@@ -1,0 +1,14 @@
+------
+-- salutations
+-- values           weights
+-- =======         ==========
+--  1. title        1. gender neutral
+--                  2. male
+--                  3. female
+------
+Mr.: 10, 10, 0
+Mrs.: 10, 0, 10
+Ms.: 10, 0, 10
+Miss: 10, 0, 10
+Sir: 10, 10, 0
+Dr.: 10, 10, 10

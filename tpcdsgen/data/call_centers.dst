@@ -1,0 +1,19 @@
+------
+-- call_centers
+-- values                  weights
+-- ======                 ========
+--  1. name : varchar      1. uniform
+--                         2. sales percentage
+------
+New England: 1, 8
+NY Metro: 1, 16
+Mid Atlantic: 1, 10
+Southeastern: 1, 8
+North Midwest: 1, 6
+Central Midwest: 1, 7
+South Midwest: 1, 8
+Pacific Northwest: 1, 9
+California: 1, 17
+Southwest: 1, 7
+Hawaii/Alaska: 1, 3
+Other: 1, 1

@@ -1,0 +1,25 @@
+-- auxiliary.dst sentence forms
+-- values           weights
+-- ======           =======
+--  1. auxialary    1. weight
+---------
+will: 2
+will not: 1
+shall: 2
+shall not: 1
+may: 2
+may not: 1
+might: 2
+might not: 1
+can: 2
+cannot: 1
+could: 2
+could not: 1
+must: 2
+must not: 1
+ought to: 2
+used to: 2
+should: 2
+should not: 1
+would: 2
+would not: 1

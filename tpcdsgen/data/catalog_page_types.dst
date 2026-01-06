@@ -1,0 +1,10 @@
+------
+-- catalog_page_type
+-- values           weights
+-- -----------------------
+--  1. content type     1. distribution freq
+--                      2. sales volume
+------
+bi-annual: 1, 50
+quarterly: 4, 25
+monthly: 12, 25

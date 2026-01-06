@@ -1,0 +1,9 @@
+------
+-- top_domains
+-- values               weights
+-- ======               =========
+--  1. domain suffix    1. uniform
+------
+com: 1
+org: 1
+edu: 1

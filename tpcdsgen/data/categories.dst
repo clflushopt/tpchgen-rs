@@ -1,0 +1,18 @@
+------
+-- categories
+-- values           weights
+-- -----------------------
+--  1. name         1. uniform
+--  2. class dist name
+--  3. has sizes?
+------
+Women, women_class, 1: 1
+Men, men_class, 1: 1
+Children, children_class, 1: 1
+Shoes, shoe_class, 1: 1
+Music, music_class, 0: 1
+Jewelry, jewelry_class, 0: 1
+Home, home_class, 0: 1
+Sports, sport_class, 0: 1
+Books, book_class, 0: 1
+Electronics, electronic_class, 0: 1

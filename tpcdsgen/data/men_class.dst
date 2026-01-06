@@ -1,0 +1,12 @@
+------
+-- men_class
+--   second level used to populate the item hierarchy
+-- values           weights
+-- -----------------------
+--  1. class name   1. uniform
+--  2. brand count
+------
+accessories, 2: 1
+shirts, 2: 1
+pants, 2: 1
+sports-apparel, 2: 1

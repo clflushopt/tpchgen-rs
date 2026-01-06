@@ -1,0 +1,11 @@
+------
+-- marital_status
+-- values                  weights
+-- ======                 =========
+--  1. marital_status     1. uniform
+------
+M: 1
+S: 1
+D: 1
+W: 1
+U: 1

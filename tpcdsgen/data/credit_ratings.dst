@@ -1,0 +1,10 @@
+------
+-- credit_rating
+-- values               weights
+-- ======               ========
+--  1. credit rating    1. distribution
+------
+Good: 65
+Low Risk: 25
+High Risk: 10
+Unknown: 4

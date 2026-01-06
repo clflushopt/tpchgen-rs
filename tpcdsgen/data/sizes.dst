@@ -1,0 +1,16 @@
+------
+-- sizes
+--   size of a particular item, if applicable (based on category)
+-- values           weights
+-- -----------------------
+--  1. size     1. uniform
+--              2. for non-sized categories
+--              3. size distributtion
+------
+petite: 1, 0, 17
+small: 1, 0, 17
+medium: 1, 0, 35
+large: 1, 0, 22
+extra large: 1, 0, 17
+economy: 1, 0, 5
+N/A: 1, 1, 4

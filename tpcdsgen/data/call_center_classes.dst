@@ -1,0 +1,9 @@
+------
+-- call_center_class
+-- values           weights
+-- -----------------------
+--  1. class    1. uniform
+------
+small: 1
+medium: 1
+large: 1

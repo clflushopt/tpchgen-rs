@@ -1,0 +1,13 @@
+------
+-- ship_mode_code
+-- values           weights
+-- -----------------------
+--  1. code     1. uniform
+------
+AIR: 1
+SURFACE: 1
+SEA: 1
+BIKE: 1
+HAND CARRY: 1
+MESSENGER: 1
+COURIER: 1

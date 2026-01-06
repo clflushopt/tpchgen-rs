@@ -1,0 +1,28 @@
+------
+-- street_type
+------
+-- values           weights
+-- =======          ======
+--  1. type    1. uniform
+------
+
+Street:1
+ST:1
+Avenue:1
+Ave:1
+Boulevard:1
+Blvd:1
+Road:1
+RD:1
+Parkway:1
+Pkwy:1
+Way:1
+Wy:1
+Drive:1
+Dr.:1
+Circle:1
+Cir.:1
+Lane:1
+Ln:1
+Court:1
+Ct.:1

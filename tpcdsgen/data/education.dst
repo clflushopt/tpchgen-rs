@@ -1,0 +1,16 @@
+------
+-- education
+-- values           weights
+-- =======          ========
+--  1. level    1. uniform
+--              2. good credit distribution
+--              3. low credit distribution
+--              4. high risk credit distribution
+------
+Primary: 1, 650, 250, 100
+Secondary: 1, 3250, 1250, 500
+College: 1, 650, 250, 100
+2 yr Degree: 1, 975, 375, 150
+4 yr Degree: 1, 650, 250, 100
+Advanced Degree: 1, 325, 125, 50
+Unknown: 1, 10, 10, 10

@@ -1,0 +1,9 @@
+-- terminator.dst
+-- NOTE: that the additional terminator's that were listed in the C dsdgen were never read
+-- or included in the weight calculation, so they are omitted here.
+-- values             weights
+-- ======            =========
+-- 1. terminator    1. weights
+--------
+.: 10
+;: 2

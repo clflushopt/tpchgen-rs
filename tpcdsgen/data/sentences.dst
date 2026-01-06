@@ -1,0 +1,109 @@
+-- sentences.dst sentence forms
+-- A = article
+-- D = adverb
+-- J = adjective
+-- N = noun
+-- P = preposition
+-- T = terminator
+-- V = verb
+-- X = auxiliary
+--   values              weights
+--  =========           =========
+-- 1. sentence form    1. uniform
+------
+N VT: 1
+J N VT: 1
+J\, J N VT: 1
+D J N VT: 1
+N X VT: 1
+J N X VT: 1
+J\, J N X VT: 1
+D J N X VT: 1
+N V DT: 1
+J N V DT: 1
+J\, J N V DT: 1
+D J N V DT: 1
+N X V DT: 1
+J N X V DT: 1
+J\, J N X V DT: 1
+D J N X V DT: 1
+N V P A NT: 1
+J N V P A NT: 1
+J\, J N V P A NT: 1
+D J N V P A NT: 1
+N X V P A NT: 1
+J N X V P A NT: 1
+J\, J N X V P A NT: 1
+D J N X V P A NT: 1
+N V D P A NT: 1
+J N V D P A NT: 1
+J\, J N V D P A NT: 1
+D J N V D P A NT: 1
+N X V D P A NT: 1
+J N X V D P A NT: 1
+J\, J N X V D P A NT: 1
+D J N X V D P A NT: 1
+N V NT: 1
+J N V NT: 1
+J\, J N V NT: 1
+D J N V NT: 1
+N X V NT: 1
+J N X V NT: 1
+J\, J N X V NT: 1
+D J N X V NT: 1
+N V D NT: 1
+J N V D NT: 1
+J\, J N V D NT: 1
+D J N V D NT: 1
+N X V D NT: 1
+J N X V D NT: 1
+J\, J N X V D NT: 1
+D J N X V D NT: 1
+N V J NT: 1
+J N V J NT: 1
+J\, J N V J NT: 1
+D J N V J NT: 1
+N X V J NT: 1
+J N X V J NT: 1
+J\, J N X V J NT: 1
+D J N X V J NT: 1
+N V D J NT: 1
+J N V D J NT: 1
+J\, J N V D J NT: 1
+D J N V D J NT: 1
+N X V D J NT: 1
+J N X V D J NT: 1
+J\, J N X V D J NT: 1
+D J N X V D J J NT: 1
+N V J\, J NT: 1
+J N V J\, J NT: 1
+J\, J N V J\, J NT: 1
+D J N V J\, J NT: 1
+N X V J\, J NT: 1
+J N X V J\, J NT: 1
+J\, J N X V J\, J NT: 1
+D J N X V J\, J NT: 1
+N V D J\, J NT: 1
+J N V D J\, J NT: 1
+J\, J N V D J\, J NT: 1
+D J N V D J\, J NT: 1
+N X V D J\, J NT: 1
+J N X V D J\, J NT: 1
+J\, J N X V D J\, J NT: 1
+D J N X V D J\, J NT: 1
+N V D J NT: 1
+J N V D J NT: 1
+J\, J N V D J NT: 1
+D J N V D J NT: 1
+N X V D J NT: 1
+J N X V D J NT: 1
+J\, J N X V D J NT: 1
+D J N X V D J NT: 1
+N V D D J NT: 1
+J N V D D J NT: 1
+J\, J N V D D J NT: 1
+D J N V D D J NT: 1
+N X V D D J NT: 1
+J N X V D D J NT: 1
+J\, J N X V D D J NT: 1
+D J N X V D D J NT: 1

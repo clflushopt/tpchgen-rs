@@ -1,0 +1,933 @@
+--
+-- adverbs
+-- from the common word list
+-- values           weights
+-- =======          =======
+--  1. adverb    1. weight
+------
+then:619
+more:615
+also:592
+so:540
+now:538
+only:524
+as:436
+very:431
+just:426
+even:329
+still:318
+too:316
+however:280
+there:269
+most:263
+here:263
+much:257
+never:241
+again:236
+well:216
+always:199
+often:178
+about:171
+already:156
+yet:151
+perhaps:151
+almost:151
+quite:150
+really:149
+later:141
+all:133
+both:129
+of course:126
+at least:119
+less:117
+ever:114
+enough:114
+for example:113
+together:111
+therefore:107
+over:106
+probably:105
+today:102
+thus:101
+particularly:101
+far:100
+rather:95
+further:94
+sometimes:91
+yesterday:87
+usually:87
+indeed:85
+ago:85
+simply:83
+especially:83
+else:79
+home:78
+certainly:77
+once:75
+soon:74
+clearly:70
+either:68
+long:66
+away:66
+better:65
+actually:65
+finally:62
+at all:62
+in order:61
+recently:57
+quickly:57
+suddenly:56
+generally:54
+nearly:50
+above:50
+more than:49
+forward:49
+right:47
+please:46
+easily:46
+immediately:45
+highly:44
+earlier:44
+early:43
+no longer:42
+fully:42
+exactly:42
+eventually:42
+directly:42
+hardly:41
+best:41
+below:41
+around:41
+slightly:40
+alone:40
+otherwise:39
+obviously:39
+a little:39
+slowly:38
+completely:38
+relatively:37
+merely:36
+maybe:36
+high:36
+normally:35
+late:35
+largely:35
+instead:35
+sure:34
+nevertheless:34
+little:34
+carefully:34
+apparently:34
+anyway:34
+tomorrow:33
+previously:33
+mainly:33
+for instance:33
+currently:33
+increasingly:32
+in particular:32
+entirely:32
+as well:32
+possibly:31
+extremely:31
+equally:31
+hard:29
+surely:28
+frequently:28
+ahead:28
+widely:27
+twice:27
+partly:27
+fairly:27
+somewhere:26
+seriously:26
+elsewhere:26
+closely:26
+straight:25
+no doubt:25
+neither:25
+necessarily:25
+before:25
+all right:25
+totally:24
+tonight:24
+properly:24
+etc:24
+meanwhile:23
+hence:23
+effectively:23
+somewhat:22
+similarly:22
+rapidly:22
+at first:22
+under:21
+strongly:21
+moreover:21
+in addition:21
+at last:21
+virtually:20
+unfortunately:20
+that is:20
+somehow:20
+significantly:20
+rarely:20
+perfectly:20
+originally:20
+low:20
+inside:20
+badly:20
+afterwards:20
+quietly:19
+naturally:19
+in general:19
+heavily:19
+gently:19
+firmly:19
+at once:19
+and so on:19
+absolutely:19
+shortly:18
+regularly:18
+occasionally:18
+mostly:18
+initially:18
+deeply:18
+close:18
+abroad:18
+subsequently:17
+specifically:17
+short:17
+gradually:17
+aside:17
+successfully:16
+precisely:16
+outside:16
+once again:16
+greatly:16
+essentially:16
+easy:16
+apart:16
+anywhere:16
+respectively:15
+pretty:15
+open:15
+truly:14
+that:14
+primarily:14
+inevitably:14
+furthermore:14
+fast:14
+constantly:14
+briefly:14
+at present:14
+altogether:14
+across:14
+a bit:14
+ultimately:13
+reasonably:13
+readily:13
+presumably:13
+newly:13
+less than:13
+everywhere:13
+deliberately:13
+considerably:13
+automatically:13
+approximately:13
+thereby:12
+surprisingly:12
+sufficiently:12
+softly:12
+sharply:12
+secondly:12
+deep:12
+commonly:12
+behind:12
+undoubtedly:11
+purely:11
+potentially:11
+personally:11
+once more:11
+notably:11
+near:11
+ill:11
+consequently:11
+closer:11
+barely:11
+accordingly:11
+wide:10
+wholly:10
+up to:10
+typically:10
+since:10
+roughly:10
+nowhere:10
+namely:10
+longer:10
+good:10
+easier:10
+definitely:10
+by now:10
+traditionally:9
+though:9
+thoroughly:9
+strictly:9
+specially:9
+sadly:9
+physically:9
+mentally:9
+lightly:9
+formally:9
+desperately:9
+substantially:8
+steadily:8
+sooner:8
+solely:8
+so as:8
+simultaneously:8
+severely:8
+separately:8
+scarcely:8
+safely:8
+politically:8
+officially:8
+locally:8
+literally:8
+in part:8
+happily:8
+from time to time:8
+formerly:8
+forever:8
+fair:8
+exclusively:8
+direct:8
+correctly:8
+besides:8
+basically:8
+alternatively:8
+upwards:7
+upstairs:7
+thereafter:7
+socially:7
+seldom:7
+reportedly:7
+remarkably:7
+regardless:7
+publicly:7
+past:7
+invariably:7
+instantly:7
+in short:7
+hitherto:7
+freely:7
+fortunately:7
+firstly:7
+evidently:7
+dramatically:7
+downstairs:7
+consistently:7
+by no means:7
+broadly:7
+backwards:7
+all but:7
+actively:7
+utterly:6
+tight:6
+tightly:6
+thick:6
+temporarily:6
+swiftly:6
+seemingly:6
+repeatedly:6
+predominantly:6
+practically:6
+positively:6
+partially:6
+openly:6
+onwards:6
+no:6
+nowadays:6
+nonetheless:6
+independently:6
+importantly:6
+hopefully:6
+genuinely:6
+forwards:6
+forth:6
+for long:6
+for ever:6
+far from:6
+explicitly:6
+even so:6
+differently:6
+continually:6
+as yet:6
+as usual:6
+accurately:6
+worldwide:5
+within:5
+terribly:5
+sincerely:5
+silently:5
+rightly:5
+privately:5
+permanently:5
+overall:5
+neatly:5
+nearby:5
+loudly:5
+likewise:5
+legally:5
+just about:5
+individually:5
+indirectly:5
+in full:5
+in common:5
+ideally:5
+half:5
+faster:5
+efficiently:5
+daily:5
+comparatively:5
+clear:5
+bitterly:5
+beyond:5
+beautifully:5
+annually:5
+angrily:5
+allegedly:5
+alike:5
+adequately:5
+abruptly:5
+wrong:4
+worse:4
+wild:4
+vaguely:4
+urgently:4
+unusually:4
+unexpectedly:4
+under way:4
+technically:4
+supposedly:4
+strangely:4
+smoothly:4
+slow:4
+sideways:4
+sharp:4
+sexually:4
+reluctantly:4
+quick:4
+public:4
+promptly:4
+principally:4
+presently:4
+poorly:4
+plain:4
+per annum:4
+overseas:4
+overnight:4
+on board:4
+jointly:4
+ironically:4
+incidentally:4
+in public:4
+honestly:4
+hastily:4
+harder:4
+fundamentally:4
+fiercely:4
+false:4
+extra:4
+extensively:4
+exceptionally:4
+economically:4
+duly:4
+doubtless:4
+distinctly:4
+curiously:4
+cool:4
+continuously:4
+comfortably:4
+cheap:4
+by far:4
+but:4
+as good as:4
+as a whole:4
+appropriately:4
+aloud:4
+all the same:4
+wrongly:3
+wildly:3
+violently:3
+vigorously:3
+vice versa:3
+upright:3
+underneath:3
+true:3
+thoughtfully:3
+this:3
+thirdly:3
+that is to say:3
+systematically:3
+suitably:3
+sort of:3
+secretly:3
+radically:3
+proudly:3
+progressively:3
+profoundly:3
+preferably:3
+politely:3
+plainly:3
+painfully:3
+over there:3
+oddly:3
+none the less:3
+nicely:3
+nervously:3
+nearer:3
+nationally:3
+narrowly:3
+mutually:3
+mildly:3
+markedly:3
+loud:3
+loose:3
+loosely:3
+like:3
+least:3
+lately:3
+kindly:3
+internationally:3
+interestingly:3
+instinctively:3
+indoors:3
+incredibly:3
+immensely:3
+historically:3
+highest:3
+halfway:3
+gmt:3
+furiously:3
+freshly:3
+frankly:3
+for the time being:3
+for the most part:3
+for once:3
+for good:3
+for certain:3
+flat:3
+finely:3
+financially:3
+faintly:3
+evenly:3
+enormously:3
+emotionally:3
+eagerly:3
+due:3
+downwards:3
+deeper:3
+dead:3
+conversely:3
+conveniently:3
+consciously:3
+commercially:3
+clean:3
+chiefly:3
+centrally:3
+cautiously:3
+casually:3
+calmly:3
+bloody:3
+big:3
+bad:3
+at large:3
+at best:3
+ashore:3
+arguably:3
+any longer:3
+anxiously:3
+admittedly:3
+wonderfully:2
+willingly:2
+wearily:2
+weakly:2
+warmly:2
+voluntarily:2
+vividly:2
+visually:2
+vastly:2
+usefully:2
+unnecessarily:2
+universally:2
+uniquely:2
+unduly:2
+underway:2
+understandably:2
+underground:2
+uncomfortably:2
+unanimously:2
+throughout:2
+thinly:2
+thereof:2
+theoretically:2
+thankfully:2
+stiff:2
+stiffly:2
+steady:2
+statistically:2
+spontaneously:2
+sometime:2
+so much as:2
+small:2
+sensibly:2
+satisfactorily:2
+richly:2
+professionally:2
+powerfully:2
+pleasantly:2
+patiently:2
+parallel:2
+paradoxically:2
+overwhelmingly:2
+overhead:2
+over here:2
+outwards:2
+ostensibly:2
+notoriously:2
+morally:2
+momentarily:2
+moderately:2
+marginally:2
+luckily:2
+logically:2
+live:2
+likely:2
+internally:2
+intently:2
+intensely:2
+inherently:2
+infinitely:2
+indefinitely:2
+in vain:2
+in private:2
+in between:2
+implicitly:2
+impatiently:2
+illegally:2
+hurriedly:2
+hopelessly:2
+higher:2
+helplessly:2
+grimly:2
+great:2
+generously:2
+from now on:2
+frantically:2
+favourably:2
+faithfully:2
+extraordinarily:2
+expressly:2
+environmentally:2
+enthusiastically:2
+en route:2
+drily:2
+decidedly:2
+dangerously:2
+critically:2
+confidently:2
+collectively:2
+coldly:2
+cheerfully:2
+cheaply:2
+characteristically:2
+briskly:2
+brilliantly:2
+brightly:2
+beforehand:2
+bc:2
+at random:2
+at length:2
+as it were:2
+anything but:2
+alongside:2
+additionally:2
+acutely:2
+accidentally:2
+wryly:1
+worst:1
+without:1
+wistfully:1
+wisely:1
+weekly:1
+warily:1
+vitally:1
+visibly:1
+vertically:1
+vehemently:1
+variously:1
+upward:1
+upstream:1
+upside down:1
+up front:1
+unwittingly:1
+unsuccessfully:1
+unreasonably:1
+unquestionably:1
+uniformly:1
+unhappily:1
+unfairly:1
+unequivocally:1
+uneasily:1
+unconsciously:1
+uncertainly:1
+triumphantly:1
+tremendously:1
+tragically:1
+to and fro:1
+time and again:1
+thickly:1
+therein:1
+thence:1
+tentatively:1
+tenderly:1
+sympathetically:1
+sweetly:1
+suspiciously:1
+superficially:1
+superbly:1
+subtly:1
+stubbornly:1
+strikingly:1
+strategically:1
+sternly:1
+steeply:1
+squarely:1
+speedily:1
+solidly:1
+solemnly:1
+smartly:1
+slower:1
+skilfully:1
+selectively:1
+securely:1
+scientifically:1
+scarce:1
+savagely:1
+safer:1
+ruthlessly:1
+ruefully:1
+routinely:1
+rigorously:1
+rigidly:1
+resolutely:1
+remotely:1
+reliably:1
+relentlessly:1
+regrettably:1
+real:1
+realistically:1
+ready:1
+rationally:1
+randomly:1
+quicker:1
+psychologically:1
+prominently:1
+prior:1
+prematurely:1
+predictably:1
+popularly:1
+pointedly:1
+persistently:1
+periodically:1
+per se:1
+per capita:1
+peculiarly:1
+peacefully:1
+patently:1
+passionately:1
+part-time:1
+overtly:1
+outright:1
+ordinarily:1
+once and for all:1
+ok:1
+okay:1
+offshore:1
+objectively:1
+not:1
+noticeably:1
+northwards:1
+nominally:1
+noisily:1
+negatively:1
+nationwide:1
+mysteriously:1
+monthly:1
+modestly:1
+mistakenly:1
+miserably:1
+miraculously:1
+mercifully:1
+mechanically:1
+materially:1
+massively:1
+manually:1
+lower:1
+lovingly:1
+legitimately:1
+left:1
+lazily:1
+latterly:1
+lastly:1
+knowingly:1
+kind of:1
+keenly:1
+justly:1
+justifiably:1
+jolly:1
+irritably:1
+inwards:1
+inwardly:1
+involuntarily:1
+intrinsically:1
+intimately:1
+intermittently:1
+inter alia:1
+intentionally:1
+intellectually:1
+innocently:1
+inland:1
+infrequently:1
+informally:1
+inextricably:1
+inexorably:1
+indignantly:1
+incorrectly:1
+inadvertently:1
+in vitro:1
+in the main:1
+in situ:1
+in brief:1
+idly:1
+ibid:1
+ibid.:1
+huskily:1
+hugely:1
+hotly:1
+horribly:1
+horizontally:1
+hesitantly:1
+hereby:1
+henceforth:1
+harshly:1
+half-way:1
+half way:1
+habitually:1
+grudgingly:1
+grossly:1
+gravely:1
+gratefully:1
+graphically:1
+gracefully:1
+gloomily:1
+gladly:1
+gingerly:1
+geographically:1
+genetically:1
+full:1
+full-time:1
+forthwith:1
+forcibly:1
+forcefully:1
+for sure:1
+flatly:1
+fine:1
+farther:1
+falsely:1
+externally:1
+expertly:1
+experimentally:1
+excitedly:1
+excessively:1
+exceedingly:1
+ever so:1
+endlessly:1
+emphatically:1
+eminently:1
+elegantly:1
+electronically:1
+effortlessly:1
+eastwards:1
+earnestly:1
+drastically:1
+downstream:1
+downhill:1
+doubtfully:1
+doubly:1
+double:1
+disproportionately:1
+discreetly:1
+dimly:1
+densely:1
+delicately:1
+defiantly:1
+defensively:1
+decisively:1
+dearly:1
+darkly:1
+culturally:1
+cruelly:1
+crudely:1
+crucially:1
+crossly:1
+correspondingly:1
+coolly:1
+convincingly:1
+conventionally:1
+conspicuously:1
+conceivably:1
+closest:1
+clinically:1
+cleverly:1
+circa:1
+chemically:1
+carelessly:1
+by and large:1
+busily:1
+brutally:1
+bravely:1
+boldly:1
+bluntly:1
+blindly:1
+blankly:1
+beneath:1
+belatedly:1
+awkwardly:1
+awfully:1
+at worst:1
+at most:1
+astonishingly:1
+as a matter of fact:1
+artificially:1
+arbitrarily:1
+approx:1
+apologetically:1
+anymore:1
+anyhow:1
+and so forth:1
+amazingly:1
+alternately:1
+aloft:1
+all of a sudden:1
+alarmingly:1
+aggressively:1
+afield:1
+affectionately:1
+adversely:1
+admirably:1
+absently:1
+aboard:1
+aback:1
+a.d.:1
+a lot:1

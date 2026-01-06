@@ -1,0 +1,9 @@
+------
+-- call_center_hours
+-- values                 weights
+-- =======               ==========
+--  1. hours            1. weighted
+------
+8AM-4PM: 10
+8AM-12AM: 2
+8AM-8AM: 1

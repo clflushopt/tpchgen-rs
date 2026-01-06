@@ -1,0 +1,16 @@
+--
+-- syllables.dst
+-- values             weights
+-- ======            =========
+-- 1. syllable    1. uniform
+---------
+bar:1
+ought:1
+able:1
+pri:1
+ese:1
+anti:1
+cally:1
+ation:1
+eing:1
+n st:1

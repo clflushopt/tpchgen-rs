@@ -1,0 +1,102 @@
+------
+-- colors
+-- values           weights
+-- -----------------------
+--  1. color    1. uniform
+--              2. skewed dist (used by dbgen)
+--              3. low likelihood (used by qgen)
+--              4. medium likelihood (used by qgen)
+--              5. high likelihood (used by qgen)
+------
+almond: 1, 1, 1, 0, 0
+antique: 1, 1, 1, 0, 0
+aquamarine: 1, 1, 1, 0, 0
+azure: 1, 1, 1, 0, 0
+beige: 1, 1, 1, 0, 0
+bisque: 1, 1, 1, 0, 0
+black: 1, 1, 1, 0, 0
+blanched: 1, 1, 1, 0, 0
+blue: 1, 1, 1, 0, 0
+blush: 1, 1, 1, 0, 0
+brown: 1, 1, 1, 0, 0
+burlywood: 1, 1, 1, 0, 0
+burnished: 1, 1, 1, 0, 0
+chartreuse: 1, 1, 1, 0, 0
+chiffon: 1, 1, 1, 0, 0
+chocolate: 1, 1, 1, 0, 0
+coral: 1, 1, 1, 0, 0
+cornflower: 1, 1, 1, 0, 0
+cornsilk: 1, 1, 1, 0, 0
+cream: 1, 1, 1, 0, 0
+cyan: 1, 1, 1, 0, 0
+dark: 1, 1, 1, 0, 0
+deep: 1, 1, 1, 0, 0
+dim: 1, 1, 1, 0, 0
+dodger: 1, 1, 1, 0, 0
+drab: 1, 1, 1, 0, 0
+firebrick: 1, 1, 1, 0, 0
+floral: 1, 1, 1, 0, 0
+forest: 1, 1, 1, 0, 0
+frosted: 1, 1, 1, 0, 0
+gainsboro: 1, 3, 0, 1, 0
+ghost: 1, 3, 0, 1, 0
+goldenrod: 1, 3, 0, 1, 0
+green: 1, 3, 0, 1, 0
+grey: 1, 3, 0, 1, 0
+honeydew: 1, 3, 0, 1, 0
+hot: 1, 3, 0, 1, 0
+indian: 1, 3, 0, 1, 0
+ivory: 1, 3, 0, 1, 0
+khaki: 1, 3, 0, 1, 0
+lace: 1, 3, 0, 1, 0
+lavender: 1, 3, 0, 1, 0
+lawn: 1, 3, 0, 1, 0
+lemon: 1, 3, 0, 1, 0
+light: 1, 3, 0, 1, 0
+lime: 1, 3, 0, 1, 0
+linen: 1, 3, 0, 1, 0
+magenta: 1, 3, 0, 1, 0
+maroon: 1, 3, 0, 1, 0
+medium: 1, 3, 0, 1, 0
+metallic: 1, 3, 0, 1, 0
+midnight: 1, 3, 0, 1, 0
+mint: 1, 3, 0, 1, 0
+misty: 1, 3, 0, 1, 0
+moccasin: 1, 3, 0, 1, 0
+navajo: 1, 3, 0, 1, 0
+navy: 1, 3, 0, 1, 0
+olive: 1, 3, 0, 1, 0
+orange: 1, 3, 0, 1, 0
+orchid: 1, 3, 0, 1, 0
+pale: 1, 9, 0, 0, 1
+papaya: 1, 9, 0, 0, 1
+peach: 1, 9, 0, 0, 1
+peru: 1, 9, 0, 0, 1
+pink: 1, 9, 0, 0, 1
+plum: 1, 9, 0, 0, 1
+powder: 1, 9, 0, 0, 1
+puff: 1, 9, 0, 0, 1
+purple: 1, 9, 0, 0, 1
+red: 1, 9, 0, 0, 1
+rose: 1, 9, 0, 0, 1
+rosy: 1, 9, 0, 0, 1
+royal: 1, 9, 0, 0, 1
+saddle: 1, 9, 0, 0, 1
+salmon: 1, 9, 0, 0, 1
+sandy: 1, 9, 0, 0, 1
+seashell: 1, 9, 0, 0, 1
+sienna: 1, 9, 0, 0, 1
+sky: 1, 9, 0, 0, 1
+slate: 1, 9, 0, 0, 1
+smoke: 1, 9, 0, 0, 1
+snow: 1, 9, 0, 0, 1
+spring: 1, 9, 0, 0, 1
+steel: 1, 9, 0, 0, 1
+tan: 1, 9, 0, 0, 1
+thistle: 1, 9, 0, 0, 1
+tomato: 1, 9, 0, 0, 1
+turquoise: 1, 9, 0, 0, 1
+violet: 1, 9, 0, 0, 1
+wheat: 1, 9, 0, 0, 1
+white: 1, 9, 0, 0, 1
+yellow: 1, 9, 0, 0, 1

@@ -1,0 +1,27 @@
+------
+-- units
+-- values           weights
+-- -----------------------
+--  1. unit name    1. uniform
+------
+Unknown: 400
+Each: 400
+Dozen: 400
+Case: 400
+Pallet: 400
+Gross: 400
+Carton: 400
+Box: 400
+Bunch: 400
+Bundle: 400
+Oz: 400
+Lb: 400
+Ton: 400
+Ounce: 400
+Pound: 400
+Tsp: 400
+Tbl: 400
+Cup: 400
+Dram: 400
+Gram: 400
+N/A: 400

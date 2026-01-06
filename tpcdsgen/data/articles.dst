@@ -1,0 +1,11 @@
+-- articles
+-- from the common word list
+-- values           weights
+-- =======          =======
+--  1. article    1. weight
+------
+the:163
+a:504
+an:9
+no:3
+every:1

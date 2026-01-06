@@ -1,0 +1,10 @@
+------
+-- location_type
+-- values               weights
+-- =======              =======
+--  1. location type    1. uniform
+--                      2. distribution freq
+------
+single family: 1, 50
+condo: 1, 25
+apartment: 1, 25
