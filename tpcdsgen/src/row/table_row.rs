@@ -5,7 +5,7 @@ use std::io::{self, Write};
 pub trait TableRow: Send + Sync {
     /// Get all values as strings for output (getValues())
     ///
-    /// Note: This method allocates a Vec<String>. For performance-critical code,
+    /// Note: This method allocates a `Vec<String>`. For performance-critical code,
     /// prefer using `write_to()` which writes directly to a buffer.
     fn get_values(&self) -> Vec<String>;
 

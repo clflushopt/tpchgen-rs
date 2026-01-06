@@ -85,15 +85,34 @@ EOF
 
 # Find the unified tpcdsgen binary
 find_rust_binary() {
-    local binary="$PROJECT_ROOT/target/release/tpcdsgen"
+    local target_dir
 
+    # Detect if we're in a workspace using cargo
+    if command -v cargo >/dev/null 2>&1; then
+        local workspace_root
+        workspace_root=$(cd "$PROJECT_ROOT" && cargo locate-project --workspace --message-format=plain 2>/dev/null | xargs dirname)
+
+        if [[ -n "$workspace_root" && -d "$workspace_root" ]]; then
+            # In a workspace - use workspace target directory
+            target_dir="$workspace_root/target"
+        else
+            # Standalone project
+            target_dir="$PROJECT_ROOT/target"
+        fi
+    else
+        # No cargo available, fall back to PROJECT_ROOT
+        target_dir="$PROJECT_ROOT/target"
+    fi
+
+    # Try release build
+    local binary="$target_dir/release/tpcdsgen"
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0
     fi
 
     # Try debug build
-    binary="$PROJECT_ROOT/target/debug/tpcdsgen"
+    binary="$target_dir/debug/tpcdsgen"
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0

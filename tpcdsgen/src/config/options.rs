@@ -39,7 +39,7 @@ pub struct Options {
     #[arg(long = "no-sexism")]
     pub no_sexism: bool,
 
-    /// Build data in <n> separate chunks (Default: 1)
+    /// Build data in `n` separate chunks (Default: 1)
     #[arg(long = "parallelism", default_value = "1")]
     pub parallelism: i32,
 
