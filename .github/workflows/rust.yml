@@ -57,23 +57,14 @@ jobs:
       - name: All Tests (tpchgen-cli)
         run: cargo test -p tpchgen-cli
 
-  # Tests for tpcdsgen
-  test-tests-tpcdsgen:
+  # All tests for tpcdsgen
+  test-all-tpcdsgen:
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v6
-      - name: Tests (tpcdsgen)
-        run: cargo test -p tpcdsgen --tests
-
-  # doc examples test for tpcdsgen
-  test-doc-tpcdsgen:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v6
-      - name: Doc Tests (tpcdsgen)
-        run: cargo test -p tpcdsgen --doc
+      - name: All Tests (tpcdsgen)
+        run: cargo test -p tpcdsgen
 
   # documentation build
   docs:
