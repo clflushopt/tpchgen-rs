@@ -118,6 +118,15 @@ struct Cli {
     /// Typical values range from 10MB to 100MB.
     #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
     parquet_row_group_bytes: i64,
+
+    /// CSV delimiter character (default: ',')
+    ///
+    /// Specifies the delimiter character to use when generating CSV files.
+    /// This option only applies to CSV format and cannot be used with TBL format.
+    ///
+    /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
+    #[arg(long, default_value_t = ',')]
+    delimiter: char,
 }
 
 // TableValueParser is CLI-specific and uses the Table type from the library
@@ -192,6 +201,19 @@ impl Cli {
             }
         }
 
+        // Validate delimiter usage
+        if self.format == OutputFormat::Tbl && self.delimiter != ',' {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "The --delimiter option cannot be used with --format=tbl. TBL format uses the TPC-H standard pipe delimiter."
+            ));
+        }
+
+        // Warn if delimiter is set but not generating CSV
+        if self.format != OutputFormat::Csv && self.delimiter != ',' {
+            eprintln!("Warning: Delimiter option set but not generating CSV files");
+        }
+
         // Build the generator using the library API
         let mut builder = TpchGenerator::builder()
             .with_scale_factor(self.scale_factor)
@@ -200,7 +222,8 @@ impl Cli {
             .with_num_threads(self.num_threads)
             .with_parquet_compression(self.parquet_compression)
             .with_parquet_row_group_bytes(self.parquet_row_group_bytes)
-            .with_stdout(self.stdout);
+            .with_stdout(self.stdout)
+            .with_csv_delimiter(self.delimiter);
 
         // Add tables if specified
         if let Some(tables) = self.tables {

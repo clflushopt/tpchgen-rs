@@ -14,25 +14,30 @@ macro_rules! define_csv_source {
     ($SOURCE_NAME:ident, $GENERATOR_TYPE:ty, $FORMATTER:ty) => {
         pub struct $SOURCE_NAME {
             inner: $GENERATOR_TYPE,
+            delimiter: char,
         }
 
         impl $SOURCE_NAME {
-            pub fn new(inner: $GENERATOR_TYPE) -> Self {
-                Self { inner }
+            pub fn new(inner: $GENERATOR_TYPE, delimiter: char) -> Self {
+                Self { inner, delimiter }
             }
         }
 
         impl Source for $SOURCE_NAME {
             fn header(&self, buffer: Vec<u8>) -> Vec<u8> {
                 let mut buffer = buffer;
-                writeln!(&mut buffer, "{}", <$FORMATTER>::header())
-                    .expect("writing to memory is infallible");
+                writeln!(
+                    &mut buffer,
+                    "{}",
+                    <$FORMATTER>::header_with_delimiter(self.delimiter)
+                )
+                .expect("writing to memory is infallible");
                 buffer
             }
 
             fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
                 for item in self.inner.iter() {
-                    let formatter = <$FORMATTER>::new(item);
+                    let formatter = <$FORMATTER>::with_delimiter(item, self.delimiter);
                     writeln!(&mut buffer, "{formatter}").expect("writing to memory is infallible");
                 }
                 buffer

@@ -50,6 +50,8 @@ pub struct OutputPlan {
     output_location: OutputLocation,
     /// Plan for generating the table
     generation_plan: GenerationPlan,
+    /// CSV delimiter character
+    csv_delimiter: char,
 }
 
 impl OutputPlan {
@@ -60,6 +62,7 @@ impl OutputPlan {
         parquet_compression: Compression,
         output_location: OutputLocation,
         generation_plan: GenerationPlan,
+        csv_delimiter: char,
     ) -> Self {
         Self {
             table,
@@ -68,6 +71,7 @@ impl OutputPlan {
             parquet_compression,
             output_location,
             generation_plan,
+            csv_delimiter,
         }
     }
 
@@ -106,6 +110,11 @@ impl OutputPlan {
     pub fn generation_plan(&self) -> &GenerationPlan {
         &self.generation_plan
     }
+
+    /// Return the CSV delimiter character for this partition
+    pub fn csv_delimiter(&self) -> char {
+        self.csv_delimiter
+    }
 }
 
 impl Display for OutputPlan {
@@ -129,6 +138,7 @@ pub struct OutputPlanGenerator {
     parquet_row_group_bytes: i64,
     stdout: bool,
     output_dir: PathBuf,
+    csv_delimiter: char,
     /// The generated output plans
     output_plans: Vec<OutputPlan>,
     /// Output directores that have been created so far
@@ -144,6 +154,7 @@ impl OutputPlanGenerator {
         parquet_row_group_bytes: i64,
         stdout: bool,
         output_dir: PathBuf,
+        csv_delimiter: char,
     ) -> Self {
         Self {
             format,
@@ -152,6 +163,7 @@ impl OutputPlanGenerator {
             parquet_row_group_bytes,
             stdout,
             output_dir,
+            csv_delimiter,
             output_plans: Vec::new(),
             created_directories: HashSet::new(),
         }
@@ -208,6 +220,7 @@ impl OutputPlanGenerator {
             self.parquet_compression,
             output_location,
             generation_plan,
+            self.csv_delimiter,
         );
 
         self.output_plans.push(plan);

@@ -29,25 +29,40 @@ use std::fmt::Display;
 /// ```
 pub struct NationCsv<'a> {
     inner: Nation<'a>,
+    delimiter: char,
 }
 
 impl<'a> NationCsv<'a> {
     pub fn new(inner: Nation<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new NationCsv with a custom delimiter
+    pub fn with_delimiter(inner: Nation<'a>, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the Nation table
     pub fn header() -> &'static str {
         "n_nationkey,n_name,n_regionkey,n_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("n_nationkey{delimiter}n_name{delimiter}n_regionkey{delimiter}n_comment")
+    }
 }
 
 impl Display for NationCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},{},\"{}\"",
+            // note must quote the comment field as it may contain the delimiter
+            "{}{d}{}{d}{}{d}\"{}\"",
             self.inner.n_nationkey, self.inner.n_name, self.inner.n_regionkey, self.inner.n_comment
         )
     }
@@ -78,25 +93,40 @@ impl Display for NationCsv<'_> {
 /// ```
 pub struct RegionCsv<'a> {
     inner: Region<'a>,
+    delimiter: char,
 }
 
 impl<'a> RegionCsv<'a> {
     pub fn new(inner: Region<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new RegionCsv with a custom delimiter
+    pub fn with_delimiter(inner: Region<'a>, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the Region table
     pub fn header() -> &'static str {
         "r_regionkey,r_name,r_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("r_regionkey{delimiter}r_name{delimiter}r_comment")
+    }
 }
 
 impl Display for RegionCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},\"{}\"",
+            // note must quote the comment field as it may contain the delimiter
+            "{}{d}{}{d}\"{}\"",
             self.inner.r_regionkey, self.inner.r_name, self.inner.r_comment
         )
     }
@@ -127,25 +157,40 @@ impl Display for RegionCsv<'_> {
 /// ```
 pub struct PartCsv<'a> {
     inner: Part<'a>,
+    delimiter: char,
 }
 
 impl<'a> PartCsv<'a> {
     pub fn new(inner: Part<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new PartCsv with a custom delimiter
+    pub fn with_delimiter(inner: Part<'a>, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the Part table
     pub fn header() -> &'static str {
         "p_partkey,p_name,p_mfgr,p_brand,p_type,p_size,p_container,p_retailprice,p_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("p_partkey{delimiter}p_name{delimiter}p_mfgr{delimiter}p_brand{delimiter}p_type{delimiter}p_size{delimiter}p_container{delimiter}p_retailprice{delimiter}p_comment")
+    }
 }
 
 impl Display for PartCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},{},{},{},{},{},{},\"{}\"",
+            // note must quote the comment field as it may contain the delimiter
+            "{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}\"{}\"",
             self.inner.p_partkey,
             self.inner.p_name,
             self.inner.p_mfgr,
@@ -184,25 +229,40 @@ impl Display for PartCsv<'_> {
 /// ```
 pub struct SupplierCsv {
     inner: Supplier,
+    delimiter: char,
 }
 
 impl SupplierCsv {
     pub fn new(inner: Supplier) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new SupplierCsv with a custom delimiter
+    pub fn with_delimiter(inner: Supplier, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the Supplier table
     pub fn header() -> &'static str {
         "s_suppkey,s_name,s_address,s_nationkey,s_phone,s_acctbal,s_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("s_suppkey{delimiter}s_name{delimiter}s_address{delimiter}s_nationkey{delimiter}s_phone{delimiter}s_acctbal{delimiter}s_comment")
+    }
 }
 
 impl Display for SupplierCsv {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the address and comment fields as they may contain commas
-            "{},{},\"{}\",{},{},{},\"{}\"",
+            // note must quote the address and comment fields as they may contain the delimiter
+            "{}{d}{}{d}\"{}\"{d}{}{d}{}{d}{}{d}\"{}\"",
             self.inner.s_suppkey,
             self.inner.s_name,
             self.inner.s_address,
@@ -239,25 +299,40 @@ impl Display for SupplierCsv {
 /// ```
 pub struct CustomerCsv<'a> {
     inner: Customer<'a>,
+    delimiter: char,
 }
 
 impl<'a> CustomerCsv<'a> {
     pub fn new(inner: Customer<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new CustomerCsv with a custom delimiter
+    pub fn with_delimiter(inner: Customer<'a>, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the Customer table
     pub fn header() -> &'static str {
         "c_custkey,c_name,c_address,c_nationkey,c_phone,c_acctbal,c_mktsegment,c_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("c_custkey{delimiter}c_name{delimiter}c_address{delimiter}c_nationkey{delimiter}c_phone{delimiter}c_acctbal{delimiter}c_mktsegment{delimiter}c_comment")
+    }
 }
 
 impl Display for CustomerCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the address and comment fields as they may contain commas
-            "{},{},\"{}\",{},{},{},{},\"{}\"",
+            // note must quote the address and comment fields as they may contain the delimiter
+            "{}{d}{}{d}\"{}\"{d}{}{d}{}{d}{}{d}{}{d}\"{}\"",
             self.inner.c_custkey,
             self.inner.c_name,
             self.inner.c_address,
@@ -295,25 +370,40 @@ impl Display for CustomerCsv<'_> {
 /// ```
 pub struct PartSuppCsv<'a> {
     inner: PartSupp<'a>,
+    delimiter: char,
 }
 
 impl<'a> PartSuppCsv<'a> {
     pub fn new(inner: PartSupp<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new PartSuppCsv with a custom delimiter
+    pub fn with_delimiter(inner: PartSupp<'a>, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the PartSupp table
     pub fn header() -> &'static str {
         "ps_partkey,ps_suppkey,ps_availqty,ps_supplycost,ps_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("ps_partkey{delimiter}ps_suppkey{delimiter}ps_availqty{delimiter}ps_supplycost{delimiter}ps_comment")
+    }
 }
 
 impl Display for PartSuppCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},{},{},\"{}\"",
+            // note must quote the comment field as it may contain the delimiter
+            "{}{d}{}{d}{}{d}{}{d}\"{}\"",
             self.inner.ps_partkey,
             self.inner.ps_suppkey,
             self.inner.ps_availqty,
@@ -348,25 +438,40 @@ impl Display for PartSuppCsv<'_> {
 /// ```
 pub struct OrderCsv<'a> {
     inner: Order<'a>,
+    delimiter: char,
 }
 
 impl<'a> OrderCsv<'a> {
     pub fn new(inner: Order<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new OrderCsv with a custom delimiter
+    pub fn with_delimiter(inner: Order<'a>, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the Order table
     pub fn header() -> &'static str {
         "o_orderkey,o_custkey,o_orderstatus,o_totalprice,o_orderdate,o_orderpriority,o_clerk,o_shippriority,o_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("o_orderkey{delimiter}o_custkey{delimiter}o_orderstatus{delimiter}o_totalprice{delimiter}o_orderdate{delimiter}o_orderpriority{delimiter}o_clerk{delimiter}o_shippriority{delimiter}o_comment")
+    }
 }
 
 impl Display for OrderCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},{},{},{},{},{},{},\"{}\"",
+            // note must quote the comment field as it may contain the delimiter
+            "{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}\"{}\"",
             self.inner.o_orderkey,
             self.inner.o_custkey,
             self.inner.o_orderstatus,
@@ -407,24 +512,39 @@ impl Display for OrderCsv<'_> {
 /// [crate documentation]: crate
 pub struct LineItemCsv<'a> {
     inner: LineItem<'a>,
+    delimiter: char,
 }
 impl<'a> LineItemCsv<'a> {
     pub fn new(inner: LineItem<'a>) -> Self {
-        Self { inner }
+        Self {
+            inner,
+            delimiter: ',',
+        }
+    }
+
+    /// Create a new LineItemCsv with a custom delimiter
+    pub fn with_delimiter(inner: LineItem<'a>, delimiter: char) -> Self {
+        Self { inner, delimiter }
     }
 
     /// Returns the CSV header for the LineItem table
     pub fn header() -> &'static str {
         "l_orderkey,l_partkey,l_suppkey,l_linenumber,l_quantity,l_extendedprice,l_discount,l_tax,l_returnflag,l_linestatus,l_shipdate,l_commitdate,l_receiptdate,l_shipinstruct,l_shipmode,l_comment"
     }
+
+    /// Returns the CSV header with a custom delimiter
+    pub fn header_with_delimiter(delimiter: char) -> String {
+        format!("l_orderkey{delimiter}l_partkey{delimiter}l_suppkey{delimiter}l_linenumber{delimiter}l_quantity{delimiter}l_extendedprice{delimiter}l_discount{delimiter}l_tax{delimiter}l_returnflag{delimiter}l_linestatus{delimiter}l_shipdate{delimiter}l_commitdate{delimiter}l_receiptdate{delimiter}l_shipinstruct{delimiter}l_shipmode{delimiter}l_comment")
+    }
 }
 
 impl Display for LineItemCsv<'_> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let d = self.delimiter;
         write!(
             f,
-            // note must quote the comment field as it may contain commas
-            "{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},\"{}\"",
+            // note must quote the comment field as it may contain the delimiter
+            "{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}{}{d}\"{}\"",
             self.inner.l_orderkey,
             self.inner.l_partkey,
             self.inner.l_suppkey,

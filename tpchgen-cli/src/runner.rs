@@ -280,12 +280,13 @@ macro_rules! define_run {
             fn csv_sources(
                 generation_plan: &GenerationPlan,
                 scale_factor: f64,
+                delimiter: char,
             ) -> impl Iterator<Item: Source> + 'static {
                 generation_plan
                     .clone()
                     .into_iter()
                     .map(move |(part, num_parts)| $GENERATOR::new(scale_factor, part, num_parts))
-                    .map(<$CSV_SOURCE>::new)
+                    .map(move |gen| <$CSV_SOURCE>::new(gen, delimiter))
             }
 
             fn parquet_sources(
@@ -306,7 +307,8 @@ macro_rules! define_run {
                     write_file(plan, num_threads, gens).await?
                 }
                 OutputFormat::Csv => {
-                    let gens = csv_sources(plan.generation_plan(), scale_factor);
+                    let delimiter = plan.csv_delimiter();
+                    let gens = csv_sources(plan.generation_plan(), scale_factor, delimiter);
                     write_file(plan, num_threads, gens).await?
                 }
                 OutputFormat::Parquet => {
