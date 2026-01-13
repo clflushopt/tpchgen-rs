@@ -1,6 +1,8 @@
 //! Parquet output format
 
+use crate::progress::ProgressTracker;
 use crate::statistics::WriteStatistics;
+use crate::Table;
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
 use log::debug;
@@ -32,6 +34,8 @@ pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
+    progress_tracker: Option<ProgressTracker>,
+    table: Table,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
@@ -86,6 +90,7 @@ where
         Sender<Vec<ArrowColumnChunk>>,
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
+    let captured_progress = progress_tracker.clone();
     let writer_task = tokio::task::spawn_blocking(move || {
         // Create parquet writer
         let mut writer =
@@ -101,6 +106,11 @@ where
             }
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
+            
+            // Increment buffer count after each row group is written
+            if let Some(ref tracker) = captured_progress {
+                tracker.increment_buffer(table);
+            }
         }
         let size = writer.into_inner()?.into_size()?;
         statistics.increment_bytes(size);

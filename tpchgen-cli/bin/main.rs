@@ -119,6 +119,10 @@ struct CommonArgs {
     /// Write the output to stdout instead of a file.
     #[arg(long, default_value_t = false)]
     stdout: bool,
+
+    /// Show progress bars during generation
+    #[arg(short = 'P', long, default_value_t = false)]
+    progress: bool,
 }
 
 impl CommonArgs {
@@ -129,7 +133,8 @@ impl CommonArgs {
             .with_output_dir(self.output_dir)
             .with_format(format)
             .with_num_threads(self.num_threads)
-            .with_stdout(self.stdout);
+            .with_stdout(self.stdout)
+            .with_show_progress(self.progress);
 
         if let Some(tables) = self.tables {
             builder = builder.with_tables(tables);

@@ -3,6 +3,8 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
+use crate::progress::ProgressTracker;
+use crate::Table;
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
@@ -52,6 +54,8 @@ pub async fn generate_in_chunks<G, I, S>(
     mut sink: S,
     sources: I,
     num_threads: usize,
+    progress_tracker: Option<ProgressTracker>,
+    table: Table,
 ) -> Result<(), io::Error>
 where
     G: Source + 'static,
@@ -81,7 +85,7 @@ where
     // convert to an async stream to run on tokio
     let mut stream = futures::stream::iter(sources_and_recyclers)
         // each generator writes to a buffer
-        .map(async |(source, recycler)| {
+        .map(|(source, recycler)| async move {
             let buffer = recycler.new_buffer(1024 * 1024 * 8);
             // do the work in a task (on a different thread)
             let mut join_set = JoinSet::new();
@@ -109,10 +113,15 @@ where
     // The writer task runs in a blocking thread to avoid blocking the async
     // runtime. It reads from the channel and writes to the sink (doing File IO)
     let captured_recycler = recycler.clone();
+    let captured_progress_for_buffers = progress_tracker.clone();
     let writer_task = tokio::task::spawn_blocking(move || {
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
             captured_recycler.return_buffer(buffer);
+            // Increment buffer count after each buffer/chunk is written
+            if let Some(ref tracker) = captured_progress_for_buffers {
+                tracker.increment_buffer(table);
+            }
         }
         // No more input, flush the sink and return
         sink.flush()

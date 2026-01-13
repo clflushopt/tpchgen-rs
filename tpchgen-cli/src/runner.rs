@@ -4,6 +4,7 @@ use crate::csv::*;
 use crate::generate::{generate_in_chunks, Source};
 use crate::output_plan::{OutputLocation, OutputPlan};
 use crate::parquet::generate_parquet;
+use crate::progress::ProgressTracker;
 use crate::tbl::*;
 use crate::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
 use crate::{OutputFormat, Table, WriterSink};
@@ -26,12 +27,32 @@ use tpchgen_arrow::{
 pub struct PlanRunner {
     plans: Vec<OutputPlan>,
     num_threads: usize,
+    progress_tracker: Option<ProgressTracker>,
 }
 
 impl PlanRunner {
     /// Create a new [`PlanRunner`] with the given plans and number of threads.
-    pub fn new(plans: Vec<OutputPlan>, num_threads: usize) -> Self {
-        Self { plans, num_threads }
+    pub fn new(plans: Vec<OutputPlan>, num_threads: usize, show_progress: bool) -> Self {
+        let progress_tracker = if show_progress {
+            // Group plans by table and count the number of files (plans) per table
+            use std::collections::HashMap;
+            let mut table_file_count: HashMap<Table, usize> = HashMap::new();
+            for plan in &plans {
+                *table_file_count.entry(plan.table()).or_insert(0) += 1;
+            }
+            let table_parts: Vec<(Table, usize)> = table_file_count
+                .into_iter()
+                .collect();
+            Some(ProgressTracker::new(table_parts))
+        } else {
+            None
+        };
+
+        Self {
+            plans,
+            num_threads,
+            progress_tracker,
+        }
     }
 
     /// Run all the plans in the runner.
@@ -44,6 +65,7 @@ impl PlanRunner {
         let Self {
             mut plans,
             num_threads,
+            progress_tracker,
         } = self;
 
         // Sort the plans by the number of parts so the largest are first
@@ -54,7 +76,7 @@ impl PlanRunner {
         });
 
         // Do the actual work in parallel, using a worker queue
-        let mut worker_queue = WorkerQueue::new(num_threads);
+        let mut worker_queue = WorkerQueue::new(num_threads, progress_tracker);
         while let Some(plan) = plans.pop() {
             worker_queue.schedule_plan(plan).await?;
         }
@@ -82,14 +104,16 @@ struct WorkerQueue {
     join_set: JoinSet<io::Result<usize>>,
     /// Current number of threads available to commit
     available_threads: usize,
+    progress_tracker: Option<ProgressTracker>,
 }
 
 impl WorkerQueue {
-    pub fn new(max_threads: usize) -> Self {
+    pub fn new(max_threads: usize, progress_tracker: Option<ProgressTracker>) -> Self {
         assert!(max_threads > 0);
         Self {
             join_set: JoinSet::new(),
             available_threads: max_threads,
+            progress_tracker,
         }
     }
 
@@ -136,8 +160,9 @@ impl WorkerQueue {
             // run the plan in a separate task, which returns the number of threads it used
             debug!("Spawning plan {plan} with {num_plan_threads} threads");
 
+            let progress_tracker = self.progress_tracker.clone();
             self.join_set
-                .spawn(async move { run_plan(plan, num_plan_threads).await });
+                .spawn(async move { run_plan(plan, num_plan_threads, progress_tracker).await });
             self.available_threads -= num_plan_threads;
             return Ok(());
         }
@@ -160,21 +185,29 @@ fn task_result<T>(result: Result<io::Result<T>, JoinError>) -> io::Result<T> {
 }
 
 /// Run a single [`OutputPlan`]
-async fn run_plan(plan: OutputPlan, num_threads: usize) -> io::Result<usize> {
-    match plan.table() {
-        Table::Nation => run_nation_plan(plan, num_threads).await,
-        Table::Region => run_region_plan(plan, num_threads).await,
-        Table::Part => run_part_plan(plan, num_threads).await,
-        Table::Supplier => run_supplier_plan(plan, num_threads).await,
-        Table::Partsupp => run_partsupp_plan(plan, num_threads).await,
-        Table::Customer => run_customer_plan(plan, num_threads).await,
-        Table::Orders => run_orders_plan(plan, num_threads).await,
-        Table::Lineitem => run_lineitem_plan(plan, num_threads).await,
+async fn run_plan(plan: OutputPlan, num_threads: usize, progress_tracker: Option<ProgressTracker>) -> io::Result<usize> {
+    let table = plan.table();
+    let result = match table {
+        Table::Nation => run_nation_plan(plan, num_threads, progress_tracker.clone()).await,
+        Table::Region => run_region_plan(plan, num_threads, progress_tracker.clone()).await,
+        Table::Part => run_part_plan(plan, num_threads, progress_tracker.clone()).await,
+        Table::Supplier => run_supplier_plan(plan, num_threads, progress_tracker.clone()).await,
+        Table::Partsupp => run_partsupp_plan(plan, num_threads, progress_tracker.clone()).await,
+        Table::Customer => run_customer_plan(plan, num_threads, progress_tracker.clone()).await,
+        Table::Orders => run_orders_plan(plan, num_threads, progress_tracker.clone()).await,
+        Table::Lineitem => run_lineitem_plan(plan, num_threads, progress_tracker.clone()).await,
+    };
+    
+    // Increment part counter after this file/plan is complete
+    if let Some(ref tracker) = progress_tracker {
+        tracker.increment_part(table);
     }
+    
+    result
 }
 
 /// Writes a CSV/TSV output from the sources
-async fn write_file<I>(plan: OutputPlan, num_threads: usize, sources: I) -> Result<(), io::Error>
+async fn write_file<I>(plan: OutputPlan, num_threads: usize, sources: I, progress_tracker: Option<ProgressTracker>, table: Table) -> Result<(), io::Error>
 where
     I: Iterator<Item: Source> + 'static,
 {
@@ -183,7 +216,7 @@ where
     match plan.output_location() {
         OutputLocation::Stdout => {
             let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, num_threads).await
+            generate_in_chunks(sink, sources, num_threads, progress_tracker, table).await
         }
         OutputLocation::File(path) => {
             // if the output already exists, skip running
@@ -197,7 +230,7 @@ where
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let sink = WriterSink::new(file);
-            generate_in_chunks(sink, sources, num_threads).await?;
+            generate_in_chunks(sink, sources, num_threads, progress_tracker, table).await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
                 io::Error::other(format!(
@@ -210,14 +243,14 @@ where
 }
 
 /// Generates an output parquet file from the sources
-async fn write_parquet<I>(plan: OutputPlan, num_threads: usize, sources: I) -> Result<(), io::Error>
+async fn write_parquet<I>(plan: OutputPlan, num_threads: usize, sources: I, progress_tracker: Option<ProgressTracker>, table: Table) -> Result<(), io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
 {
     match plan.output_location() {
         OutputLocation::Stdout => {
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet(writer, sources, num_threads, plan.parquet_compression()).await
+            generate_parquet(writer, sources, num_threads, plan.parquet_compression(), progress_tracker, table).await
         }
         OutputLocation::File(path) => {
             // if the output already exists, skip running
@@ -231,7 +264,7 @@ where
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet(writer, sources, num_threads, plan.parquet_compression()).await?;
+            generate_parquet(writer, sources, num_threads, plan.parquet_compression(), progress_tracker, table).await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
                 io::Error::other(format!(
@@ -253,7 +286,7 @@ where
 /// $PARQUET_SOURCE: The [`RecordBatchIterator`] type to use for Parquet format
 macro_rules! define_run {
     ($FUN_NAME:ident, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        async fn $FUN_NAME(plan: OutputPlan, num_threads: usize) -> io::Result<usize> {
+        async fn $FUN_NAME(plan: OutputPlan, num_threads: usize, _progress_tracker: Option<ProgressTracker>) -> io::Result<usize> {
             use crate::GenerationPlan;
             let scale_factor = plan.scale_factor();
             info!("Writing {plan} using {num_threads} threads");
@@ -301,19 +334,21 @@ macro_rules! define_run {
             }
 
             // Dispatch to the appropriate output format
+            let table = plan.table();
             match plan.output_format() {
                 OutputFormat::Tbl => {
                     let gens = tbl_sources(plan.generation_plan(), scale_factor);
-                    write_file(plan, num_threads, gens).await?
+                    write_file(plan, num_threads, gens, _progress_tracker.clone(), table).await?
                 }
                 OutputFormat::Csv => {
                     let delimiter = plan.csv_delimiter();
                     let gens = csv_sources(plan.generation_plan(), scale_factor, delimiter);
                     write_file(plan, num_threads, gens).await?
+                    write_file(plan, num_threads, gens, _progress_tracker.clone(), table).await?
                 }
                 OutputFormat::Parquet => {
                     let gens = parquet_sources(plan.generation_plan(), scale_factor);
-                    write_parquet(plan, num_threads, gens).await?
+                    write_parquet(plan, num_threads, gens, _progress_tracker.clone(), table).await?
                 }
             };
             Ok(num_threads)
