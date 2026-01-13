@@ -1,6 +1,6 @@
 //! Parquet output format
 
-use crate::progress::ProgressTracker;
+use crate::progress::{IncrementType, ProgressTracker};
 use crate::statistics::WriteStatistics;
 use crate::Table;
 use arrow::datatypes::SchemaRef;
@@ -109,7 +109,7 @@ where
             
             // Increment buffer count after each row group is written
             if let Some(ref tracker) = captured_progress {
-                tracker.increment_buffer(table);
+                tracker.increment(table, IncrementType::Buffer);
             }
         }
         let size = writer.into_inner()?.into_size()?;

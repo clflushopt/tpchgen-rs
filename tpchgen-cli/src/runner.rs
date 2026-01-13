@@ -4,7 +4,7 @@ use crate::csv::*;
 use crate::generate::{generate_in_chunks, Source};
 use crate::output_plan::{OutputLocation, OutputPlan};
 use crate::parquet::generate_parquet;
-use crate::progress::ProgressTracker;
+use crate::progress::{IncrementType, ProgressTracker};
 use crate::tbl::*;
 use crate::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
 use crate::{OutputFormat, Table, WriterSink};
@@ -34,7 +34,7 @@ impl PlanRunner {
     /// Create a new [`PlanRunner`] with the given plans and number of threads.
     pub fn new(plans: Vec<OutputPlan>, num_threads: usize, show_progress: bool) -> Self {
         let progress_tracker = if show_progress {
-            // Group plans by table and count the number of files (plans) per table
+            // Group plans by table and count the number of files (parts) per table
             use std::collections::HashMap;
             let mut table_file_count: HashMap<Table, usize> = HashMap::new();
             for plan in &plans {
@@ -200,7 +200,7 @@ async fn run_plan(plan: OutputPlan, num_threads: usize, progress_tracker: Option
     
     // Increment part counter after this file/plan is complete
     if let Some(ref tracker) = progress_tracker {
-        tracker.increment_part(table);
+        tracker.increment(table, IncrementType::Part);
     }
     
     result

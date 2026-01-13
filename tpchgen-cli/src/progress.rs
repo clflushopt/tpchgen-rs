@@ -6,6 +6,15 @@ use std::collections::HashMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
+/// Type of progress increment
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IncrementType {
+    /// Increment the number of parts/files completed
+    Part,
+    /// Increment the number of chunks/buffers written
+    Buffer,
+}
+
 /// Tracks progress for all tables being generated
 #[derive(Clone, Debug)]
 pub struct ProgressTracker {
@@ -23,8 +32,6 @@ struct ProgressTrackerInner {
 struct TableProgress {
     parts_completed: AtomicUsize,
     buffers_written: AtomicUsize,
-    #[allow(dead_code)] // Stored for reference, may be used in future features
-    total_parts: usize,
     progress_bar: ProgressBar,
 }
 
@@ -50,7 +57,6 @@ impl ProgressTracker {
             table_map.insert(table, TableProgress {
                 parts_completed: AtomicUsize::new(0),
                 buffers_written: AtomicUsize::new(0),
-                total_parts,
                 progress_bar: pb,
             });
         }
@@ -63,21 +69,20 @@ impl ProgressTracker {
         }
     }
     
-    /// Increment the number of parts/files completed for a table
-    pub fn increment_part(&self, table: Table) {
+    /// Increment progress counter for a table
+    pub fn increment(&self, table: Table, increment_type: IncrementType) {
         let tables = self.inner.tables.lock().unwrap();
         if let Some(progress) = tables.get(&table) {
-            let new_val = progress.parts_completed.fetch_add(1, Ordering::SeqCst) + 1;
-            progress.progress_bar.set_position(new_val as u64);
-        }
-    }
-    
-    /// Increment the number of chunks/buffers written for a table
-    pub fn increment_buffer(&self, table: Table) {
-        let tables = self.inner.tables.lock().unwrap();
-        if let Some(progress) = tables.get(&table) {
-            let new_val = progress.buffers_written.fetch_add(1, Ordering::SeqCst) + 1;
-            progress.progress_bar.set_prefix(format!("{}", new_val));
+            match increment_type {
+                IncrementType::Part => {
+                    let new_val = progress.parts_completed.fetch_add(1, Ordering::SeqCst) + 1;
+                    progress.progress_bar.set_position(new_val as u64);
+                }
+                IncrementType::Buffer => {
+                    let new_val = progress.buffers_written.fetch_add(1, Ordering::SeqCst) + 1;
+                    progress.progress_bar.set_prefix(format!("{}", new_val));
+                }
+            }
         }
     }
     
@@ -102,8 +107,8 @@ mod tests {
         ]);
         
         // Test that we can increment without panicking
-        tracker.increment(Table::Lineitem);
-        tracker.increment(Table::Orders);
+        tracker.increment(Table::Lineitem, IncrementType::Part);
+        tracker.increment(Table::Orders, IncrementType::Buffer);
     }
     
     #[test]
@@ -114,10 +119,10 @@ mod tests {
         
         // Increment parts and buffers
         for _ in 0..3 {
-            tracker.increment_part(Table::Customer);
+            tracker.increment(Table::Customer, IncrementType::Part);
         }
         for _ in 0..10 {
-            tracker.increment_buffer(Table::Customer);
+            tracker.increment(Table::Customer, IncrementType::Buffer);
         }
         
         // Verify the counts
