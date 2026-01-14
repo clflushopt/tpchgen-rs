@@ -106,7 +106,7 @@ where
             }
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
-            
+
             // Increment buffer count after each row group is written
             if let Some(ref tracker) = captured_progress {
                 tracker.increment(table, IncrementType::Buffer);

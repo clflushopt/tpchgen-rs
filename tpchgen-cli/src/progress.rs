@@ -42,7 +42,7 @@ impl ProgressTracker {
     pub fn new(tables: Vec<(Table, usize)>) -> Self {
         let multi_progress = MultiProgress::new();
         let mut table_map = HashMap::new();
-        
+
         for (table, total_parts) in tables {
             let mut pb = multi_progress.add(ProgressBar::new(total_parts as u64));
             pb.set_style(
@@ -55,14 +55,17 @@ impl ProgressTracker {
             pb.set_prefix("0");
             // Configure to leave the progress bar visible after finishing
             pb = pb.with_finish(ProgressFinish::AndLeave);
-            
-            table_map.insert(table, TableProgress {
-                parts_completed: AtomicUsize::new(0),
-                buffers_written: AtomicUsize::new(0),
-                progress_bar: pb,
-            });
+
+            table_map.insert(
+                table,
+                TableProgress {
+                    parts_completed: AtomicUsize::new(0),
+                    buffers_written: AtomicUsize::new(0),
+                    progress_bar: pb,
+                },
+            );
         }
-        
+
         Self {
             inner: Arc::new(ProgressTrackerInner {
                 tables: Mutex::new(table_map),
@@ -70,7 +73,7 @@ impl ProgressTracker {
             }),
         }
     }
-    
+
     /// Increment progress counter for a table
     pub fn increment(&self, table: Table, increment_type: IncrementType) {
         let tables = self.inner.tables.lock().unwrap();
@@ -87,7 +90,7 @@ impl ProgressTracker {
             }
         }
     }
-    
+
     /// Mark a table as complete (progress bar will stay visible due to ProgressFinish::AndLeave)
     pub fn finish(&self, table: Table) {
         let tables = self.inner.tables.lock().unwrap();
@@ -100,25 +103,20 @@ impl ProgressTracker {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_progress_tracker_creation() {
-        let tracker = ProgressTracker::new(vec![
-            (Table::Lineitem, 10),
-            (Table::Orders, 5),
-        ]);
-        
+        let tracker = ProgressTracker::new(vec![(Table::Lineitem, 10), (Table::Orders, 5)]);
+
         // Test that we can increment without panicking
         tracker.increment(Table::Lineitem, IncrementType::Part);
         tracker.increment(Table::Orders, IncrementType::Buffer);
     }
-    
+
     #[test]
     fn test_progress_tracker_increment() {
-        let tracker = ProgressTracker::new(vec![
-            (Table::Customer, 4),
-        ]);
-        
+        let tracker = ProgressTracker::new(vec![(Table::Customer, 4)]);
+
         // Increment parts and buffers
         for _ in 0..3 {
             tracker.increment(Table::Customer, IncrementType::Part);
@@ -126,7 +124,7 @@ mod tests {
         for _ in 0..10 {
             tracker.increment(Table::Customer, IncrementType::Buffer);
         }
-        
+
         // Verify the counts
         let tables = tracker.inner.tables.lock().unwrap();
         let progress = tables.get(&Table::Customer).unwrap();

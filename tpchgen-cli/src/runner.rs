@@ -40,9 +40,7 @@ impl PlanRunner {
             for plan in &plans {
                 *table_file_count.entry(plan.table()).or_insert(0) += 1;
             }
-            let table_parts: Vec<(Table, usize)> = table_file_count
-                .into_iter()
-                .collect();
+            let table_parts: Vec<(Table, usize)> = table_file_count.into_iter().collect();
             Some(ProgressTracker::new(table_parts))
         } else {
             None
@@ -185,7 +183,11 @@ fn task_result<T>(result: Result<io::Result<T>, JoinError>) -> io::Result<T> {
 }
 
 /// Run a single [`OutputPlan`]
-async fn run_plan(plan: OutputPlan, num_threads: usize, progress_tracker: Option<ProgressTracker>) -> io::Result<usize> {
+async fn run_plan(
+    plan: OutputPlan,
+    num_threads: usize,
+    progress_tracker: Option<ProgressTracker>,
+) -> io::Result<usize> {
     let table = plan.table();
     let result = match table {
         Table::Nation => run_nation_plan(plan, num_threads, progress_tracker.clone()).await,
@@ -197,17 +199,23 @@ async fn run_plan(plan: OutputPlan, num_threads: usize, progress_tracker: Option
         Table::Orders => run_orders_plan(plan, num_threads, progress_tracker.clone()).await,
         Table::Lineitem => run_lineitem_plan(plan, num_threads, progress_tracker.clone()).await,
     };
-    
+
     // Increment part counter after this file/plan is complete
     if let Some(ref tracker) = progress_tracker {
         tracker.increment(table, IncrementType::Part);
     }
-    
+
     result
 }
 
 /// Writes a CSV/TSV output from the sources
-async fn write_file<I>(plan: OutputPlan, num_threads: usize, sources: I, progress_tracker: Option<ProgressTracker>, table: Table) -> Result<(), io::Error>
+async fn write_file<I>(
+    plan: OutputPlan,
+    num_threads: usize,
+    sources: I,
+    progress_tracker: Option<ProgressTracker>,
+    table: Table,
+) -> Result<(), io::Error>
 where
     I: Iterator<Item: Source> + 'static,
 {
@@ -243,14 +251,28 @@ where
 }
 
 /// Generates an output parquet file from the sources
-async fn write_parquet<I>(plan: OutputPlan, num_threads: usize, sources: I, progress_tracker: Option<ProgressTracker>, table: Table) -> Result<(), io::Error>
+async fn write_parquet<I>(
+    plan: OutputPlan,
+    num_threads: usize,
+    sources: I,
+    progress_tracker: Option<ProgressTracker>,
+    table: Table,
+) -> Result<(), io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
 {
     match plan.output_location() {
         OutputLocation::Stdout => {
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet(writer, sources, num_threads, plan.parquet_compression(), progress_tracker, table).await
+            generate_parquet(
+                writer,
+                sources,
+                num_threads,
+                plan.parquet_compression(),
+                progress_tracker,
+                table,
+            )
+            .await
         }
         OutputLocation::File(path) => {
             // if the output already exists, skip running
@@ -264,7 +286,15 @@ where
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet(writer, sources, num_threads, plan.parquet_compression(), progress_tracker, table).await?;
+            generate_parquet(
+                writer,
+                sources,
+                num_threads,
+                plan.parquet_compression(),
+                progress_tracker,
+                table,
+            )
+            .await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
                 io::Error::other(format!(
@@ -286,7 +316,11 @@ where
 /// $PARQUET_SOURCE: The [`RecordBatchIterator`] type to use for Parquet format
 macro_rules! define_run {
     ($FUN_NAME:ident, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
-        async fn $FUN_NAME(plan: OutputPlan, num_threads: usize, _progress_tracker: Option<ProgressTracker>) -> io::Result<usize> {
+        async fn $FUN_NAME(
+            plan: OutputPlan,
+            num_threads: usize,
+            _progress_tracker: Option<ProgressTracker>,
+        ) -> io::Result<usize> {
             use crate::GenerationPlan;
             let scale_factor = plan.scale_factor();
             info!("Writing {plan} using {num_threads} threads");
