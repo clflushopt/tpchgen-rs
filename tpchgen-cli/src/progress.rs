@@ -24,7 +24,9 @@ pub struct ProgressTracker {
 #[derive(Debug)]
 struct ProgressTrackerInner {
     tables: Mutex<HashMap<Table, TableProgress>>,
-    #[allow(dead_code)] // Used via its side effects (managing progress bar display lifetime)
+    // MultiProgress is unused but we need to it alive to
+    // manage the registered progress bars.
+    #[allow(dead_code)]
     multi_progress: MultiProgress,
 }
 
