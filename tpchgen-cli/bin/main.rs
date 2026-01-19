@@ -124,9 +124,33 @@ struct Cli {
     /// Specifies the delimiter character to use when generating CSV files.
     /// This option only applies to CSV format and cannot be used with TBL format.
     ///
+    /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\ (backslash)
     /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
-    #[arg(long, default_value_t = ',')]
+    #[arg(long, default_value = ",", value_parser = parse_delimiter)]
     delimiter: char,
+}
+
+/// Parse a delimiter string, handling escape sequences
+fn parse_delimiter(s: &str) -> Result<char, String> {
+    // Handle common escape sequences
+    let parsed = match s {
+        "\\t" => '\t',
+        "\\n" => '\n',
+        "\\r" => '\r',
+        "\\\\" => '\\',
+        _ => {
+            // If it's not an escape sequence, it should be a single character
+            let chars: Vec<char> = s.chars().collect();
+            if chars.len() != 1 {
+                return Err(format!(
+                    "Delimiter must be a single character or escape sequence (\\t, \\n, \\r, \\\\), got: '{}'",
+                    s
+                ));
+            }
+            chars[0]
+        }
+    };
+    Ok(parsed)
 }
 
 // TableValueParser is CLI-specific and uses the Table type from the library
