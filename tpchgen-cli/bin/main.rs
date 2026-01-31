@@ -120,8 +120,8 @@ struct CommonArgs {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
-    /// Show progress bars during generation
-    #[arg(short = 'P', long, default_value_t = false)]
+    /// Show progress bars during data generation (shown by default, hidden with --quiet)
+    #[arg(short = 'P', long, default_value_t = true)]
     progress: bool,
 }
 
@@ -134,7 +134,7 @@ impl CommonArgs {
             .with_format(format)
             .with_num_threads(self.num_threads)
             .with_stdout(self.stdout)
-            .with_show_progress(self.progress);
+            .with_show_progress(self.progress && !self.quiet);
 
         if let Some(tables) = self.tables {
             builder = builder.with_tables(tables);

@@ -255,7 +255,7 @@ impl Default for GeneratorConfig {
             part: None,
             stdout: false,
             csv_delimiter: ',',
-            show_progress: false,
+            show_progress: true,
         }
     }
 }
@@ -418,6 +418,7 @@ impl TpchGenerator {
 /// - Threads: number of CPUs
 /// - Parquet compression: SNAPPY
 /// - Row group size: 7MB
+/// - Show progress: true
 ///
 /// # Examples
 ///

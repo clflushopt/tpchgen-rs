@@ -24,10 +24,8 @@ pub struct ProgressTracker {
 #[derive(Debug)]
 struct ProgressTrackerInner {
     tables: Mutex<HashMap<Table, TableProgress>>,
-    // MultiProgress is unused but we need to it alive to
-    // manage the registered progress bars.
-    #[allow(dead_code)]
-    multi_progress: MultiProgress,
+    // MultiProgress must be kept alive to manage the registered progress bars
+    _multi_progress: MultiProgress,
 }
 
 #[derive(Debug)]
@@ -53,7 +51,6 @@ impl ProgressTracker {
             );
             pb.set_message(format!("{}", table));
             pb.set_prefix("0");
-            // Configure to leave the progress bar visible after finishing
             pb = pb.with_finish(ProgressFinish::AndLeave);
 
             table_map.insert(
@@ -69,12 +66,11 @@ impl ProgressTracker {
         Self {
             inner: Arc::new(ProgressTrackerInner {
                 tables: Mutex::new(table_map),
-                multi_progress,
+                _multi_progress: multi_progress,
             }),
         }
     }
 
-    /// Increment progress counter for a table
     pub fn increment(&self, table: Table, increment_type: IncrementType) {
         let tables = self.inner.tables.lock().unwrap();
         if let Some(progress) = tables.get(&table) {
@@ -91,7 +87,6 @@ impl ProgressTracker {
         }
     }
 
-    /// Mark a table as complete (progress bar will stay visible due to ProgressFinish::AndLeave)
     pub fn finish(&self, table: Table) {
         let tables = self.inner.tables.lock().unwrap();
         if let Some(progress) = tables.get(&table) {
@@ -108,7 +103,6 @@ mod tests {
     fn test_progress_tracker_creation() {
         let tracker = ProgressTracker::new(vec![(Table::Lineitem, 10), (Table::Orders, 5)]);
 
-        // Test that we can increment without panicking
         tracker.increment(Table::Lineitem, IncrementType::Part);
         tracker.increment(Table::Orders, IncrementType::Buffer);
     }
@@ -117,7 +111,6 @@ mod tests {
     fn test_progress_tracker_increment() {
         let tracker = ProgressTracker::new(vec![(Table::Customer, 4)]);
 
-        // Increment parts and buffers
         for _ in 0..3 {
             tracker.increment(Table::Customer, IncrementType::Part);
         }
@@ -125,7 +118,6 @@ mod tests {
             tracker.increment(Table::Customer, IncrementType::Buffer);
         }
 
-        // Verify the counts
         let tables = tracker.inner.tables.lock().unwrap();
         let progress = tables.get(&Table::Customer).unwrap();
         assert_eq!(progress.parts_completed.load(Ordering::SeqCst), 3);
