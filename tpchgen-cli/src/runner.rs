@@ -99,7 +99,7 @@ impl PlanRunner {
 ///
 /// [`GenerationPlan`]: crate::plan::GenerationPlan
 struct WorkerQueue {
-    join_set: JoinSet<io::Result<usize>>,
+    join_set: JoinSet<io::Result<(usize, bool)>>,
     /// Current number of threads available to commit
     available_threads: usize,
     progress_tracker: Option<ProgressTracker>,
@@ -134,13 +134,15 @@ impl WorkerQueue {
                         "Internal Error No more tasks to wait for, but had no threads",
                     ));
                 };
-                self.available_threads += task_result(result)?;
+                let (threads, _skipped) = task_result(result)?;
+                self.available_threads += threads;
                 continue; // look for threads again
             }
 
             // Check for any other jobs done so we can reuse their threads
             if let Some(result) = self.join_set.try_join_next() {
-                self.available_threads += task_result(result)?;
+                let (threads, _skipped) = task_result(result)?;
+                self.available_threads += threads;
                 continue;
             }
 
@@ -170,7 +172,7 @@ impl WorkerQueue {
     pub async fn join_all(mut self) -> io::Result<()> {
         debug!("Waiting for tasks to finish...");
         while let Some(result) = self.join_set.join_next().await {
-            task_result(result)?;
+            let _ = task_result(result)?;
         }
         debug!("Tasks finished.");
         Ok(())
@@ -187,25 +189,27 @@ async fn run_plan(
     plan: OutputPlan,
     num_threads: usize,
     progress_tracker: Option<ProgressTracker>,
-) -> io::Result<usize> {
+) -> io::Result<(usize, bool)> {
     let table = plan.table();
-    let result = match table {
-        Table::Nation => run_nation_plan(plan, num_threads, progress_tracker.clone()).await,
-        Table::Region => run_region_plan(plan, num_threads, progress_tracker.clone()).await,
-        Table::Part => run_part_plan(plan, num_threads, progress_tracker.clone()).await,
-        Table::Supplier => run_supplier_plan(plan, num_threads, progress_tracker.clone()).await,
-        Table::Partsupp => run_partsupp_plan(plan, num_threads, progress_tracker.clone()).await,
-        Table::Customer => run_customer_plan(plan, num_threads, progress_tracker.clone()).await,
-        Table::Orders => run_orders_plan(plan, num_threads, progress_tracker.clone()).await,
-        Table::Lineitem => run_lineitem_plan(plan, num_threads, progress_tracker.clone()).await,
+    let (num_threads, was_skipped) = match table {
+        Table::Nation => run_nation_plan(plan, num_threads, progress_tracker.clone()).await?,
+        Table::Region => run_region_plan(plan, num_threads, progress_tracker.clone()).await?,
+        Table::Part => run_part_plan(plan, num_threads, progress_tracker.clone()).await?,
+        Table::Supplier => run_supplier_plan(plan, num_threads, progress_tracker.clone()).await?,
+        Table::Partsupp => run_partsupp_plan(plan, num_threads, progress_tracker.clone()).await?,
+        Table::Customer => run_customer_plan(plan, num_threads, progress_tracker.clone()).await?,
+        Table::Orders => run_orders_plan(plan, num_threads, progress_tracker.clone()).await?,
+        Table::Lineitem => run_lineitem_plan(plan, num_threads, progress_tracker.clone()).await?,
     };
 
     // Increment part counter after this file/plan is complete
-    if let Some(ref tracker) = progress_tracker {
-        tracker.increment(table, IncrementType::Part);
+    if !was_skipped {
+        if let Some(ref tracker) = progress_tracker {
+            tracker.increment(table, IncrementType::Part);
+        }
     }
 
-    result
+    Ok((num_threads, was_skipped))
 }
 
 /// Writes a CSV/TSV output from the sources
@@ -215,7 +219,7 @@ async fn write_file<I>(
     sources: I,
     progress_tracker: Option<ProgressTracker>,
     table: Table,
-) -> Result<(), io::Error>
+) -> Result<bool, io::Error>
 where
     I: Iterator<Item: Source> + 'static,
 {
@@ -224,13 +228,17 @@ where
     match plan.output_location() {
         OutputLocation::Stdout => {
             let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, num_threads, progress_tracker, table).await
+            generate_in_chunks(sink, sources, num_threads, progress_tracker, table).await?;
+            Ok(false)
         }
         OutputLocation::File(path) => {
             // if the output already exists, skip running
             if path.exists() {
-                log::warn!("{} already exists, skipping generation", path.display());
-                return Ok(());
+                log::info!("{} already exists, skipping generation", path.display());
+                if let Some(ref tracker) = progress_tracker {
+                    tracker.increment(table, IncrementType::Part);
+                }
+                return Ok(true);
             }
             // write to a temp file and then rename to avoid partial files
             let temp_path = path.with_extension("inprogress");
@@ -245,7 +253,7 @@ where
                     "Failed to rename {temp_path:?} to {path:?} file: {e}"
                 ))
             })?;
-            Ok(())
+            Ok(false)
         }
     }
 }
@@ -257,7 +265,7 @@ async fn write_parquet<I>(
     sources: I,
     progress_tracker: Option<ProgressTracker>,
     table: Table,
-) -> Result<(), io::Error>
+) -> Result<bool, io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
 {
@@ -272,13 +280,17 @@ where
                 progress_tracker,
                 table,
             )
-            .await
+            .await?;
+            Ok(false)
         }
         OutputLocation::File(path) => {
             // if the output already exists, skip running
             if path.exists() {
-                log::warn!("{} already exists, skipping generation", path.display());
-                return Ok(());
+                log::info!("{} already exists, skipping generation", path.display());
+                if let Some(ref tracker) = progress_tracker {
+                    tracker.increment(table, IncrementType::Part);
+                }
+                return Ok(true);
             }
             // write to a temp file and then rename to avoid partial files
             let temp_path = path.with_extension("inprogress");
@@ -301,7 +313,7 @@ where
                     "Failed to rename {temp_path:?} to {path:?} file: {e}"
                 ))
             })?;
-            Ok(())
+            Ok(false)
         }
     }
 }
@@ -320,7 +332,7 @@ macro_rules! define_run {
             plan: OutputPlan,
             num_threads: usize,
             _progress_tracker: Option<ProgressTracker>,
-        ) -> io::Result<usize> {
+        ) -> io::Result<(usize, bool)> {
             use crate::GenerationPlan;
             let scale_factor = plan.scale_factor();
             info!("Writing {plan} using {num_threads} threads");
@@ -369,7 +381,7 @@ macro_rules! define_run {
 
             // Dispatch to the appropriate output format
             let table = plan.table();
-            match plan.output_format() {
+            let was_skipped = match plan.output_format() {
                 OutputFormat::Tbl => {
                     let gens = tbl_sources(plan.generation_plan(), scale_factor);
                     write_file(plan, num_threads, gens, _progress_tracker.clone(), table).await?
@@ -385,7 +397,7 @@ macro_rules! define_run {
                     write_parquet(plan, num_threads, gens, _progress_tracker.clone(), table).await?
                 }
             };
-            Ok(num_threads)
+            Ok((num_threads, was_skipped))
         }
     };
 }

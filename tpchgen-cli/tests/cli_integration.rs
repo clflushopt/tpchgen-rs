@@ -95,13 +95,14 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
         .arg("part")
         .arg("--output-dir")
         .arg(temp_dir.path())
+        .arg("--verbose")
         .assert()
         .success();
 
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(
         stderr.contains("already exists, skipping generation"),
-        "Expected warning message not found in stderr: {}",
+        "Expected skip message not found in stderr: {}",
         stderr
     );
 
@@ -150,13 +151,14 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
         .arg("part")
         .arg("--output-dir")
         .arg(temp_dir.path())
+        .arg("--verbose")
         .assert()
         .success();
 
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(
         stderr.contains("already exists, skipping generation"),
-        "Expected warning message not found in stderr: {}",
+        "Expected skip message not found in stderr: {}",
         stderr
     );
 
