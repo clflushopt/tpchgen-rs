@@ -34,7 +34,6 @@ impl PlanRunner {
     /// Create a new [`PlanRunner`] with the given plans and number of threads.
     pub fn new(plans: Vec<OutputPlan>, num_threads: usize, show_progress: bool) -> Self {
         let progress_tracker = if show_progress {
-            // Group plans by table and count the number of files (parts) per table
             use std::collections::HashMap;
             let mut table_file_count: HashMap<Table, usize> = HashMap::new();
             for plan in &plans {
@@ -202,7 +201,6 @@ async fn run_plan(
         Table::Lineitem => run_lineitem_plan(plan, num_threads, progress_tracker.clone()).await?,
     };
 
-    // Increment part counter after this file/plan is complete
     if !was_skipped {
         if let Some(ref tracker) = progress_tracker {
             tracker.increment(table, IncrementType::Part);

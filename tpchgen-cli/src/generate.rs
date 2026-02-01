@@ -118,7 +118,6 @@ where
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
             captured_recycler.return_buffer(buffer);
-            // Increment buffer count after each buffer/chunk is written
             if let Some(ref tracker) = captured_progress_for_buffers {
                 tracker.increment(table, IncrementType::Buffer);
             }
