@@ -18,12 +18,12 @@ name = "tpchgen-cli"
 path = "bin/main.rs"
 
 [dependencies]
-arrow = "57.1"
-parquet = "57.1"
+arrow = "58"
+parquet = "58"
 clap = { version = "4.5.32", features = ["derive"] }
-tpchgen = { path = "../tpchgen", version = "2.0.2"}
+tpchgen = { path = "../tpchgen", version = "2.0.2" }
 tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }
-tokio = { version = "1.44.1", features = ["full"]}
+tokio = { version = "1.44.1", features = ["full"] }
 futures = "0.3.31"
 num_cpus = "1.0"
 log = "0.4.26"
