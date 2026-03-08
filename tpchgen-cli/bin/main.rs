@@ -8,7 +8,7 @@
 
 // Use the library public API
 use clap::builder::TypedValueParser;
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use log::{info, LevelFilter};
 use std::io;
 use std::path::PathBuf;
@@ -120,8 +120,8 @@ struct CommonArgs {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
-    /// Show progress bars during data generation (shown by default, hidden with --quiet)
-    #[arg(short = 'P', long, default_value_t = true)]
+    /// Disable progress bars during data generation
+    #[arg(long = "no-progress", action = ArgAction::SetFalse, default_value_t = true)]
     progress: bool,
 }
 
