@@ -3,7 +3,7 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
-use crate::progress::{IncrementType, ProgressTracker};
+use crate::progress::ProgressTracker;
 use crate::Table;
 use futures::StreamExt;
 use log::debug;
@@ -56,6 +56,7 @@ pub async fn generate_in_chunks<G, I, S>(
     num_threads: usize,
     progress_tracker: Option<ProgressTracker>,
     table: Table,
+    rows_per_chunk: u64,
 ) -> Result<(), io::Error>
 where
     G: Source + 'static,
@@ -119,7 +120,7 @@ where
             sink.sink(&buffer)?;
             captured_recycler.return_buffer(buffer);
             if let Some(ref tracker) = captured_progress_for_buffers {
-                tracker.increment(table, IncrementType::Buffer);
+                tracker.increment(table, rows_per_chunk);
             }
         }
         // No more input, flush the sink and return

@@ -1,6 +1,6 @@
 //! Parquet output format
 
-use crate::progress::{IncrementType, ProgressTracker};
+use crate::progress::ProgressTracker;
 use crate::statistics::WriteStatistics;
 use crate::Table;
 use arrow::datatypes::SchemaRef;
@@ -36,6 +36,7 @@ pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
     parquet_compression: Compression,
     progress_tracker: Option<ProgressTracker>,
     table: Table,
+    rows_per_chunk: u64,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
@@ -107,7 +108,7 @@ where
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
             if let Some(ref tracker) = captured_progress {
-                tracker.increment(table, IncrementType::Buffer);
+                tracker.increment(table, rows_per_chunk);
             }
         }
         let size = writer.into_inner()?.into_size()?;
