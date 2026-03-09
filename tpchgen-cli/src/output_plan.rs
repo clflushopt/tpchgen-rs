@@ -263,12 +263,14 @@ impl OutputPlanGenerator {
         if self.created_directories.contains(dir) {
             return Ok(());
         }
-        std::fs::create_dir_all(dir).map_err(|e| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                format!("Error creating directory {}: {}", dir.display(), e),
-            )
-        })?;
+        if let Err(e) = std::fs::create_dir_all(dir) {
+            if e.kind() != io::ErrorKind::AlreadyExists {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!("Error creating directory {}: {}", dir.display(), e),
+                ));
+            }
+        }
         self.created_directories.insert(dir.clone());
         Ok(())
     }

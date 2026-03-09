@@ -348,7 +348,11 @@ impl TpchGenerator {
 
         // Create output directory if it doesn't exist and we are not writing to stdout
         if !config.stdout {
-            std::fs::create_dir_all(&config.output_dir)?;
+            if let Err(err) = std::fs::create_dir_all(&config.output_dir) {
+                if err.kind() != io::ErrorKind::AlreadyExists {
+                    return Err(err);
+                }
+            }
         }
 
         // Determine which tables to generate
