@@ -350,7 +350,14 @@ impl TpchGenerator {
         if !config.stdout {
             if let Err(err) = std::fs::create_dir_all(&config.output_dir) {
                 if err.kind() != io::ErrorKind::AlreadyExists {
-                    return Err(err);
+                    return Err(io::Error::new(
+                        err.kind(),
+                        format!(
+                            "Error creating directory {}: {}",
+                            config.output_dir.display(),
+                            err
+                        ),
+                    ));
                 }
             }
         }

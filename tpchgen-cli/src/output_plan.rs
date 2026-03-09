@@ -266,7 +266,7 @@ impl OutputPlanGenerator {
         if let Err(e) = std::fs::create_dir_all(dir) {
             if e.kind() != io::ErrorKind::AlreadyExists {
                 return Err(io::Error::new(
-                    io::ErrorKind::InvalidInput,
+                    e.kind(),
                     format!("Error creating directory {}: {}", dir.display(), e),
                 ));
             }
