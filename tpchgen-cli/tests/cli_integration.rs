@@ -739,9 +739,7 @@ fn test_format_with_subcommand_conflict() {
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicates::str::contains(
-            "cannot be used with",
-        ));
+        .stderr(predicates::str::contains("cannot be used with"));
 }
 
 /// Test that using --parquet-compression together with a subcommand errors
@@ -762,9 +760,7 @@ fn test_parquet_compression_with_subcommand_conflict() {
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicates::str::contains(
-            "cannot be used with",
-        ));
+        .stderr(predicates::str::contains("cannot be used with"));
 
     // With tbl subcommand
     cargo_bin_cmd!("tpchgen-cli")
@@ -779,9 +775,7 @@ fn test_parquet_compression_with_subcommand_conflict() {
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicates::str::contains(
-            "cannot be used with",
-        ));
+        .stderr(predicates::str::contains("cannot be used with"));
 }
 
 /// Test that using --parquet-row-group-bytes together with a subcommand errors
@@ -802,9 +796,7 @@ fn test_parquet_row_group_bytes_with_subcommand_conflict() {
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicates::str::contains(
-            "cannot be used with",
-        ));
+        .stderr(predicates::str::contains("cannot be used with"));
 
     // With csv subcommand
     cargo_bin_cmd!("tpchgen-cli")
@@ -819,9 +811,7 @@ fn test_parquet_row_group_bytes_with_subcommand_conflict() {
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicates::str::contains(
-            "cannot be used with",
-        ));
+        .stderr(predicates::str::contains("cannot be used with"));
 }
 
 /// Test that common args before a subcommand are rejected
@@ -840,9 +830,7 @@ fn test_common_args_with_subcommand_conflict() {
         .arg(temp_dir.path())
         .assert()
         .failure()
-        .stderr(predicates::str::contains(
-            "cannot be used with",
-        ));
+        .stderr(predicates::str::contains("cannot be used with"));
 
     // -s after subcommand should work
     cargo_bin_cmd!("tpchgen-cli")
@@ -990,7 +978,11 @@ fn test_csv_subcommand_custom_delimiter() {
         .success();
 
     let csv_file = temp_dir.path().join("region.csv");
-    assert!(csv_file.exists(), "Expected CSV file {:?} to exist", csv_file);
+    assert!(
+        csv_file.exists(),
+        "Expected CSV file {:?} to exist",
+        csv_file
+    );
 
     let contents = std::fs::read_to_string(&csv_file).unwrap();
     // Region table has 5 rows; each should contain tabs as delimiters
@@ -1048,7 +1040,9 @@ async fn test_deprecated_parquet_compression_flag_works() {
         .arg(output_dir.path())
         .assert()
         .success()
-        .stderr(predicates::str::contains("--parquet-compression flag is deprecated"));
+        .stderr(predicates::str::contains(
+            "--parquet-compression flag is deprecated",
+        ));
 
     let parquet_file = output_dir.path().join("region.parquet");
     assert!(
@@ -1076,7 +1070,9 @@ async fn test_deprecated_parquet_row_group_bytes_flag_works() {
         .arg(output_dir.path())
         .assert()
         .success()
-        .stderr(predicates::str::contains("--parquet-row-group-bytes flag is deprecated"));
+        .stderr(predicates::str::contains(
+            "--parquet-row-group-bytes flag is deprecated",
+        ));
 
     let parquet_file = output_dir.path().join("region.parquet");
     assert!(
