@@ -963,3 +963,118 @@ async fn test_format_tbl_warns_about_subcommand() {
         .success()
         .stderr(predicates::str::contains("will be removed in v4.0.0"));
 }
+
+/// Test that the `csv` subcommand with a custom delimiter produces tab-delimited output
+#[test]
+fn test_csv_subcommand_custom_delimiter() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("\\t")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("region")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let csv_file = temp_dir.path().join("region.csv");
+    assert!(csv_file.exists(), "Expected CSV file {:?} to exist", csv_file);
+
+    let contents = std::fs::read_to_string(&csv_file).unwrap();
+    // Region table has 5 rows; each should contain tabs as delimiters
+    assert!(
+        contents.contains('\t'),
+        "Expected tab-delimited output, got:\n{}",
+        contents
+    );
+    // Verify multiple tab-separated fields per line
+    let first_line = contents.lines().next().unwrap();
+    let tab_count = first_line.matches('\t').count();
+    assert!(
+        tab_count >= 2,
+        "Expected at least 2 tabs per line, got {} in: {}",
+        tab_count,
+        first_line
+    );
+}
+
+/// Test that the `tbl` subcommand rejects --delimiter
+#[test]
+fn test_tbl_subcommand_rejects_delimiter() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("tbl")
+        .arg("--delimiter")
+        .arg(",")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("unexpected argument"));
+}
+
+/// Test that deprecated --format=parquet with --parquet-compression still works
+#[tokio::test]
+async fn test_deprecated_parquet_compression_flag_works() {
+    let output_dir = tempdir().unwrap();
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--format")
+        .arg("parquet")
+        .arg("--parquet-compression")
+        .arg("ZSTD(1)")
+        .arg("--tables")
+        .arg("region")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("--parquet-compression flag is deprecated"));
+
+    let parquet_file = output_dir.path().join("region.parquet");
+    assert!(
+        parquet_file.exists(),
+        "Expected Parquet file {:?} to exist",
+        parquet_file
+    );
+}
+
+/// Test that deprecated --format=parquet with --parquet-row-group-bytes still works
+#[tokio::test]
+async fn test_deprecated_parquet_row_group_bytes_flag_works() {
+    let output_dir = tempdir().unwrap();
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--format")
+        .arg("parquet")
+        .arg("--parquet-row-group-bytes")
+        .arg("1000000")
+        .arg("--tables")
+        .arg("region")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains("--parquet-row-group-bytes flag is deprecated"));
+
+    let parquet_file = output_dir.path().join("region.parquet");
+    assert!(
+        parquet_file.exists(),
+        "Expected Parquet file {:?} to exist",
+        parquet_file
+    );
+}
