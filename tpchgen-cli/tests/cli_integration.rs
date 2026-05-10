@@ -744,6 +744,86 @@ fn test_format_with_subcommand_conflict() {
         ));
 }
 
+/// Test that using --parquet-compression together with a subcommand errors
+#[test]
+fn test_parquet_compression_with_subcommand_conflict() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // With parquet subcommand
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--parquet-compression")
+        .arg("SNAPPY")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Cannot use --parquet-compression with a subcommand",
+        ));
+
+    // With tbl subcommand
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--parquet-compression")
+        .arg("SNAPPY")
+        .arg("tbl")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Cannot use --parquet-compression with a subcommand",
+        ));
+}
+
+/// Test that using --parquet-row-group-bytes together with a subcommand errors
+#[test]
+fn test_parquet_row_group_bytes_with_subcommand_conflict() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // With parquet subcommand
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--parquet-row-group-bytes")
+        .arg("1000000")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Cannot use --parquet-row-group-bytes with a subcommand",
+        ));
+
+    // With csv subcommand
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--parquet-row-group-bytes")
+        .arg("1000000")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Cannot use --parquet-row-group-bytes with a subcommand",
+        ));
+}
+
 /// Test that running with no --format and no subcommand defaults to TBL
 #[test]
 fn test_default_format_is_tbl() {

@@ -296,12 +296,26 @@ impl Cli {
     /// Main function to run the generation
     #[allow(deprecated)]
     async fn main(self) -> io::Result<()> {
-        // Error if both --format and a subcommand are specified
-        if self.args.format.is_some() && self.command.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "Cannot use --format with a subcommand. Use the subcommand directly, e.g. `tpchgen-cli parquet`",
-            ));
+        // Error if deprecated top-level flags are used with a subcommand
+        if self.command.is_some() {
+            if self.args.format.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Cannot use --format with a subcommand. Use the subcommand directly, e.g. `tpchgen-cli parquet`",
+                ));
+            }
+            if self.args.parquet_compression.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Cannot use --parquet-compression with a subcommand. Use `tpchgen-cli parquet --compression=...` instead",
+                ));
+            }
+            if self.args.parquet_row_group_bytes.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Cannot use --parquet-row-group-bytes with a subcommand. Use `tpchgen-cli parquet --row-group-bytes=...` instead",
+                ));
+            }
         }
         match self.command {
             Some(Commands::Tbl(args)) => args.run().await,
