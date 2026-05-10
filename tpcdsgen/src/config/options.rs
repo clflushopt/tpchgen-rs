@@ -1,4 +1,4 @@
-use crate::config::{Session, Table};
+use crate::config::{CompatMode, Session, Table};
 use crate::error::{InvalidOptionError, Result};
 use clap::Parser;
 
@@ -46,6 +46,13 @@ pub struct Options {
     /// Overwrite existing data files for tables
     #[arg(long = "overwrite")]
     pub overwrite: bool,
+
+    /// Reference implementation to match (Default: trino)
+    ///
+    /// 'trino' produces byte-for-byte output compatible with the Trino Java library.
+    /// 'c' corrects known divergences in the Java port to match the original C dsdgen.
+    #[arg(long = "compat", default_value = "trino")]
+    pub compat: CompatMode,
 }
 
 impl Options {
@@ -59,6 +66,7 @@ impl Options {
     pub const DEFAULT_NO_SEXISM: bool = false;
     pub const DEFAULT_PARALLELISM: i32 = 1;
     pub const DEFAULT_OVERWRITE: bool = false;
+    pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
 
     pub fn new() -> Self {
         Self {
@@ -72,6 +80,7 @@ impl Options {
             no_sexism: Self::DEFAULT_NO_SEXISM,
             parallelism: Self::DEFAULT_PARALLELISM,
             overwrite: Self::DEFAULT_OVERWRITE,
+            compat: Self::DEFAULT_COMPAT,
         }
     }
 
@@ -108,6 +117,7 @@ impl Options {
             self.no_sexism,
             self.parallelism,
             self.overwrite,
+            self.compat,
         ))
     }
 

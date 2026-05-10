@@ -108,7 +108,7 @@ find_java_jar() {
     local jar_pattern="$JAVA_DIR/target/tpcds-*-jar-with-dependencies.jar"
     local jar_file
 
-    jar_file=$(ls $jar_pattern 2>/dev/null | head -1)
+    jar_file=$(find "$JAVA_DIR/target" -name "tpcds-*-jar-with-dependencies.jar" 2>/dev/null | head -1)
 
     if [[ -z "$jar_file" ]]; then
         return 1
@@ -247,9 +247,9 @@ main() {
 
     for table in "${tables_to_generate[@]}"; do
         if generate_table "$table"; then
-            ((success_count++)) || true
+            success_count=$((success_count + 1))
         else
-            ((fail_count++)) || true
+            fail_count=$((fail_count + 1))
         fi
     done
 

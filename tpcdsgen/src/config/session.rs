@@ -1,4 +1,4 @@
-use crate::config::{Options, Scaling, Table};
+use crate::config::{CompatMode, Options, Scaling, Table};
 
 #[derive(Debug, Clone)]
 pub struct Session {
@@ -13,6 +13,7 @@ pub struct Session {
     parallelism: i32,
     chunk_number: i32,
     overwrite: bool,
+    compat_mode: CompatMode,
 }
 
 impl Default for Session {
@@ -34,6 +35,7 @@ impl Session {
         no_sexism: bool,
         parallelism: i32,
         overwrite: bool,
+        compat_mode: CompatMode,
     ) -> Self {
         Self::new_with_chunk_number(
             scale,
@@ -47,6 +49,7 @@ impl Session {
             parallelism,
             1, // Default chunk number
             overwrite,
+            compat_mode,
         )
     }
 
@@ -63,9 +66,10 @@ impl Session {
         parallelism: i32,
         chunk_number: i32,
         overwrite: bool,
+        compat_mode: CompatMode,
     ) -> Self {
         Session {
-            scaling: Scaling::new(scale),
+            scaling: Scaling::new_with_compat(scale, compat_mode),
             target_directory,
             suffix,
             table,
@@ -76,6 +80,7 @@ impl Session {
             parallelism,
             chunk_number,
             overwrite,
+            compat_mode,
         }
     }
 
@@ -94,7 +99,15 @@ impl Session {
 
     pub fn with_scale(&self, scale: f64) -> Self {
         Session {
-            scaling: Scaling::new(scale),
+            scaling: Scaling::new_with_compat(scale, self.compat_mode),
+            ..self.clone()
+        }
+    }
+
+    pub fn with_compat_mode(&self, compat_mode: CompatMode) -> Self {
+        Session {
+            scaling: Scaling::new_with_compat(self.scaling.get_scale(), compat_mode),
+            compat_mode,
             ..self.clone()
         }
     }
@@ -174,6 +187,10 @@ impl Session {
         self.overwrite
     }
 
+    pub fn get_compat_mode(&self) -> CompatMode {
+        self.compat_mode
+    }
+
     /// Reconstruct command line arguments that would produce this session
     pub fn get_command_line_arguments(&self) -> String {
         let mut output = Vec::new();
@@ -208,6 +225,15 @@ impl Session {
         if self.overwrite != Options::DEFAULT_OVERWRITE {
             output.push("--overwrite".to_string());
         }
+        if self.compat_mode != CompatMode::default() {
+            output.push(format!(
+                "--compat {}",
+                match self.compat_mode {
+                    CompatMode::Trino => "trino",
+                    CompatMode::C => "c",
+                }
+            ));
+        }
 
         output.join(" ")
     }
@@ -230,6 +256,7 @@ mod tests {
             false,
             1,
             false,
+            CompatMode::Trino,
         );
 
         assert_eq!(session.get_scaling().get_scale(), 1.0);
@@ -310,6 +337,7 @@ mod tests {
             true, // no_sexism = true
             1,
             false,
+            CompatMode::Trino,
         );
 
         assert!(!session.terminate_rows_with_separator()); // negation of do_not_terminate
@@ -329,6 +357,7 @@ mod tests {
             true,
             4,
             true,
+            CompatMode::Trino,
         );
 
         let args = session.get_command_line_arguments();

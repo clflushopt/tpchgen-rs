@@ -63,17 +63,19 @@ usage() {
 Compare Rust-generated table output with Java reference fixture
 
 Usage:
-    $(basename "$0") TABLE_NAME [--quiet]
+    $(basename "$0") TABLE_NAME [OPTIONS]
 
 Arguments:
     TABLE_NAME      Name of the table to compare (e.g., call_center)
 
 Options:
+    --scale N       Scale factor (default: 1)
     --quiet         Quiet mode (minimal output)
 
 Examples:
     $(basename "$0") call_center
     $(basename "$0") customer_demographics --quiet
+    $(basename "$0") inventory --scale 10
 
 Exit codes:
     0 - Tables match exactly

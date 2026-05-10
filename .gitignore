@@ -4,3 +4,4 @@ __old/
 Cargo.lock
 .idea
 .venv/
+tpcds/

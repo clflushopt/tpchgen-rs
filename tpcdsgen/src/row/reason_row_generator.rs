@@ -27,7 +27,7 @@ impl ReasonRowGenerator {
     }
 
     /// Generate a ReasonRow with realistic data following Java implementation
-    fn generate_reason_row(&mut self, row_number: i64, _session: &Session) -> Result<ReasonRow> {
+    fn generate_reason_row(&mut self, row_number: i64, session: &Session) -> Result<ReasonRow> {
         // Create null bit map (createNullBitMap call)
         let nulls_stream = self
             .abstract_generator
@@ -44,8 +44,10 @@ impl ReasonRowGenerator {
 
         let r_reason_sk = row_number;
         let r_reason_id = make_business_key(row_number);
-        let r_reason_description =
-            ReturnReasonsDistribution::get_return_reason_at_index((row_number - 1) as usize)?;
+        let r_reason_description = ReturnReasonsDistribution::get_return_reason_at_index(
+            (row_number - 1) as usize,
+            session.get_compat_mode(),
+        )?;
 
         Ok(ReasonRow::new(
             null_bit_map,

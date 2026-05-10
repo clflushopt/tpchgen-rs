@@ -1,3 +1,4 @@
+use crate::config::CompatMode;
 use crate::distribution::FileBasedStringValuesDistribution;
 use crate::error::Result;
 use std::sync::OnceLock;
@@ -6,7 +7,6 @@ use std::sync::OnceLock;
 pub struct ReturnReasonsDistribution;
 
 impl ReturnReasonsDistribution {
-    /// Lazy-loaded distribution instance
     fn get_distribution() -> &'static FileBasedStringValuesDistribution {
         static DISTRIBUTION: OnceLock<FileBasedStringValuesDistribution> = OnceLock::new();
         DISTRIBUTION.get_or_init(|| {
@@ -19,12 +19,26 @@ impl ReturnReasonsDistribution {
         })
     }
 
-    /// Get return reason at the specified index (getValueAtIndex)
-    pub fn get_return_reason_at_index(index: usize) -> Result<&'static str> {
-        Self::get_distribution().get_value_at_index(0, index)
+    /// C dsdgen uses a corrected .dst where `reason 30` is not a duplicate of `reason 31`.
+    fn get_distribution_c() -> &'static FileBasedStringValuesDistribution {
+        static DISTRIBUTION_C: OnceLock<FileBasedStringValuesDistribution> = OnceLock::new();
+        DISTRIBUTION_C.get_or_init(|| {
+            FileBasedStringValuesDistribution::build_string_values_distribution(
+                "return_reasons_c.dst",
+                1,
+                6,
+            )
+            .expect("Failed to load return_reasons_c.dst")
+        })
     }
 
-    /// Get the size of the return reasons distribution
+    pub fn get_return_reason_at_index(index: usize, compat: CompatMode) -> Result<&'static str> {
+        match compat {
+            CompatMode::C => Self::get_distribution_c().get_value_at_index(0, index),
+            CompatMode::Trino => Self::get_distribution().get_value_at_index(0, index),
+        }
+    }
+
     pub fn get_size() -> usize {
         Self::get_distribution().get_size()
     }
@@ -45,7 +59,7 @@ mod tests {
 
         // Test that we can get values at valid indices
         for i in 0..size.min(5) {
-            let value = ReturnReasonsDistribution::get_return_reason_at_index(i);
+            let value = ReturnReasonsDistribution::get_return_reason_at_index(i, CompatMode::Trino);
             assert!(value.is_ok(), "Should be able to get value at index {}", i);
             assert!(
                 !value.unwrap().is_empty(),
@@ -58,7 +72,8 @@ mod tests {
     #[test]
     fn test_return_reasons_out_of_bounds() {
         let size = ReturnReasonsDistribution::get_size();
-        let result = ReturnReasonsDistribution::get_return_reason_at_index(size + 100);
+        let result =
+            ReturnReasonsDistribution::get_return_reason_at_index(size + 100, CompatMode::Trino);
         assert!(result.is_err(), "Should fail for out of bounds index");
     }
 }

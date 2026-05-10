@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tpcdsgen::config::{Session, Table};
+use tpcdsgen::config::{CompatMode, Session, Table};
 use tpcdsgen::output::Iso8859Writer;
 use tpcdsgen::row::*;
 
@@ -50,6 +50,7 @@ fn create_session(scale: f64) -> Session {
         false,
         1,
         true,
+        CompatMode::Trino,
     )
 }
 

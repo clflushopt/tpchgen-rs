@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # TPC-DS Benchmark Script
 # Measures generation time for all tables at scale factors 1, 10, and 100
@@ -6,7 +6,7 @@
 # Usage: ./scripts/benchmark.sh [--no-output] [--json] [--scales "1 10 100"]
 #
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -83,9 +83,6 @@ if [[ -z "$OUTPUT_DIR" && -z "$NO_OUTPUT" ]]; then
 else
     CLEANUP_DIR=false
 fi
-
-# Results file for comparison
-RESULTS_FILE="$PROJECT_DIR/benchmark_results_$(date +%Y%m%d_%H%M%S).txt"
 
 echo "=========================================="
 echo "TPC-DS Rust Generator Benchmark"

@@ -109,7 +109,7 @@ find_java_jar() {
     local jar_pattern="$JAVA_DIR/target/tpcds-*-jar-with-dependencies.jar"
     local jar_file
 
-    jar_file=$(ls $jar_pattern 2>/dev/null | head -1)
+    jar_file=$(find "$JAVA_DIR/target" -name "tpcds-*-jar-with-dependencies.jar" 2>/dev/null | head -1)
 
     if [[ -z "$jar_file" ]]; then
         return 1
@@ -132,7 +132,7 @@ clone_java_repo() {
         if [[ -d "$JAVA_DIR/.git" ]]; then
             log_info "Existing git repository found, pulling latest changes..."
             cd "$JAVA_DIR"
-            git pull origin master || log_warn "Failed to pull latest changes"
+            git pull || log_warn "Failed to pull latest changes"
             cd - >/dev/null
             return 0
         else

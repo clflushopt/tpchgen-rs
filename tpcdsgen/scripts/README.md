@@ -161,7 +161,7 @@ Compares Rust-generated output for a single table against the Java reference fix
 [INFO] Comparing outputs...
 [INFO] Java fixture: 6 rows, 4.0K
 [INFO] Rust output:  6 rows, 4.0K
-[SUCCESS] ✓ call_center: Outputs match exactly (6 rows)
+[SUCCESS] ✓ call_center: MD5 match (6 rows, cc9aabc63eb8603bd7330b6735ed0961)
 [INFO] =========================================
 ```
 
@@ -210,7 +210,7 @@ Runs comparison tests for all tables that have been ported to Rust. This is the 
 
 [INFO] Testing: call_center
 ...
-[SUCCESS] ✓ call_center: Outputs match exactly (6 rows)
+[SUCCESS] ✓ call_center: MD5 match (6 rows, cc9aabc63eb8603bd7330b6735ed0961)
 ...
 
 [INFO] =========================================
@@ -323,15 +323,6 @@ These scripts are designed to be CI-friendly:
 ```
 
 Exit codes make it easy to fail CI on mismatches.
-
----
-
-## TODOs
-
-- [ ] Support multiple scale factors (scale-10, scale-100)
-- [ ] MD5 hash validation (faster than full diff for large tables)
-
----
 
 ## Notes
 

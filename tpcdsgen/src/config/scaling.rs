@@ -1,20 +1,37 @@
-use crate::config::Table;
+use crate::config::{CompatMode, Table};
 use crate::distribution::calendar_distribution::{CalendarDistribution, CalendarWeights};
 use crate::table::Table as MetaTable;
 use crate::types::Date;
 
+/// Row count for the `reason` table under C dsdgen compatibility.
+///
+/// C dsdgen generates all 75 entries from `return_reasons.dst` at every scale
+/// factor. The Java/Trino port incorrectly used a logarithmic scaling model
+/// starting at 35 for SF1; this constant fixes that when `CompatMode::C` is
+/// active.
+const REASON_ROW_COUNT_C: i64 = 75;
+
 #[derive(Debug, Clone)]
 pub struct Scaling {
     scale: f64,
+    compat_mode: CompatMode,
 }
 
 impl Scaling {
     pub fn new(scale: f64) -> Self {
-        Scaling { scale }
+        Self::new_with_compat(scale, CompatMode::default())
+    }
+
+    pub fn new_with_compat(scale: f64, compat_mode: CompatMode) -> Self {
+        Scaling { scale, compat_mode }
     }
 
     pub fn get_scale(&self) -> f64 {
         self.scale
+    }
+
+    pub fn get_compat_mode(&self) -> CompatMode {
+        self.compat_mode
     }
 
     /// Get row count for a table at this scale factor.
@@ -29,6 +46,13 @@ impl Scaling {
         // See: Java Scaling.java getRowCount() and scaleInventory()
         if table == Table::Inventory {
             return self.scale_inventory();
+        }
+
+        // In C compat mode the reason table is static at 75 rows regardless of scale.
+        // The Java port's logarithmic model (35 at SF1) is wrong; C always emits all
+        // 75 entries from return_reasons.dst.
+        if table == Table::Reason && self.compat_mode == CompatMode::C {
+            return REASON_ROW_COUNT_C;
         }
 
         // Convert config::Table to table::Table to access ScalingInfo

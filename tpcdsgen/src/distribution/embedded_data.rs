@@ -47,6 +47,7 @@ pub fn get_embedded_distribution(filename: &str) -> Option<&'static [u8]> {
         "prepositions.dst" => Some(include_bytes!("../../data/prepositions.dst")),
         "purchase_band.dst" => Some(include_bytes!("../../data/purchase_band.dst")),
         "return_reasons.dst" => Some(include_bytes!("../../data/return_reasons.dst")),
+        "return_reasons_c.dst" => Some(include_bytes!("../../data/return_reasons_c.dst")),
         "salutations.dst" => Some(include_bytes!("../../data/salutations.dst")),
         "sentences.dst" => Some(include_bytes!("../../data/sentences.dst")),
         "ship_mode_carrier.dst" => Some(include_bytes!("../../data/ship_mode_carrier.dst")),
