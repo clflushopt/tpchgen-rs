@@ -154,17 +154,14 @@ struct TopLevelArgs {
     ///
     /// The --format flag will be removed in v4.0.0.
     #[arg(short, long, hide = true)]
-    #[deprecated]
     format: Option<OutputFormat>,
 
     /// Parquet block compression format (deprecated: use 'parquet' subcommand instead)
     #[arg(short = 'c', long, hide = true)]
-    #[deprecated]
     parquet_compression: Option<Compression>,
 
     /// Target row group size in bytes (deprecated: use 'parquet' subcommand instead)
     #[arg(long, hide = true)]
-    #[deprecated]
     parquet_row_group_bytes: Option<i64>,
 }
 
@@ -298,7 +295,6 @@ async fn main() -> io::Result<()> {
 
 impl Cli {
     /// Main function to run the generation
-    #[allow(deprecated)]
     async fn main(self) -> io::Result<()> {
         match self.command {
             Some(Commands::Tbl(args)) => args.run().await,
@@ -308,7 +304,6 @@ impl Cli {
         }
     }
 
-    #[allow(deprecated)]
     async fn run(self) -> io::Result<()> {
         let format = self.args.format.unwrap_or(OutputFormat::Tbl);
 

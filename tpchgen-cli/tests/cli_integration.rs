@@ -944,6 +944,13 @@ async fn test_format_csv_warns_about_subcommand() {
         .assert()
         .success()
         .stderr(predicates::str::contains("will be removed in v4.0.0"));
+
+    let expected_file = output_dir.path().join("part.csv");
+    assert!(
+        expected_file.exists(),
+        "Expected CSV file {:?} to exist with deprecated --format=csv path",
+        expected_file
+    );
 }
 
 /// Test that --format=tbl emits a deprecation warning
