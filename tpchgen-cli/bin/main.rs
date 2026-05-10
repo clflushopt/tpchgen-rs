@@ -367,7 +367,11 @@ impl Cli {
 impl TblArgs {
     async fn run(self) -> io::Result<()> {
         configure_logging(self.common.verbose, self.common.quiet);
-        self.common.builder(OutputFormat::Tbl).build().generate().await
+        self.common
+            .builder(OutputFormat::Tbl)
+            .build()
+            .generate()
+            .await
     }
 }
 

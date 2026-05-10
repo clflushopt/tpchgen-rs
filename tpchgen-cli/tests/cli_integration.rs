@@ -719,9 +719,7 @@ async fn test_format_parquet_warns_about_subcommand() {
         .arg(output_dir.path())
         .assert()
         .success()
-        .stderr(predicates::str::contains(
-            "will be removed in v4.0.0",
-        ));
+        .stderr(predicates::str::contains("will be removed in v4.0.0"));
 }
 
 /// Test that using --format together with a subcommand errors
@@ -832,9 +830,7 @@ async fn test_format_csv_warns_about_subcommand() {
         .arg(output_dir.path())
         .assert()
         .success()
-        .stderr(predicates::str::contains(
-            "will be removed in v4.0.0",
-        ));
+        .stderr(predicates::str::contains("will be removed in v4.0.0"));
 }
 
 /// Test that --format=tbl emits a deprecation warning
@@ -852,7 +848,5 @@ async fn test_format_tbl_warns_about_subcommand() {
         .arg(output_dir.path())
         .assert()
         .success()
-        .stderr(predicates::str::contains(
-            "will be removed in v4.0.0",
-        ));
+        .stderr(predicates::str::contains("will be removed in v4.0.0"));
 }
