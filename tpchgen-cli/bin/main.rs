@@ -14,7 +14,8 @@ use std::io;
 use std::path::PathBuf;
 use std::str::FromStr;
 use tpchgen_cli::{
-    Compression, OutputFormat, Table, TpchGenerator, DEFAULT_PARQUET_ROW_GROUP_BYTES,
+    Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
+    DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
 
 #[derive(Parser)]
@@ -114,6 +115,30 @@ struct CommonArgs {
     /// Write the output to stdout instead of a file.
     #[arg(long, default_value_t = false)]
     stdout: bool,
+}
+
+impl CommonArgs {
+    /// Create a [`TpchGeneratorBuilder`] pre-configured with the common options.
+    fn builder(self, format: OutputFormat) -> TpchGeneratorBuilder {
+        let mut builder = TpchGenerator::builder()
+            .with_scale_factor(self.scale_factor)
+            .with_output_dir(self.output_dir)
+            .with_format(format)
+            .with_num_threads(self.num_threads)
+            .with_stdout(self.stdout);
+
+        if let Some(tables) = self.tables {
+            builder = builder.with_tables(tables);
+        }
+        if let Some(parts) = self.parts {
+            builder = builder.with_parts(parts);
+        }
+        if let Some(part) = self.part {
+            builder = builder.with_part(part);
+        }
+
+        builder
+    }
 }
 
 #[derive(clap::Args)]
@@ -289,19 +314,8 @@ impl Cli {
     #[allow(deprecated)]
     async fn run(self) -> io::Result<()> {
         let format = self.args.format.unwrap_or(OutputFormat::Tbl);
-        let scale_factor = self.args.common.scale_factor;
-        let output_dir = self.args.common.output_dir;
-        let num_threads = self.args.common.num_threads;
-        let verbose = self.args.common.verbose;
-        let quiet = self.args.common.quiet;
-        let stdout = self.args.common.stdout;
-        let parquet_compression = self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
-        let parquet_row_group_bytes = self
-            .args
-            .parquet_row_group_bytes
-            .unwrap_or(DEFAULT_PARQUET_ROW_GROUP_BYTES);
 
-        configure_logging(verbose, quiet);
+        configure_logging(self.args.common.verbose, self.args.common.quiet);
 
         // Warn about --format migration to subcommands (only when explicitly provided)
         if self.args.format.is_some() {
@@ -318,6 +332,7 @@ impl Cli {
             }
         }
 
+        let parquet_compression = self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
         if self.args.parquet_compression.is_some() {
             if format == OutputFormat::Parquet {
                 log::warn!("The --parquet-compression flag is deprecated. Use 'tpchgen-cli parquet --compression=...' instead");
@@ -325,6 +340,11 @@ impl Cli {
                 log::warn!("Parquet compression option set but not generating Parquet files");
             }
         }
+
+        let parquet_row_group_bytes = self
+            .args
+            .parquet_row_group_bytes
+            .unwrap_or(DEFAULT_PARQUET_ROW_GROUP_BYTES);
         if self.args.parquet_row_group_bytes.is_some() {
             if format == OutputFormat::Parquet {
                 log::warn!("The --parquet-row-group-bytes flag is deprecated. Use 'tpchgen-cli parquet --row-group-bytes=...' instead");
@@ -333,109 +353,46 @@ impl Cli {
             }
         }
 
-        // Build the generator using the library API
-        let mut builder = TpchGenerator::builder()
-            .with_scale_factor(scale_factor)
-            .with_output_dir(output_dir)
-            .with_format(format)
-            .with_num_threads(num_threads)
+        self.args
+            .common
+            .builder(format)
             .with_parquet_compression(parquet_compression)
             .with_parquet_row_group_bytes(parquet_row_group_bytes)
-            .with_stdout(stdout);
-
-        if let Some(tables) = self.args.common.tables {
-            builder = builder.with_tables(tables);
-        }
-
-        if let Some(parts) = self.args.common.parts {
-            builder = builder.with_parts(parts);
-        }
-        if let Some(part) = self.args.common.part {
-            builder = builder.with_part(part);
-        }
-
-        builder.build().generate().await
+            .build()
+            .generate()
+            .await
     }
 }
 
 impl TblArgs {
     async fn run(self) -> io::Result<()> {
         configure_logging(self.common.verbose, self.common.quiet);
-
-        let mut builder = TpchGenerator::builder()
-            .with_scale_factor(self.common.scale_factor)
-            .with_output_dir(self.common.output_dir)
-            .with_format(OutputFormat::Tbl)
-            .with_num_threads(self.common.num_threads)
-            .with_stdout(self.common.stdout);
-
-        if let Some(tables) = self.common.tables {
-            builder = builder.with_tables(tables);
-        }
-
-        if let Some(parts) = self.common.parts {
-            builder = builder.with_parts(parts);
-        }
-        if let Some(part) = self.common.part {
-            builder = builder.with_part(part);
-        }
-
-        builder.build().generate().await
+        self.common.builder(OutputFormat::Tbl).build().generate().await
     }
 }
 
 impl CsvArgs {
     async fn run(self) -> io::Result<()> {
         configure_logging(self.common.verbose, self.common.quiet);
-
-        let mut builder = TpchGenerator::builder()
-            .with_scale_factor(self.common.scale_factor)
-            .with_output_dir(self.common.output_dir)
-            .with_format(OutputFormat::Csv)
-            .with_num_threads(self.common.num_threads)
-            .with_stdout(self.common.stdout)
-            .with_csv_delimiter(self.delimiter);
-
-        if let Some(tables) = self.common.tables {
-            builder = builder.with_tables(tables);
-        }
-
-        if let Some(parts) = self.common.parts {
-            builder = builder.with_parts(parts);
-        }
-        if let Some(part) = self.common.part {
-            builder = builder.with_part(part);
-        }
-
-        builder.build().generate().await
+        self.common
+            .builder(OutputFormat::Csv)
+            .with_csv_delimiter(self.delimiter)
+            .build()
+            .generate()
+            .await
     }
 }
 
 impl ParquetArgs {
     async fn run(self) -> io::Result<()> {
         configure_logging(self.common.verbose, self.common.quiet);
-
-        let mut builder = TpchGenerator::builder()
-            .with_scale_factor(self.common.scale_factor)
-            .with_output_dir(self.common.output_dir)
-            .with_format(OutputFormat::Parquet)
-            .with_num_threads(self.common.num_threads)
-            .with_stdout(self.common.stdout)
+        self.common
+            .builder(OutputFormat::Parquet)
             .with_parquet_compression(self.compression)
-            .with_parquet_row_group_bytes(self.row_group_bytes);
-
-        if let Some(tables) = self.common.tables {
-            builder = builder.with_tables(tables);
-        }
-
-        if let Some(parts) = self.common.parts {
-            builder = builder.with_parts(parts);
-        }
-        if let Some(part) = self.common.part {
-            builder = builder.with_part(part);
-        }
-
-        builder.build().generate().await
+            .with_parquet_row_group_bytes(self.row_group_bytes)
+            .build()
+            .generate()
+            .await
     }
 }
 
