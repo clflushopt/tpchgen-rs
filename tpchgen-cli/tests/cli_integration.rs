@@ -740,7 +740,7 @@ fn test_format_with_subcommand_conflict() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Cannot use --format with a subcommand",
+            "cannot be used with",
         ));
 }
 
@@ -763,7 +763,7 @@ fn test_parquet_compression_with_subcommand_conflict() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Cannot use --parquet-compression with a subcommand",
+            "cannot be used with",
         ));
 
     // With tbl subcommand
@@ -780,7 +780,7 @@ fn test_parquet_compression_with_subcommand_conflict() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Cannot use --parquet-compression with a subcommand",
+            "cannot be used with",
         ));
 }
 
@@ -803,7 +803,7 @@ fn test_parquet_row_group_bytes_with_subcommand_conflict() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Cannot use --parquet-row-group-bytes with a subcommand",
+            "cannot be used with",
         ));
 
     // With csv subcommand
@@ -820,8 +820,41 @@ fn test_parquet_row_group_bytes_with_subcommand_conflict() {
         .assert()
         .failure()
         .stderr(predicates::str::contains(
-            "Cannot use --parquet-row-group-bytes with a subcommand",
+            "cannot be used with",
         ));
+}
+
+/// Test that common args before a subcommand are rejected
+#[test]
+fn test_common_args_with_subcommand_conflict() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // -s before subcommand should error
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("-s")
+        .arg("0.01")
+        .arg("parquet")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "cannot be used with",
+        ));
+
+    // -s after subcommand should work
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("parquet")
+        .arg("-s")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
 }
 
 /// Test that running with no --format and no subcommand defaults to TBL
