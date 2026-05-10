@@ -353,14 +353,15 @@ impl Cli {
             }
         }
 
-        self.args
-            .common
-            .builder(format)
-            .with_parquet_compression(parquet_compression)
-            .with_parquet_row_group_bytes(parquet_row_group_bytes)
-            .build()
-            .generate()
-            .await
+        let mut builder = self.args.common.builder(format);
+        // TODO: Remove this block when the deprecated top-level --parquet-compression
+        // and --parquet-row-group-bytes flags are removed in v4.0.0.
+        if format == OutputFormat::Parquet {
+            builder = builder
+                .with_parquet_compression(parquet_compression)
+                .with_parquet_row_group_bytes(parquet_row_group_bytes);
+        }
+        builder.build().generate().await
     }
 }
 
