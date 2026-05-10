@@ -163,6 +163,10 @@ struct TopLevelArgs {
     /// Target row group size in bytes (deprecated: use 'parquet' subcommand instead)
     #[arg(long, hide = true)]
     parquet_row_group_bytes: Option<i64>,
+
+    /// CSV delimiter character (use 'csv --delimiter=...' instead)
+    #[arg(long, hide = true, value_parser = parse_delimiter)]
+    delimiter: Option<char>,
 }
 
 #[derive(clap::Args)]
@@ -343,6 +347,13 @@ impl Cli {
             } else {
                 log::warn!("Parquet row group size option set but not generating Parquet files");
             }
+        }
+
+        if self.args.delimiter.is_some() {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "The --delimiter flag is not supported at the top level. Use `tpchgen-cli csv --delimiter=...` instead.",
+            ));
         }
 
         let mut builder = self.args.common.builder(format);

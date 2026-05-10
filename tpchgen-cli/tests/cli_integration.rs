@@ -1081,3 +1081,26 @@ async fn test_deprecated_parquet_row_group_bytes_flag_works() {
         parquet_file
     );
 }
+
+/// Test that --delimiter at the top level errors with a helpful message
+#[test]
+fn test_top_level_delimiter_errors() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--format")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("\\t")
+        .arg("--tables")
+        .arg("region")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "Use `tpchgen-cli csv --delimiter=...` instead",
+        ));
+}
