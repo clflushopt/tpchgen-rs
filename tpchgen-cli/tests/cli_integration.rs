@@ -720,7 +720,7 @@ async fn test_format_parquet_warns_about_subcommand() {
         .assert()
         .success()
         .stderr(predicates::str::contains(
-            "will be replaced by the `parquet` subcommand in v4.0.0",
+            "will be removed in v4.0.0",
         ));
 }
 
@@ -767,4 +767,92 @@ fn test_default_format_is_tbl() {
         "Expected TBL file {:?} to exist when no --format or subcommand is specified",
         expected_file
     );
+}
+
+/// Test that the `tbl` subcommand generates TBL files
+#[test]
+fn test_tbl_subcommand() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("tbl")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let expected_file = temp_dir.path().join("part.tbl");
+    assert!(
+        expected_file.exists(),
+        "Expected TBL file {:?} to exist with `tbl` subcommand",
+        expected_file
+    );
+}
+
+/// Test that the `csv` subcommand generates CSV files
+#[test]
+fn test_csv_subcommand() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("part")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let expected_file = temp_dir.path().join("part.csv");
+    assert!(
+        expected_file.exists(),
+        "Expected CSV file {:?} to exist with `csv` subcommand",
+        expected_file
+    );
+}
+
+/// Test that --format=csv emits a deprecation warning
+#[tokio::test]
+async fn test_format_csv_warns_about_subcommand() {
+    let output_dir = tempdir().unwrap();
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--format")
+        .arg("csv")
+        .arg("--tables")
+        .arg("part")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains(
+            "will be removed in v4.0.0",
+        ));
+}
+
+/// Test that --format=tbl emits a deprecation warning
+#[tokio::test]
+async fn test_format_tbl_warns_about_subcommand() {
+    let output_dir = tempdir().unwrap();
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("--format")
+        .arg("tbl")
+        .arg("--tables")
+        .arg("part")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(output_dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains(
+            "will be removed in v4.0.0",
+        ));
 }
