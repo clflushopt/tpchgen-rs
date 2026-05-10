@@ -87,3 +87,15 @@ done
 
 Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
 
+## Deprecation Notice
+
+`--format=parquet`, `--parquet-compression`, and `--parquet-row-group-bytes` are deprecated as of v3.x and will be removed in v4.0.0. Use the `parquet` subcommand instead:
+
+```shell
+# Before
+tpchgen-cli --format=parquet --parquet-compression=ZSTD(1) -s 10
+
+# After
+tpchgen-cli parquet --compression=ZSTD(1) -s 10
+```
+
