@@ -38,6 +38,10 @@ Examples
 
 tpchgen-cli -s 1 --output-dir=/tmp/tpch
 
+# Generate all tables in CSV format:
+
+tpchgen-cli csv -s 1 --output-dir=/tmp/tpch
+
 # Generate all tables in CSV format with tab delimiter:
 
 tpchgen-cli csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
@@ -150,7 +154,7 @@ struct CsvArgs {
     ///
     /// Specifies the delimiter character to use when generating CSV files.
     ///
-    /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\\ (backslash)
+    /// Supports escape sequences: \t (tab), \n (newline), \r (carriage return), \\ (backslash)
     /// Common delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon)
     #[arg(long, default_value = ",", value_parser = parse_delimiter)]
     delimiter: char,
