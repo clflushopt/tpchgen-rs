@@ -163,10 +163,6 @@ struct TopLevelArgs {
     /// Target row group size in bytes (deprecated: use 'parquet' subcommand instead)
     #[arg(long, hide = true)]
     parquet_row_group_bytes: Option<i64>,
-
-    /// CSV delimiter character (use 'csv --delimiter=...' instead)
-    #[arg(long, hide = true, value_parser = parse_delimiter)]
-    delimiter: Option<char>,
 }
 
 #[derive(clap::Args)]
@@ -328,7 +324,6 @@ impl Cli {
             }
         }
 
-        let parquet_compression = self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
         if self.args.parquet_compression.is_some() {
             if format == OutputFormat::Parquet {
                 log::warn!("The --parquet-compression flag is deprecated. Use 'tpchgen-cli parquet --compression=...' instead");
@@ -337,10 +332,6 @@ impl Cli {
             }
         }
 
-        let parquet_row_group_bytes = self
-            .args
-            .parquet_row_group_bytes
-            .unwrap_or(DEFAULT_PARQUET_ROW_GROUP_BYTES);
         if self.args.parquet_row_group_bytes.is_some() {
             if format == OutputFormat::Parquet {
                 log::warn!("The --parquet-row-group-bytes flag is deprecated. Use 'tpchgen-cli parquet --row-group-bytes=...' instead");
@@ -349,15 +340,14 @@ impl Cli {
             }
         }
 
-        if self.args.delimiter.is_some() {
-            return Err(io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "The --delimiter flag is not supported at the top level. Use `tpchgen-cli csv --delimiter=...` instead.",
-            ));
-        }
-
         let mut builder = self.args.common.builder(format);
         if format == OutputFormat::Parquet {
+            let parquet_compression =
+                self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
+            let parquet_row_group_bytes = self
+                .args
+                .parquet_row_group_bytes
+                .unwrap_or(DEFAULT_PARQUET_ROW_GROUP_BYTES);
             builder = builder
                 .with_parquet_compression(parquet_compression)
                 .with_parquet_row_group_bytes(parquet_row_group_bytes);
