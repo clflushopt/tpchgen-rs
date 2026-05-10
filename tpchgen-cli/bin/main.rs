@@ -133,11 +133,6 @@ struct TopLevelArgs {
     #[arg(long, hide = true)]
     #[deprecated]
     parquet_row_group_bytes: Option<i64>,
-
-    /// CSV delimiter character (deprecated: use 'csv' subcommand instead)
-    #[arg(long, hide = true, default_value = ",", value_parser = parse_delimiter)]
-    #[deprecated]
-    delimiter: char,
 }
 
 #[derive(clap::Args)]
@@ -296,7 +291,6 @@ impl Cli {
         let verbose = self.args.common.verbose;
         let quiet = self.args.common.quiet;
         let stdout = self.args.common.stdout;
-        let delimiter = self.args.delimiter;
         let parquet_compression = self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
         let parquet_row_group_bytes = self
             .args
@@ -335,14 +329,6 @@ impl Cli {
             }
         }
 
-        if self.args.delimiter != ',' {
-            if format == OutputFormat::Csv {
-                log::warn!("The --delimiter flag is deprecated. Use 'tpchgen-cli csv --delimiter=...' instead");
-            } else {
-                log::warn!("Delimiter option set but not generating CSV");
-            }
-        }
-
         // Build the generator using the library API
         let mut builder = TpchGenerator::builder()
             .with_scale_factor(scale_factor)
@@ -351,8 +337,7 @@ impl Cli {
             .with_num_threads(num_threads)
             .with_parquet_compression(parquet_compression)
             .with_parquet_row_group_bytes(parquet_row_group_bytes)
-            .with_stdout(stdout)
-            .with_csv_delimiter(delimiter);
+            .with_stdout(stdout);
 
         if let Some(tables) = self.args.common.tables {
             builder = builder.with_tables(tables);
