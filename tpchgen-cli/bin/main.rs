@@ -43,7 +43,7 @@ tpchgen-cli -s 1 --output-dir=/tmp/tpch
 
 tpchgen-cli csv -s 1 --output-dir=/tmp/tpch
 
-# Generate all tables in CSV format with tab delimiter:
+# Generate scale factor one in CSV format with tab delimiter:
 
 tpchgen-cli csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
 
@@ -346,8 +346,6 @@ impl Cli {
         }
 
         let mut builder = self.args.common.builder(format);
-        // TODO: Remove this block when the deprecated top-level --parquet-compression
-        // and --parquet-row-group-bytes flags are removed in v4.0.0.
         if format == OutputFormat::Parquet {
             builder = builder
                 .with_parquet_compression(parquet_compression)
