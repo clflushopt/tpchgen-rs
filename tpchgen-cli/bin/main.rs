@@ -344,7 +344,7 @@ impl Cli {
                 log::warn!("The --parquet-compression flag is deprecated. Use 'tpchgen-cli parquet --compression=...' instead");
                 builder = builder.with_parquet_compression(parquet_compression);
             } else {
-                log::warn!("Parquet compression option set but not generating Parquet files");
+                log::warn!("--parquet-compression ignored: output format is not parquet");
             }
         }
 
@@ -353,7 +353,7 @@ impl Cli {
                 log::warn!("The --parquet-row-group-bytes flag is deprecated. Use 'tpchgen-cli parquet --row-group-bytes=...' instead");
                 builder = builder.with_parquet_row_group_bytes(parquet_row_group_bytes);
             } else {
-                log::warn!("Parquet row group size option set but not generating Parquet files");
+                log::warn!("--parquet-row-group-bytes ignored: output format is not parquet");
             }
         }
 
