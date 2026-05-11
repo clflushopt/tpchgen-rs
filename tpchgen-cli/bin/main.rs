@@ -223,7 +223,10 @@ struct ParquetArgs {
     row_group_bytes: i64,
 }
 
-/// Parse a delimiter string, handling escape sequences
+/// Parse a delimiter string, handling escape sequences.
+///
+/// The underlying arrow-csv writer requires an ASCII byte for the delimiter,
+/// so non-ASCII characters are rejected here rather than failing mid-generation.
 fn parse_delimiter(s: &str) -> Result<char, String> {
     // Handle common escape sequences
     let parsed = match s {
@@ -243,6 +246,12 @@ fn parse_delimiter(s: &str) -> Result<char, String> {
             chars[0]
         }
     };
+    if !parsed.is_ascii() {
+        return Err(format!(
+            "Delimiter must be an ASCII character, got: '{}'",
+            parsed
+        ));
+    }
     Ok(parsed)
 }
 

@@ -1002,6 +1002,26 @@ fn test_csv_subcommand_custom_delimiter() {
     );
 }
 
+/// Test that the `csv` subcommand rejects a non-ASCII delimiter at parse time
+#[test]
+fn test_csv_subcommand_rejects_non_ascii_delimiter() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpchgen-cli")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("€")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("region")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("ASCII"));
+}
+
 /// Test that the `tbl` subcommand rejects --delimiter
 #[test]
 fn test_tbl_subcommand_rejects_delimiter() {
