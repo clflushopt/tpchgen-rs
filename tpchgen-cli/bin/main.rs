@@ -305,12 +305,10 @@ impl Cli {
     }
 
     async fn run(self) -> io::Result<()> {
-        let format = self.args.format.unwrap_or(OutputFormat::Tbl);
-
         configure_logging(self.args.common.verbose, self.args.common.quiet);
 
         // Warn about --format migration to subcommands (only when explicitly provided)
-        if self.args.format.is_some() {
+        let format = if let Some(format) = self.args.format {
             let subcommand = match format {
                 OutputFormat::Parquet => "parquet",
                 OutputFormat::Csv => "csv",
@@ -319,7 +317,10 @@ impl Cli {
             log::warn!(
                 "The --format flag will be removed in v4.0.0. Use `tpchgen-cli {subcommand}` instead."
             );
-        }
+            format
+        } else {
+            OutputFormat::Tbl
+        };
 
         let mut builder = self.args.common.builder(format);
 
