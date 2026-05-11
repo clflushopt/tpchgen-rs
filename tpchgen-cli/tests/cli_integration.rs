@@ -605,10 +605,10 @@ async fn test_incompatible_options_warnings() {
         // still success, but should see warnings in stderr
         .success()
         .stderr(predicates::str::contains(
-            "Parquet compression option set but not generating Parquet files",
+            "--parquet-compression ignored: output format is not parquet",
         ))
         .stderr(predicates::str::contains(
-            "Parquet row group size option set but not generating Parquet files",
+            "--parquet-row-group-bytes ignored: output format is not parquet",
         ));
 }
 
