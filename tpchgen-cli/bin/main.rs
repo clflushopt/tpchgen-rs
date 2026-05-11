@@ -324,33 +324,26 @@ impl Cli {
             }
         }
 
-        if self.args.parquet_compression.is_some() {
+        let mut builder = self.args.common.builder(format);
+
+        if let Some(parquet_compression) = self.args.parquet_compression {
             if format == OutputFormat::Parquet {
                 log::warn!("The --parquet-compression flag is deprecated. Use 'tpchgen-cli parquet --compression=...' instead");
+                builder = builder.with_parquet_compression(parquet_compression);
             } else {
                 log::warn!("Parquet compression option set but not generating Parquet files");
             }
         }
 
-        if self.args.parquet_row_group_bytes.is_some() {
+        if let Some(parquet_row_group_bytes) = self.args.parquet_row_group_bytes {
             if format == OutputFormat::Parquet {
                 log::warn!("The --parquet-row-group-bytes flag is deprecated. Use 'tpchgen-cli parquet --row-group-bytes=...' instead");
+                builder = builder.with_parquet_row_group_bytes(parquet_row_group_bytes);
             } else {
                 log::warn!("Parquet row group size option set but not generating Parquet files");
             }
         }
 
-        let mut builder = self.args.common.builder(format);
-        if format == OutputFormat::Parquet {
-            let parquet_compression = self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
-            let parquet_row_group_bytes = self
-                .args
-                .parquet_row_group_bytes
-                .unwrap_or(DEFAULT_PARQUET_ROW_GROUP_BYTES);
-            builder = builder
-                .with_parquet_compression(parquet_compression)
-                .with_parquet_row_group_bytes(parquet_row_group_bytes);
-        }
         builder.build().generate().await
     }
 }
