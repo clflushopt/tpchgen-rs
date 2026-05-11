@@ -11,9 +11,9 @@ env:
   RUST_BACKTRACE: 1
 
 jobs:
-  # Conformance testing against Java implementation
+  # Conformance testing against the Java / Trino reference implementation.
   conformance-tests:
-    name: Conformance Tests
+    name: Conformance Tests (Java)
     runs-on: ubuntu-latest
 
     steps:
@@ -65,7 +65,60 @@ jobs:
       if: failure()  # Upload fixtures if tests fail for debugging
       uses: actions/upload-artifact@v7
       with:
-        name: test-fixtures
+        name: test-fixtures-java
+        path: tpcdsgen/tests/fixtures/
+        retention-days: 7
+
+  # Conformance testing against the C dsdgen reference implementation.
+  #
+  # Reference data is pre-generated and lives in
+  # https://github.com/alamb/tpcds-data (branch sf1). bootstrap-c.sh clones
+  # it with --depth 1 and extracts into tpcdsgen/tests/fixtures/scale-1-c/.
+  # Rust is then run in --compat c mode and the .dat output is compared
+  # byte-for-byte (MD5/diff).
+  conformance-tests-c:
+    name: Conformance Tests (C dsdgen)
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v6
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: actions/cache@v5
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Download C dsdgen reference data
+      run: |
+        cd tpcdsgen
+        ./scripts/bootstrap-c.sh --scale 1
+
+    - name: Build Rust table generators
+      run: |
+        cargo build --release -p tpcdsgen
+
+    - name: Run conformance tests (Rust --compat c vs C dsdgen)
+      run: |
+        cd tpcdsgen
+        ./scripts/test-all-tables.sh --compat c
+
+    - name: Upload test fixtures as artifacts
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: test-fixtures-c
         path: tpcdsgen/tests/fixtures/
         retention-days: 7
 

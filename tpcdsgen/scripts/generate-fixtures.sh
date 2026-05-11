@@ -220,7 +220,7 @@ main() {
     done
 
     # Set fixture directory based on scale factor
-    FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-$SCALE_FACTOR"
+    FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-java"
 
     # If no tables specified, generate all
     if [[ ${#tables_to_generate[@]} -eq 0 ]]; then

@@ -24,6 +24,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration (can be overridden by --scale)
 SCALE_FACTOR=${TPCDS_SCALE:-1}
+COMPAT=${TPCDS_COMPAT:-trino}
 QUIET=0
 
 # Logging functions
@@ -69,13 +70,17 @@ Arguments:
     TABLE_NAME      Name of the table to compare (e.g., call_center)
 
 Options:
-    --scale N       Scale factor (default: 1)
-    --quiet         Quiet mode (minimal output)
+    --scale N           Scale factor (default: 1)
+    --compat trino|c    Reference implementation to compare against (default: trino)
+                        trino: compare with Java/Trino fixtures in tests/fixtures/scale-N-java/
+                        c:     compare with C dsdgen fixtures in tests/fixtures/scale-N-c/
+    --quiet             Quiet mode (minimal output)
 
 Examples:
     $(basename "$0") call_center
     $(basename "$0") customer_demographics --quiet
     $(basename "$0") inventory --scale 10
+    $(basename "$0") reason --compat c
 
 Exit codes:
     0 - Tables match exactly
@@ -139,7 +144,7 @@ generate_rust_table() {
     fi
 
     log_info "Generating $table with Rust..."
-    log_info "Using binary: $binary --table $generator --scale $SCALE_FACTOR"
+    log_info "Using binary: $binary --compat $COMPAT --table $generator --scale $SCALE_FACTOR"
     if [[ "$generator" != "$table" ]]; then
         log_info "Note: $table is generated alongside $generator"
     fi
@@ -148,8 +153,8 @@ generate_rust_table() {
     local temp_dir
     temp_dir=$(mktemp -d)
 
-    # Run Rust generator with --table, --scale, and --directory flags
-    if ! "$binary" --table "$generator" --scale "$SCALE_FACTOR" --directory "$temp_dir" >/dev/null 2>&1; then
+    # Run Rust generator with --compat, --table, --scale, and --directory flags
+    if ! "$binary" --compat "$COMPAT" --table "$generator" --scale "$SCALE_FACTOR" --directory "$temp_dir" >/dev/null 2>&1; then
         log_error "Failed to generate $table with Rust"
         rm -rf "$temp_dir"
         return 1
@@ -182,54 +187,51 @@ compute_md5() {
 
 # Compare two files
 compare_files() {
-    local java_file=$1
+    local ref_file=$1
     local rust_file=$2
     local table=$3
+    local ref_label=$4
 
     log_info "Comparing outputs..."
 
     # Get file sizes
-    local java_size
-    local rust_size
-    local java_rows
-    local rust_rows
+    local ref_size rust_size ref_rows rust_rows
 
-    java_size=$(du -h "$java_file" | cut -f1)
+    ref_size=$(du -h "$ref_file" | cut -f1)
     rust_size=$(du -h "$rust_file" | cut -f1)
-    java_rows=$(wc -l < "$java_file" | tr -d ' ')
+    ref_rows=$(wc -l < "$ref_file" | tr -d ' ')
     rust_rows=$(wc -l < "$rust_file" | tr -d ' ')
 
-    log_info "Java fixture: $java_rows rows, $java_size"
-    log_info "Rust output:  $rust_rows rows, $rust_size"
+    log_info "$ref_label fixture: $ref_rows rows, $ref_size"
+    log_info "Rust output:    $rust_rows rows, $rust_size"
 
     # Quick check: row count must match
-    if [[ "$java_rows" != "$rust_rows" ]]; then
+    if [[ "$ref_rows" != "$rust_rows" ]]; then
         log_error "Row count mismatch!"
-        log_error "  Java: $java_rows rows"
+        log_error "  $ref_label: $ref_rows rows"
         log_error "  Rust: $rust_rows rows"
         return 1
     fi
 
     # Compute MD5 hashes
     log_info "Computing MD5 hashes..."
-    local java_md5
-    local rust_md5
-    java_md5=$(compute_md5 "$java_file")
+    local ref_md5 rust_md5
+    ref_md5=$(compute_md5 "$ref_file")
     rust_md5=$(compute_md5 "$rust_file")
 
-    log_info "Java MD5: $java_md5"
+    log_info "$ref_label MD5: $ref_md5"
     log_info "Rust MD5: $rust_md5"
 
     # Compare MD5 hashes
-    if [[ "$java_md5" == "$rust_md5" ]]; then
-        log_success "✓ $table: MD5 match ($java_rows rows, $java_md5)"
+    if [[ "$ref_md5" == "$rust_md5" ]]; then
+        log_success "✓ $table: MD5 match ($ref_rows rows, $ref_md5)"
         return 0
     else
         log_error "✗ $table: MD5 mismatch!"
-        log_error "  Java: $java_md5"
-        log_error "  Rust: $rust_md5"
+        log_error "  $ref_label: $ref_md5"
+        log_error "  Rust:    $rust_md5"
         log_diff "Showing first differences:"
-        diff -u "$java_file" "$rust_file" | head -30 || true
+        diff -u "$ref_file" "$rust_file" | head -30 || true
         return 1
     fi
 }
@@ -243,6 +245,10 @@ main() {
         case $1 in
             --scale)
                 SCALE_FACTOR="$2"
+                shift 2
+                ;;
+            --compat)
+                COMPAT="$2"
                 shift 2
                 ;;
             --quiet)
@@ -264,8 +270,22 @@ main() {
         esac
     done
 
-    # Set fixture directory based on scale factor
-    FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-$SCALE_FACTOR"
+    # Resolve compat mode -> fixture directory and reference label
+    local ref_label
+    case $COMPAT in
+        trino)
+            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-java"
+            ref_label="Java"
+            ;;
+        c)
+            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-c"
+            ref_label="C dsdgen"
+            ;;
+        *)
+            log_error "Unknown --compat value: $COMPAT (expected: trino, c)"
+            exit 1
+            ;;
+    esac
 
     # Validate table argument
     if [[ -z "$table" ]]; then
@@ -281,11 +301,15 @@ main() {
     local fixture_file="$FIXTURE_DIR/${table}.dat"
     if [[ ! -f "$fixture_file" ]]; then
         log_error "Fixture not found: $fixture_file"
-        log_error "Generate fixtures first: ./scripts/generate-fixtures.sh $table"
+        if [[ "$COMPAT" == "c" ]]; then
+            log_error "Bootstrap C reference data first: ./scripts/bootstrap-c.sh --scale $SCALE_FACTOR"
+        else
+            log_error "Generate fixtures first: ./scripts/generate-fixtures.sh $table"
+        fi
         exit 1
     fi
 
-    log_info "Java fixture: $fixture_file"
+    log_info "$ref_label fixture: $fixture_file"
 
     # Generate Rust output
     local rust_output
@@ -300,7 +324,7 @@ main() {
 
     # Compare files
     local result=0
-    if ! compare_files "$fixture_file" "$rust_output" "$table"; then
+    if ! compare_files "$fixture_file" "$rust_output" "$table" "$ref_label"; then
         result=1
     fi
 

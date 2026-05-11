@@ -1,0 +1,251 @@
+#!/usr/bin/env bash
+#
+# Bootstrap the C dsdgen reference data for conformance testing.
+#
+# Downloads pre-generated TPC-DS data produced by the C dsdgen reference
+# implementation from https://github.com/alamb/tpcds-data and extracts it
+# into tests/fixtures/scale-N-c/.
+#
+# Each scale factor lives on its own branch (sf1, sf2, ...) packaged as
+# split bzip2 tarballs (data.tar.bz2.aa, .ab, ...). Only the requested
+# branch is cloned, with --depth 1.
+#
+# Usage:
+#   ./scripts/bootstrap-c.sh              # Download and extract sf1
+#   ./scripts/bootstrap-c.sh --scale 2    # sf2 instead
+#   ./scripts/bootstrap-c.sh --rebuild    # Re-download and re-extract
+#   ./scripts/bootstrap-c.sh --verify     # Check that fixtures look sane
+#   ./scripts/bootstrap-c.sh --help
+
+set -euo pipefail
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m'
+
+# Script directory and project root
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# Configuration
+TPCDS_DATA_REPO="${TPCDS_C_DATA_REPO:-https://github.com/alamb/tpcds-data.git}"
+SCALE_FACTOR=1
+FORCE_REBUILD=0
+VERIFY_ONLY=0
+
+log_info()    { echo -e "${BLUE}[INFO]${NC} $*"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $*"; }
+log_warn()    { echo -e "${YELLOW}[WARN]${NC} $*" >&2; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+
+usage() {
+    cat << EOF
+Bootstrap the C dsdgen reference data for conformance testing
+
+Usage:
+    $(basename "$0") [OPTIONS]
+
+Options:
+    --scale N       Scale factor (default: 1). Mapped to branch sf\$N.
+    --rebuild       Re-download and re-extract even if fixtures exist.
+    --verify        Only check that fixtures look sane; do not download.
+    --help          Show this help message.
+
+Environment Variables:
+    TPCDS_C_DATA_REPO   Git URL for the C dsdgen reference data repo.
+                        Default: https://github.com/alamb/tpcds-data.git
+
+Examples:
+    $(basename "$0")                # Download sf1
+    $(basename "$0") --scale 2      # Download sf2
+    $(basename "$0") --rebuild      # Force re-download
+
+EOF
+    exit 0
+}
+
+check_prerequisites() {
+    if ! command -v git >/dev/null 2>&1; then
+        log_error "git is not installed"
+        return 1
+    fi
+    if ! command -v bzip2 >/dev/null 2>&1; then
+        log_error "bzip2 is not installed"
+        return 1
+    fi
+    if ! command -v tar >/dev/null 2>&1; then
+        log_error "tar is not installed"
+        return 1
+    fi
+    return 0
+}
+
+# Sanity check the extracted fixtures.
+# At minimum, store_sales.dat (the largest table) and a handful of small
+# tables must be present and non-empty.
+verify_fixtures() {
+    local fixture_dir=$1
+    local required=(store_sales.dat catalog_sales.dat web_sales.dat reason.dat call_center.dat)
+
+    if [[ ! -d "$fixture_dir" ]]; then
+        log_error "Fixture directory does not exist: $fixture_dir"
+        return 1
+    fi
+
+    for f in "${required[@]}"; do
+        if [[ ! -s "$fixture_dir/$f" ]]; then
+            log_error "Missing or empty fixture: $fixture_dir/$f"
+            return 1
+        fi
+    done
+
+    local count
+    count=$(find "$fixture_dir" -maxdepth 1 -name "*.dat" -type f | wc -l | tr -d ' ')
+    log_success "Found $count .dat fixtures in $fixture_dir"
+    return 0
+}
+
+download_and_extract() {
+    local branch=$1
+    local fixture_dir=$2
+    local clone_dir
+    clone_dir=$(mktemp -d -t tpcds-data-XXXXXX)
+
+    # Cleanup helper. Called both on the success and failure paths below
+    # rather than via `trap RETURN`, which under `set -u` causes the trap
+    # to fire from later functions (e.g. `main`) where `$clone_dir` is no
+    # longer in scope.
+    _cleanup_clone_dir() {
+        if [[ -n "${clone_dir:-}" && -d "$clone_dir" ]]; then
+            rm -rf "$clone_dir"
+        fi
+    }
+
+    log_info "Cloning $TPCDS_DATA_REPO branch '$branch' (depth 1) ..."
+    if ! git clone --depth 1 --single-branch --branch "$branch" \
+            "$TPCDS_DATA_REPO" "$clone_dir/tpcds-data"; then
+        log_error "Failed to clone $TPCDS_DATA_REPO branch '$branch'"
+        log_error "Confirm the branch exists (sf1, sf2, ...)"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    if ! ls "$clone_dir/tpcds-data"/data.tar.bz2.* >/dev/null 2>&1; then
+        log_error "No data.tar.bz2.* parts found in cloned branch '$branch'"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    log_info "Extracting reference data into $fixture_dir ..."
+    mkdir -p "$fixture_dir"
+
+    # The archive expands as data/<table>.dat. Extract into a temp dir,
+    # then flatten one level so the result is fixture_dir/<table>.dat.
+    local extract_dir="$clone_dir/extract"
+    mkdir -p "$extract_dir"
+    if ! cat "$clone_dir/tpcds-data"/data.tar.bz2.* | bzip2 -d | tar -x -C "$extract_dir"; then
+        log_error "Failed to extract data.tar.bz2.* parts"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    if [[ ! -d "$extract_dir/data" ]]; then
+        log_error "Unexpected archive layout: $extract_dir/data not found"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    # Move all .dat files into the fixture directory.
+    mv "$extract_dir/data"/*.dat "$fixture_dir/"
+
+    _cleanup_clone_dir
+    return 0
+}
+
+main() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --scale)
+                SCALE_FACTOR="$2"
+                shift 2
+                ;;
+            --rebuild)
+                FORCE_REBUILD=1
+                shift
+                ;;
+            --verify)
+                VERIFY_ONLY=1
+                shift
+                ;;
+            --help)
+                usage
+                ;;
+            *)
+                log_error "Unknown option: $1"
+                echo "Use --help for usage information"
+                exit 1
+                ;;
+        esac
+    done
+
+    local branch="sf${SCALE_FACTOR}"
+    local fixture_dir="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-c"
+
+    log_info "========================================="
+    log_info "C dsdgen Reference Data Bootstrap"
+    log_info "========================================="
+    log_info "Repository:    $TPCDS_DATA_REPO"
+    log_info "Branch:        $branch"
+    log_info "Fixture dir:   $fixture_dir"
+    log_info "========================================="
+
+    if ! check_prerequisites; then
+        exit 1
+    fi
+
+    if [[ $VERIFY_ONLY -eq 1 ]]; then
+        if verify_fixtures "$fixture_dir"; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
+
+    # Skip download if fixtures already look complete.
+    if [[ $FORCE_REBUILD -eq 0 ]] && verify_fixtures "$fixture_dir" >/dev/null 2>&1; then
+        log_success "C reference fixtures already present at $fixture_dir"
+        log_info "Use --rebuild to force re-download"
+        exit 0
+    fi
+
+    if [[ $FORCE_REBUILD -eq 1 && -d "$fixture_dir" ]]; then
+        log_info "Removing existing fixture directory: $fixture_dir"
+        rm -rf "$fixture_dir"
+    fi
+
+    local start_time end_time
+    start_time=$(date +%s)
+    if ! download_and_extract "$branch" "$fixture_dir"; then
+        exit 1
+    fi
+    end_time=$(date +%s)
+
+    if ! verify_fixtures "$fixture_dir"; then
+        log_error "Bootstrap completed but verification failed"
+        exit 1
+    fi
+
+    echo ""
+    log_info "========================================="
+    log_success "C dsdgen reference data ready"
+    log_info "Time: $((end_time - start_time))s"
+    log_info ""
+    log_info "Next steps:"
+    log_info "  ./scripts/test-all-tables.sh --compat c"
+    log_info "========================================="
+}
+
+main "$@"
