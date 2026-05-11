@@ -342,8 +342,7 @@ impl Cli {
 
         let mut builder = self.args.common.builder(format);
         if format == OutputFormat::Parquet {
-            let parquet_compression =
-                self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
+            let parquet_compression = self.args.parquet_compression.unwrap_or(Compression::SNAPPY);
             let parquet_row_group_bytes = self
                 .args
                 .parquet_row_group_bytes
