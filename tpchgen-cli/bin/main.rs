@@ -305,6 +305,14 @@ async fn main() -> io::Result<()> {
 impl Cli {
     /// Main function to run the generation
     async fn main(self) -> io::Result<()> {
+        let common = match &self.command {
+            Some(Commands::Tbl(args)) => &args.common,
+            Some(Commands::Csv(args)) => &args.common,
+            Some(Commands::Parquet(args)) => &args.common,
+            None => &self.args.common,
+        };
+        configure_logging(common.verbose, common.quiet);
+
         match self.command {
             Some(Commands::Tbl(args)) => args.run().await,
             Some(Commands::Csv(args)) => args.run().await,
@@ -314,8 +322,6 @@ impl Cli {
     }
 
     async fn run(self) -> io::Result<()> {
-        configure_logging(self.args.common.verbose, self.args.common.quiet);
-
         // Warn about --format migration to subcommands (only when explicitly provided)
         let format = if let Some(format) = self.args.format {
             let subcommand = match format {
@@ -357,7 +363,6 @@ impl Cli {
 
 impl TblArgs {
     async fn run(self) -> io::Result<()> {
-        configure_logging(self.common.verbose, self.common.quiet);
         self.common
             .builder(OutputFormat::Tbl)
             .build()
@@ -368,7 +373,6 @@ impl TblArgs {
 
 impl CsvArgs {
     async fn run(self) -> io::Result<()> {
-        configure_logging(self.common.verbose, self.common.quiet);
         self.common
             .builder(OutputFormat::Csv)
             .with_csv_delimiter(self.delimiter)
@@ -380,7 +384,6 @@ impl CsvArgs {
 
 impl ParquetArgs {
     async fn run(self) -> io::Result<()> {
-        configure_logging(self.common.verbose, self.common.quiet);
         self.common
             .builder(OutputFormat::Parquet)
             .with_parquet_compression(self.compression)
