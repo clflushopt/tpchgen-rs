@@ -311,17 +311,14 @@ impl Cli {
 
         // Warn about --format migration to subcommands (only when explicitly provided)
         if self.args.format.is_some() {
-            match format {
-                OutputFormat::Parquet => {
-                    log::warn!("The --format flag will be removed in v4.0.0. Use `tpchgen-cli parquet` instead.");
-                }
-                OutputFormat::Csv => {
-                    log::warn!("The --format flag will be removed in v4.0.0. Use `tpchgen-cli csv` instead.");
-                }
-                OutputFormat::Tbl => {
-                    log::warn!("The --format flag will be removed in v4.0.0. Use `tpchgen-cli tbl` instead.");
-                }
-            }
+            let subcommand = match format {
+                OutputFormat::Parquet => "parquet",
+                OutputFormat::Csv => "csv",
+                OutputFormat::Tbl => "tbl",
+            };
+            log::warn!(
+                "The --format flag will be removed in v4.0.0. Use `tpchgen-cli {subcommand}` instead."
+            );
         }
 
         let mut builder = self.args.common.builder(format);
