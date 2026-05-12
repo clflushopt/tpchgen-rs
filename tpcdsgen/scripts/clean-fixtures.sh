@@ -1,9 +1,23 @@
 #!/usr/bin/env bash
 #
-# Clean up generated test fixtures
+# clean-fixtures.sh — Remove all generated reference fixtures.
+#
+# Deletes the entire tests/fixtures/ tree (Java fixtures in
+# scale-N-java/ and C dsdgen fixtures in scale-N-c/). Fixtures are
+# git-ignored generated artifacts and can be re-created with
+# ./scripts/generate-fixtures.sh or ./scripts/bootstrap-c.sh.
+#
+# What it does:
+#   1. Counts existing .dat fixture files and reports total size.
+#   2. Asks for confirmation (unless --yes is passed).
+#   3. Removes tests/fixtures/ entirely.
 #
 # Usage:
-#   ./scripts/clean-fixtures.sh [--yes]
+#   ./scripts/clean-fixtures.sh         # Clean with confirmation prompt
+#   ./scripts/clean-fixtures.sh --yes   # Clean without confirmation
+#   ./scripts/clean-fixtures.sh --help
+#
+# See scripts/README.md for the full conformance-testing workflow.
 
 set -euo pipefail
 

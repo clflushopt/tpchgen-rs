@@ -1,12 +1,35 @@
 #!/usr/bin/env bash
 #
-# Generate TPC-DS reference fixtures using the Java implementation
+# generate-fixtures.sh — Generate the Java reference fixtures used by
+# `--compat trino` conformance testing.
+#
+# Runs the Java TPC-DS implementation (set up via bootstrap-java.sh) for
+# each table and writes the resulting *.dat files into
+# tests/fixtures/scale-N-java/. These files are the "golden reference"
+# that compare-table.sh / test-all-tables.sh diff Rust output against.
+#
+# What it does:
+#   1. Verifies the Java JAR exists (and builds it if needed).
+#   2. Creates tests/fixtures/scale-N-java/.
+#   3. Generates each requested table using `java -jar ... --table T`.
+#   4. Reports progress and summary statistics.
 #
 # Usage:
-#   ./scripts/generate-fixtures.sh              # Generate all tables
-#   ./scripts/generate-fixtures.sh --quiet      # Generate all tables (quiet mode)
-#   ./scripts/generate-fixtures.sh table1 ...   # Generate specific tables
-#   ./scripts/generate-fixtures.sh --help       # Show help
+#   ./scripts/generate-fixtures.sh              # Generate all 25 tables at scale 1
+#   ./scripts/generate-fixtures.sh --scale 10   # All tables at scale 10
+#   ./scripts/generate-fixtures.sh --quiet      # Minimal output
+#   ./scripts/generate-fixtures.sh t1 t2 ...    # Generate specific tables only
+#   ./scripts/generate-fixtures.sh --help
+#
+# Output:
+#   tests/fixtures/scale-N-java/<table>.dat — pipe-delimited rows with a
+#   trailing pipe: value1|value2|value3|
+#
+#   Files are gitignored — regenerate as needed.
+#
+# Time: ~2–5 minutes for all 25 tables at scale 1.
+#
+# See scripts/README.md for the full conformance-testing workflow.
 
 set -euo pipefail
 

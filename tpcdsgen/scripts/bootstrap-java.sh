@@ -1,16 +1,34 @@
 #!/usr/bin/env bash
 #
-# Bootstrap the Java TPC-DS implementation for conformance testing
+# bootstrap-java.sh — Set up the Java / Trino TPC-DS reference
+# implementation used by `--compat trino` conformance testing.
 #
-# This script:
-#   1. Clones the Java TPC-DS repository (if needed)
-#   2. Builds the Java implementation
-#   3. Verifies the build succeeded
+# What it does:
+#   1. Checks that Java 11+ and Maven are installed.
+#   2. Clones the Java TPC-DS repository into ../tpcds/ (if not already present).
+#   3. Builds the Java implementation with `mvn clean package -DskipTests`.
+#   4. Runs a small smoke test to confirm the JAR works.
 #
 # Usage:
-#   ./scripts/bootstrap-java.sh           # Clone and build
-#   ./scripts/bootstrap-java.sh --rebuild # Force rebuild even if exists
-#   ./scripts/bootstrap-java.sh --verify  # Just verify, don't clone/build
+#   ./scripts/bootstrap-java.sh           # Clone and build (default)
+#   ./scripts/bootstrap-java.sh --rebuild # Force rebuild even if JAR exists
+#   ./scripts/bootstrap-java.sh --verify  # Only verify; do not clone/build
+#   ./scripts/bootstrap-java.sh --help
+#
+# Requirements:
+#   - Java 11+ (e.g. `brew install openjdk@11`)
+#   - Maven    (e.g. `brew install maven`)
+#   - Git
+#
+# Environment variables:
+#   TPCDS_JAVA_REPO   Override the Java repo URL.
+#                     Default: https://github.com/trinodb/tpcds.git
+#
+# Output:
+#   - Clones to ../tpcds/ (parallel to this repo)
+#   - Produces ../tpcds/target/tpcds-*-jar-with-dependencies.jar
+#
+# See scripts/README.md for the full conformance-testing workflow.
 
 set -euo pipefail
 
