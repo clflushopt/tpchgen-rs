@@ -11,11 +11,11 @@ impl ReturnReasonsDistribution {
         static DISTRIBUTION: OnceLock<FileBasedStringValuesDistribution> = OnceLock::new();
         DISTRIBUTION.get_or_init(|| {
             FileBasedStringValuesDistribution::build_string_values_distribution(
-                "return_reasons.dst",
+                "return_reasons_trino.dst",
                 1,
                 6,
             )
-            .expect("Failed to load return_reasons.dst")
+            .expect("Failed to load return_reasons_trino.dst")
         })
     }
 

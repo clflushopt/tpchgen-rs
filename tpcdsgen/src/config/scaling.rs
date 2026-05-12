@@ -5,10 +5,10 @@ use crate::types::Date;
 
 /// Row count for the `reason` table under C dsdgen compatibility.
 ///
-/// C dsdgen generates all 75 entries from `return_reasons.dst` at every scale
-/// factor. The Java/Trino port incorrectly used a logarithmic scaling model
-/// starting at 35 for SF1; this constant fixes that when `CompatMode::C` is
-/// active.
+/// C dsdgen generates all 75 entries from `return_reasons_c.dst` at every
+/// scale factor. The Java/Trino port incorrectly used a logarithmic scaling
+/// model starting at 35 for SF1; this constant fixes that when
+/// `CompatMode::C` is active.
 const REASON_ROW_COUNT_C: i64 = 75;
 
 #[derive(Debug, Clone)]
@@ -50,7 +50,7 @@ impl Scaling {
 
         // In C compat mode the reason table is static at 75 rows regardless of scale.
         // The Java port's logarithmic model (35 at SF1) is wrong; C always emits all
-        // 75 entries from return_reasons.dst.
+        // 75 entries from return_reasons_c.dst.
         if table == Table::Reason && self.compat_mode == CompatMode::C {
             return REASON_ROW_COUNT_C;
         }
