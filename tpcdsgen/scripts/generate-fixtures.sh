@@ -1,32 +1,106 @@
 #!/usr/bin/env bash
 #
-# Generate TPC-DS reference fixtures using the Java implementation
+# generate-fixtures.sh — Generate reference TPC-DS fixtures used by the
+# conformance suite (compare-table.sh / test-all-tables.sh).
 #
-# Usage:
-#   ./scripts/generate-fixtures.sh              # Generate all tables
-#   ./scripts/generate-fixtures.sh --quiet      # Generate all tables (quiet mode)
-#   ./scripts/generate-fixtures.sh table1 ...   # Generate specific tables
-#   ./scripts/generate-fixtures.sh --help       # Show help
+# Please see print_usage() below for details.
 
 set -euo pipefail
 
-# Colors for output
+print_usage() {
+    cat << 'EOF'
+generate-fixtures.sh — Generate reference TPC-DS fixtures.
+
+Two reference implementations are supported, selected by --compat:
+
+    --compat trino  (default)
+        Runs the Java / Trino TPC-DS implementation (set up by
+        ./scripts/bootstrap-java.sh) and writes the resulting *.dat files
+        into tests/fixtures/scale-N-java/. These are the "golden reference"
+        the Rust port targets byte-for-byte.
+
+    --compat c
+        Downloads pre-generated C `dsdgen` reference data from
+        https://github.com/alamb/tpcds-data (branch sfN; one branch per
+        scale factor). The branch is cloned with --depth 1, re-assembled
+        from split bzip2 tarballs, and extracted into
+        tests/fixtures/scale-N-c/. No local C toolchain needed.
+
+Usage:
+    generate-fixtures.sh [OPTIONS] [TABLES...]
+
+Options:
+    --compat trino|c    Reference implementation (default: trino).
+    --scale N           Scale factor (default: 1).
+    --quiet             Quiet mode (minimal output).
+    --rebuild           --compat c only: re-download and re-extract even
+                        if fixtures already exist.
+    --verify            --compat c only: only check that fixtures look
+                        sane; do not download.
+    --help              Show this help message.
+
+Arguments:
+    TABLES              --compat trino only: space-separated list of table
+                        names to generate. If omitted, generates all 25.
+                        Not meaningful for --compat c (the published
+                        archive includes all 25 tables together).
+
+Environment variables:
+    TPCDS_C_DATA_REPO   Override the C reference data repo URL.
+                        Default: https://github.com/alamb/tpcds-data.git
+    TPCDS_SCALE         Default scale factor (overridden by --scale).
+    TPCDS_COMPAT        Default compat mode  (overridden by --compat).
+
+Requirements:
+    --compat trino: Java 11+, Maven (a built tpcds-*.jar; see bootstrap-java.sh)
+    --compat c    : git, tar, bzip2
+
+Output:
+    tests/fixtures/scale-N-java/<table>.dat — pipe-delimited, trailing |.
+    tests/fixtures/scale-N-c/<table>.dat    — same format, C dsdgen origin.
+    Files are gitignored; regenerate as needed.
+
+Examples:
+    # Java reference, all 25 tables at scale 1 (default).
+    ./scripts/generate-fixtures.sh
+
+    # Java reference, scale 10, two specific tables.
+    ./scripts/generate-fixtures.sh --scale 10 call_center warehouse
+
+    # C dsdgen reference, scale 1.
+    ./scripts/generate-fixtures.sh --compat c
+
+    # C dsdgen reference, scale 2, force re-download.
+    ./scripts/generate-fixtures.sh --compat c --scale 2 --rebuild
+
+See scripts/README.md for the full conformance-testing workflow.
+EOF
+    exit 0
+}
+
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 JAVA_DIR="$PROJECT_ROOT/../tpcds"
 
-# Configuration (can be overridden by --scale)
+# Configuration (overridable by flags / env vars)
 SCALE_FACTOR=${TPCDS_SCALE:-1}
+COMPAT=${TPCDS_COMPAT:-trino}
 QUIET=0
+FORCE_REBUILD=0
+VERIFY_ONLY=0
 
-# All TPC-DS tables (25 tables)
+# alamb/tpcds-data repository (for --compat c).
+TPCDS_DATA_REPO="${TPCDS_C_DATA_REPO:-https://github.com/alamb/tpcds-data.git}"
+
+# All TPC-DS tables (25 tables).
 ALL_TABLES=(
     "call_center"
     "catalog_page"
@@ -55,7 +129,7 @@ ALL_TABLES=(
     "web_site"
 )
 
-# Logging functions
+# Logging
 log_info() {
     if [[ $QUIET -eq 0 ]]; then
         echo -e "${BLUE}[INFO]${NC} $*"
@@ -76,104 +150,62 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $*" >&2
 }
 
-# Print usage
-usage() {
-    cat << EOF
-Generate TPC-DS reference fixtures using the Java implementation
+# -----------------------------------------------------------------------------
+# --compat trino (Java) helpers
+# -----------------------------------------------------------------------------
 
-Usage:
-    $(basename "$0") [OPTIONS] [TABLES...]
-
-Options:
-    --scale N       Scale factor (default: 1)
-    --quiet         Quiet mode (minimal output)
-    --help          Show this help message
-
-Arguments:
-    TABLES          Space-separated list of table names to generate
-                    If omitted, generates all 25 tables
-
-Examples:
-    $(basename "$0")                          # Generate all tables at scale 1
-    $(basename "$0") --scale 10               # Generate all tables at scale 10
-    $(basename "$0") --quiet                  # Generate all tables (quiet)
-    $(basename "$0") call_center warehouse    # Generate specific tables
-
-EOF
-    exit 0
-}
-
-# Find Java JAR file
 find_java_jar() {
-    local jar_pattern="$JAVA_DIR/target/tpcds-*-jar-with-dependencies.jar"
     local jar_file
-
     jar_file=$(find "$JAVA_DIR/target" -name "tpcds-*-jar-with-dependencies.jar" 2>/dev/null | head -1)
-
     if [[ -z "$jar_file" ]]; then
         return 1
     fi
-
     echo "$jar_file"
-    return 0
 }
 
-# Build Java implementation if needed
 ensure_java_build() {
     log_info "Checking Java implementation..."
-
     if ! find_java_jar >/dev/null 2>&1; then
         log_warn "Java JAR not found. Building Java implementation..."
-
         cd "$JAVA_DIR"
         if ! mvn -q clean package -DskipTests; then
             log_error "Failed to build Java implementation"
             exit 1
         fi
         cd - >/dev/null
-
         log_success "Java implementation built successfully"
     else
         log_info "Java JAR found: $(find_java_jar)"
     fi
 }
 
-# Generate a single table
-generate_table() {
+generate_java_table() {
     local table=$1
+    local fixture_dir=$2
     local jar_file
     jar_file=$(find_java_jar)
 
     log_info "Generating $table..."
 
-    # Create a temporary directory for generation
     local temp_dir
     temp_dir=$(mktemp -d)
 
-    # Generate table in temp directory
-    #
-    # Run Java generator, filter out DEBUG lines but capture errors
-    local output
-    if output=$(java -jar "$jar_file" \
+    if java -jar "$jar_file" \
         --table "$table" \
         --scale "$SCALE_FACTOR" \
         --overwrite \
         --directory "$temp_dir" \
-        2>&1); then
+        >/dev/null 2>&1; then
 
-        # Move generated file to fixture directory
         local output_file="$temp_dir/${table}.dat"
-
         if [[ -f "$output_file" ]]; then
-            mv "$output_file" "$FIXTURE_DIR/"
-
-            # Get file info
-            local file_size
-            local row_count
-            file_size=$(du -h "$FIXTURE_DIR/${table}.dat" | cut -f1)
-            row_count=$(wc -l < "$FIXTURE_DIR/${table}.dat" | tr -d ' ')
-
+            mv "$output_file" "$fixture_dir/"
+            local file_size row_count
+            file_size=$(du -h "$fixture_dir/${table}.dat" | cut -f1)
+            row_count=$(wc -l < "$fixture_dir/${table}.dat" | tr -d ' ')
             log_success "$table generated: $row_count rows, $file_size"
+            rm -rf "$temp_dir"
+            return 0
         else
             log_error "Expected output file not found: $output_file"
             rm -rf "$temp_dir"
@@ -184,69 +216,31 @@ generate_table() {
         rm -rf "$temp_dir"
         return 1
     fi
-
-    # Clean up temp directory
-    rm -rf "$temp_dir"
-    return 0
 }
 
-# Main function
-main() {
-    local tables_to_generate=()
-    local start_time
-    local end_time
-    local success_count=0
-    local fail_count=0
-
-    # Parse arguments
-    while [[ $# -gt 0 ]]; do
-        case $1 in
-            --scale)
-                SCALE_FACTOR="$2"
-                shift 2
-                ;;
-            --quiet)
-                QUIET=1
-                shift
-                ;;
-            --help)
-                usage
-                ;;
-            *)
-                tables_to_generate+=("$1")
-                shift
-                ;;
-        esac
-    done
-
-    # Set fixture directory based on scale factor
-    FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-$SCALE_FACTOR"
-
-    # If no tables specified, generate all
-    if [[ ${#tables_to_generate[@]} -eq 0 ]]; then
-        tables_to_generate=("${ALL_TABLES[@]}")
-    fi
+generate_trino_fixtures() {
+    local fixture_dir=$1
+    shift
+    local tables_to_generate=("$@")
 
     log_info "========================================="
-    log_info "TPC-DS Fixture Generator"
+    log_info "Java TPC-DS Fixture Generator"
     log_info "========================================="
-    log_info "Scale Factor: $SCALE_FACTOR"
+    log_info "Scale Factor:      $SCALE_FACTOR"
     log_info "Tables to generate: ${#tables_to_generate[@]}"
-    log_info "Fixture directory: $FIXTURE_DIR"
+    log_info "Fixture directory: $fixture_dir"
     log_info "========================================="
 
-    # Ensure Java build exists
     ensure_java_build
 
-    # Create fixture directory
-    mkdir -p "$FIXTURE_DIR"
-    log_info "Created fixture directory: $FIXTURE_DIR"
+    mkdir -p "$fixture_dir"
+    log_info "Created fixture directory: $fixture_dir"
 
-    # Generate tables
+    local success_count=0 fail_count=0 start_time end_time
     start_time=$(date +%s)
 
     for table in "${tables_to_generate[@]}"; do
-        if generate_table "$table"; then
+        if generate_java_table "$table" "$fixture_dir"; then
             success_count=$((success_count + 1))
         else
             fail_count=$((fail_count + 1))
@@ -256,25 +250,244 @@ main() {
     end_time=$(date +%s)
     local duration=$((end_time - start_time))
 
-    # Print summary
     echo ""
     log_info "========================================="
     log_info "Generation Complete"
     log_info "========================================="
     log_success "Successfully generated: $success_count tables"
-
     if [[ $fail_count -gt 0 ]]; then
         log_error "Failed to generate: $fail_count tables"
     fi
-
     log_info "Total time: ${duration}s"
-    log_info "Fixtures saved to: $FIXTURE_DIR"
+    log_info "Fixtures saved to: $fixture_dir"
     log_info "========================================="
 
-    # Exit with error if any tables failed
     if [[ $fail_count -gt 0 ]]; then
         exit 1
     fi
+}
+
+# -----------------------------------------------------------------------------
+# --compat c (C dsdgen) helpers
+# -----------------------------------------------------------------------------
+
+check_c_prerequisites() {
+    local missing=()
+    command -v git   >/dev/null 2>&1 || missing+=(git)
+    command -v bzip2 >/dev/null 2>&1 || missing+=(bzip2)
+    command -v tar   >/dev/null 2>&1 || missing+=(tar)
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_error "Missing required tool(s) for --compat c: ${missing[*]}"
+        return 1
+    fi
+    return 0
+}
+
+# Sanity check the extracted fixtures.
+# At minimum, a handful of expected tables must be present and non-empty.
+verify_c_fixtures() {
+    local fixture_dir=$1
+    local required=(store_sales.dat catalog_sales.dat web_sales.dat reason.dat call_center.dat)
+
+    if [[ ! -d "$fixture_dir" ]]; then
+        log_error "Fixture directory does not exist: $fixture_dir"
+        return 1
+    fi
+
+    for f in "${required[@]}"; do
+        if [[ ! -s "$fixture_dir/$f" ]]; then
+            log_error "Missing or empty fixture: $fixture_dir/$f"
+            return 1
+        fi
+    done
+
+    local count
+    count=$(find "$fixture_dir" -maxdepth 1 -name "*.dat" -type f | wc -l | tr -d ' ')
+    log_success "Found $count .dat fixtures in $fixture_dir"
+    return 0
+}
+
+download_and_extract_c() {
+    local branch=$1
+    local fixture_dir=$2
+    local clone_dir
+    clone_dir=$(mktemp -d -t tpcds-data-XXXXXX)
+
+    # Cleanup helper. Called both on the success and failure paths below
+    # rather than via `trap RETURN`, which under `set -u` causes the trap
+    # to fire from later functions (e.g. `main`) where `$clone_dir` is no
+    # longer in scope.
+    _cleanup_clone_dir() {
+        if [[ -n "${clone_dir:-}" && -d "$clone_dir" ]]; then
+            rm -rf "$clone_dir"
+        fi
+    }
+
+    log_info "Cloning $TPCDS_DATA_REPO branch '$branch' (depth 1) ..."
+    if ! git clone --depth 1 --single-branch --branch "$branch" \
+            "$TPCDS_DATA_REPO" "$clone_dir/tpcds-data"; then
+        log_error "Failed to clone $TPCDS_DATA_REPO branch '$branch'"
+        log_error "Confirm the branch exists (sf1, sf2, ...)"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    if ! ls "$clone_dir/tpcds-data"/data.tar.bz2.* >/dev/null 2>&1; then
+        log_error "No data.tar.bz2.* parts found in cloned branch '$branch'"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    log_info "Extracting reference data into $fixture_dir ..."
+    mkdir -p "$fixture_dir"
+
+    # The archive expands as data/<table>.dat. Extract into a temp dir,
+    # then flatten one level so the result is fixture_dir/<table>.dat.
+    local extract_dir="$clone_dir/extract"
+    mkdir -p "$extract_dir"
+    if ! cat "$clone_dir/tpcds-data"/data.tar.bz2.* | bzip2 -d | tar -x -C "$extract_dir"; then
+        log_error "Failed to extract data.tar.bz2.* parts"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    if [[ ! -d "$extract_dir/data" ]]; then
+        log_error "Unexpected archive layout: $extract_dir/data not found"
+        _cleanup_clone_dir
+        return 1
+    fi
+
+    mv "$extract_dir/data"/*.dat "$fixture_dir/"
+    _cleanup_clone_dir
+    return 0
+}
+
+generate_c_fixtures() {
+    local fixture_dir=$1
+    local branch="sf${SCALE_FACTOR}"
+
+    log_info "========================================="
+    log_info "C dsdgen Reference Data Bootstrap"
+    log_info "========================================="
+    log_info "Repository:        $TPCDS_DATA_REPO"
+    log_info "Branch:            $branch"
+    log_info "Fixture directory: $fixture_dir"
+    log_info "========================================="
+
+    if ! check_c_prerequisites; then
+        exit 1
+    fi
+
+    if [[ $VERIFY_ONLY -eq 1 ]]; then
+        if verify_c_fixtures "$fixture_dir"; then
+            exit 0
+        else
+            exit 1
+        fi
+    fi
+
+    # Skip download if fixtures already look complete.
+    if [[ $FORCE_REBUILD -eq 0 ]] && verify_c_fixtures "$fixture_dir" >/dev/null 2>&1; then
+        log_success "C reference fixtures already present at $fixture_dir"
+        log_info "Use --rebuild to force re-download"
+        exit 0
+    fi
+
+    if [[ $FORCE_REBUILD -eq 1 && -d "$fixture_dir" ]]; then
+        log_info "Removing existing fixture directory: $fixture_dir"
+        rm -rf "$fixture_dir"
+    fi
+
+    local start_time end_time
+    start_time=$(date +%s)
+    if ! download_and_extract_c "$branch" "$fixture_dir"; then
+        exit 1
+    fi
+    end_time=$(date +%s)
+
+    if ! verify_c_fixtures "$fixture_dir"; then
+        log_error "Bootstrap completed but verification failed"
+        exit 1
+    fi
+
+    echo ""
+    log_info "========================================="
+    log_success "C dsdgen reference data ready"
+    log_info "Time: $((end_time - start_time))s"
+    log_info "========================================="
+}
+
+# -----------------------------------------------------------------------------
+# main
+# -----------------------------------------------------------------------------
+
+main() {
+    local tables_to_generate=()
+
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --compat)
+                COMPAT="$2"
+                shift 2
+                ;;
+            --scale)
+                SCALE_FACTOR="$2"
+                shift 2
+                ;;
+            --quiet)
+                QUIET=1
+                shift
+                ;;
+            --rebuild)
+                FORCE_REBUILD=1
+                shift
+                ;;
+            --verify)
+                VERIFY_ONLY=1
+                shift
+                ;;
+            --help)
+                print_usage
+                ;;
+            *)
+                tables_to_generate+=("$1")
+                shift
+                ;;
+        esac
+    done
+
+    case $COMPAT in
+        trino|c) ;;
+        *)
+            log_error "Unknown --compat value: $COMPAT (expected: trino, c)"
+            exit 1
+            ;;
+    esac
+
+    if [[ "$COMPAT" == "c" && ${#tables_to_generate[@]} -gt 0 ]]; then
+        log_error "Per-table selection is not supported with --compat c"
+        log_error "The published archive bundles all 25 tables together."
+        exit 1
+    fi
+
+    if [[ "$COMPAT" == "trino" && ( $FORCE_REBUILD -eq 1 || $VERIFY_ONLY -eq 1 ) ]]; then
+        log_error "--rebuild and --verify are only valid with --compat c"
+        exit 1
+    fi
+
+    case $COMPAT in
+        trino)
+            local fixture_dir="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-java"
+            if [[ ${#tables_to_generate[@]} -eq 0 ]]; then
+                tables_to_generate=("${ALL_TABLES[@]}")
+            fi
+            generate_trino_fixtures "$fixture_dir" "${tables_to_generate[@]}"
+            ;;
+        c)
+            local fixture_dir="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-c"
+            generate_c_fixtures "$fixture_dir"
+            ;;
+    esac
 }
 
 main "$@"

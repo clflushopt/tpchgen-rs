@@ -8,9 +8,6 @@
 # Test fixtures (generated).
 #/tests/fixtures/
 
-# Python cache.
-scripts/__pycache__/
-
 # Stuff I need to remember
 NEXT_STEPS.md
 ISSUES.md

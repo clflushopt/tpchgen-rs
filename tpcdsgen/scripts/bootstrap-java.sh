@@ -1,18 +1,49 @@
 #!/usr/bin/env bash
 #
-# Bootstrap the Java TPC-DS implementation for conformance testing
+# bootstrap-java.sh — Set up the Java / Trino TPC-DS reference
+# implementation used by `--compat trino` conformance testing.
 #
-# This script:
-#   1. Clones the Java TPC-DS repository (if needed)
-#   2. Builds the Java implementation
-#   3. Verifies the build succeeded
-#
-# Usage:
-#   ./scripts/bootstrap-java.sh           # Clone and build
-#   ./scripts/bootstrap-java.sh --rebuild # Force rebuild even if exists
-#   ./scripts/bootstrap-java.sh --verify  # Just verify, don't clone/build
+# Please see print_usage() below for details.
 
 set -euo pipefail
+
+print_usage() {
+    cat << 'EOF'
+bootstrap-java.sh — Set up the Java / Trino TPC-DS reference implementation.
+
+What it does:
+    1. Checks that Java 11+ and Maven are installed.
+    2. Clones the Java TPC-DS repository into ../tpcds/ (if not present).
+    3. Builds the Java implementation with `mvn clean package -DskipTests`.
+    4. Runs a small smoke test to confirm the JAR works.
+
+Usage:
+    bootstrap-java.sh [OPTIONS]
+
+Options:
+    --rebuild       Force rebuild even if the JAR already exists.
+    --verify        Only verify the existing installation; do not clone/build.
+    --help          Show this help message.
+
+Environment variables:
+    TPCDS_JAVA_REPO    Git URL for Java TPC-DS repo.
+                       Default: https://github.com/trinodb/tpcds.git
+
+Requirements: Java 11+, Maven, git.
+
+Output:
+    Clones to ../tpcds/ (parallel to this repo) and produces
+    ../tpcds/target/tpcds-*-jar-with-dependencies.jar.
+
+Examples:
+    bootstrap-java.sh              # Clone and build if needed.
+    bootstrap-java.sh --rebuild    # Force clean rebuild.
+    bootstrap-java.sh --verify     # Just check existing install.
+
+See scripts/README.md for the full conformance-testing workflow.
+EOF
+    exit 0
+}
 
 # Colors
 RED='\033[0;31m'
@@ -47,32 +78,6 @@ log_warn() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $*" >&2
-}
-
-# Print usage
-usage() {
-    cat << EOF
-Bootstrap the Java TPC-DS implementation for conformance testing
-
-Usage:
-    $(basename "$0") [OPTIONS]
-
-Options:
-    --rebuild       Force rebuild even if JAR exists
-    --verify        Only verify installation, don't clone/build
-    --help          Show this help message
-
-Environment Variables:
-    TPCDS_JAVA_REPO    Git URL for Java TPC-DS repo
-                       Default: https://github.com/trinodb/tpcds.git
-
-Examples:
-    $(basename "$0")              # Clone and build if needed
-    $(basename "$0") --rebuild    # Force clean rebuild
-    $(basename "$0") --verify     # Just check if everything works
-
-EOF
-    exit 0
 }
 
 # Check if Java/Maven are installed
@@ -275,7 +280,7 @@ main() {
                 shift
                 ;;
             --help)
-                usage
+                print_usage
                 ;;
             *)
                 log_error "Unknown option: $1"

@@ -29,61 +29,47 @@ Fixtures are pre-generated TPC-DS data files used for conformance testing.
 
 ```
 tests/fixtures/
-├── java/           # Java reference implementation output
-│   ├── scale-1/    # 25 tables, ~1.2GB
-│   └── scale-10/   # 25 tables, ~11GB
-└── rust/           # Rust implementation output
-    ├── scale-1/    # 25 tables, ~1.2GB
-    └── scale-10/   # 25 tables, ~11GB
-```
-
-### Generating Java Fixtures
-
-Requires the Java TPC-DS implementation to be built:
-
-```bash
-# Build Java implementation (if not already built)
-cd ../tpcds && mvn clean package -DskipTests && cd -
-
-# Generate Java fixtures for scale 1
-java -jar ../tpcds/target/tpcds-1.5-SNAPSHOT-jar-with-dependencies.jar \
-    --scale 1 \
-    --directory tests/fixtures/java/scale-1 \
-    --overwrite
-
-# Generate Java fixtures for scale 10
-java -jar ../tpcds/target/tpcds-1.5-SNAPSHOT-jar-with-dependencies.jar \
-    --scale 10 \
-    --directory tests/fixtures/java/scale-10 \
-    --overwrite
-```
-
-### Generating Rust Fixtures
-
-```bash
-# Build Rust implementation
-cargo build --release
-
-# Generate Rust fixtures for scale 1
-./target/release/tpcdsgen --scale 1 --directory tests/fixtures/rust/scale-1
-
-# Generate Rust fixtures for scale 10
-./target/release/tpcdsgen --scale 10 --directory tests/fixtures/rust/scale-10
+├── scale-1-java/    # Java reference fixtures (`--compat trino`)
+├── scale-1-c/       # C dsdgen reference fixtures (`--compat c`)
+└── scale-10-java/   # higher scale factors as needed
 ```
 
 ### Conformance Testing
 
-To verify Rust output matches Java byte-for-byte:
+`tpcdsgen` ships with two conformance suites, both implemented as shell
+scripts that do byte-for-byte (MD5) comparison of `.dat` output. See
+[scripts/README.md](scripts/README.md) for full details.
+
+**vs. Java / Trino reference (default, `--compat trino`):**
 
 ```bash
-# Run conformance tests at scale 1
-./scripts/test-all-tables.sh --scale 1
+# One-time: clone & build the Java TPC-DS implementation.
+./scripts/bootstrap-java.sh
 
-# Run conformance tests at scale 10
-./scripts/test-all-tables.sh --scale 10
+# Generate Java reference fixtures into tests/fixtures/scale-N-java/.
+./scripts/generate-fixtures.sh
+
+# Compare Rust output byte-for-byte against the Java fixtures.
+./scripts/test-all-tables.sh --scale 1
 ```
 
-See [HASHES.md](HASHES.md) for the canonical MD5 hashes.
+**vs. C dsdgen reference (`--compat c`):**
+
+```bash
+# One-time: download pre-generated C dsdgen data from
+# https://github.com/alamb/tpcds-data into tests/fixtures/scale-N-c/.
+./scripts/generate-fixtures.sh --compat c --scale 1
+
+# Compare Rust --compat c output byte-for-byte against the C fixtures.
+./scripts/test-all-tables.sh --compat c --scale 1
+```
+
+Both suites also support comparing a single table:
+
+```bash
+./scripts/compare-table.sh reason                # vs. Java
+./scripts/compare-table.sh reason --compat c     # vs. C dsdgen
+```
 
 ### Verifying Fixtures with MD5SUMS
 
@@ -91,13 +77,13 @@ Each fixture directory contains an `MD5SUMS` file for verification.
 
 **On Linux:**
 ```bash
-cd tests/fixtures/java/scale-1
+cd tests/fixtures/scale-1-java
 md5sum -c MD5SUMS
 ```
 
 **On macOS:**
 ```bash
-cd tests/fixtures/java/scale-1
+cd tests/fixtures/scale-1-java
 while read hash file; do
   [[ $(md5 -q "$file") == "$hash" ]] && echo "$file: OK" || echo "$file: FAILED"
 done < MD5SUMS

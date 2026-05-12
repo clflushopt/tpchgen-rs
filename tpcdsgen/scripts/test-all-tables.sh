@@ -1,15 +1,60 @@
 #!/usr/bin/env bash
 #
-# Test all ported Rust tables against Java reference fixtures
+# test-all-tables.sh — Run the full conformance suite for one compat
+# mode, byte-for-byte (MD5 + diff) comparing Rust output against
+# reference fixtures. Main entry point used by CI.
 #
-# Usage:
-#   ./scripts/test-all-tables.sh [--quiet]
-#
-# Exit codes:
-#   0 - All tables match
-#   1 - One or more tables differ
+# Please see print_usage() below for details.
 
 set -euo pipefail
+
+print_usage() {
+    cat << 'EOF'
+test-all-tables.sh — Run the full conformance suite for one compat mode.
+
+Iterates all 24 TPC-DS tables (dbgen_version is always excluded because
+it contains a generation timestamp), builds the Rust generator in release
+mode, delegates each per-table comparison to ./scripts/compare-table.sh,
+and prints a pass/fail summary. Exits non-zero if any table differs.
+
+Two reference implementations are supported, selected by --compat:
+    --compat trino  (default)  Java / Trino fixtures in
+                               tests/fixtures/scale-N-java/
+                               (generate with
+                                ./scripts/generate-fixtures.sh)
+    --compat c                 C dsdgen fixtures in
+                               tests/fixtures/scale-N-c/
+                               (download with
+                                ./scripts/generate-fixtures.sh --compat c)
+
+Per-compat skip lists live near the top of the script. As of this
+writing, --compat c additionally skips `customer` until
+alamb/tpcds-data is regenerated without the iconv ISO-8859-14 -> UTF-8
+step that double-encodes non-ASCII country names.
+
+Usage:
+    test-all-tables.sh [OPTIONS]
+
+Options:
+    --scale N           Scale factor (default: 1).
+    --compat trino|c    Reference implementation (default: trino).
+    --quiet             Quiet mode (show only summary).
+    --help              Show this help message.
+
+Examples:
+    test-all-tables.sh                  # All tables at scale 1 vs Java.
+    test-all-tables.sh --scale 10       # All tables at scale 10 vs Java.
+    test-all-tables.sh --compat c       # All tables at scale 1 vs C dsdgen.
+    test-all-tables.sh --quiet          # Summary-only output.
+
+Exit codes:
+    0 - All tested tables match.
+    1 - One or more tables differ.
+
+See scripts/README.md for the full conformance-testing workflow.
+EOF
+    exit 0
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -24,6 +69,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # Configuration (can be overridden by --scale)
 SCALE_FACTOR=${TPCDS_SCALE:-1}
+COMPAT=${TPCDS_COMPAT:-trino}
 QUIET=0
 
 # Logging functions
@@ -43,31 +89,6 @@ log_error() {
 
 log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $*"
-}
-
-# Print usage
-usage() {
-    cat << EOF
-Test all ported Rust tables against Java reference fixtures
-
-Usage:
-    $(basename "$0") [--scale N] [--quiet]
-
-Options:
-    --scale N       Scale factor (default: 1)
-    --quiet         Quiet mode (show only summary)
-
-Examples:
-    $(basename "$0")              # Test all tables at scale 1
-    $(basename "$0") --scale 10   # Test all tables at scale 10
-    $(basename "$0") --quiet      # Test all tables (quiet)
-
-Exit codes:
-    0 - All tables match exactly
-    1 - One or more tables differ
-
-EOF
-    exit 0
 }
 
 # All TPC-DS tables to test (24 tables - excludes dbgen_version which has timestamps)
@@ -99,9 +120,38 @@ ALL_TABLES=(
     "web_site"
 )
 
-# Get list of tables to test
+# Tables to skip per compat mode (in addition to dbgen_version, which is
+# always skipped because it contains a generation timestamp).
+#
+# --compat c: customer.dat is skipped because the reference data in
+# https://github.com/alamb/tpcds-data was generated through a pipeline that
+# accidentally double-UTF-8-encodes the non-ASCII country names (`CÔTE
+# D'IVOIRE`, `RÉUNION`). The Rust --compat c output uses raw Latin-1, which
+# is what unmodified C dsdgen produces. Once the reference data is
+# regenerated without the iconv ISO-8859-14 -> UTF-8 step, this entry can
+# be removed.
+# TODO(alamb): re-include customer once alamb/tpcds-data has been regenerated.
+C_COMPAT_SKIP_TABLES=("customer")
+
+# Get list of tables to test, applying per-compat skip lists.
 get_tables_to_test() {
-    echo "${ALL_TABLES[@]}"
+    local skip_list=()
+    if [[ "$COMPAT" == "c" ]]; then
+        skip_list=("${C_COMPAT_SKIP_TABLES[@]}")
+    fi
+
+    local result=()
+    for t in "${ALL_TABLES[@]}"; do
+        local skip=0
+        for s in "${skip_list[@]:-}"; do
+            if [[ "$t" == "$s" ]]; then
+                skip=1
+                break
+            fi
+        done
+        [[ $skip -eq 0 ]] && result+=("$t")
+    done
+    echo "${result[@]}"
 }
 
 # Build the unified Rust table generator
@@ -123,9 +173,9 @@ test_table() {
     local compare_script="$SCRIPT_DIR/compare-table.sh"
 
     if [[ $QUIET -eq 1 ]]; then
-        "$compare_script" "$table" --scale "$SCALE_FACTOR" --quiet
+        "$compare_script" "$table" --scale "$SCALE_FACTOR" --compat "$COMPAT" --quiet
     else
-        "$compare_script" "$table" --scale "$SCALE_FACTOR"
+        "$compare_script" "$table" --scale "$SCALE_FACTOR" --compat "$COMPAT"
     fi
 }
 
@@ -143,23 +193,36 @@ main() {
                 SCALE_FACTOR="$2"
                 shift 2
                 ;;
+            --compat)
+                COMPAT="$2"
+                shift 2
+                ;;
             --quiet)
                 QUIET=1
                 shift
                 ;;
             --help)
-                usage
+                print_usage
                 ;;
             *)
                 log_error "Unknown option: $1"
-                usage
+                print_usage
                 ;;
         esac
     done
 
+    case $COMPAT in
+        trino|c) ;;
+        *)
+            log_error "Unknown --compat value: $COMPAT (expected: trino, c)"
+            exit 1
+            ;;
+    esac
+
     log_info "========================================="
     log_info "TPC-DS Table Test Suite"
     log_info "Scale Factor: $SCALE_FACTOR"
+    log_info "Compat Mode:  $COMPAT"
     log_info "========================================="
 
     # Get tables to test

@@ -1,285 +1,143 @@
 # TPC-DS Test Scripts
 
-This directory contains scripts for testing the Rust TPC-DS implementation against the Java reference implementation.
+This directory contains scripts for testing the Rust TPC-DS implementation
+against two reference implementations:
 
-## Overview
+1. **Java / Trino** (default, `--compat trino`) — the Java port of `dsdgen`
+   used by Trino. The Rust port was originally derived from this and is
+   expected to be byte-for-byte identical.
+2. **C `dsdgen`** (`--compat c`) — the original TPC-supplied reference
+   implementation. The `--compat c` mode corrects bugs in the Java port to
+   match the C reference (see [BUGS.md](../BUGS.md) and the parent
+   [README](../README.md)).
 
-The testing infrastructure validates that the Rust port generates **byte-for-byte identical** output to the Java
-implementation (which itself maintains bug-for-bug compatibility with the original C dsdgen).
-
-## Prerequisites
-
-You need the Java TPC-DS implementation for conformance testing. Use the bootstrap script to set it up:
-
-```bash
-./scripts/bootstrap-java.sh
-```
-
-This will clone and build the Java implementation automatically. See the bootstrap section below for details.
+Both conformance suites validate **byte-for-byte identical** output via
+MD5/`diff` comparison.
 
 ## Directory Structure
 
 ```
 tpcdsgen/
 ├── tests/
-│   └── fixtures/               # Generated reference data (gitignored)
-│       └── scale-1/           # Scale factor 1 reference data
+│   └── fixtures/                # Reference data (gitignored)
+│       ├── scale-1-java/        # Java reference (`--compat trino`)
+│       │   ├── call_center.dat
+│       │   ├── warehouse.dat
+│       │   └── ... (all 25 tables)
+│       └── scale-1-c/           # C dsdgen reference (`--compat c`)
 │           ├── call_center.dat
 │           ├── warehouse.dat
 │           └── ... (all 25 tables)
 └── scripts/
-    ├── bootstrap-java.sh      # Setup Java TPC-DS implementation
-    ├── generate-fixtures.sh   # Generate Java reference data
-    ├── compare-table.sh       # Compare one table
-    ├── test-all-tables.sh     # Test all ported tables
-    ├── clean-fixtures.sh      # Clean up fixtures
-    └── README.md              # This file
+    ├── bootstrap-java.sh        # Clone + build the Java TPC-DS impl
+    ├── generate-fixtures.sh     # Generate/download reference fixtures
+    │                            #   (Java via --compat trino; C via --compat c)
+    ├── compare-table.sh         # Compare one table
+    ├── test-all-tables.sh       # Compare all ported tables
+    ├── clean-fixtures.sh        # Clean fixtures
+    └── README.md                # This file
 ```
 
-## Quick Start
+## Quick Start — Java conformance (`--compat trino`)
 
 ```bash
 # 1. Bootstrap Java implementation (first time only)
 ./scripts/bootstrap-java.sh
 
-# 2. Generate reference fixtures
+# 2. Generate Java reference fixtures into tests/fixtures/scale-N-java/.
 ./scripts/generate-fixtures.sh
 
-# 3. Test all ported tables
+# 3. Test all ported tables against the Java reference.
 ./scripts/test-all-tables.sh
 ```
+
+## Quick Start — C dsdgen conformance (`--compat c`)
+
+The C reference data is pre-generated and published in
+[alamb/tpcds-data](https://github.com/alamb/tpcds-data), one branch per
+scale factor (`sf1`, `sf2`, ...). `generate-fixtures.sh --compat c` clones
+the requested branch with `--depth 1` and extracts it into
+`tests/fixtures/scale-N-c/`.
+
+```bash
+# 1. Download the C dsdgen reference data (default scale 1).
+./scripts/generate-fixtures.sh --compat c              # sf1
+./scripts/generate-fixtures.sh --compat c --scale 2    # sf2
+
+# 2. Test all ported tables against the C reference.
+./scripts/test-all-tables.sh --compat c
+
+# Or compare a single table.
+./scripts/compare-table.sh reason --compat c
+```
+
+### Tables excluded from automated checks
+
+The following tables are excluded from automated MD5 comparison; the
+exclusion lists live in `test-all-tables.sh`.
+
+- **Always:** `dbgen_version.dat` — contains a generation timestamp.
+- **`--compat c` only:** `customer.dat` — the reference data in
+  `alamb/tpcds-data` was generated through a pipeline that double-UTF-8
+  encodes the non-ASCII country names (`CÔTE D'IVOIRE`, `RÉUNION`). The
+  Rust `--compat c` output uses raw Latin-1, which is what unmodified C
+  `dsdgen` produces. Once the reference data is regenerated without the
+  `iconv ISO-8859-14 -> UTF-8` step in `alamb/tpcds-data`'s `Dockerfile`,
+  this exclusion can be removed.
 
 ## Scripts
 
-### 0. `bootstrap-java.sh` - Setup Java TPC-DS Implementation
+Each script is self-documenting — open it and read the header comment for
+full usage, flags, environment variables, output, and exit codes. The
+table below is just a roadmap.
 
-**⚠️ Run this first!** Sets up the Java TPC-DS implementation needed for conformance testing.
+| Script                    | Purpose                                                                                                                         |
+|---------------------------|---------------------------------------------------------------------------------------------------------------------------------|
+| `bootstrap-java.sh`       | Clone and build the Java / Trino reference implementation into `../tpcds/`. Run once before Java conformance.                   |
+| `generate-fixtures.sh`    | Populate `tests/fixtures/scale-N-{java,c}/` with reference data. `--compat trino` (default) runs the Java impl; `--compat c` downloads pre-generated C `dsdgen` data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data). |
+| `compare-table.sh`        | Compare one table's Rust output against the selected reference (`--compat trino` or `--compat c`) via MD5 + diff.               |
+| `test-all-tables.sh`      | Run the full conformance suite for one compat mode (the main CI entry point). Honors per-mode skip lists at the top of the script. |
+| `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/`.                                                                          |
 
-**Usage:**
-```bash
-# First time setup (clone and build)
-./scripts/bootstrap-java.sh
-
-# Force rebuild
-./scripts/bootstrap-java.sh --rebuild
-
-# Verify existing installation
-./scripts/bootstrap-java.sh --verify
-
-# Show help
-./scripts/bootstrap-java.sh --help
-```
-
-**What it does:**
-1. Checks if Java and Maven are installed
-2. Clones the Java TPC-DS repository from GitHub (if needed)
-3. Builds the Java implementation with Maven
-4. Runs a smoke test to verify it works
-
-**Requirements:**
-- Java 11+ (e.g., `brew install openjdk@11`)
-- Maven (e.g., `brew install maven`)
-- Git
-
-**Environment Variables:**
-- `TPCDS_JAVA_REPO` - Override the Java repo URL (default: https://github.com/trinodb/tpcds.git)
-
-**Output:**
-- Clones to `../tpcds/` (parallel to this repo)
-- Creates `../tpcds/target/tpcds-*-jar-with-dependencies.jar`
-
-**Time:** ~2-3 minutes (first run)
-
-### 1. `generate-fixtures.sh` - Generate Reference Data
-
-Generates TPC-DS tables using the Java implementation. This creates the "golden reference" data that Rust output is compared against.
-
-**Usage:**
-```bash
-# Generate all 25 tables (recommended first run)
-./scripts/generate-fixtures.sh
-
-# Generate specific tables
-./scripts/generate-fixtures.sh call_center warehouse
-
-# Quiet mode (minimal output)
-./scripts/generate-fixtures.sh --quiet
-
-# Show help
-./scripts/generate-fixtures.sh --help
-```
-
-**What it does:**
-1. Checks if Java implementation is built (builds if needed)
-2. Creates `tests/fixtures/scale-1/` directory
-3. Generates each table using Java TPC-DS generator
-4. Reports progress and statistics
-
-**Output:**
-- Generates `.dat` files in `tests/fixtures/scale-1/`
-- Each file contains pipe-delimited rows with trailing pipe: `value1|value2|value3|`
-- Files are gitignored (regenerate as needed)
-
-**Time:** ~2-5 minutes for all 25 tables at scale 1
-
----
-
-### 2. `compare-table.sh` - Compare Single Table
-
-Compares Rust-generated output for a single table against the Java reference fixture.
-
-**Usage:**
-```bash
-# Compare a table
-./scripts/compare-table.sh call_center
-
-# Quiet mode
-./scripts/compare-table.sh customer_demographics --quiet
-
-# Show help
-./scripts/compare-table.sh --help
-```
-
-**What it does:**
-1. Checks that Java fixture exists
-2. Generates table using Rust implementation
-3. Performs byte-for-byte comparison with `diff`
-4. Reports results
-
-**Exit codes:**
-- `0` - Tables match exactly ✓
-- `1` - Tables differ or error occurred ✗
-
-**Output example:**
-```
-[INFO] =========================================
-[INFO] Table Comparison: call_center
-[INFO] =========================================
-[INFO] Java fixture: tests/fixtures/scale-1/call_center.dat
-[INFO] Generating call_center with Rust...
-[INFO] Using binary: target/release/tpcdsgen --table call_center
-[INFO] Comparing outputs...
-[INFO] Java fixture: 6 rows, 4.0K
-[INFO] Rust output:  6 rows, 4.0K
-[SUCCESS] ✓ call_center: MD5 match (6 rows, cc9aabc63eb8603bd7330b6735ed0961)
-[INFO] =========================================
-```
-
----
-
-### 3. `test-all-tables.sh` - Test All Ported Tables
-
-Runs comparison tests for all tables that have been ported to Rust. This is the main test suite.
-
-**Usage:**
-```bash
-# Test all ported tables (verbose)
-./scripts/test-all-tables.sh
-
-# Quiet mode (show only summary)
-./scripts/test-all-tables.sh --quiet
-
-# Show help
-./scripts/test-all-tables.sh --help
-```
-
-**What it does:**
-1. Tests all 24 TPC-DS tables (dbgen_version excluded - has timestamps)
-2. Builds the unified Rust generator (`tpcdsgen`)
-3. Compares each table against Java fixture using `compare-table.sh`
-4. Prints comprehensive summary
-
-**Exit codes:**
-- `0` - All tables match ✓
-- `1` - One or more tables differ ✗
-
-**Output example:**
-```
-[INFO] =========================================
-[INFO] TPC-DS Table Test Suite
-[INFO] =========================================
-[INFO] Testing 24 tables:
-[INFO]   - call_center
-[INFO]   - catalog_page
-[INFO]   - catalog_returns
-[INFO]   ... (all 24 tables)
-[INFO] =========================================
-[INFO] Building Rust TPC-DS generator...
-[SUCCESS] Generator built successfully
-[INFO] =========================================
-
-[INFO] Testing: call_center
-...
-[SUCCESS] ✓ call_center: MD5 match (6 rows, cc9aabc63eb8603bd7330b6735ed0961)
-...
-
-[INFO] =========================================
-[INFO] Test Summary
-[INFO] =========================================
-[INFO] Total tables tested: 24
-[SUCCESS] Passed: 24
-
-[INFO] Total time: 45s
-[INFO] =========================================
-```
-
----
-
-### 4. `clean-fixtures.sh` - Clean Up Fixtures
-
-Removes all generated fixtures to free up disk space or force regeneration.
-
-**Usage:**
-```bash
-# Clean with confirmation prompt
-./scripts/clean-fixtures.sh
-
-# Clean without confirmation
-./scripts/clean-fixtures.sh --yes
-
-# Show help
-./scripts/clean-fixtures.sh --help
-```
-
-**What it does:**
-1. Counts fixture files and reports total size
-2. Asks for confirmation (unless `--yes` provided)
-3. Deletes entire `tests/fixtures/` directory
+Run any script with `--help` to print its usage block.
 
 ---
 
 ## Typical Workflow
 
-### Initial Setup
+### Java conformance
 ```bash
-# 1. Generate all reference fixtures (one-time, or when Java changes)
+# 1. Generate Java reference fixtures (one-time, or when Java changes).
 ./scripts/generate-fixtures.sh
 
-# This creates tests/fixtures/scale-1/*.dat files
+# 2. Run the comparison.
+./scripts/compare-table.sh <table>     # one table
+./scripts/test-all-tables.sh           # all tables
 ```
 
-### During Development
+### C dsdgen conformance
 ```bash
-# 2. After implementing a new table, compare it
-./scripts/compare-table.sh new_table_name
+# 1. Download the C reference data (one-time, or to refresh).
+./scripts/generate-fixtures.sh --compat c
 
-# 3. Or test all ported tables at once
-./scripts/test-all-tables.sh
+# 2. Run the comparison in C-compat mode.
+./scripts/compare-table.sh <table> --compat c
+./scripts/test-all-tables.sh --compat c
 ```
 
 ### Cleanup
 ```bash
-# 4. Remove fixtures if needed (can regenerate anytime)
-./scripts/clean-fixtures.sh --yes
+./scripts/clean-fixtures.sh --yes      # remove all fixtures
 ```
 
 ---
 
 ## Requirements
 
-- **Java:** Maven-built TPC-DS JAR at `../tpcds/target/tpcds-*-jar-with-dependencies.jar`
-- **Rust:** Cargo-built `tpcdsgen` binary at `target/debug/tpcdsgen` or `target/release/tpcdsgen`
-- **Disk space:** ~500MB-1GB for scale 1 fixtures
+- **Java:** Maven-built TPC-DS JAR at `../tpcds/target/tpcds-*-jar-with-dependencies.jar` (`bootstrap-java.sh` handles this).
+- **C dsdgen reference:** `git`, `tar`, `bzip2` for `generate-fixtures.sh --compat c`. No C compiler required — data is pre-generated.
+- **Rust:** Cargo-built `tpcdsgen` binary at `target/debug/tpcdsgen` or `target/release/tpcdsgen`.
+- **Disk space:** ~1 GB for SF1 Java fixtures; ~2.4 GB for SF1 C fixtures.
 
 ---
 
@@ -296,16 +154,21 @@ mvn clean package
 cargo build --release
 ```
 
-**Problem:** `Fixture not found`
+**Problem:** `Fixture not found` (Java path)
 ```bash
 ./scripts/generate-fixtures.sh X
 ```
 
+**Problem:** `Fixture not found` (C path)
+```bash
+./scripts/generate-fixtures.sh --compat c --scale N
+```
+
 **Problem:** Tables don't match
-1. Check if both implementations use same seed (should be deterministic)
-2. Verify Rust port logic against Java source
-3. Use `diff` output to find first difference
-4. Debug specific row/column that differs
+1. Check that the right compat mode is selected (`--compat trino` vs `--compat c`).
+2. Verify both sides use the same seed (the Rust generator is deterministic).
+3. Use the `diff` output to find the first difference.
+4. Debug the specific row/column that differs.
 
 ---
 
@@ -314,12 +177,14 @@ cargo build --release
 These scripts are designed to be CI-friendly:
 
 ```yaml
-# Example GitHub Actions workflow
-- name: Generate fixtures
-  run: ./scripts/generate-fixtures.sh --quiet
+# Java conformance
+- run: ./scripts/bootstrap-java.sh
+- run: ./scripts/generate-fixtures.sh --quiet
+- run: ./scripts/test-all-tables.sh --quiet
 
-- name: Test all tables
-  run: ./scripts/test-all-tables.sh --quiet
+# C dsdgen conformance
+- run: ./scripts/generate-fixtures.sh --compat c
+- run: ./scripts/test-all-tables.sh --compat c --quiet
 ```
 
 Exit codes make it easy to fail CI on mismatches.
