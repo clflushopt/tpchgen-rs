@@ -14,7 +14,7 @@ fixture byte-for-byte (MD5 + diff).
 
 Two reference implementations are supported, selected by --compat:
     --compat trino  (default)  Java / Trino fixtures in
-                               tests/fixtures/scale-N-java/
+                               tests/fixtures/scale-N-trino/
                                (generate with
                                 ./scripts/generate-fixtures.sh)
     --compat c                 C dsdgen fixtures in
@@ -35,16 +35,16 @@ Options:
     --help              Show this help message.
 
 Examples:
-    compare-table.sh call_center                  # vs. Java, scale 1
+    compare-table.sh call_center                  # vs. Trino, scale 1
     compare-table.sh reason --compat c            # vs. C dsdgen, scale 1
-    compare-table.sh inventory --scale 10         # vs. Java, scale 10
+    compare-table.sh inventory --scale 10         # vs. Trino, scale 10
     compare-table.sh customer_demographics --quiet
 
 Output example:
     [INFO] Table Comparison: call_center
-    [INFO] Java fixture: tests/fixtures/scale-1-java/call_center.dat
-    [INFO] Java fixture: 6 rows, 4.0K
-    [INFO] Rust output:  6 rows, 4.0K
+    [INFO] Trino fixture: tests/fixtures/scale-1-trino/call_center.dat
+    [INFO] Trino fixture: 6 rows, 4.0K
+    [INFO] Rust output:   6 rows, 4.0K
     [SUCCESS] ✓ call_center: MD5 match (6 rows, cc9aab...)
 
 Exit codes:
@@ -287,8 +287,8 @@ main() {
     local ref_label
     case $COMPAT in
         trino)
-            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-java"
-            ref_label="Java"
+            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-trino"
+            ref_label="Trino"
             ;;
         c)
             FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-c"

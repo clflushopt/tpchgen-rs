@@ -10,7 +10,7 @@ print_usage() {
     cat << 'EOF'
 clean-fixtures.sh — Remove all generated reference fixtures.
 
-Deletes the entire tests/fixtures/ tree (Java fixtures in scale-N-java/
+Deletes the entire tests/fixtures/ tree (Java fixtures in scale-N-trino/
 and C dsdgen fixtures in scale-N-c/). Fixtures are git-ignored generated
 artifacts and can be re-created with
 ./scripts/generate-fixtures.sh (with or without --compat c).

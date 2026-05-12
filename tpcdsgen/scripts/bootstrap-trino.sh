@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# bootstrap-java.sh — Set up the Java / Trino TPC-DS reference
+# bootstrap-trino.sh — Set up the Trino TPC-DS Java reference
 # implementation used by `--compat trino` conformance testing.
 #
 # Please see print_usage() below for details.
@@ -9,16 +9,16 @@ set -euo pipefail
 
 print_usage() {
     cat << 'EOF'
-bootstrap-java.sh — Set up the Java / Trino TPC-DS reference implementation.
+bootstrap-trino.sh — Set up the Trino TPC-DS Java reference implementation.
 
 What it does:
     1. Checks that Java 11+ and Maven are installed.
-    2. Clones the Java TPC-DS repository into ../tpcds/ (if not present).
-    3. Builds the Java implementation with `mvn clean package -DskipTests`.
+    2. Clones the Trino TPC-DS repository into ../tpcds/ (if not present).
+    3. Builds the implementation with `mvn clean package -DskipTests`.
     4. Runs a small smoke test to confirm the JAR works.
 
 Usage:
-    bootstrap-java.sh [OPTIONS]
+    bootstrap-trino.sh [OPTIONS]
 
 Options:
     --rebuild       Force rebuild even if the JAR already exists.
@@ -26,8 +26,8 @@ Options:
     --help          Show this help message.
 
 Environment variables:
-    TPCDS_JAVA_REPO    Git URL for Java TPC-DS repo.
-                       Default: https://github.com/trinodb/tpcds.git
+    TPCDS_TRINO_REPO    Git URL for the Trino TPC-DS repo.
+                        Default: https://github.com/trinodb/tpcds.git
 
 Requirements: Java 11+, Maven, git.
 
@@ -36,9 +36,9 @@ Output:
     ../tpcds/target/tpcds-*-jar-with-dependencies.jar.
 
 Examples:
-    bootstrap-java.sh              # Clone and build if needed.
-    bootstrap-java.sh --rebuild    # Force clean rebuild.
-    bootstrap-java.sh --verify     # Just check existing install.
+    bootstrap-trino.sh              # Clone and build if needed.
+    bootstrap-trino.sh --rebuild    # Force clean rebuild.
+    bootstrap-trino.sh --verify     # Just check existing install.
 
 See scripts/README.md for the full conformance-testing workflow.
 EOF
@@ -56,10 +56,10 @@ NC='\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 TPCDS_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
-JAVA_DIR="$TPCDS_ROOT/tpcds"
+TRINO_DIR="$TPCDS_ROOT/tpcds"
 
 # Configuration
-JAVA_REPO_URL="${TPCDS_JAVA_REPO:-https://github.com/trinodb/tpcds.git}"
+TRINO_REPO_URL="${TPCDS_TRINO_REPO:-https://github.com/trinodb/tpcds.git}"
 FORCE_REBUILD=0
 VERIFY_ONLY=0
 
@@ -109,64 +109,59 @@ check_prerequisites() {
     return 0
 }
 
-# Find Java JAR file
-find_java_jar() {
-    local jar_pattern="$JAVA_DIR/target/tpcds-*-jar-with-dependencies.jar"
+# Find the built Trino TPC-DS JAR
+find_trino_jar() {
     local jar_file
-
-    jar_file=$(find "$JAVA_DIR/target" -name "tpcds-*-jar-with-dependencies.jar" 2>/dev/null | head -1)
-
+    jar_file=$(find "$TRINO_DIR/target" -name "tpcds-*-jar-with-dependencies.jar" 2>/dev/null | head -1)
     if [[ -z "$jar_file" ]]; then
         return 1
     fi
-
     echo "$jar_file"
-    return 0
 }
 
-# Clone the Java repository
-clone_java_repo() {
-    log_info "Cloning Java TPC-DS repository..."
-    log_info "Source: $JAVA_REPO_URL"
-    log_info "Target: $JAVA_DIR"
+# Clone the Trino TPC-DS repository
+clone_trino_repo() {
+    log_info "Cloning Trino TPC-DS repository..."
+    log_info "Source: $TRINO_REPO_URL"
+    log_info "Target: $TRINO_DIR"
 
-    if [[ -d "$JAVA_DIR" ]]; then
-        log_warn "Directory already exists: $JAVA_DIR"
+    if [[ -d "$TRINO_DIR" ]]; then
+        log_warn "Directory already exists: $TRINO_DIR"
 
         # Check if it's a git repo
-        if [[ -d "$JAVA_DIR/.git" ]]; then
+        if [[ -d "$TRINO_DIR/.git" ]]; then
             log_info "Existing git repository found, pulling latest changes..."
-            cd "$JAVA_DIR"
+            cd "$TRINO_DIR"
             git pull || log_warn "Failed to pull latest changes"
             cd - >/dev/null
             return 0
         else
             log_error "Directory exists but is not a git repository"
-            log_error "Please remove $JAVA_DIR and try again"
+            log_error "Please remove $TRINO_DIR and try again"
             return 1
         fi
     fi
 
     # Clone the repository
-    if ! git clone "$JAVA_REPO_URL" "$JAVA_DIR"; then
-        log_error "Failed to clone Java repository"
+    if ! git clone "$TRINO_REPO_URL" "$TRINO_DIR"; then
+        log_error "Failed to clone Trino TPC-DS repository"
         return 1
     fi
 
-    log_success "Successfully cloned Java TPC-DS repository"
+    log_success "Successfully cloned Trino TPC-DS repository"
     return 0
 }
 
-# Build the Java implementation
-build_java() {
-    log_info "Building Java TPC-DS implementation..."
+# Build the Trino TPC-DS JAR
+build_trino() {
+    log_info "Building Trino TPC-DS implementation..."
 
-    if [[ ! -d "$JAVA_DIR" ]]; then
-        log_error "Java directory does not exist: $JAVA_DIR"
+    if [[ ! -d "$TRINO_DIR" ]]; then
+        log_error "Trino directory does not exist: $TRINO_DIR"
         return 1
     fi
 
-    cd "$JAVA_DIR"
+    cd "$TRINO_DIR"
 
     # Clean build
     log_info "Running: mvn clean package -DskipTests"
@@ -180,7 +175,7 @@ build_java() {
 
     # Verify JAR was created
     local jar_file
-    if jar_file=$(find_java_jar); then
+    if jar_file=$(find_trino_jar); then
         local jar_size
         jar_size=$(du -h "$jar_file" | cut -f1)
         log_success "Build complete: $jar_file ($jar_size)"
@@ -191,12 +186,12 @@ build_java() {
     fi
 }
 
-# Test the Java implementation
-test_java() {
-    log_info "Testing Java TPC-DS implementation..."
+# Smoke-test the built JAR
+test_trino() {
+    log_info "Testing Trino TPC-DS JAR..."
 
     local jar_file
-    if ! jar_file=$(find_java_jar); then
+    if ! jar_file=$(find_trino_jar); then
         log_error "JAR file not found"
         return 1
     fi
@@ -233,20 +228,20 @@ test_java() {
     fi
 }
 
-# Verify installation
+# Verify the installation
 verify_installation() {
-    log_info "Verifying Java TPC-DS installation..."
+    log_info "Verifying Trino TPC-DS installation..."
 
     # Check directory exists
-    if [[ ! -d "$JAVA_DIR" ]]; then
-        log_error "Java directory does not exist: $JAVA_DIR"
+    if [[ ! -d "$TRINO_DIR" ]]; then
+        log_error "Trino directory does not exist: $TRINO_DIR"
         return 1
     fi
 
     # Check JAR exists
     local jar_file
-    if ! jar_file=$(find_java_jar); then
-        log_error "JAR file not found in $JAVA_DIR/target/"
+    if ! jar_file=$(find_trino_jar); then
+        log_error "JAR file not found in $TRINO_DIR/target/"
         log_error "Run without --verify to build"
         return 1
     fi
@@ -254,11 +249,11 @@ verify_installation() {
     log_success "Found JAR: $jar_file"
 
     # Test it works
-    if ! test_java; then
+    if ! test_trino; then
         return 1
     fi
 
-    log_success "Java TPC-DS installation verified"
+    log_success "Trino TPC-DS installation verified"
     return 0
 }
 
@@ -291,10 +286,10 @@ main() {
     done
 
     log_info "========================================="
-    log_info "Java TPC-DS Bootstrap"
+    log_info "Trino TPC-DS Bootstrap"
     log_info "========================================="
-    log_info "Java directory: $JAVA_DIR"
-    log_info "Repository: $JAVA_REPO_URL"
+    log_info "Trino directory: $TRINO_DIR"
+    log_info "Repository: $TRINO_REPO_URL"
     log_info "========================================="
 
     start_time=$(date +%s)
@@ -314,26 +309,26 @@ main() {
     fi
 
     # Clone repository if needed
-    if [[ ! -d "$JAVA_DIR" ]]; then
-        if ! clone_java_repo; then
+    if [[ ! -d "$TRINO_DIR" ]]; then
+        if ! clone_trino_repo; then
             exit 1
         fi
     else
-        log_success "Java repository already exists"
+        log_success "Trino repository already exists"
     fi
 
     # Build if needed or forced
     local jar_file
-    if [[ $FORCE_REBUILD -eq 1 ]] || ! find_java_jar >/dev/null 2>&1; then
-        if ! build_java; then
+    if [[ $FORCE_REBUILD -eq 1 ]] || ! find_trino_jar >/dev/null 2>&1; then
+        if ! build_trino; then
             exit 1
         fi
     else
-        log_success "JAR already built: $(find_java_jar)"
+        log_success "JAR already built: $(find_trino_jar)"
     fi
 
     # Test the installation
-    if ! test_java; then
+    if ! test_trino; then
         exit 1
     fi
 
@@ -344,7 +339,7 @@ main() {
     log_info "========================================="
     log_info "Bootstrap Complete"
     log_info "========================================="
-    log_success "Java TPC-DS is ready for conformance testing"
+    log_success "Trino TPC-DS is ready for conformance testing"
     log_info "Time: ${duration}s"
     log_info ""
     log_info "Next steps:"

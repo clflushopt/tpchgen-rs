@@ -20,7 +20,7 @@ MD5/`diff` comparison.
 tpcdsgen/
 ├── tests/
 │   └── fixtures/                # Reference data (gitignored)
-│       ├── scale-1-java/        # Java reference (`--compat trino`)
+│       ├── scale-1-trino/        # Java reference (`--compat trino`)
 │       │   ├── call_center.dat
 │       │   ├── warehouse.dat
 │       │   └── ... (all 25 tables)
@@ -29,7 +29,7 @@ tpcdsgen/
 │           ├── warehouse.dat
 │           └── ... (all 25 tables)
 └── scripts/
-    ├── bootstrap-java.sh        # Clone + build the Java TPC-DS impl
+    ├── bootstrap-trino.sh        # Clone + build the Java TPC-DS impl
     ├── generate-fixtures.sh     # Generate/download reference fixtures
     │                            #   (Java via --compat trino; C via --compat c)
     ├── compare-table.sh         # Compare one table
@@ -42,9 +42,9 @@ tpcdsgen/
 
 ```bash
 # 1. Bootstrap Java implementation (first time only)
-./scripts/bootstrap-java.sh
+./scripts/bootstrap-trino.sh
 
-# 2. Generate Java reference fixtures into tests/fixtures/scale-N-java/.
+# 2. Generate Java reference fixtures into tests/fixtures/scale-N-trino/.
 ./scripts/generate-fixtures.sh
 
 # 3. Test all ported tables against the Java reference.
@@ -93,8 +93,8 @@ table below is just a roadmap.
 
 | Script                    | Purpose                                                                                                                         |
 |---------------------------|---------------------------------------------------------------------------------------------------------------------------------|
-| `bootstrap-java.sh`       | Clone and build the Java / Trino reference implementation into `../tpcds/`. Run once before Java conformance.                   |
-| `generate-fixtures.sh`    | Populate `tests/fixtures/scale-N-{java,c}/` with reference data. `--compat trino` (default) runs the Java impl; `--compat c` downloads pre-generated C `dsdgen` data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data). |
+| `bootstrap-trino.sh`       | Clone and build the Java / Trino reference implementation into `../tpcds/`. Run once before Java conformance.                   |
+| `generate-fixtures.sh`    | Populate `tests/fixtures/scale-N-{trino,c}/` with reference data. `--compat trino` (default) runs the Java impl; `--compat c` downloads pre-generated C `dsdgen` data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data). |
 | `compare-table.sh`        | Compare one table's Rust output against the selected reference (`--compat trino` or `--compat c`) via MD5 + diff.               |
 | `test-all-tables.sh`      | Run the full conformance suite for one compat mode (the main CI entry point). Honors per-mode skip lists at the top of the script. |
 | `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/`.                                                                          |
@@ -134,7 +134,7 @@ Run any script with `--help` to print its usage block.
 
 ## Requirements
 
-- **Java:** Maven-built TPC-DS JAR at `../tpcds/target/tpcds-*-jar-with-dependencies.jar` (`bootstrap-java.sh` handles this).
+- **Java:** Maven-built TPC-DS JAR at `../tpcds/target/tpcds-*-jar-with-dependencies.jar` (`bootstrap-trino.sh` handles this).
 - **C dsdgen reference:** `git`, `tar`, `bzip2` for `generate-fixtures.sh --compat c`. No C compiler required — data is pre-generated.
 - **Rust:** Cargo-built `tpcdsgen` binary at `target/debug/tpcdsgen` or `target/release/tpcdsgen`.
 - **Disk space:** ~1 GB for SF1 Java fixtures; ~2.4 GB for SF1 C fixtures.
@@ -178,7 +178,7 @@ These scripts are designed to be CI-friendly:
 
 ```yaml
 # Java conformance
-- run: ./scripts/bootstrap-java.sh
+- run: ./scripts/bootstrap-trino.sh
 - run: ./scripts/generate-fixtures.sh --quiet
 - run: ./scripts/test-all-tables.sh --quiet
 

@@ -15,8 +15,8 @@ Two reference implementations are supported, selected by --compat:
 
     --compat trino  (default)
         Runs the Java / Trino TPC-DS implementation (set up by
-        ./scripts/bootstrap-java.sh) and writes the resulting *.dat files
-        into tests/fixtures/scale-N-java/. These are the "golden reference"
+        ./scripts/bootstrap-trino.sh) and writes the resulting *.dat files
+        into tests/fixtures/scale-N-trino/. These are the "golden reference"
         the Rust port targets byte-for-byte.
 
     --compat c
@@ -52,11 +52,11 @@ Environment variables:
     TPCDS_COMPAT        Default compat mode  (overridden by --compat).
 
 Requirements:
-    --compat trino: Java 11+, Maven (a built tpcds-*.jar; see bootstrap-java.sh)
+    --compat trino: Java 11+, Maven (a built tpcds-*.jar; see bootstrap-trino.sh)
     --compat c    : git, tar, bzip2
 
 Output:
-    tests/fixtures/scale-N-java/<table>.dat — pipe-delimited, trailing |.
+    tests/fixtures/scale-N-trino/<table>.dat — pipe-delimited, trailing |.
     tests/fixtures/scale-N-c/<table>.dat    — same format, C dsdgen origin.
     Files are gitignored; regenerate as needed.
 
@@ -88,7 +88,7 @@ NC='\033[0m'
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-JAVA_DIR="$PROJECT_ROOT/../tpcds"
+TRINO_DIR="$PROJECT_ROOT/../tpcds"
 
 # Configuration (overridable by flags / env vars)
 SCALE_FACTOR=${TPCDS_SCALE:-1}
@@ -156,7 +156,7 @@ log_error() {
 
 find_java_jar() {
     local jar_file
-    jar_file=$(find "$JAVA_DIR/target" -name "tpcds-*-jar-with-dependencies.jar" 2>/dev/null | head -1)
+    jar_file=$(find "$TRINO_DIR/target" -name "tpcds-*-jar-with-dependencies.jar" 2>/dev/null | head -1)
     if [[ -z "$jar_file" ]]; then
         return 1
     fi
@@ -167,7 +167,7 @@ ensure_java_build() {
     log_info "Checking Java implementation..."
     if ! find_java_jar >/dev/null 2>&1; then
         log_warn "Java JAR not found. Building Java implementation..."
-        cd "$JAVA_DIR"
+        cd "$TRINO_DIR"
         if ! mvn -q clean package -DskipTests; then
             log_error "Failed to build Java implementation"
             exit 1
@@ -477,7 +477,7 @@ main() {
 
     case $COMPAT in
         trino)
-            local fixture_dir="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-java"
+            local fixture_dir="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-trino"
             if [[ ${#tables_to_generate[@]} -eq 0 ]]; then
                 tables_to_generate=("${ALL_TABLES[@]}")
             fi

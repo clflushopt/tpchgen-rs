@@ -18,8 +18,8 @@ mode, delegates each per-table comparison to ./scripts/compare-table.sh,
 and prints a pass/fail summary. Exits non-zero if any table differs.
 
 Two reference implementations are supported, selected by --compat:
-    --compat trino  (default)  Java / Trino fixtures in
-                               tests/fixtures/scale-N-java/
+    --compat trino  (default)  Trino TPC-DS Java fixtures in
+                               tests/fixtures/scale-N-trino/
                                (generate with
                                 ./scripts/generate-fixtures.sh)
     --compat c                 C dsdgen fixtures in
@@ -42,8 +42,8 @@ Options:
     --help              Show this help message.
 
 Examples:
-    test-all-tables.sh                  # All tables at scale 1 vs Java.
-    test-all-tables.sh --scale 10       # All tables at scale 10 vs Java.
+    test-all-tables.sh                  # All tables at scale 1 vs Trino.
+    test-all-tables.sh --scale 10       # All tables at scale 10 vs Trino.
     test-all-tables.sh --compat c       # All tables at scale 1 vs C dsdgen.
     test-all-tables.sh --quiet          # Summary-only output.
 

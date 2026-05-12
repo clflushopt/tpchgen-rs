@@ -29,9 +29,9 @@ Fixtures are pre-generated TPC-DS data files used for conformance testing.
 
 ```
 tests/fixtures/
-├── scale-1-java/    # Java reference fixtures (`--compat trino`)
+├── scale-1-trino/    # Java reference fixtures (`--compat trino`)
 ├── scale-1-c/       # C dsdgen reference fixtures (`--compat c`)
-└── scale-10-java/   # higher scale factors as needed
+└── scale-10-trino/   # higher scale factors as needed
 ```
 
 ### Conformance Testing
@@ -44,9 +44,9 @@ scripts that do byte-for-byte (MD5) comparison of `.dat` output. See
 
 ```bash
 # One-time: clone & build the Java TPC-DS implementation.
-./scripts/bootstrap-java.sh
+./scripts/bootstrap-trino.sh
 
-# Generate Java reference fixtures into tests/fixtures/scale-N-java/.
+# Generate Java reference fixtures into tests/fixtures/scale-N-trino/.
 ./scripts/generate-fixtures.sh
 
 # Compare Rust output byte-for-byte against the Java fixtures.
@@ -77,13 +77,13 @@ Each fixture directory contains an `MD5SUMS` file for verification.
 
 **On Linux:**
 ```bash
-cd tests/fixtures/scale-1-java
+cd tests/fixtures/scale-1-trino
 md5sum -c MD5SUMS
 ```
 
 **On macOS:**
 ```bash
-cd tests/fixtures/scale-1-java
+cd tests/fixtures/scale-1-trino
 while read hash file; do
   [[ $(md5 -q "$file") == "$hash" ]] && echo "$file: OK" || echo "$file: FAILED"
 done < MD5SUMS
