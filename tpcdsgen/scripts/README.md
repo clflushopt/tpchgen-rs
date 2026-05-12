@@ -30,8 +30,8 @@ tpcdsgen/
 │           └── ... (all 25 tables)
 └── scripts/
     ├── bootstrap-java.sh        # Clone + build the Java TPC-DS impl
-    ├── bootstrap-c.sh           # Download C dsdgen pre-generated data
-    ├── generate-fixtures.sh     # Generate Java reference fixtures
+    ├── generate-fixtures.sh     # Generate/download reference fixtures
+    │                            #   (Java via --compat trino; C via --compat c)
     ├── compare-table.sh         # Compare one table
     ├── test-all-tables.sh       # Compare all ported tables
     ├── clean-fixtures.sh        # Clean fixtures
@@ -55,13 +55,14 @@ tpcdsgen/
 
 The C reference data is pre-generated and published in
 [alamb/tpcds-data](https://github.com/alamb/tpcds-data), one branch per
-scale factor (`sf1`, `sf2`, ...). The bootstrap script clones the requested
-branch with `--depth 1` and extracts it into `tests/fixtures/scale-N-c/`.
+scale factor (`sf1`, `sf2`, ...). `generate-fixtures.sh --compat c` clones
+the requested branch with `--depth 1` and extracts it into
+`tests/fixtures/scale-N-c/`.
 
 ```bash
 # 1. Download the C dsdgen reference data (default scale 1).
-./scripts/bootstrap-c.sh                # sf1
-./scripts/bootstrap-c.sh --scale 2      # sf2
+./scripts/generate-fixtures.sh --compat c              # sf1
+./scripts/generate-fixtures.sh --compat c --scale 2    # sf2
 
 # 2. Test all ported tables against the C reference.
 ./scripts/test-all-tables.sh --compat c
@@ -93,8 +94,7 @@ table below is just a roadmap.
 | Script                    | Purpose                                                                                                                         |
 |---------------------------|---------------------------------------------------------------------------------------------------------------------------------|
 | `bootstrap-java.sh`       | Clone and build the Java / Trino reference implementation into `../tpcds/`. Run once before Java conformance.                   |
-| `bootstrap-c.sh`          | Download pre-generated C `dsdgen` reference data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data) into `tests/fixtures/scale-N-c/`. Run once (per scale) before C conformance. |
-| `generate-fixtures.sh`    | Run the Java implementation to populate `tests/fixtures/scale-N-java/` — the byte-for-byte target for `--compat trino`.         |
+| `generate-fixtures.sh`    | Populate `tests/fixtures/scale-N-{java,c}/` with reference data. `--compat trino` (default) runs the Java impl; `--compat c` downloads pre-generated C `dsdgen` data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data). |
 | `compare-table.sh`        | Compare one table's Rust output against the selected reference (`--compat trino` or `--compat c`) via MD5 + diff.               |
 | `test-all-tables.sh`      | Run the full conformance suite for one compat mode (the main CI entry point). Honors per-mode skip lists at the top of the script. |
 | `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/`.                                                                          |
@@ -118,7 +118,7 @@ Run any script with `--help` to print its usage block.
 ### C dsdgen conformance
 ```bash
 # 1. Download the C reference data (one-time, or to refresh).
-./scripts/bootstrap-c.sh
+./scripts/generate-fixtures.sh --compat c
 
 # 2. Run the comparison in C-compat mode.
 ./scripts/compare-table.sh <table> --compat c
@@ -135,7 +135,7 @@ Run any script with `--help` to print its usage block.
 ## Requirements
 
 - **Java:** Maven-built TPC-DS JAR at `../tpcds/target/tpcds-*-jar-with-dependencies.jar` (`bootstrap-java.sh` handles this).
-- **C dsdgen reference:** `git`, `tar`, `bzip2` for `bootstrap-c.sh`. No compiler required — data is pre-generated.
+- **C dsdgen reference:** `git`, `tar`, `bzip2` for `generate-fixtures.sh --compat c`. No C compiler required — data is pre-generated.
 - **Rust:** Cargo-built `tpcdsgen` binary at `target/debug/tpcdsgen` or `target/release/tpcdsgen`.
 - **Disk space:** ~1 GB for SF1 Java fixtures; ~2.4 GB for SF1 C fixtures.
 
@@ -161,7 +161,7 @@ cargo build --release
 
 **Problem:** `Fixture not found` (C path)
 ```bash
-./scripts/bootstrap-c.sh --scale N
+./scripts/generate-fixtures.sh --compat c --scale N
 ```
 
 **Problem:** Tables don't match
@@ -183,7 +183,7 @@ These scripts are designed to be CI-friendly:
 - run: ./scripts/test-all-tables.sh --quiet
 
 # C dsdgen conformance
-- run: ./scripts/bootstrap-c.sh
+- run: ./scripts/generate-fixtures.sh --compat c
 - run: ./scripts/test-all-tables.sh --compat c --quiet
 ```
 

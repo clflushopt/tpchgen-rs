@@ -72,10 +72,10 @@ jobs:
   # Conformance testing against the C dsdgen reference implementation.
   #
   # Reference data is pre-generated and lives in
-  # https://github.com/alamb/tpcds-data (branch sf1). bootstrap-c.sh clones
-  # it with --depth 1 and extracts into tpcdsgen/tests/fixtures/scale-1-c/.
-  # Rust is then run in --compat c mode and the .dat output is compared
-  # byte-for-byte (MD5/diff).
+  # https://github.com/alamb/tpcds-data (branch sf1).
+  # `generate-fixtures.sh --compat c` clones it with --depth 1 and extracts
+  # into tpcdsgen/tests/fixtures/scale-1-c/. Rust is then run in
+  # --compat c mode and the .dat output is compared byte-for-byte (MD5/diff).
   conformance-tests-c:
     name: Conformance Tests (C dsdgen)
     runs-on: ubuntu-latest
@@ -103,7 +103,7 @@ jobs:
     - name: Download C dsdgen reference data
       run: |
         cd tpcdsgen
-        ./scripts/bootstrap-c.sh --scale 1
+        ./scripts/generate-fixtures.sh --compat c --scale 1
 
     - name: Build Rust table generators
       run: |

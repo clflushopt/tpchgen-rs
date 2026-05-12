@@ -58,7 +58,7 @@ scripts that do byte-for-byte (MD5) comparison of `.dat` output. See
 ```bash
 # One-time: download pre-generated C dsdgen data from
 # https://github.com/alamb/tpcds-data into tests/fixtures/scale-N-c/.
-./scripts/bootstrap-c.sh --scale 1
+./scripts/generate-fixtures.sh --compat c --scale 1
 
 # Compare Rust --compat c output byte-for-byte against the C fixtures.
 ./scripts/test-all-tables.sh --compat c --scale 1

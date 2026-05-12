@@ -2,24 +2,39 @@
 #
 # clean-fixtures.sh — Remove all generated reference fixtures.
 #
-# Deletes the entire tests/fixtures/ tree (Java fixtures in
-# scale-N-java/ and C dsdgen fixtures in scale-N-c/). Fixtures are
-# git-ignored generated artifacts and can be re-created with
-# ./scripts/generate-fixtures.sh or ./scripts/bootstrap-c.sh.
-#
-# What it does:
-#   1. Counts existing .dat fixture files and reports total size.
-#   2. Asks for confirmation (unless --yes is passed).
-#   3. Removes tests/fixtures/ entirely.
-#
-# Usage:
-#   ./scripts/clean-fixtures.sh         # Clean with confirmation prompt
-#   ./scripts/clean-fixtures.sh --yes   # Clean without confirmation
-#   ./scripts/clean-fixtures.sh --help
-#
-# See scripts/README.md for the full conformance-testing workflow.
+# Please see print_usage() below for details.
 
 set -euo pipefail
+
+print_usage() {
+    cat << 'EOF'
+clean-fixtures.sh — Remove all generated reference fixtures.
+
+Deletes the entire tests/fixtures/ tree (Java fixtures in scale-N-java/
+and C dsdgen fixtures in scale-N-c/). Fixtures are git-ignored generated
+artifacts and can be re-created with
+./scripts/generate-fixtures.sh (with or without --compat c).
+
+What it does:
+    1. Counts existing .dat fixture files and reports total size.
+    2. Asks for confirmation (unless --yes is passed).
+    3. Removes tests/fixtures/ entirely.
+
+Usage:
+    clean-fixtures.sh [OPTIONS]
+
+Options:
+    --yes           Skip confirmation prompt.
+    --help          Show this help message.
+
+Examples:
+    clean-fixtures.sh           # Clean with confirmation.
+    clean-fixtures.sh --yes     # Clean without confirmation.
+
+See scripts/README.md for the full conformance-testing workflow.
+EOF
+    exit 0
+}
 
 # Colors for output
 RED='\033[0;31m'
@@ -48,25 +63,6 @@ log_warn() {
     echo -e "${YELLOW}[WARN]${NC} $*"
 }
 
-# Print usage
-usage() {
-    cat << EOF
-Clean up generated test fixtures
-
-Usage:
-    $(basename "$0") [--yes]
-
-Options:
-    --yes           Skip confirmation prompt
-
-Examples:
-    $(basename "$0")        # Clean with confirmation
-    $(basename "$0") --yes  # Clean without confirmation
-
-EOF
-    exit 0
-}
-
 # Main function
 main() {
     # Parse arguments
@@ -77,11 +73,11 @@ main() {
                 shift
                 ;;
             --help)
-                usage
+                print_usage
                 ;;
             *)
                 log_warn "Unknown option: $1"
-                usage
+                print_usage
                 ;;
         esac
     done
