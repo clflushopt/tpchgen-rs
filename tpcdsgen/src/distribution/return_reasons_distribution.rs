@@ -19,7 +19,9 @@ impl ReturnReasonsDistribution {
         })
     }
 
-    /// C dsdgen uses a corrected .dst where `reason 30` is not a duplicate of `reason 31`.
+    /// C dsdgen uses a corrected .dst where `reason 30` is not a duplicate of `reason 31`[1].
+    ///
+    /// [1]: https://github.com/trinodb/tpcds/blob/master/src/main/resources/io/trino/tpcds/distribution/return_reasons.dst#L38
     fn get_distribution_c() -> &'static FileBasedStringValuesDistribution {
         static DISTRIBUTION_C: OnceLock<FileBasedStringValuesDistribution> = OnceLock::new();
         DISTRIBUTION_C.get_or_init(|| {

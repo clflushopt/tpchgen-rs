@@ -8,7 +8,9 @@ use crate::types::Date;
 /// C dsdgen generates all 75 entries from `return_reasons_c.dst` at every
 /// scale factor. The Java/Trino port incorrectly used a logarithmic scaling
 /// model starting at 35 for SF1; this constant fixes that when
-/// `CompatMode::C` is active.
+/// `CompatMode::C` is active, see [1].
+///
+/// [1]: https://github.com/trinodb/tpcds/blob/8a02abbba864feedc2afd078c8153d66a95bb2d4/src/main/java/io/trino/tpcds/Table.java#L201
 const REASON_ROW_COUNT_C: i64 = 75;
 
 #[derive(Debug, Clone)]
