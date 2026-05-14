@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# test-all-tables.sh — Run the full conformance suite for one compat
+# compare-all-tables.sh — Run the full conformance suite for one compat
 # mode, byte-for-byte (MD5 + diff) comparing Rust output against
 # reference fixtures. Main entry point used by CI.
 #
@@ -10,7 +10,7 @@ set -euo pipefail
 
 print_usage() {
     cat << 'EOF'
-test-all-tables.sh — Run the full conformance suite for one compat mode.
+compare-all-tables.sh — Run the full conformance suite for one compat mode.
 
 Iterates all 24 TPC-DS tables (dbgen_version is always excluded because
 it contains a generation timestamp), builds the Rust generator in release
@@ -33,7 +33,7 @@ alamb/tpcds-data is regenerated without the iconv ISO-8859-14 -> UTF-8
 step that double-encodes non-ASCII country names.
 
 Usage:
-    test-all-tables.sh [OPTIONS]
+    compare-all-tables.sh [OPTIONS]
 
 Options:
     --scale N           Scale factor (default: 1).
@@ -42,10 +42,10 @@ Options:
     --help              Show this help message.
 
 Examples:
-    test-all-tables.sh                  # All tables at scale 1 vs Trino.
-    test-all-tables.sh --scale 10       # All tables at scale 10 vs Trino.
-    test-all-tables.sh --compat c       # All tables at scale 1 vs C dsdgen.
-    test-all-tables.sh --quiet          # Summary-only output.
+    compare-all-tables.sh                  # All tables at scale 1 vs Trino.
+    compare-all-tables.sh --scale 10       # All tables at scale 10 vs Trino.
+    compare-all-tables.sh --compat c       # All tables at scale 1 vs C dsdgen.
+    compare-all-tables.sh --quiet          # Summary-only output.
 
 Exit codes:
     0 - All tested tables match.

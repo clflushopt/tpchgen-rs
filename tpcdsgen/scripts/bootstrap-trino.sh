@@ -344,7 +344,7 @@ main() {
     log_info ""
     log_info "Next steps:"
     log_info "  ./scripts/generate-fixtures.sh      # Generate test fixtures"
-    log_info "  ./scripts/test-all-tables.sh        # Run conformance tests"
+    log_info "  ./scripts/compare-all-tables.sh     # Run conformance tests"
     log_info "========================================="
 }
 

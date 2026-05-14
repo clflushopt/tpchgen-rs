@@ -65,7 +65,7 @@ jobs:
     - name: Run conformance tests (Rust vs Java)
       run: |
         cd tpcdsgen
-        ./scripts/test-all-tables.sh
+        ./scripts/compare-all-tables.sh
 
     - name: Upload test fixtures as artifacts
       if: failure()  # Upload fixtures if tests fail for debugging
@@ -118,7 +118,7 @@ jobs:
     - name: Run conformance tests (Rust --compat c vs C dsdgen)
       run: |
         cd tpcdsgen
-        ./scripts/test-all-tables.sh --compat c
+        ./scripts/compare-all-tables.sh --compat c
 
     - name: Upload test fixtures as artifacts
       if: failure()

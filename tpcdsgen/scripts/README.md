@@ -33,7 +33,7 @@ tpcdsgen/
     ├── generate-fixtures.sh     # Generate/download reference fixtures
     │                            #   (Java via --compat trino; C via --compat c)
     ├── compare-table.sh         # Compare one table
-    ├── test-all-tables.sh       # Compare all ported tables
+    ├── compare-all-tables.sh       # Compare all ported tables
     ├── clean-fixtures.sh        # Clean fixtures
     └── README.md                # This file
 ```
@@ -48,7 +48,7 @@ tpcdsgen/
 ./scripts/generate-fixtures.sh
 
 # 3. Test all ported tables against the Java reference.
-./scripts/test-all-tables.sh
+./scripts/compare-all-tables.sh
 ```
 
 ## Quick Start — C dsdgen conformance (`--compat c`)
@@ -65,7 +65,7 @@ the requested branch with `--depth 1` and extracts it into
 ./scripts/generate-fixtures.sh --compat c --scale 2    # sf2
 
 # 2. Test all ported tables against the C reference.
-./scripts/test-all-tables.sh --compat c
+./scripts/compare-all-tables.sh --compat c
 
 # Or compare a single table.
 ./scripts/compare-table.sh reason --compat c
@@ -74,7 +74,7 @@ the requested branch with `--depth 1` and extracts it into
 ### Tables excluded from automated checks
 
 The following tables are excluded from automated MD5 comparison; the
-exclusion lists live in `test-all-tables.sh`.
+exclusion lists live in `compare-all-tables.sh`.
 
 - **Always:** `dbgen_version.dat` — contains a generation timestamp.
 - **`--compat c` only:** `customer.dat` — the reference data in
@@ -96,7 +96,7 @@ table below is just a roadmap.
 | `bootstrap-trino.sh`       | Clone and build the Java / Trino reference implementation into `../tpcds/`. Run once before Java conformance.                   |
 | `generate-fixtures.sh`    | Populate `tests/fixtures/scale-N-{trino,c}/` with reference data. `--compat trino` (default) runs the Java impl; `--compat c` downloads pre-generated C `dsdgen` data from [alamb/tpcds-data](https://github.com/alamb/tpcds-data). |
 | `compare-table.sh`        | Compare one table's Rust output against the selected reference (`--compat trino` or `--compat c`) via MD5 + diff.               |
-| `test-all-tables.sh`      | Run the full conformance suite for one compat mode (the main CI entry point). Honors per-mode skip lists at the top of the script. |
+| `compare-all-tables.sh`      | Run the full conformance suite for one compat mode (the main CI entry point). Honors per-mode skip lists at the top of the script. |
 | `clean-fixtures.sh`       | Remove all generated fixtures under `tests/fixtures/`.                                                                          |
 
 Run any script with `--help` to print its usage block.
@@ -112,7 +112,7 @@ Run any script with `--help` to print its usage block.
 
 # 2. Run the comparison.
 ./scripts/compare-table.sh <table>     # one table
-./scripts/test-all-tables.sh           # all tables
+./scripts/compare-all-tables.sh           # all tables
 ```
 
 ### C dsdgen conformance
@@ -122,7 +122,7 @@ Run any script with `--help` to print its usage block.
 
 # 2. Run the comparison in C-compat mode.
 ./scripts/compare-table.sh <table> --compat c
-./scripts/test-all-tables.sh --compat c
+./scripts/compare-all-tables.sh --compat c
 ```
 
 ### Cleanup
@@ -180,11 +180,11 @@ These scripts are designed to be CI-friendly:
 # Java conformance
 - run: ./scripts/bootstrap-trino.sh
 - run: ./scripts/generate-fixtures.sh --quiet
-- run: ./scripts/test-all-tables.sh --quiet
+- run: ./scripts/compare-all-tables.sh --quiet
 
 # C dsdgen conformance
 - run: ./scripts/generate-fixtures.sh --compat c
-- run: ./scripts/test-all-tables.sh --compat c --quiet
+- run: ./scripts/compare-all-tables.sh --compat c --quiet
 ```
 
 Exit codes make it easy to fail CI on mismatches.

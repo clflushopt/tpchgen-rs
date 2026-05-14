@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # generate-fixtures.sh — Generate reference TPC-DS fixtures used by the
-# conformance suite (compare-table.sh / test-all-tables.sh).
+# conformance suite (compare-table.sh / compare-all-tables.sh).
 #
 # Please see print_usage() below for details.
 

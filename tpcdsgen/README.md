@@ -50,7 +50,7 @@ scripts that do byte-for-byte (MD5) comparison of `.dat` output. See
 ./scripts/generate-fixtures.sh
 
 # Compare Rust output byte-for-byte against the Java fixtures.
-./scripts/test-all-tables.sh --scale 1
+./scripts/compare-all-tables.sh --scale 1
 ```
 
 **vs. C dsdgen reference (`--compat c`):**
@@ -61,7 +61,7 @@ scripts that do byte-for-byte (MD5) comparison of `.dat` output. See
 ./scripts/generate-fixtures.sh --compat c --scale 1
 
 # Compare Rust --compat c output byte-for-byte against the C fixtures.
-./scripts/test-all-tables.sh --compat c --scale 1
+./scripts/compare-all-tables.sh --compat c --scale 1
 ```
 
 Both suites also support comparing a single table:
@@ -175,8 +175,8 @@ To verify the Rust implementation matches:
 
 ```bash
 # Verify at scale 1
-./scripts/test-all-tables.sh --scale 1
+./scripts/compare-all-tables.sh --scale 1
 
 # Verify at scale 10
-./scripts/test-all-tables.sh --scale 10
+./scripts/compare-all-tables.sh --scale 10
 ```
