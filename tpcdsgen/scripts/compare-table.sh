@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# compare-table.sh — Compare a single table's Rust output to a reference
-# fixture byte-for-byte (MD5 + diff).
+# compare-table.sh — Compare a single table's Rust output to a reference.
+# Default: MD5-only against MD5SUMS. --full: byte-for-byte (MD5 + diff).
 #
 # Please see print_usage() below for details.
 
@@ -9,18 +9,23 @@ set -euo pipefail
 
 print_usage() {
     cat << 'EOF'
-compare-table.sh — Compare a single table's Rust output to a reference
-fixture byte-for-byte (MD5 + diff).
+compare-table.sh — Compare a single table's Rust output to a reference.
+
+By default it compares the MD5 hash of the Rust output against the
+expected hash values in tests/fixtures/scale-N-{trino,c}/MD5SUMS.
+
+Pass --full to instead compare byte-for-byte against the actual reference
+output (MD5 + diff). This is slower but produces a row-level diff when
+something does not match. Generate the fixture first with
+./scripts/generate-fixtures.sh.
 
 Two reference implementations are supported, selected by --compat:
-    --compat trino  (default)  Java / Trino fixtures in
-                               tests/fixtures/scale-N-trino/
-                               (generate with
-                                ./scripts/generate-fixtures.sh)
-    --compat c                 C dsdgen fixtures in
-                               tests/fixtures/scale-N-c/
-                               (download with
-                                ./scripts/generate-fixtures.sh --compat c)
+    --compat trino  (default)  Java / Trino reference
+                               (MD5SUMS: tests/fixtures/scale-N-trino/MD5SUMS;
+                                fixtures: same dir, --full only)
+    --compat c                 C dsdgen reference
+                               (MD5SUMS: tests/fixtures/scale-N-c/MD5SUMS;
+                                fixtures: same dir, --full only)
 
 Usage:
     compare-table.sh TABLE_NAME [OPTIONS]
@@ -31,25 +36,20 @@ Arguments:
 Options:
     --scale N           Scale factor (default: 1).
     --compat trino|c    Reference implementation (default: trino).
+    --full              Compare byte-for-byte against the full .dat fixture
+                        (MD5 + diff). Requires the fixture to exist locally.
     --quiet             Quiet mode (minimal output).
     --help              Show this help message.
 
 Examples:
-    compare-table.sh call_center                  # vs. Trino, scale 1
-    compare-table.sh reason --compat c            # vs. C dsdgen, scale 1
-    compare-table.sh inventory --scale 10         # vs. Trino, scale 10
+    compare-table.sh call_center                  # MD5-only, vs. Trino, scale 1
+    compare-table.sh reason --compat c            # MD5-only, vs. C dsdgen
+    compare-table.sh inventory --scale 10 --full  # byte-for-byte, vs. Trino
     compare-table.sh customer_demographics --quiet
 
-Output example:
-    [INFO] Table Comparison: call_center
-    [INFO] Trino fixture: tests/fixtures/scale-1-trino/call_center.dat
-    [INFO] Trino fixture: 6 rows, 4.0K
-    [INFO] Rust output:   6 rows, 4.0K
-    [SUCCESS] ✓ call_center: MD5 match (6 rows, cc9aab...)
-
 Exit codes:
-    0 - Tables match exactly.
-    1 - Tables differ or an error occurred.
+    0 - Hashes (or full fixtures, with --full) match.
+    1 - Mismatch or an error occurred.
 
 See scripts/README.md for the full conformance-testing workflow.
 EOF
@@ -71,6 +71,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 SCALE_FACTOR=${TPCDS_SCALE:-1}
 COMPAT=${TPCDS_COMPAT:-trino}
 QUIET=0
+FULL=0
 
 # Logging functions
 log_info() {
@@ -198,8 +199,52 @@ compute_md5() {
     fi
 }
 
-# Compare two files
-compare_files() {
+# Look up the expected MD5 hash for $table in $md5sums_file.
+lookup_expected_md5() {
+    local md5sums_file=$1
+    local table=$2
+    awk -v t="${table}.dat" '$2 == t { print $1; found=1; exit } END { exit !found }' "$md5sums_file"
+}
+
+# Default (fast) comparison: check the Rust output's MD5 against the
+# expected hash in MD5SUMS. Does not require the .dat fixture to be
+# present locally.
+compare_md5_only() {
+    local md5sums_file=$1
+    local rust_file=$2
+    local table=$3
+    local ref_label=$4
+
+    local expected_md5
+    if ! expected_md5=$(lookup_expected_md5 "$md5sums_file" "$table"); then
+        log_error "No expected MD5 for $table in $md5sums_file"
+        log_error "Run ./scripts/generate-fixtures.sh --compat $COMPAT --scale $SCALE_FACTOR to refresh it."
+        return 1
+    fi
+
+    local rust_rows rust_md5
+    rust_rows=$(wc -l < "$rust_file" | tr -d ' ')
+    rust_md5=$(compute_md5 "$rust_file")
+
+    log_info "Rust output: $rust_rows rows"
+    log_info "$ref_label expected MD5: $expected_md5"
+    log_info "Rust MD5:              $rust_md5"
+
+    if [[ "$rust_md5" == "$expected_md5" ]]; then
+        log_success "✓ $table: MD5 match ($rust_rows rows, $rust_md5)"
+        return 0
+    fi
+
+    log_error "✗ $table: MD5 mismatch!"
+    log_error "  $ref_label expected: $expected_md5"
+    log_error "  Rust:              $rust_md5"
+    log_error "Re-run with --full for a row-level diff."
+    return 1
+}
+
+# Full comparison: require the .dat fixture, then check MD5 and emit a
+# diff on mismatch.
+compare_full() {
     local ref_file=$1
     local rust_file=$2
     local table=$3
@@ -264,6 +309,10 @@ main() {
                 COMPAT="$2"
                 shift 2
                 ;;
+            --full)
+                FULL=1
+                shift
+                ;;
             --quiet)
                 QUIET=1
                 shift
@@ -306,23 +355,35 @@ main() {
         print_usage
     fi
 
+    local mode_label="MD5-only"
+    [[ $FULL -eq 1 ]] && mode_label="full byte-for-byte"
+
     log_info "========================================="
-    log_info "Table Comparison: $table"
+    log_info "Table Comparison: $table ($mode_label)"
     log_info "========================================="
 
-    # Check if fixture exists
+    local md5sums_file="$FIXTURE_DIR/MD5SUMS"
     local fixture_file="$FIXTURE_DIR/${table}.dat"
-    if [[ ! -f "$fixture_file" ]]; then
-        log_error "Fixture not found: $fixture_file"
-        if [[ "$COMPAT" == "c" ]]; then
-            log_error "Download C reference data first: ./scripts/generate-fixtures.sh --compat c --scale $SCALE_FACTOR"
-        else
-            log_error "Generate fixtures first: ./scripts/generate-fixtures.sh $table"
-        fi
-        exit 1
-    fi
 
-    log_info "$ref_label fixture: $fixture_file"
+    if [[ $FULL -eq 1 ]]; then
+        if [[ ! -f "$fixture_file" ]]; then
+            log_error "Fixture not found: $fixture_file"
+            if [[ "$COMPAT" == "c" ]]; then
+                log_error "Download C reference data first: ./scripts/generate-fixtures.sh --compat c --scale $SCALE_FACTOR"
+            else
+                log_error "Generate fixtures first: ./scripts/generate-fixtures.sh $table"
+            fi
+            exit 1
+        fi
+        log_info "$ref_label fixture: $fixture_file"
+    else
+        if [[ ! -f "$md5sums_file" ]]; then
+            log_error "MD5SUMS not found: $md5sums_file"
+            log_error "Refresh it with: ./scripts/generate-fixtures.sh --compat $COMPAT --scale $SCALE_FACTOR"
+            exit 1
+        fi
+        log_info "$ref_label MD5SUMS: $md5sums_file"
+    fi
 
     # Generate Rust output
     local rust_output
@@ -335,10 +396,16 @@ main() {
 
     log_info "Rust output: $rust_output (temporary)"
 
-    # Compare files
+    # Compare
     local result=0
-    if ! compare_files "$fixture_file" "$rust_output" "$table" "$ref_label"; then
-        result=1
+    if [[ $FULL -eq 1 ]]; then
+        if ! compare_full "$fixture_file" "$rust_output" "$table" "$ref_label"; then
+            result=1
+        fi
+    else
+        if ! compare_md5_only "$md5sums_file" "$rust_output" "$table" "$ref_label"; then
+            result=1
+        fi
     fi
 
     # Cleanup
