@@ -26,26 +26,6 @@
 
 use std::io::{self, Write};
 
-/// A wrapper that implements std::io::Write by appending to a String.
-///
-/// This allows using `write!` macro with a String buffer, which can then
-/// be converted to ISO-8859-1 and written to the output.
-pub struct StringWriter<'a>(pub &'a mut String);
-
-impl<'a> Write for StringWriter<'a> {
-    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        // buf contains UTF-8 bytes from write! macro
-        let s =
-            std::str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        self.0.push_str(s);
-        Ok(buf.len())
-    }
-
-    fn flush(&mut self) -> io::Result<()> {
-        Ok(())
-    }
-}
-
 /// Converts a UTF-8 string to ISO-8859-1 bytes.
 ///
 /// This is the inverse of the conversion done in file_loader.rs when reading
@@ -161,25 +141,5 @@ mod tests {
         let err = result.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert!(err.to_string().contains("outside ISO-8859-1 range"));
-    }
-
-    #[test]
-    fn test_string_writer() {
-        let mut buffer = String::new();
-        {
-            let mut writer = StringWriter(&mut buffer);
-            write!(writer, "Hello, {}!", "World").unwrap();
-        }
-        assert_eq!(buffer, "Hello, World!");
-    }
-
-    #[test]
-    fn test_string_writer_with_numbers() {
-        let mut buffer = String::new();
-        {
-            let mut writer = StringWriter(&mut buffer);
-            write!(writer, "{}|{}|{}", 42, "test", 3.14).unwrap();
-        }
-        assert_eq!(buffer, "42|test|3.14");
     }
 }

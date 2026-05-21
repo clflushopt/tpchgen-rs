@@ -29,12 +29,6 @@ jobs:
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
 
-    - name: Set up Java
-      uses: actions/setup-java@v5
-      with:
-        distribution: 'temurin'
-        java-version: '11'
-
     - name: Cache Rust dependencies
       uses: actions/cache@v5
       with:
@@ -48,40 +42,16 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
-    - name: Bootstrap Java TPC-DS implementation
-      run: |
-        cd tpcdsgen
-        ./scripts/bootstrap-trino.sh
-
     - name: Build Rust table generators
       run: |
         cargo build --release -p tpcdsgen
-
-    - name: Generate test fixtures (Java reference data)
-      run: |
-        cd tpcdsgen
-        ./scripts/generate-fixtures.sh
 
     - name: Run conformance tests (Rust vs Java)
       run: |
         cd tpcdsgen
         ./scripts/compare-all-tables.sh
 
-    - name: Upload test fixtures as artifacts
-      if: failure()  # Upload fixtures if tests fail for debugging
-      uses: actions/upload-artifact@v7
-      with:
-        name: test-fixtures-trino
-        path: tpcdsgen/tests/fixtures/
-        retention-days: 7
-
   # Conformance testing against the C dsdgen reference implementation.
-  #
-  # Reference data is pre-generated and lives in
-  # https://github.com/alamb/tpcds-data (branch sf1).
-  # `generate-fixtures.sh --compat c` clones it with --depth 1 and extracts
-  # into tpcdsgen/tests/fixtures/scale-1-c/. Rust is then run in
-  # --compat c mode and the .dat output is compared byte-for-byte (MD5/diff).
   conformance-tests-c:
     name: Conformance Tests (C dsdgen)
     runs-on: ubuntu-latest
@@ -106,11 +76,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-
 
-    - name: Download C dsdgen reference data
-      run: |
-        cd tpcdsgen
-        ./scripts/generate-fixtures.sh --compat c --scale 1
-
     - name: Build Rust table generators
       run: |
         cargo build --release -p tpcdsgen
@@ -119,14 +84,6 @@ jobs:
       run: |
         cd tpcdsgen
         ./scripts/compare-all-tables.sh --compat c
-
-    - name: Upload test fixtures as artifacts
-      if: failure()
-      uses: actions/upload-artifact@v7
-      with:
-        name: test-fixtures-c
-        path: tpcdsgen/tests/fixtures/
-        retention-days: 7
 
   # Performance benchmarks (optional - only on main)
   benchmarks:
