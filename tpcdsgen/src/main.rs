@@ -23,7 +23,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use tpcdsgen::config::{Options, Session, Table};
-use tpcdsgen::output::Iso8859Writer;
+use tpcdsgen::output::CompatWriter;
 use tpcdsgen::row::*;
 use tpcdsgen::types::Date;
 
@@ -141,7 +141,7 @@ fn generate_simple<G: RowGeneratorFactory>(table: Table, session: &Session) -> R
 
     let path = get_output_path(table, session);
     let file = File::create(&path)?;
-    let mut writer = Iso8859Writer::new(BufWriter::new(file));
+    let mut writer = CompatWriter::new(BufWriter::new(file), session.get_compat_mode());
 
     print!("Generating {}... ", table.get_name());
     std::io::stdout().flush()?;
@@ -170,8 +170,11 @@ fn generate_store_sales(session: &Session) -> Result<()> {
     let sales_path = get_output_path(Table::StoreSales, session);
     let returns_path = get_output_path(Table::StoreReturns, session);
 
-    let mut sales_writer = Iso8859Writer::new(BufWriter::new(File::create(&sales_path)?));
-    let mut returns_writer = Iso8859Writer::new(BufWriter::new(File::create(&returns_path)?));
+    let compat_mode = session.get_compat_mode();
+    let mut sales_writer =
+        CompatWriter::new(BufWriter::new(File::create(&sales_path)?), compat_mode);
+    let mut returns_writer =
+        CompatWriter::new(BufWriter::new(File::create(&returns_path)?), compat_mode);
 
     print!("Generating store_sales + store_returns... ");
     std::io::stdout().flush()?;
@@ -223,8 +226,11 @@ fn generate_catalog_sales(session: &Session) -> Result<()> {
     let sales_path = get_output_path(Table::CatalogSales, session);
     let returns_path = get_output_path(Table::CatalogReturns, session);
 
-    let mut sales_writer = Iso8859Writer::new(BufWriter::new(File::create(&sales_path)?));
-    let mut returns_writer = Iso8859Writer::new(BufWriter::new(File::create(&returns_path)?));
+    let compat_mode = session.get_compat_mode();
+    let mut sales_writer =
+        CompatWriter::new(BufWriter::new(File::create(&sales_path)?), compat_mode);
+    let mut returns_writer =
+        CompatWriter::new(BufWriter::new(File::create(&returns_path)?), compat_mode);
 
     print!("Generating catalog_sales + catalog_returns... ");
     std::io::stdout().flush()?;
@@ -276,8 +282,11 @@ fn generate_web_sales(session: &Session) -> Result<()> {
     let sales_path = get_output_path(Table::WebSales, session);
     let returns_path = get_output_path(Table::WebReturns, session);
 
-    let mut sales_writer = Iso8859Writer::new(BufWriter::new(File::create(&sales_path)?));
-    let mut returns_writer = Iso8859Writer::new(BufWriter::new(File::create(&returns_path)?));
+    let compat_mode = session.get_compat_mode();
+    let mut sales_writer =
+        CompatWriter::new(BufWriter::new(File::create(&sales_path)?), compat_mode);
+    let mut returns_writer =
+        CompatWriter::new(BufWriter::new(File::create(&returns_path)?), compat_mode);
 
     print!("Generating web_sales + web_returns... ");
     std::io::stdout().flush()?;
@@ -333,7 +342,10 @@ fn generate_inventory(session: &Session) -> Result<()> {
     let num_rows = item_count * warehouse_count * n_weeks as i64;
 
     let path = get_output_path(Table::Inventory, session);
-    let mut writer = Iso8859Writer::new(BufWriter::new(File::create(&path)?));
+    let mut writer = CompatWriter::new(
+        BufWriter::new(File::create(&path)?),
+        session.get_compat_mode(),
+    );
 
     print!("Generating inventory... ");
     std::io::stdout().flush()?;

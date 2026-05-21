@@ -79,20 +79,6 @@ extracts into `tests/fixtures/scale-N-c/`.
 ./scripts/compare-table.sh reason --compat c --full          # byte-for-byte
 ```
 
-### Tables excluded from automated checks
-
-The following tables are excluded from automated MD5 comparison; the
-exclusion lists live in `compare-all-tables.sh`.
-
-- **Always:** `dbgen_version.dat` — contains a generation timestamp.
-- **`--compat c` only:** `customer.dat` — the reference data in
-  `alamb/tpcds-data` was generated through a pipeline that double-UTF-8
-  encodes the non-ASCII country names (`CÔTE D'IVOIRE`, `RÉUNION`). The
-  Rust `--compat c` output uses raw Latin-1, which is what unmodified C
-  `dsdgen` produces. Once the reference data is regenerated without the
-  `iconv ISO-8859-14 -> UTF-8` step in `alamb/tpcds-data`'s `Dockerfile`,
-  this exclusion can be removed.
-
 ## Scripts
 
 Each script is self-documenting — open it and read the header comment for

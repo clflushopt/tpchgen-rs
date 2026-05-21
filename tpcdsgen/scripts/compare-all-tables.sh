@@ -38,11 +38,6 @@ Two reference implementations are supported, selected by --compat:
                                 ./scripts/generate-fixtures.sh --compat c,
                                 --full only)
 
-Per-compat skip lists live near the top of the script. As of this
-writing, --compat c additionally skips `customer` until
-alamb/tpcds-data is regenerated without the iconv ISO-8859-14 -> UTF-8
-step that double-encodes non-ASCII country names.
-
 Usage:
     compare-all-tables.sh [OPTIONS]
 
@@ -135,40 +130,6 @@ ALL_TABLES=(
     "web_site"
 )
 
-# Tables to skip per compat mode (in addition to dbgen_version, which is
-# always skipped because it contains a generation timestamp).
-#
-# --compat c: customer.dat is skipped because the reference data in
-# https://github.com/alamb/tpcds-data was generated through a pipeline that
-# accidentally double-UTF-8-encodes the non-ASCII country names (`CÔTE
-# D'IVOIRE`, `RÉUNION`). The Rust --compat c output uses raw Latin-1, which
-# is what unmodified C dsdgen produces. Once the reference data is
-# regenerated without the iconv ISO-8859-14 -> UTF-8 step, this entry can
-# be removed.
-# TODO(alamb): re-include customer once alamb/tpcds-data has been regenerated.
-C_COMPAT_SKIP_TABLES=("customer")
-
-# Get list of tables to test, applying per-compat skip lists.
-get_tables_to_test() {
-    local skip_list=()
-    if [[ "$COMPAT" == "c" ]]; then
-        skip_list=("${C_COMPAT_SKIP_TABLES[@]}")
-    fi
-
-    local result=()
-    for t in "${ALL_TABLES[@]}"; do
-        local skip=0
-        for s in "${skip_list[@]:-}"; do
-            if [[ "$t" == "$s" ]]; then
-                skip=1
-                break
-            fi
-        done
-        [[ $skip -eq 0 ]] && result+=("$t")
-    done
-    echo "${result[@]}"
-}
-
 # Build the unified Rust table generator
 build_generator() {
     log_info "Building Rust TPC-DS generator..."
@@ -248,14 +209,10 @@ main() {
     log_info "Comparison:     $mode_label"
     log_info "========================================="
 
-    # Get tables to test
-    local tables_to_test
-    tables_to_test=$(get_tables_to_test)
-    local tables_array=($tables_to_test)
-    local total_count=${#tables_array[@]}
+    local total_count=${#ALL_TABLES[@]}
 
     log_info "Testing $total_count tables:"
-    for table in "${tables_array[@]}"; do
+    for table in "${ALL_TABLES[@]}"; do
         log_info "  - $table"
     done
     log_info "========================================="
@@ -270,7 +227,7 @@ main() {
     # Test each table
     start_time=$(date +%s)
 
-    for table in "${tables_array[@]}"; do
+    for table in "${ALL_TABLES[@]}"; do
         log_info ""
         log_info "Testing: $table"
         log_info "-----------------------------------------"

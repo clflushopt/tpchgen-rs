@@ -14,17 +14,15 @@
 
 //! Output utilities for TPC-DS data generation
 //!
-//! The Java implementation reads distribution files as ISO-8859-1 (Latin-1) and
-//! writes output files as ISO-8859-1 (see TableGenerator.java line 80).
+//! The Java (Trino) implementation reads distribution files as ISO-8859-1
+//! (Latin-1) and writes output files as ISO-8859-1 (see TableGenerator.java
+//! line 80). The C `dsdgen` outputs UTF-8.
 //!
-//! Rust reads ISO-8859-1 bytes and converts them to UTF-8 strings (since Rust
-//! strings are UTF-8). For byte-for-byte compatibility with Java output, we must
-//! convert back to ISO-8859-1 when writing.
-//!
-//! Since ISO-8859-1 bytes 0x00-0xFF map directly to Unicode code points U+0000-U+00FF,
-//! any character from the distribution files can be safely converted back to a single byte.
+//! [`CompatWriter`] selects the right behavior based on [`CompatMode`].
 
 use std::io::{self, Write};
+
+use crate::config::CompatMode;
 
 /// Converts a UTF-8 string to ISO-8859-1 bytes.
 ///
@@ -54,7 +52,7 @@ pub fn to_iso_8859_1(s: &str) -> io::Result<Vec<u8>> {
 
 /// A writer wrapper that converts UTF-8 strings to ISO-8859-1 before writing.
 ///
-/// This matches Java's behavior in TableGenerator.java which writes output
+/// This matches Trino's behavior in TableGenerator.java which writes output
 /// using StandardCharsets.ISO_8859_1.
 pub struct Iso8859Writer<W: Write> {
     inner: W,
@@ -103,6 +101,41 @@ impl<W: Write> Write for Iso8859Writer<W> {
     }
 }
 
+/// Writer that selects the output encoding based on [`CompatMode`].
+///
+/// * `Iso8859`: outputs ISO-8859-1 to match Trino.
+/// * `Utf8`: outputs UTF-8 to match unmodified C `dsdgen`.
+pub enum CompatWriter<W: Write> {
+    Iso8859(Iso8859Writer<W>),
+    Utf8(W),
+}
+
+impl<W: Write> CompatWriter<W> {
+    /// Build a writer for `compat_mode`.
+    pub fn new(writer: W, compat_mode: CompatMode) -> Self {
+        match compat_mode {
+            CompatMode::Trino => CompatWriter::Iso8859(Iso8859Writer::new(writer)),
+            CompatMode::C => CompatWriter::Utf8(writer),
+        }
+    }
+}
+
+impl<W: Write> Write for CompatWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            CompatWriter::Iso8859(w) => w.write(buf),
+            CompatWriter::Utf8(w) => w.write(buf),
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            CompatWriter::Iso8859(w) => w.flush(),
+            CompatWriter::Utf8(w) => w.flush(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -141,5 +174,29 @@ mod tests {
         let err = result.unwrap_err();
         assert_eq!(err.kind(), io::ErrorKind::InvalidData);
         assert!(err.to_string().contains("outside ISO-8859-1 range"));
+    }
+
+    #[test]
+    fn test_compat_writer_trino_emits_iso_8859_1() {
+        let mut buffer = Vec::new();
+        {
+            let mut writer = CompatWriter::new(&mut buffer, CompatMode::Trino);
+            write!(writer, "CÔTE D'IVOIRE").unwrap();
+        }
+        // Trino/Java emits a single 0xD4 byte for Ô.
+        assert_eq!(buffer[1], 0xD4);
+        assert_eq!(buffer.len(), 13);
+    }
+
+    #[test]
+    fn test_compat_writer_c_emits_utf8() {
+        let mut buffer = Vec::new();
+        {
+            let mut writer = CompatWriter::new(&mut buffer, CompatMode::C);
+            write!(writer, "CÔTE D'IVOIRE").unwrap();
+        }
+        // C dsdgen passes the UTF-8 bytes through (Ô is 0xC3 0x94).
+        assert_eq!(&buffer[..3], &[b'C', 0xC3, 0x94]);
+        assert_eq!(buffer.len(), 14);
     }
 }
