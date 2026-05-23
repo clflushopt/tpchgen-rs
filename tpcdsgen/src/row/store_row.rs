@@ -184,6 +184,46 @@ impl StoreRow {
     pub fn get_address(&self) -> &Address {
         &self.address
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_store_sk(&self) -> i64 {
+        self.store_sk
+    }
+
+    pub fn get_store_id(&self) -> &str {
+        &self.store_id
+    }
+
+    pub fn get_rec_start_date_id(&self) -> i64 {
+        self.rec_start_date_id
+    }
+
+    pub fn get_rec_end_date_id(&self) -> i64 {
+        self.rec_end_date_id
+    }
+
+    pub fn get_geography_class(&self) -> &str {
+        &self.geography_class
+    }
+
+    pub fn get_division_id(&self) -> i64 {
+        self.division_id
+    }
+
+    pub fn get_division_name(&self) -> &str {
+        &self.division_name
+    }
+
+    pub fn get_company_id(&self) -> i64 {
+        self.company_id
+    }
+
+    pub fn get_company_name(&self) -> &str {
+        &self.company_name
+    }
 }
 
 impl TableRow for StoreRow {

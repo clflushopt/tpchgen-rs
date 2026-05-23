@@ -1,0 +1,13 @@
+[package]
+name = "tpcdsgen-arrow"
+version = "0.1.0"
+edition = "2021"
+authors = ["clflushopt", "alamb"]
+description = "TPC-DS data generator into Apache Arrow format"
+repository = "https://github.com/clflushopt/tpchgen-rs"
+readme = "README.md"
+license = "Apache-2.0"
+
+[dependencies]
+arrow = { version = "58", default-features = false, features = ["prettyprint"] }
+tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }

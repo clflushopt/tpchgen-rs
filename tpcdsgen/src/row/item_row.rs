@@ -166,6 +166,70 @@ impl ItemRow {
     pub fn get_i_formulation(&self) -> &str {
         &self.i_formulation
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_i_item_sk(&self) -> i64 {
+        self.i_item_sk
+    }
+
+    pub fn get_i_item_id(&self) -> &str {
+        &self.i_item_id
+    }
+
+    pub fn get_i_rec_start_date_id(&self) -> i64 {
+        self.i_rec_start_date_id
+    }
+
+    pub fn get_i_rec_end_date_id(&self) -> i64 {
+        self.i_rec_end_date_id
+    }
+
+    pub fn get_i_current_price(&self) -> Decimal {
+        self.i_current_price
+    }
+
+    pub fn get_i_brand(&self) -> &str {
+        &self.i_brand
+    }
+
+    pub fn get_i_class(&self) -> &str {
+        &self.i_class
+    }
+
+    pub fn get_i_category_id(&self) -> i64 {
+        self.i_category_id
+    }
+
+    pub fn get_i_category(&self) -> &str {
+        &self.i_category
+    }
+
+    pub fn get_i_size(&self) -> &str {
+        &self.i_size
+    }
+
+    pub fn get_i_color(&self) -> &str {
+        &self.i_color
+    }
+
+    pub fn get_i_units(&self) -> &str {
+        &self.i_units
+    }
+
+    pub fn get_i_container(&self) -> &str {
+        &self.i_container
+    }
+
+    pub fn get_i_manager_id(&self) -> i64 {
+        self.i_manager_id
+    }
+
+    pub fn get_i_product_name(&self) -> &str {
+        &self.i_product_name
+    }
 }
 
 impl TableRow for ItemRow {

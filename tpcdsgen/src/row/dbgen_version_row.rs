@@ -55,6 +55,10 @@ impl DbgenVersionRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     pub fn get_dv_version(&self) -> &str {
         &self.dv_version
     }

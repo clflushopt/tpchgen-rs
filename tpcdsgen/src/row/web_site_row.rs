@@ -188,6 +188,26 @@ impl WebSiteRow {
             - WebSiteGeneratorColumn::WebSiteSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_web_site_sk(&self) -> i64 {
+        self.web_site_sk
+    }
+
+    pub fn get_web_site_id(&self) -> &str {
+        &self.web_site_id
+    }
+
+    pub fn get_web_rec_start_date_id(&self) -> i64 {
+        self.web_rec_start_date_id
+    }
+
+    pub fn get_web_rec_end_date_id(&self) -> i64 {
+        self.web_rec_end_date_id
+    }
 }
 
 impl TableRow for WebSiteRow {

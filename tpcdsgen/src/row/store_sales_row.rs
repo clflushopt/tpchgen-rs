@@ -125,6 +125,34 @@ impl StoreSalesRow {
             - StoreSalesGeneratorColumn::SsSoldDateSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_ss_sold_time_sk(&self) -> i64 {
+        self.ss_sold_time_sk
+    }
+
+    pub fn get_ss_sold_cdemo_sk(&self) -> i64 {
+        self.ss_sold_cdemo_sk
+    }
+
+    pub fn get_ss_sold_hdemo_sk(&self) -> i64 {
+        self.ss_sold_hdemo_sk
+    }
+
+    pub fn get_ss_sold_addr_sk(&self) -> i64 {
+        self.ss_sold_addr_sk
+    }
+
+    pub fn get_ss_sold_store_sk(&self) -> i64 {
+        self.ss_sold_store_sk
+    }
+
+    pub fn get_ss_sold_promo_sk(&self) -> i64 {
+        self.ss_sold_promo_sk
+    }
 }
 
 impl TableRow for StoreSalesRow {

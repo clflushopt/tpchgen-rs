@@ -65,6 +65,26 @@ impl InventoryRow {
             - InventoryGeneratorColumn::InvDateSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_inv_date_sk(&self) -> i64 {
+        self.inv_date_sk
+    }
+
+    pub fn get_inv_item_sk(&self) -> i64 {
+        self.inv_item_sk
+    }
+
+    pub fn get_inv_warehouse_sk(&self) -> i64 {
+        self.inv_warehouse_sk
+    }
+
+    pub fn get_inv_quantity_on_hand(&self) -> i32 {
+        self.inv_quantity_on_hand
+    }
 }
 
 impl TableRow for InventoryRow {

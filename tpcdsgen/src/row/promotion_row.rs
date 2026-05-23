@@ -143,6 +143,86 @@ impl PromotionRow {
             - PromotionGeneratorColumn::PPromoSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_p_promo_sk(&self) -> i64 {
+        self.p_promo_sk
+    }
+
+    pub fn get_p_promo_id(&self) -> &str {
+        &self.p_promo_id
+    }
+
+    pub fn get_p_start_date_id(&self) -> i64 {
+        self.p_start_date_id
+    }
+
+    pub fn get_p_end_date_id(&self) -> i64 {
+        self.p_end_date_id
+    }
+
+    pub fn get_p_item_sk(&self) -> i64 {
+        self.p_item_sk
+    }
+
+    pub fn get_p_cost(&self) -> Decimal {
+        self.p_cost
+    }
+
+    pub fn get_p_response_target(&self) -> i32 {
+        self.p_response_target
+    }
+
+    pub fn get_p_promo_name(&self) -> &str {
+        &self.p_promo_name
+    }
+
+    pub fn get_p_channel_dmail(&self) -> bool {
+        self.p_channel_dmail
+    }
+
+    pub fn get_p_channel_email(&self) -> bool {
+        self.p_channel_email
+    }
+
+    pub fn get_p_channel_catalog(&self) -> bool {
+        self.p_channel_catalog
+    }
+
+    pub fn get_p_channel_tv(&self) -> bool {
+        self.p_channel_tv
+    }
+
+    pub fn get_p_channel_radio(&self) -> bool {
+        self.p_channel_radio
+    }
+
+    pub fn get_p_channel_press(&self) -> bool {
+        self.p_channel_press
+    }
+
+    pub fn get_p_channel_event(&self) -> bool {
+        self.p_channel_event
+    }
+
+    pub fn get_p_channel_demo(&self) -> bool {
+        self.p_channel_demo
+    }
+
+    pub fn get_p_channel_details(&self) -> &str {
+        &self.p_channel_details
+    }
+
+    pub fn get_p_purpose(&self) -> &str {
+        &self.p_purpose
+    }
+
+    pub fn get_p_discount_active(&self) -> bool {
+        self.p_discount_active
+    }
 }
 
 impl TableRow for PromotionRow {

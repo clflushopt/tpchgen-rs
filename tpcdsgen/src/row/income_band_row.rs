@@ -38,6 +38,10 @@ impl IncomeBandRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     pub fn get_ib_income_band_id(&self) -> i32 {
         self.ib_income_band_id
     }

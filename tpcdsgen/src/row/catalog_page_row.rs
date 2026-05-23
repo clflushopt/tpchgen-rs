@@ -93,6 +93,46 @@ impl CatalogPageRow {
             value.to_string()
         }
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_cp_catalog_page_sk(&self) -> i64 {
+        self.cp_catalog_page_sk
+    }
+
+    pub fn get_cp_catalog_page_id(&self) -> &str {
+        &self.cp_catalog_page_id
+    }
+
+    pub fn get_cp_start_date_id(&self) -> i64 {
+        self.cp_start_date_id
+    }
+
+    pub fn get_cp_end_date_id(&self) -> i64 {
+        self.cp_end_date_id
+    }
+
+    pub fn get_cp_department(&self) -> &str {
+        &self.cp_department
+    }
+
+    pub fn get_cp_catalog_number(&self) -> i32 {
+        self.cp_catalog_number
+    }
+
+    pub fn get_cp_catalog_page_number(&self) -> i32 {
+        self.cp_catalog_page_number
+    }
+
+    pub fn get_cp_description(&self) -> &str {
+        &self.cp_description
+    }
+
+    pub fn get_cp_type(&self) -> &str {
+        &self.cp_type
+    }
 }
 
 impl TableRow for CatalogPageRow {

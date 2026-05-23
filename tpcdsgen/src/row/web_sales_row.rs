@@ -152,6 +152,50 @@ impl WebSalesRow {
             value.to_string()
         }
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_ws_sold_date_sk(&self) -> i64 {
+        self.ws_sold_date_sk
+    }
+
+    pub fn get_ws_sold_time_sk(&self) -> i64 {
+        self.ws_sold_time_sk
+    }
+
+    pub fn get_ws_bill_customer_sk(&self) -> i64 {
+        self.ws_bill_customer_sk
+    }
+
+    pub fn get_ws_bill_cdemo_sk(&self) -> i64 {
+        self.ws_bill_cdemo_sk
+    }
+
+    pub fn get_ws_bill_hdemo_sk(&self) -> i64 {
+        self.ws_bill_hdemo_sk
+    }
+
+    pub fn get_ws_bill_addr_sk(&self) -> i64 {
+        self.ws_bill_addr_sk
+    }
+
+    pub fn get_ws_web_site_sk(&self) -> i64 {
+        self.ws_web_site_sk
+    }
+
+    pub fn get_ws_ship_mode_sk(&self) -> i64 {
+        self.ws_ship_mode_sk
+    }
+
+    pub fn get_ws_warehouse_sk(&self) -> i64 {
+        self.ws_warehouse_sk
+    }
+
+    pub fn get_ws_promo_sk(&self) -> i64 {
+        self.ws_promo_sk
+    }
 }
 
 impl TableRow for WebSalesRow {

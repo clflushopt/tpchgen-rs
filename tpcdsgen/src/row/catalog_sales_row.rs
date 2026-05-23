@@ -174,6 +174,34 @@ impl CatalogSalesRow {
             value.to_string()
         }
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_cs_sold_date_sk(&self) -> i64 {
+        self.cs_sold_date_sk
+    }
+
+    pub fn get_cs_sold_time_sk(&self) -> i64 {
+        self.cs_sold_time_sk
+    }
+
+    pub fn get_cs_ship_hdemo_sk(&self) -> i64 {
+        self.cs_ship_hdemo_sk
+    }
+
+    pub fn get_cs_ship_mode_sk(&self) -> i64 {
+        self.cs_ship_mode_sk
+    }
+
+    pub fn get_cs_warehouse_sk(&self) -> i64 {
+        self.cs_warehouse_sk
+    }
+
+    pub fn get_cs_promo_sk(&self) -> i64 {
+        self.cs_promo_sk
+    }
 }
 
 impl TableRow for CatalogSalesRow {

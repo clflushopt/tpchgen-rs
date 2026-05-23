@@ -67,6 +67,10 @@ impl CustomerAddressRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     pub fn get_ca_addr_sk(&self) -> i64 {
         self.ca_addr_sk
     }

@@ -104,6 +104,70 @@ impl WebReturnsRow {
             value.to_string()
         }
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_wr_returned_date_sk(&self) -> i64 {
+        self.wr_returned_date_sk
+    }
+
+    pub fn get_wr_returned_time_sk(&self) -> i64 {
+        self.wr_returned_time_sk
+    }
+
+    pub fn get_wr_item_sk(&self) -> i64 {
+        self.wr_item_sk
+    }
+
+    pub fn get_wr_refunded_customer_sk(&self) -> i64 {
+        self.wr_refunded_customer_sk
+    }
+
+    pub fn get_wr_refunded_cdemo_sk(&self) -> i64 {
+        self.wr_refunded_cdemo_sk
+    }
+
+    pub fn get_wr_refunded_hdemo_sk(&self) -> i64 {
+        self.wr_refunded_hdemo_sk
+    }
+
+    pub fn get_wr_refunded_addr_sk(&self) -> i64 {
+        self.wr_refunded_addr_sk
+    }
+
+    pub fn get_wr_returning_customer_sk(&self) -> i64 {
+        self.wr_returning_customer_sk
+    }
+
+    pub fn get_wr_returning_cdemo_sk(&self) -> i64 {
+        self.wr_returning_cdemo_sk
+    }
+
+    pub fn get_wr_returning_hdemo_sk(&self) -> i64 {
+        self.wr_returning_hdemo_sk
+    }
+
+    pub fn get_wr_returning_addr_sk(&self) -> i64 {
+        self.wr_returning_addr_sk
+    }
+
+    pub fn get_wr_web_page_sk(&self) -> i64 {
+        self.wr_web_page_sk
+    }
+
+    pub fn get_wr_reason_sk(&self) -> i64 {
+        self.wr_reason_sk
+    }
+
+    pub fn get_wr_order_number(&self) -> i64 {
+        self.wr_order_number
+    }
+
+    pub fn get_wr_pricing(&self) -> &Pricing {
+        &self.wr_pricing
+    }
 }
 
 impl TableRow for WebReturnsRow {
