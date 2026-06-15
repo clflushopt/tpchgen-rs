@@ -13,5 +13,5 @@ arrow = { version = "58", default-features = false, features = ["prettyprint"] }
 tpchgen = { path = "../tpchgen", version = "2.0.2" }
 
 [dev-dependencies]
-arrow-csv = "58"
+arrow-csv = "59"
 chrono = "0.4.39"
