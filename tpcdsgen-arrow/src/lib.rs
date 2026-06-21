@@ -87,7 +87,7 @@ pub const DEFAULT_BATCH_SIZE: usize = 8_000;
 ///
 /// Handles both simple generators (one row per call, `should_end_row` always
 /// true) and paired fact-table generators (multiple calls per source row,
-/// `should_end_row` signals when to advance and consume child seeds).
+/// `should_end_row` signals when to advance the row counter).
 pub(crate) struct RowIter<G: RowGenerator> {
     generator: G,
     session: Session,
