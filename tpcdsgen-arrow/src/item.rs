@@ -1,8 +1,9 @@
 use crate::conversions::{
-    decimal_to_i128, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
+    decimal_to_i128, is_null, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
 };
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Date32Array, Decimal128Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -30,9 +31,9 @@ impl RecordBatchIterator for ItemArrow {
 }
 
 impl Iterator for ItemArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -66,7 +67,9 @@ impl Iterator for ItemArrow {
                     let nbm = r.null_bit_map();
                     i_sk.push(sk_opt(nbm, 0, r.get_i_item_sk()));
                     i_id.push(opt(nbm, 1, r.get_i_item_id().to_owned()));
-                    i_rec_start.push(julian_to_date32(r.get_i_rec_start_date_id()));
+                    // IRecStartDateId is at bit 2 which CAN be set (not in not_null_bit_map);
+                    // check the null bit first, then apply the julian-day < 0 sentinel.
+                    i_rec_start.push(if is_null(nbm, 2) { None } else { julian_to_date32(r.get_i_rec_start_date_id()) });
                     i_rec_end.push(julian_to_date32(r.get_i_rec_end_date_id()));
                     i_desc.push(opt(nbm, 4, r.get_i_item_desc().to_owned()));
                     i_current_price.push(opt(nbm, 5, decimal_to_i128(r.get_i_current_price())));
@@ -119,11 +122,14 @@ impl Iterator for ItemArrow {
             Arc::new(string_view_array_from_opt_iter(i_container.iter().map(|s| s.as_deref()))),
             Arc::new(Int64Array::from(i_manager_id)),
             Arc::new(string_view_array_from_opt_iter(i_product_name.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("i_item_sk", DataType::Int64, true),
     Field::new("i_item_id", DataType::Utf8View, true),
     Field::new("i_rec_start_date", DataType::Date32, true),
@@ -146,4 +152,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("i_container", DataType::Utf8View, true),
     Field::new("i_manager_id", DataType::Int64, true),
     Field::new("i_product_name", DataType::Utf8View, true),
-])));
+]))
+}

@@ -1,6 +1,7 @@
 use crate::conversions::opt;
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -31,9 +32,9 @@ impl RecordBatchIterator for IncomeBandArrow {
 }
 
 impl Iterator for IncomeBandArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -60,12 +61,16 @@ impl Iterator for IncomeBandArrow {
             Arc::new(Int32Array::from(band_id)),
             Arc::new(Int32Array::from(lower)),
             Arc::new(Int32Array::from(upper)),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("ib_income_band_id", DataType::Int32, false),
     Field::new("ib_lower_bound", DataType::Int32, false),
     Field::new("ib_upper_bound", DataType::Int32, false),
-])));
+]))
+}

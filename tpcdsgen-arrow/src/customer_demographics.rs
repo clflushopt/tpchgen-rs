@@ -1,6 +1,7 @@
 use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for CustomerDemographicsArrow {
 }
 
 impl Iterator for CustomerDemographicsArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -75,11 +76,14 @@ impl Iterator for CustomerDemographicsArrow {
             Arc::new(Int32Array::from(dep_count)),
             Arc::new(Int32Array::from(dep_emp)),
             Arc::new(Int32Array::from(dep_college)),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("cd_demo_sk", DataType::Int64, false),
     Field::new("cd_gender", DataType::Utf8View, false),
     Field::new("cd_marital_status", DataType::Utf8View, false),
@@ -89,4 +93,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("cd_dep_count", DataType::Int32, false),
     Field::new("cd_dep_employed_count", DataType::Int32, false),
     Field::new("cd_dep_college_count", DataType::Int32, false),
-])));
+]))
+}

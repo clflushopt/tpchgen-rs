@@ -1,6 +1,7 @@
 use crate::conversions::{bool_to_yn, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for WebPageArrow {
 }
 
 impl Iterator for WebPageArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -90,11 +91,14 @@ impl Iterator for WebPageArrow {
             Arc::new(Int32Array::from(wp_link_count)),
             Arc::new(Int32Array::from(wp_image_count)),
             Arc::new(Int32Array::from(wp_max_ad_count)),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("wp_web_page_sk", DataType::Int64, true),
     Field::new("wp_web_page_id", DataType::Utf8View, true),
     Field::new("wp_rec_start_date", DataType::Date32, true),
@@ -109,4 +113,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("wp_link_count", DataType::Int32, true),
     Field::new("wp_image_count", DataType::Int32, true),
     Field::new("wp_max_ad_count", DataType::Int32, true),
-])));
+]))
+}

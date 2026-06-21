@@ -1,6 +1,7 @@
 use crate::conversions::{bool_to_yn, date_to_date32, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewBuilder};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for DateDimArrow {
 }
 
 impl Iterator for DateDimArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -139,11 +140,14 @@ impl Iterator for DateDimArrow {
             Arc::new(string_view_array_from_opt_iter(d_current_month.iter().map(|s| Some(*s)))),
             Arc::new(string_view_array_from_opt_iter(d_current_quarter.iter().map(|s| Some(*s)))),
             Arc::new(string_view_array_from_opt_iter(d_current_year.iter().map(|s| Some(*s)))),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("d_date_sk", DataType::Int64, true),
     Field::new("d_date_id", DataType::Utf8View, false),
     Field::new("d_date", DataType::Date32, false),
@@ -172,4 +176,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("d_current_month", DataType::Utf8View, false),
     Field::new("d_current_quarter", DataType::Utf8View, false),
     Field::new("d_current_year", DataType::Utf8View, false),
-])));
+]))
+}

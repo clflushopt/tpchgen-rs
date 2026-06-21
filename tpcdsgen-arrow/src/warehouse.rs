@@ -1,6 +1,7 @@
 use crate::conversions::{address_columns, opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for WarehouseArrow {
 }
 
 impl Iterator for WarehouseArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -75,11 +76,14 @@ impl Iterator for WarehouseArrow {
             Arc::new(zip),
             Arc::new(country),
             Arc::new(gmt_offset),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("w_warehouse_sk", DataType::Int64, true),
     Field::new("w_warehouse_id", DataType::Utf8View, true),
     Field::new("w_warehouse_name", DataType::Utf8View, true),
@@ -94,4 +98,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("w_zip", DataType::Utf8View, true),
     Field::new("w_country", DataType::Utf8View, true),
     Field::new("w_gmt_offset", DataType::Int32, true),
-])));
+]))
+}

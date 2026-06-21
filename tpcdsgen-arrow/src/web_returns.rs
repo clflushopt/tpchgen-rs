@@ -1,6 +1,7 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,10 @@ impl RecordBatchIterator for WebReturnsArrow {
 }
 
 impl Iterator for WebReturnsArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
+        loop {
         if self.current_row > self.row_count { return None; }
 
         let mut wr_returned_date: Vec<Option<i64>> = Vec::new();
@@ -96,42 +98,43 @@ impl Iterator for WebReturnsArrow {
                 self.current_row += 1;
             }
         }
-        if wr_returned_date.is_empty() {
-            if self.current_row > self.row_count { return None; }
-            return self.next();
+        if !wr_returned_date.is_empty() {
+            let dec = |v: Vec<Option<i128>>| Decimal128Array::from(v).with_precision_and_scale(38, 2).unwrap();
+            return Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
+                Arc::new(Int64Array::from(wr_returned_date)),
+                Arc::new(Int64Array::from(wr_returned_time)),
+                Arc::new(Int64Array::from(wr_item)),
+                Arc::new(Int64Array::from(wr_refunded_customer)),
+                Arc::new(Int64Array::from(wr_refunded_cdemo)),
+                Arc::new(Int64Array::from(wr_refunded_hdemo)),
+                Arc::new(Int64Array::from(wr_refunded_addr)),
+                Arc::new(Int64Array::from(wr_returning_customer)),
+                Arc::new(Int64Array::from(wr_returning_cdemo)),
+                Arc::new(Int64Array::from(wr_returning_hdemo)),
+                Arc::new(Int64Array::from(wr_returning_addr)),
+                Arc::new(Int64Array::from(wr_web_page)),
+                Arc::new(Int64Array::from(wr_reason)),
+                Arc::new(Int64Array::from(wr_order_number)),
+                Arc::new(Int32Array::from(wr_quantity)),
+                Arc::new(dec(wr_return_amt)),
+                Arc::new(dec(wr_return_tax)),
+                Arc::new(dec(wr_return_amt_inc_tax)),
+                Arc::new(dec(wr_fee)),
+                Arc::new(dec(wr_return_ship_cost)),
+                Arc::new(dec(wr_refunded_cash)),
+                Arc::new(dec(wr_reversed_charge)),
+                Arc::new(dec(wr_store_credit)),
+                Arc::new(dec(wr_net_loss)),
+            ]));
         }
-
-        let dec = |v: Vec<Option<i128>>| Decimal128Array::from(v).with_precision_and_scale(38, 2).unwrap();
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(wr_returned_date)),
-            Arc::new(Int64Array::from(wr_returned_time)),
-            Arc::new(Int64Array::from(wr_item)),
-            Arc::new(Int64Array::from(wr_refunded_customer)),
-            Arc::new(Int64Array::from(wr_refunded_cdemo)),
-            Arc::new(Int64Array::from(wr_refunded_hdemo)),
-            Arc::new(Int64Array::from(wr_refunded_addr)),
-            Arc::new(Int64Array::from(wr_returning_customer)),
-            Arc::new(Int64Array::from(wr_returning_cdemo)),
-            Arc::new(Int64Array::from(wr_returning_hdemo)),
-            Arc::new(Int64Array::from(wr_returning_addr)),
-            Arc::new(Int64Array::from(wr_web_page)),
-            Arc::new(Int64Array::from(wr_reason)),
-            Arc::new(Int64Array::from(wr_order_number)),
-            Arc::new(Int32Array::from(wr_quantity)),
-            Arc::new(dec(wr_return_amt)),
-            Arc::new(dec(wr_return_tax)),
-            Arc::new(dec(wr_return_amt_inc_tax)),
-            Arc::new(dec(wr_fee)),
-            Arc::new(dec(wr_return_ship_cost)),
-            Arc::new(dec(wr_refunded_cash)),
-            Arc::new(dec(wr_reversed_charge)),
-            Arc::new(dec(wr_store_credit)),
-            Arc::new(dec(wr_net_loss)),
-        ]).unwrap())
+        } // loop
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("wr_returned_date_sk", DataType::Int64, true),
     Field::new("wr_returned_time_sk", DataType::Int64, true),
     Field::new("wr_item_sk", DataType::Int64, true),
@@ -156,4 +159,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("wr_reversed_charge", DataType::Decimal128(38, 2), true),
     Field::new("wr_store_credit", DataType::Decimal128(38, 2), true),
     Field::new("wr_net_loss", DataType::Decimal128(38, 2), true),
-])));
+]))
+}

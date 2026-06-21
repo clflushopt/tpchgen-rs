@@ -1,6 +1,7 @@
 use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for TimeDimArrow {
 }
 
 impl Iterator for TimeDimArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -59,7 +60,10 @@ impl Iterator for TimeDimArrow {
                     t_am_pm.push(opt(nbm, 6, r.t_am_pm.clone()));
                     t_shift.push(opt(nbm, 7, r.t_shift.clone()));
                     t_sub_shift.push(opt(nbm, 8, r.t_sub_shift.clone()));
-                    t_meal_time.push(opt(nbm, 9, r.t_meal_time.clone()));
+                    // t_meal_time is an empty string (not null) for hours with no meal,
+                    // but the pipe-delimited format can't distinguish empty from null,
+                    // so we map empty -> None to match the .dat file convention.
+                    t_meal_time.push(if r.t_meal_time.is_empty() { None } else { Some(r.t_meal_time.clone()) });
                 }
             }
             self.generator.consume_remaining_seeds_for_row();
@@ -78,11 +82,14 @@ impl Iterator for TimeDimArrow {
             Arc::new(string_view_array_from_opt_iter(t_shift.iter().map(|s| s.as_deref()))),
             Arc::new(string_view_array_from_opt_iter(t_sub_shift.iter().map(|s| s.as_deref()))),
             Arc::new(string_view_array_from_opt_iter(t_meal_time.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("t_time_sk", DataType::Int64, false),
     Field::new("t_time_id", DataType::Utf8View, false),
     Field::new("t_time", DataType::Int32, false),
@@ -93,4 +100,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("t_shift", DataType::Utf8View, false),
     Field::new("t_sub_shift", DataType::Utf8View, false),
     Field::new("t_meal_time", DataType::Utf8View, true),
-])));
+]))
+}

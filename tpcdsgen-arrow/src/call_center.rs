@@ -1,6 +1,7 @@
-use crate::conversions::{address_columns, decimal_to_i128, opt, sk_opt, string_view_array_from_opt_iter};
+use crate::conversions::{address_columns, decimal_to_i128, is_null, opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for CallCenterArrow {
 }
 
 impl Iterator for CallCenterArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -65,8 +66,11 @@ impl Iterator for CallCenterArrow {
                     cc_sk.push(sk_opt(nbm, 0, r.get_cc_call_center_sk()));
                     cc_id.push(opt(nbm, 1, r.get_cc_call_center_id().to_owned()));
                     cc_rec_start.push(opt(nbm, 2, r.get_cc_rec_start_date_id().to_owned()));
-                    cc_rec_end.push(opt(nbm, 3, r.get_cc_rec_end_date_id().to_owned()));
-                    cc_closed_date.push(opt(nbm, 4, r.get_cc_closed_date_id().to_owned()));
+                    // rec_end and closed_date default to "" when unset; "" in .dat == null.
+                    let rec_end = r.get_cc_rec_end_date_id();
+                    cc_rec_end.push(if is_null(nbm, 3) || rec_end.is_empty() { None } else { Some(rec_end.to_owned()) });
+                    let closed = r.get_cc_closed_date_id();
+                    cc_closed_date.push(if is_null(nbm, 4) || closed.is_empty() { None } else { Some(closed.to_owned()) });
                     cc_open_date.push(opt(nbm, 5, r.get_cc_open_date_id().to_owned()));
                     cc_name.push(opt(nbm, 6, r.get_cc_name().to_owned()));
                     cc_class.push(opt(nbm, 7, r.get_cc_class().to_owned()));
@@ -128,11 +132,14 @@ impl Iterator for CallCenterArrow {
             Arc::new(country),
             Arc::new(gmt_offset),
             Arc::new(tax_arr),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("cc_call_center_sk", DataType::Int64, true),
     Field::new("cc_call_center_id", DataType::Utf8View, true),
     Field::new("cc_rec_start_date", DataType::Utf8View, true),
@@ -164,4 +171,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("cc_country", DataType::Utf8View, true),
     Field::new("cc_gmt_offset", DataType::Int32, true),
     Field::new("cc_tax_percentage", DataType::Decimal128(38, 2), true),
-])));
+]))
+}

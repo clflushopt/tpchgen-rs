@@ -1,6 +1,7 @@
 use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for ShipModeArrow {
 }
 
 impl Iterator for ShipModeArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -66,15 +67,19 @@ impl Iterator for ShipModeArrow {
             Arc::new(string_view_array_from_opt_iter(sm_code.iter().map(|s| s.as_deref()))),
             Arc::new(string_view_array_from_opt_iter(sm_carrier.iter().map(|s| s.as_deref()))),
             Arc::new(string_view_array_from_opt_iter(sm_contract.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("sm_ship_mode_sk", DataType::Int64, true),
     Field::new("sm_ship_mode_id", DataType::Utf8View, true),
     Field::new("sm_type", DataType::Utf8View, true),
     Field::new("sm_code", DataType::Utf8View, true),
     Field::new("sm_carrier", DataType::Utf8View, true),
     Field::new("sm_contract", DataType::Utf8View, true),
-])));
+]))
+}

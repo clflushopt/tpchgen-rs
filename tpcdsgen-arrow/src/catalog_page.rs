@@ -1,6 +1,7 @@
 use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for CatalogPageArrow {
 }
 
 impl Iterator for CatalogPageArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -53,11 +54,13 @@ impl Iterator for CatalogPageArrow {
                     cp_id.push(opt(nbm, 1, r.get_cp_catalog_page_id().to_owned()));
                     cp_start.push(sk_opt(nbm, 2, r.get_cp_start_date_id()));
                     cp_end.push(sk_opt(nbm, 3, r.get_cp_end_date_id()));
-                    cp_dept.push(opt(nbm, 4, r.get_cp_department().to_owned()));
-                    cp_num.push(opt(nbm, 5, r.get_cp_catalog_number()));
-                    cp_page_num.push(opt(nbm, 6, r.get_cp_catalog_page_number()));
-                    cp_desc.push(opt(nbm, 7, r.get_cp_description().to_owned()));
-                    cp_type.push(opt(nbm, 8, r.get_cp_type().to_owned()));
+                    // CpPromoId occupies global bit 4 but is not in the output schema,
+                    // so output columns shift: CpDepartment=bit5, ..., CpType=bit9.
+                    cp_dept.push(opt(nbm, 5, r.get_cp_department().to_owned()));
+                    cp_num.push(opt(nbm, 6, r.get_cp_catalog_number()));
+                    cp_page_num.push(opt(nbm, 7, r.get_cp_catalog_page_number()));
+                    cp_desc.push(opt(nbm, 8, r.get_cp_description().to_owned()));
+                    cp_type.push(opt(nbm, 9, r.get_cp_type().to_owned()));
                 }
             }
             self.generator.consume_remaining_seeds_for_row();
@@ -75,11 +78,14 @@ impl Iterator for CatalogPageArrow {
             Arc::new(Int32Array::from(cp_page_num)),
             Arc::new(string_view_array_from_opt_iter(cp_desc.iter().map(|s| s.as_deref()))),
             Arc::new(string_view_array_from_opt_iter(cp_type.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("cp_catalog_page_sk", DataType::Int64, true),
     Field::new("cp_catalog_page_id", DataType::Utf8View, true),
     Field::new("cp_start_date_sk", DataType::Int64, true),
@@ -89,4 +95,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("cp_catalog_page_number", DataType::Int32, true),
     Field::new("cp_description", DataType::Utf8View, true),
     Field::new("cp_type", DataType::Utf8View, true),
-])));
+]))
+}

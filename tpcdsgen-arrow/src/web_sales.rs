@@ -1,6 +1,7 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for WebSalesArrow {
 }
 
 impl Iterator for WebSalesArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
 
         let mut ws_sold_date: Vec<Option<i64>> = Vec::new();
@@ -154,11 +155,14 @@ impl Iterator for WebSalesArrow {
             Arc::new(dec(ws_net_paid_inc_ship)),
             Arc::new(dec(ws_net_paid_inc_ship_tax)),
             Arc::new(dec(ws_net_profit)),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("ws_sold_date_sk", DataType::Int64, true),
     Field::new("ws_sold_time_sk", DataType::Int64, true),
     Field::new("ws_ship_date_sk", DataType::Int64, true),
@@ -193,4 +197,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("ws_net_paid_inc_ship", DataType::Decimal128(38, 2), true),
     Field::new("ws_net_paid_inc_ship_tax", DataType::Decimal128(38, 2), true),
     Field::new("ws_net_profit", DataType::Decimal128(38, 2), true),
-])));
+]))
+}

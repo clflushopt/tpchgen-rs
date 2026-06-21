@@ -1,6 +1,7 @@
 use crate::conversions::{bool_to_yn, decimal_to_i128, opt, sk_opt, string_view_array_from_opt_iter};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for PromotionArrow {
 }
 
 impl Iterator for PromotionArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -106,11 +107,14 @@ impl Iterator for PromotionArrow {
             Arc::new(string_view_array_from_opt_iter(p_details.iter().map(|s| s.as_deref()))),
             Arc::new(string_view_array_from_opt_iter(p_purpose.iter().map(|s| s.as_deref()))),
             Arc::new(string_view_array_from_opt_iter(p_active.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("p_promo_sk", DataType::Int64, true),
     Field::new("p_promo_id", DataType::Utf8View, true),
     Field::new("p_start_date_sk", DataType::Int64, true),
@@ -130,4 +134,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("p_channel_details", DataType::Utf8View, true),
     Field::new("p_purpose", DataType::Utf8View, true),
     Field::new("p_discount_active", DataType::Utf8View, true),
-])));
+]))
+}

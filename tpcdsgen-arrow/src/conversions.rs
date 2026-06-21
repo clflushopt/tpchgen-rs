@@ -162,22 +162,23 @@ pub fn address_columns<'a>(
     let mut zip_b = StringViewBuilder::with_capacity(rows.len());
     let mut country_b = StringViewBuilder::with_capacity(rows.len());
 
+    // Each address sub-field has its own null bit at base+offset (0=street_number,
+    // 1=street_name, ..., 9=gmt_offset), matching the per-column null_bit_map layout.
     for (a, nbm, base) in &rows {
-        let null = is_null(*nbm, *base);
-        if null { street_name_b.append_null(); } else { street_name_b.append_value(&a.get_street_name()); }
-        if null { street_type_b.append_null(); } else { street_type_b.append_value(a.get_street_type()); }
-        if null { suite_number_b.append_null(); } else { suite_number_b.append_value(a.get_suite_number()); }
-        if null { city_b.append_null(); } else { city_b.append_value(a.get_city()); }
+        if is_null(*nbm, *base + 1) { street_name_b.append_null(); } else { street_name_b.append_value(&a.get_street_name()); }
+        if is_null(*nbm, *base + 2) { street_type_b.append_null(); } else { street_type_b.append_value(a.get_street_type()); }
+        if is_null(*nbm, *base + 3) { suite_number_b.append_null(); } else { suite_number_b.append_value(a.get_suite_number()); }
+        if is_null(*nbm, *base + 4) { city_b.append_null(); } else { city_b.append_value(a.get_city()); }
         match a.get_county() {
-            Some(c) if !null => county_b.append_value(c),
+            Some(c) if !is_null(*nbm, *base + 5) => county_b.append_value(c),
             _ => county_b.append_null(),
         }
-        if null { state_b.append_null(); } else { state_b.append_value(a.get_state()); }
-        if null { zip_b.append_null(); } else { zip_b.append_value(&format!("{:05}", a.get_zip())); }
-        if null { country_b.append_null(); } else { country_b.append_value(a.get_country()); }
+        if is_null(*nbm, *base + 6) { state_b.append_null(); } else { state_b.append_value(a.get_state()); }
+        if is_null(*nbm, *base + 7) { zip_b.append_null(); } else { zip_b.append_value(&format!("{:05}", a.get_zip())); }
+        if is_null(*nbm, *base + 8) { country_b.append_null(); } else { country_b.append_value(a.get_country()); }
     }
     let gmt_offset = Int32Array::from_iter(rows.iter().map(|(a, nbm, base)| {
-        if is_null(*nbm, *base) { None } else { Some(a.get_gmt_offset()) }
+        if is_null(*nbm, *base + 9) { None } else { Some(a.get_gmt_offset()) }
     }));
     (
         street_number,

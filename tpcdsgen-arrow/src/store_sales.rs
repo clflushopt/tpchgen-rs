@@ -1,6 +1,7 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for StoreSalesArrow {
 }
 
 impl Iterator for StoreSalesArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
 
         let mut ss_sold_date: Vec<Option<i64>> = Vec::new();
@@ -123,11 +124,14 @@ impl Iterator for StoreSalesArrow {
             Arc::new(dec(ss_net_paid)),
             Arc::new(dec(ss_net_paid_inc_tax)),
             Arc::new(dec(ss_net_profit)),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("ss_sold_date_sk", DataType::Int64, true),
     Field::new("ss_sold_time_sk", DataType::Int64, true),
     Field::new("ss_item_sk", DataType::Int64, true),
@@ -151,4 +155,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("ss_net_paid", DataType::Decimal128(38, 2), true),
     Field::new("ss_net_paid_inc_tax", DataType::Decimal128(38, 2), true),
     Field::new("ss_net_profit", DataType::Decimal128(38, 2), true),
-])));
+]))
+}

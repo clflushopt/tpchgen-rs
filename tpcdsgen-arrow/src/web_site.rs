@@ -4,6 +4,7 @@ use crate::conversions::{
 };
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -31,9 +32,9 @@ impl RecordBatchIterator for WebSiteArrow {
 }
 
 impl Iterator for WebSiteArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -116,11 +117,14 @@ impl Iterator for WebSiteArrow {
             Arc::new(country),
             Arc::new(gmt_offset),
             Arc::new(tax_arr),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("web_site_sk", DataType::Int64, true),
     Field::new("web_site_id", DataType::Utf8View, true),
     Field::new("web_rec_start_date", DataType::Date32, true),
@@ -147,4 +151,5 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
     Field::new("web_country", DataType::Utf8View, true),
     Field::new("web_gmt_offset", DataType::Int32, true),
     Field::new("web_tax_percentage", DataType::Decimal128(38, 2), true),
-])));
+]))
+}

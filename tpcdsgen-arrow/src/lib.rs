@@ -11,39 +11,40 @@
 //!
 //! let session = Options::default().to_session().unwrap();
 //! let mut gen = ReasonArrow::new(session).with_batch_size(100);
-//! let batch = gen.next().unwrap();
+//! let batch = gen.next().unwrap().unwrap();
 //! assert_eq!(batch.num_columns(), 3);
 //! ```
 
-pub mod call_center;
-pub mod catalog_page;
-pub mod catalog_returns;
-pub mod catalog_sales;
+mod call_center;
+mod catalog_page;
+mod catalog_returns;
+mod catalog_sales;
 pub mod conversions;
-pub mod customer;
-pub mod customer_address;
-pub mod customer_demographics;
-pub mod date_dim;
-pub mod dbgen_version;
-pub mod household_demographics;
-pub mod income_band;
-pub mod inventory;
-pub mod item;
-pub mod promotion;
-pub mod reason;
-pub mod ship_mode;
-pub mod store;
-pub mod store_returns;
-pub mod store_sales;
-pub mod time_dim;
-pub mod warehouse;
-pub mod web_page;
-pub mod web_returns;
-pub mod web_sales;
-pub mod web_site;
+mod customer;
+mod customer_address;
+mod customer_demographics;
+mod date_dim;
+mod dbgen_version;
+mod household_demographics;
+mod income_band;
+mod inventory;
+mod item;
+mod promotion;
+mod reason;
+mod ship_mode;
+mod store;
+mod store_returns;
+mod store_sales;
+mod time_dim;
+mod warehouse;
+mod web_page;
+mod web_returns;
+mod web_sales;
+mod web_site;
 
 use arrow::array::RecordBatch;
 use arrow::datatypes::SchemaRef;
+use arrow::error::ArrowError;
 
 pub use call_center::CallCenterArrow;
 pub use catalog_page::CatalogPageArrow;
@@ -72,7 +73,7 @@ pub use web_sales::WebSalesArrow;
 pub use web_site::WebSiteArrow;
 
 /// An iterator of Arrow [`RecordBatch`]es that also exposes its schema.
-pub trait RecordBatchIterator: Iterator<Item = RecordBatch> + Send {
+pub trait RecordBatchIterator: Iterator<Item = Result<RecordBatch, ArrowError>> + Send {
     fn schema(&self) -> &SchemaRef;
 }
 

@@ -1,6 +1,7 @@
 use crate::conversions::{opt, sk_opt};
 use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -28,9 +29,9 @@ impl RecordBatchIterator for InventoryArrow {
 }
 
 impl Iterator for InventoryArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
         if self.current_row > self.row_count { return None; }
         let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
 
@@ -60,13 +61,17 @@ impl Iterator for InventoryArrow {
             Arc::new(Int64Array::from(inv_item)),
             Arc::new(Int64Array::from(inv_warehouse)),
             Arc::new(Int32Array::from(inv_qty)),
-        ]).unwrap())
+        ]))
     }
 }
 
-static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(|| Arc::new(Schema::new(vec![
+static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
+
+fn make_schema() -> SchemaRef {
+    Arc::new(Schema::new(vec![
     Field::new("inv_date_sk", DataType::Int64, true),
     Field::new("inv_item_sk", DataType::Int64, true),
     Field::new("inv_warehouse_sk", DataType::Int64, true),
     Field::new("inv_quantity_on_hand", DataType::Int32, true),
-])));
+]))
+}
