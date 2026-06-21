@@ -110,7 +110,11 @@ where
 /// Convert a boolean value to "Y" or "N" static str.
 #[inline(always)]
 pub fn bool_to_yn(b: bool) -> &'static str {
-    if b { "Y" } else { "N" }
+    if b {
+        "Y"
+    } else {
+        "N"
+    }
 }
 
 /// Check whether the bit at `pos` is set in a null bitmap, indicating a NULL value.
@@ -122,13 +126,21 @@ pub fn is_null(nbm: i64, pos: u32) -> bool {
 /// Return `Some(val)` unless the null bitmap bit at `pos` is set.
 #[inline(always)]
 pub fn opt<T>(nbm: i64, pos: u32, val: T) -> Option<T> {
-    if is_null(nbm, pos) { None } else { Some(val) }
+    if is_null(nbm, pos) {
+        None
+    } else {
+        Some(val)
+    }
 }
 
 /// Return `Some(sk)` unless null bitmap bit is set OR sk < 0 (sentinel for absent FK).
 #[inline(always)]
 pub fn sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i64> {
-    if is_null(nbm, pos) || sk < 0 { None } else { Some(sk) }
+    if is_null(nbm, pos) || sk < 0 {
+        None
+    } else {
+        Some(sk)
+    }
 }
 
 /// Expand an [`Address`] into 10 individual column arrays (street_number, street_name,
@@ -151,7 +163,11 @@ pub fn address_columns<'a>(
 ) {
     let rows: Vec<_> = rows.collect();
     let street_number = Int32Array::from_iter(rows.iter().map(|(a, nbm, base)| {
-        if is_null(*nbm, *base) { None } else { Some(a.get_street_number()) }
+        if is_null(*nbm, *base) {
+            None
+        } else {
+            Some(a.get_street_number())
+        }
     }));
     let mut street_name_b = StringViewBuilder::with_capacity(rows.len());
     let mut street_type_b = StringViewBuilder::with_capacity(rows.len());
@@ -165,20 +181,52 @@ pub fn address_columns<'a>(
     // Each address sub-field has its own null bit at base+offset (0=street_number,
     // 1=street_name, ..., 9=gmt_offset), matching the per-column null_bit_map layout.
     for (a, nbm, base) in &rows {
-        if is_null(*nbm, *base + 1) { street_name_b.append_null(); } else { street_name_b.append_value(&a.get_street_name()); }
-        if is_null(*nbm, *base + 2) { street_type_b.append_null(); } else { street_type_b.append_value(a.get_street_type()); }
-        if is_null(*nbm, *base + 3) { suite_number_b.append_null(); } else { suite_number_b.append_value(a.get_suite_number()); }
-        if is_null(*nbm, *base + 4) { city_b.append_null(); } else { city_b.append_value(a.get_city()); }
+        if is_null(*nbm, *base + 1) {
+            street_name_b.append_null();
+        } else {
+            street_name_b.append_value(a.get_street_name());
+        }
+        if is_null(*nbm, *base + 2) {
+            street_type_b.append_null();
+        } else {
+            street_type_b.append_value(a.get_street_type());
+        }
+        if is_null(*nbm, *base + 3) {
+            suite_number_b.append_null();
+        } else {
+            suite_number_b.append_value(a.get_suite_number());
+        }
+        if is_null(*nbm, *base + 4) {
+            city_b.append_null();
+        } else {
+            city_b.append_value(a.get_city());
+        }
         match a.get_county() {
             Some(c) if !is_null(*nbm, *base + 5) => county_b.append_value(c),
             _ => county_b.append_null(),
         }
-        if is_null(*nbm, *base + 6) { state_b.append_null(); } else { state_b.append_value(a.get_state()); }
-        if is_null(*nbm, *base + 7) { zip_b.append_null(); } else { zip_b.append_value(&format!("{:05}", a.get_zip())); }
-        if is_null(*nbm, *base + 8) { country_b.append_null(); } else { country_b.append_value(a.get_country()); }
+        if is_null(*nbm, *base + 6) {
+            state_b.append_null();
+        } else {
+            state_b.append_value(a.get_state());
+        }
+        if is_null(*nbm, *base + 7) {
+            zip_b.append_null();
+        } else {
+            zip_b.append_value(format!("{:05}", a.get_zip()));
+        }
+        if is_null(*nbm, *base + 8) {
+            country_b.append_null();
+        } else {
+            country_b.append_value(a.get_country());
+        }
     }
     let gmt_offset = Int32Array::from_iter(rows.iter().map(|(a, nbm, base)| {
-        if is_null(*nbm, *base + 9) { None } else { Some(a.get_gmt_offset()) }
+        if is_null(*nbm, *base + 9) {
+            None
+        } else {
+            Some(a.get_gmt_offset())
+        }
     }));
     (
         street_number,

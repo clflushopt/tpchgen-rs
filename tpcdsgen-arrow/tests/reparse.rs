@@ -13,17 +13,17 @@ use std::sync::Arc;
 use tpcdsgen::config::{Options, Session, Table};
 use tpcdsgen::row::{
     CallCenterRowGenerator, CatalogPageRowGenerator, CustomerAddressRowGenerator,
-    CustomerDemographicsRowGenerator, CustomerRowGenerator, DateDimRowGenerator,
-    GeneratedRow, HouseholdDemographicsRowGenerator,
-    IncomeBandRowGenerator, InventoryRowGenerator, ItemRowGenerator, PromotionRowGenerator,
-    ReasonRowGenerator, RowGenerator, ShipModeRowGenerator, StoreRowGenerator, TableRow,
-    TimeDimRowGenerator, WarehouseRowGenerator, WebPageRowGenerator, WebSiteRowGenerator,
+    CustomerDemographicsRowGenerator, CustomerRowGenerator, DateDimRowGenerator, GeneratedRow,
+    HouseholdDemographicsRowGenerator, IncomeBandRowGenerator, InventoryRowGenerator,
+    ItemRowGenerator, PromotionRowGenerator, ReasonRowGenerator, RowGenerator,
+    ShipModeRowGenerator, StoreRowGenerator, TableRow, TimeDimRowGenerator, WarehouseRowGenerator,
+    WebPageRowGenerator, WebSiteRowGenerator,
 };
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CustomerAddressArrow, CustomerArrow,
-    CustomerDemographicsArrow, DateDimArrow, HouseholdDemographicsArrow,
-    IncomeBandArrow, InventoryArrow, ItemArrow, PromotionArrow, ReasonArrow, RecordBatchIterator,
-    ShipModeArrow, StoreArrow, TimeDimArrow, WarehouseArrow, WebPageArrow, WebSiteArrow,
+    CustomerDemographicsArrow, DateDimArrow, HouseholdDemographicsArrow, IncomeBandArrow,
+    InventoryArrow, ItemArrow, PromotionArrow, ReasonArrow, RecordBatchIterator, ShipModeArrow,
+    StoreArrow, TimeDimArrow, WarehouseArrow, WebPageArrow, WebSiteArrow,
 };
 
 fn session() -> Session {
@@ -45,7 +45,10 @@ fn parse_dat(rows: &[Vec<String>], schema: &SchemaRef) -> RecordBatch {
         .with_null_regex(null_re);
     let mut reader = builder.build(data.as_slice()).unwrap();
     let batch = reader.next().unwrap().unwrap();
-    assert!(reader.next().is_none(), "expected exactly one batch from parsed dat");
+    assert!(
+        reader.next().is_none(),
+        "expected exactly one batch from parsed dat"
+    );
     batch
 }
 
@@ -85,7 +88,10 @@ where
         let n = arrow_batch.num_rows();
         let schema = Arc::clone(arrow.schema());
         let reparsed = parse_dat(&all_rows[offset..offset + n], &schema);
-        assert_eq!(reparsed, arrow_batch, "batch mismatch at row offset {offset}");
+        assert_eq!(
+            reparsed, arrow_batch,
+            "batch mismatch at row offset {offset}"
+        );
         offset += n;
     }
     assert_eq!(offset, all_rows.len(), "total row count mismatch");
@@ -116,21 +122,129 @@ macro_rules! dim_test {
     };
 }
 
-dim_test!(income_band,            IncomeBandRowGenerator::new(),            IncomeBandArrow::new,            Table::IncomeBand,            IncomeBand);
-dim_test!(reason,                 ReasonRowGenerator::new(),                ReasonArrow::new,                Table::Reason,                Reason);
-dim_test!(ship_mode,              ShipModeRowGenerator::new(),              ShipModeArrow::new,              Table::ShipMode,              ShipMode);
-dim_test!(inventory,              InventoryRowGenerator::new(),             InventoryArrow::new,             Table::Inventory,             Inventory);
-dim_test!(household_demographics, HouseholdDemographicsRowGenerator::new(), HouseholdDemographicsArrow::new, Table::HouseholdDemographics,  HouseholdDemographics);
-dim_test!(customer_demographics,  CustomerDemographicsRowGenerator::new(),  CustomerDemographicsArrow::new,  Table::CustomerDemographics,  CustomerDemographics);
-dim_test!(customer_address,       CustomerAddressRowGenerator::new(),       CustomerAddressArrow::new,       Table::CustomerAddress,       CustomerAddress);
-dim_test!(customer,               CustomerRowGenerator::new(),              CustomerArrow::new,              Table::Customer,              Customer);
-dim_test!(catalog_page,           CatalogPageRowGenerator::new(),           CatalogPageArrow::new,           Table::CatalogPage,           CatalogPage);
-dim_test!(time_dim,               TimeDimRowGenerator::new(),               TimeDimArrow::new,               Table::TimeDim,               TimeDim);
-dim_test!(date_dim,               DateDimRowGenerator::new(),               DateDimArrow::new,               Table::DateDim,               DateDim);
-dim_test!(warehouse,              WarehouseRowGenerator::new(),             WarehouseArrow::new,             Table::Warehouse,             Warehouse);
-dim_test!(item,                   ItemRowGenerator::new(),                  ItemArrow::new,                  Table::Item,                  Item);
-dim_test!(promotion,              PromotionRowGenerator::new(),             PromotionArrow::new,             Table::Promotion,             Promotion);
-dim_test!(store,                  StoreRowGenerator::new(),                 StoreArrow::new,                 Table::Store,                 Store);
-dim_test!(web_page,               WebPageRowGenerator::new(),               WebPageArrow::new,               Table::WebPage,               WebPage);
-dim_test!(web_site,               WebSiteRowGenerator::new(),               WebSiteArrow::new,               Table::WebSite,               WebSite);
-dim_test!(call_center,            CallCenterRowGenerator::new(),            CallCenterArrow::new,            Table::CallCenter,            CallCenter);
+dim_test!(
+    income_band,
+    IncomeBandRowGenerator::new(),
+    IncomeBandArrow::new,
+    Table::IncomeBand,
+    IncomeBand
+);
+dim_test!(
+    reason,
+    ReasonRowGenerator::new(),
+    ReasonArrow::new,
+    Table::Reason,
+    Reason
+);
+dim_test!(
+    ship_mode,
+    ShipModeRowGenerator::new(),
+    ShipModeArrow::new,
+    Table::ShipMode,
+    ShipMode
+);
+dim_test!(
+    inventory,
+    InventoryRowGenerator::new(),
+    InventoryArrow::new,
+    Table::Inventory,
+    Inventory
+);
+dim_test!(
+    household_demographics,
+    HouseholdDemographicsRowGenerator::new(),
+    HouseholdDemographicsArrow::new,
+    Table::HouseholdDemographics,
+    HouseholdDemographics
+);
+dim_test!(
+    customer_demographics,
+    CustomerDemographicsRowGenerator::new(),
+    CustomerDemographicsArrow::new,
+    Table::CustomerDemographics,
+    CustomerDemographics
+);
+dim_test!(
+    customer_address,
+    CustomerAddressRowGenerator::new(),
+    CustomerAddressArrow::new,
+    Table::CustomerAddress,
+    CustomerAddress
+);
+dim_test!(
+    customer,
+    CustomerRowGenerator::new(),
+    CustomerArrow::new,
+    Table::Customer,
+    Customer
+);
+dim_test!(
+    catalog_page,
+    CatalogPageRowGenerator::new(),
+    CatalogPageArrow::new,
+    Table::CatalogPage,
+    CatalogPage
+);
+dim_test!(
+    time_dim,
+    TimeDimRowGenerator::new(),
+    TimeDimArrow::new,
+    Table::TimeDim,
+    TimeDim
+);
+dim_test!(
+    date_dim,
+    DateDimRowGenerator::new(),
+    DateDimArrow::new,
+    Table::DateDim,
+    DateDim
+);
+dim_test!(
+    warehouse,
+    WarehouseRowGenerator::new(),
+    WarehouseArrow::new,
+    Table::Warehouse,
+    Warehouse
+);
+dim_test!(
+    item,
+    ItemRowGenerator::new(),
+    ItemArrow::new,
+    Table::Item,
+    Item
+);
+dim_test!(
+    promotion,
+    PromotionRowGenerator::new(),
+    PromotionArrow::new,
+    Table::Promotion,
+    Promotion
+);
+dim_test!(
+    store,
+    StoreRowGenerator::new(),
+    StoreArrow::new,
+    Table::Store,
+    Store
+);
+dim_test!(
+    web_page,
+    WebPageRowGenerator::new(),
+    WebPageArrow::new,
+    Table::WebPage,
+    WebPage
+);
+dim_test!(
+    web_site,
+    WebSiteRowGenerator::new(),
+    WebSiteArrow::new,
+    Table::WebSite,
+    WebSite
+);
+dim_test!(
+    call_center,
+    CallCenterRowGenerator::new(),
+    CallCenterArrow::new,
+    Table::CallCenter,
+    CallCenter
+);

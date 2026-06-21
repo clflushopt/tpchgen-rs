@@ -1,5 +1,7 @@
-use crate::conversions::{bool_to_yn, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::conversions::{
+    bool_to_yn, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
+};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,25 +16,40 @@ pub struct WebPageArrow {
 impl WebPageArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::WebPage);
-        Self { inner: RowIter::new(WebPageRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(WebPageRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for WebPageArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for WebPageArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::WebPage(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::WebPage(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut wp_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut wp_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -67,22 +84,34 @@ impl Iterator for WebPageArrow {
             wp_max_ad_count.push(opt(nbm, 13, r.get_wp_max_ad_count()));
         }
 
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(wp_sk)),
-            Arc::new(string_view_array_from_opt_iter(wp_id.iter().map(|s| s.as_deref()))),
-            Arc::new(Date32Array::from(wp_rec_start)),
-            Arc::new(Date32Array::from(wp_rec_end)),
-            Arc::new(Int64Array::from(wp_creation_date)),
-            Arc::new(Int64Array::from(wp_access_date)),
-            Arc::new(string_view_array_from_opt_iter(wp_autogen.iter().copied())),
-            Arc::new(Int64Array::from(wp_customer)),
-            Arc::new(string_view_array_from_opt_iter(wp_url.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(wp_type.iter().map(|s| s.as_deref()))),
-            Arc::new(Int32Array::from(wp_char_count)),
-            Arc::new(Int32Array::from(wp_link_count)),
-            Arc::new(Int32Array::from(wp_image_count)),
-            Arc::new(Int32Array::from(wp_max_ad_count)),
-        ]).unwrap())
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(wp_sk)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        wp_id.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Date32Array::from(wp_rec_start)),
+                    Arc::new(Date32Array::from(wp_rec_end)),
+                    Arc::new(Int64Array::from(wp_creation_date)),
+                    Arc::new(Int64Array::from(wp_access_date)),
+                    Arc::new(string_view_array_from_opt_iter(wp_autogen.iter().copied())),
+                    Arc::new(Int64Array::from(wp_customer)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        wp_url.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        wp_type.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int32Array::from(wp_char_count)),
+                    Arc::new(Int32Array::from(wp_link_count)),
+                    Arc::new(Int32Array::from(wp_image_count)),
+                    Arc::new(Int32Array::from(wp_max_ad_count)),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -90,19 +119,19 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("wp_web_page_sk", DataType::Int64, true),
-    Field::new("wp_web_page_id", DataType::Utf8View, true),
-    Field::new("wp_rec_start_date", DataType::Date32, true),
-    Field::new("wp_rec_end_date", DataType::Date32, true),
-    Field::new("wp_creation_date_sk", DataType::Int64, true),
-    Field::new("wp_access_date_sk", DataType::Int64, true),
-    Field::new("wp_autogen_flag", DataType::Utf8View, true),
-    Field::new("wp_customer_sk", DataType::Int64, true),
-    Field::new("wp_url", DataType::Utf8View, true),
-    Field::new("wp_type", DataType::Utf8View, true),
-    Field::new("wp_char_count", DataType::Int32, true),
-    Field::new("wp_link_count", DataType::Int32, true),
-    Field::new("wp_image_count", DataType::Int32, true),
-    Field::new("wp_max_ad_count", DataType::Int32, true),
-]))
+        Field::new("wp_web_page_sk", DataType::Int64, true),
+        Field::new("wp_web_page_id", DataType::Utf8View, true),
+        Field::new("wp_rec_start_date", DataType::Date32, true),
+        Field::new("wp_rec_end_date", DataType::Date32, true),
+        Field::new("wp_creation_date_sk", DataType::Int64, true),
+        Field::new("wp_access_date_sk", DataType::Int64, true),
+        Field::new("wp_autogen_flag", DataType::Utf8View, true),
+        Field::new("wp_customer_sk", DataType::Int64, true),
+        Field::new("wp_url", DataType::Utf8View, true),
+        Field::new("wp_type", DataType::Utf8View, true),
+        Field::new("wp_char_count", DataType::Int32, true),
+        Field::new("wp_link_count", DataType::Int32, true),
+        Field::new("wp_image_count", DataType::Int32, true),
+        Field::new("wp_max_ad_count", DataType::Int32, true),
+    ]))
 }

@@ -1,5 +1,5 @@
 use crate::conversions::{bool_to_yn, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,25 +14,40 @@ pub struct CustomerArrow {
 impl CustomerArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Customer);
-        Self { inner: RowIter::new(CustomerRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(CustomerRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for CustomerArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for CustomerArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::Customer(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::Customer(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut c_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut c_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -65,7 +80,11 @@ impl Iterator for CustomerArrow {
             c_salutation.push(opt(nbm, 7, r.get_c_salutation().to_owned()));
             c_first_name.push(opt(nbm, 8, r.get_c_first_name().to_owned()));
             c_last_name.push(opt(nbm, 9, r.get_c_last_name().to_owned()));
-            c_pref_flag.push(opt(nbm, 10, bool_to_yn(r.get_c_preferred_cust_flag()).to_owned()));
+            c_pref_flag.push(opt(
+                nbm,
+                10,
+                bool_to_yn(r.get_c_preferred_cust_flag()).to_owned(),
+            ));
             c_birth_day.push(opt(nbm, 11, r.get_c_birth_day()));
             c_birth_month.push(opt(nbm, 12, r.get_c_birth_month()));
             c_birth_year.push(opt(nbm, 13, r.get_c_birth_year()));
@@ -75,26 +94,48 @@ impl Iterator for CustomerArrow {
             c_last_review.push(opt(nbm, 17, r.get_c_last_review_date()));
         }
 
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(c_sk)),
-            Arc::new(string_view_array_from_opt_iter(c_id.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(c_cdemo_sk)),
-            Arc::new(Int64Array::from(c_hdemo_sk)),
-            Arc::new(Int64Array::from(c_addr_sk)),
-            Arc::new(Int32Array::from(c_shipto_date)),
-            Arc::new(Int32Array::from(c_sales_date)),
-            Arc::new(string_view_array_from_opt_iter(c_salutation.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(c_first_name.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(c_last_name.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(c_pref_flag.iter().map(|s| s.as_deref()))),
-            Arc::new(Int32Array::from(c_birth_day)),
-            Arc::new(Int32Array::from(c_birth_month)),
-            Arc::new(Int32Array::from(c_birth_year)),
-            Arc::new(string_view_array_from_opt_iter(c_birth_country.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(c_login.iter().map(|_| None::<&str>))),
-            Arc::new(string_view_array_from_opt_iter(c_email.iter().map(|s| s.as_deref()))),
-            Arc::new(Int32Array::from(c_last_review)),
-        ]).unwrap())
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(c_sk)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_id.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(c_cdemo_sk)),
+                    Arc::new(Int64Array::from(c_hdemo_sk)),
+                    Arc::new(Int64Array::from(c_addr_sk)),
+                    Arc::new(Int32Array::from(c_shipto_date)),
+                    Arc::new(Int32Array::from(c_sales_date)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_salutation.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_first_name.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_last_name.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_pref_flag.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int32Array::from(c_birth_day)),
+                    Arc::new(Int32Array::from(c_birth_month)),
+                    Arc::new(Int32Array::from(c_birth_year)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_birth_country.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_login.iter().map(|_| None::<&str>),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        c_email.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int32Array::from(c_last_review)),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -102,23 +143,23 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("c_customer_sk", DataType::Int64, true),
-    Field::new("c_customer_id", DataType::Utf8View, true),
-    Field::new("c_current_cdemo_sk", DataType::Int64, true),
-    Field::new("c_current_hdemo_sk", DataType::Int64, true),
-    Field::new("c_current_addr_sk", DataType::Int64, true),
-    Field::new("c_first_shipto_date_sk", DataType::Int32, true),
-    Field::new("c_first_sales_date_sk", DataType::Int32, true),
-    Field::new("c_salutation", DataType::Utf8View, true),
-    Field::new("c_first_name", DataType::Utf8View, true),
-    Field::new("c_last_name", DataType::Utf8View, true),
-    Field::new("c_preferred_cust_flag", DataType::Utf8View, true),
-    Field::new("c_birth_day", DataType::Int32, true),
-    Field::new("c_birth_month", DataType::Int32, true),
-    Field::new("c_birth_year", DataType::Int32, true),
-    Field::new("c_birth_country", DataType::Utf8View, true),
-    Field::new("c_login", DataType::Utf8View, true),
-    Field::new("c_email_address", DataType::Utf8View, true),
-    Field::new("c_last_review_date_sk", DataType::Int32, true),
-]))
+        Field::new("c_customer_sk", DataType::Int64, true),
+        Field::new("c_customer_id", DataType::Utf8View, true),
+        Field::new("c_current_cdemo_sk", DataType::Int64, true),
+        Field::new("c_current_hdemo_sk", DataType::Int64, true),
+        Field::new("c_current_addr_sk", DataType::Int64, true),
+        Field::new("c_first_shipto_date_sk", DataType::Int32, true),
+        Field::new("c_first_sales_date_sk", DataType::Int32, true),
+        Field::new("c_salutation", DataType::Utf8View, true),
+        Field::new("c_first_name", DataType::Utf8View, true),
+        Field::new("c_last_name", DataType::Utf8View, true),
+        Field::new("c_preferred_cust_flag", DataType::Utf8View, true),
+        Field::new("c_birth_day", DataType::Int32, true),
+        Field::new("c_birth_month", DataType::Int32, true),
+        Field::new("c_birth_year", DataType::Int32, true),
+        Field::new("c_birth_country", DataType::Utf8View, true),
+        Field::new("c_login", DataType::Utf8View, true),
+        Field::new("c_email_address", DataType::Utf8View, true),
+        Field::new("c_last_review_date_sk", DataType::Int32, true),
+    ]))
 }

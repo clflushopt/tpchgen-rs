@@ -1,5 +1,5 @@
 use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,25 +14,40 @@ pub struct CatalogPageArrow {
 impl CatalogPageArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::CatalogPage);
-        Self { inner: RowIter::new(CatalogPageRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(CatalogPageRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for CatalogPageArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for CatalogPageArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::CatalogPage(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::CatalogPage(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut cp_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut cp_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -59,17 +74,31 @@ impl Iterator for CatalogPageArrow {
             cp_type.push(opt(nbm, 9, r.get_cp_type().to_owned()));
         }
 
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(cp_sk)),
-            Arc::new(string_view_array_from_opt_iter(cp_id.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(cp_start)),
-            Arc::new(Int64Array::from(cp_end)),
-            Arc::new(string_view_array_from_opt_iter(cp_dept.iter().map(|s| s.as_deref()))),
-            Arc::new(Int32Array::from(cp_num)),
-            Arc::new(Int32Array::from(cp_page_num)),
-            Arc::new(string_view_array_from_opt_iter(cp_desc.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(cp_type.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(cp_sk)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        cp_id.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(cp_start)),
+                    Arc::new(Int64Array::from(cp_end)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        cp_dept.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int32Array::from(cp_num)),
+                    Arc::new(Int32Array::from(cp_page_num)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        cp_desc.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        cp_type.iter().map(|s| s.as_deref()),
+                    )),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -77,14 +106,14 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("cp_catalog_page_sk", DataType::Int64, true),
-    Field::new("cp_catalog_page_id", DataType::Utf8View, true),
-    Field::new("cp_start_date_sk", DataType::Int64, true),
-    Field::new("cp_end_date_sk", DataType::Int64, true),
-    Field::new("cp_department", DataType::Utf8View, true),
-    Field::new("cp_catalog_number", DataType::Int32, true),
-    Field::new("cp_catalog_page_number", DataType::Int32, true),
-    Field::new("cp_description", DataType::Utf8View, true),
-    Field::new("cp_type", DataType::Utf8View, true),
-]))
+        Field::new("cp_catalog_page_sk", DataType::Int64, true),
+        Field::new("cp_catalog_page_id", DataType::Utf8View, true),
+        Field::new("cp_start_date_sk", DataType::Int64, true),
+        Field::new("cp_end_date_sk", DataType::Int64, true),
+        Field::new("cp_department", DataType::Utf8View, true),
+        Field::new("cp_catalog_number", DataType::Int32, true),
+        Field::new("cp_catalog_page_number", DataType::Int32, true),
+        Field::new("cp_description", DataType::Utf8View, true),
+        Field::new("cp_type", DataType::Utf8View, true),
+    ]))
 }

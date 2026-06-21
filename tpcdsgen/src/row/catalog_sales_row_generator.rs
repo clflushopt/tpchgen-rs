@@ -265,7 +265,6 @@ impl CatalogSalesRowGenerator {
     fn is_last_row_in_order(&self) -> bool {
         self.remaining_line_items == 0
     }
-
 }
 
 impl Default for CatalogSalesRowGenerator {
@@ -465,7 +464,8 @@ impl RowGenerator for CatalogSalesRowGenerator {
 
     fn consume_remaining_seeds_for_row(&mut self) {
         self.abstract_generator.consume_remaining_seeds_for_row();
-        self.catalog_returns_generator.consume_remaining_seeds_for_row();
+        self.catalog_returns_generator
+            .consume_remaining_seeds_for_row();
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {

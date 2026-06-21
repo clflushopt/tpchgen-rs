@@ -1,5 +1,5 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,25 +14,43 @@ pub struct CatalogReturnsArrow {
 impl CatalogReturnsArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::CatalogSales);
-        Self { inner: RowIter::new(CatalogSalesRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(CatalogSalesRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for CatalogReturnsArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for CatalogReturnsArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .filter_map(|g| if let GeneratedRow::CatalogReturns(r) = g { Some(r) } else { None })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .filter_map(|g| {
+                if let GeneratedRow::CatalogReturns(r) = g {
+                    Some(r)
+                } else {
+                    None
+                }
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut cr_returned_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut cr_returned_time: Vec<Option<i64>> = Vec::with_capacity(rows.len());
@@ -85,7 +103,11 @@ impl Iterator for CatalogReturnsArrow {
             cr_quantity.push(opt(nbm, 17, p.get_quantity()));
             cr_return_amount.push(opt(nbm, 18, decimal_to_i128(p.get_net_paid())));
             cr_return_tax.push(opt(nbm, 19, decimal_to_i128(p.get_ext_tax())));
-            cr_return_amount_inc_tax.push(opt(nbm, 20, decimal_to_i128(p.get_net_paid_including_tax())));
+            cr_return_amount_inc_tax.push(opt(
+                nbm,
+                20,
+                decimal_to_i128(p.get_net_paid_including_tax()),
+            ));
             cr_fee.push(opt(nbm, 21, decimal_to_i128(p.get_fee())));
             cr_return_ship_cost.push(opt(nbm, 22, decimal_to_i128(p.get_ext_ship_cost())));
             cr_refunded_cash.push(opt(nbm, 23, decimal_to_i128(p.get_refunded_cash())));
@@ -94,36 +116,46 @@ impl Iterator for CatalogReturnsArrow {
             cr_net_loss.push(opt(nbm, 26, decimal_to_i128(p.get_net_loss())));
         }
 
-        let dec = |v: Vec<Option<i128>>| Decimal128Array::from(v).with_precision_and_scale(38, 2).unwrap();
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(cr_returned_date)),
-            Arc::new(Int64Array::from(cr_returned_time)),
-            Arc::new(Int64Array::from(cr_item)),
-            Arc::new(Int64Array::from(cr_refunded_customer)),
-            Arc::new(Int64Array::from(cr_refunded_cdemo)),
-            Arc::new(Int64Array::from(cr_refunded_hdemo)),
-            Arc::new(Int64Array::from(cr_refunded_addr)),
-            Arc::new(Int64Array::from(cr_returning_customer)),
-            Arc::new(Int64Array::from(cr_returning_cdemo)),
-            Arc::new(Int64Array::from(cr_returning_hdemo)),
-            Arc::new(Int64Array::from(cr_returning_addr)),
-            Arc::new(Int64Array::from(cr_call_center)),
-            Arc::new(Int64Array::from(cr_catalog_page)),
-            Arc::new(Int64Array::from(cr_ship_mode)),
-            Arc::new(Int64Array::from(cr_warehouse)),
-            Arc::new(Int64Array::from(cr_reason)),
-            Arc::new(Int64Array::from(cr_order_number)),
-            Arc::new(Int32Array::from(cr_quantity)),
-            Arc::new(dec(cr_return_amount)),
-            Arc::new(dec(cr_return_tax)),
-            Arc::new(dec(cr_return_amount_inc_tax)),
-            Arc::new(dec(cr_fee)),
-            Arc::new(dec(cr_return_ship_cost)),
-            Arc::new(dec(cr_refunded_cash)),
-            Arc::new(dec(cr_reversed_charge)),
-            Arc::new(dec(cr_store_credit)),
-            Arc::new(dec(cr_net_loss)),
-        ]).unwrap())
+        let dec = |v: Vec<Option<i128>>| {
+            Decimal128Array::from(v)
+                .with_precision_and_scale(38, 2)
+                .unwrap()
+        };
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(cr_returned_date)),
+                    Arc::new(Int64Array::from(cr_returned_time)),
+                    Arc::new(Int64Array::from(cr_item)),
+                    Arc::new(Int64Array::from(cr_refunded_customer)),
+                    Arc::new(Int64Array::from(cr_refunded_cdemo)),
+                    Arc::new(Int64Array::from(cr_refunded_hdemo)),
+                    Arc::new(Int64Array::from(cr_refunded_addr)),
+                    Arc::new(Int64Array::from(cr_returning_customer)),
+                    Arc::new(Int64Array::from(cr_returning_cdemo)),
+                    Arc::new(Int64Array::from(cr_returning_hdemo)),
+                    Arc::new(Int64Array::from(cr_returning_addr)),
+                    Arc::new(Int64Array::from(cr_call_center)),
+                    Arc::new(Int64Array::from(cr_catalog_page)),
+                    Arc::new(Int64Array::from(cr_ship_mode)),
+                    Arc::new(Int64Array::from(cr_warehouse)),
+                    Arc::new(Int64Array::from(cr_reason)),
+                    Arc::new(Int64Array::from(cr_order_number)),
+                    Arc::new(Int32Array::from(cr_quantity)),
+                    Arc::new(dec(cr_return_amount)),
+                    Arc::new(dec(cr_return_tax)),
+                    Arc::new(dec(cr_return_amount_inc_tax)),
+                    Arc::new(dec(cr_fee)),
+                    Arc::new(dec(cr_return_ship_cost)),
+                    Arc::new(dec(cr_refunded_cash)),
+                    Arc::new(dec(cr_reversed_charge)),
+                    Arc::new(dec(cr_store_credit)),
+                    Arc::new(dec(cr_net_loss)),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -131,32 +163,36 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("cr_returned_date_sk", DataType::Int64, true),
-    Field::new("cr_returned_time_sk", DataType::Int64, true),
-    Field::new("cr_item_sk", DataType::Int64, true),
-    Field::new("cr_refunded_customer_sk", DataType::Int64, true),
-    Field::new("cr_refunded_cdemo_sk", DataType::Int64, true),
-    Field::new("cr_refunded_hdemo_sk", DataType::Int64, true),
-    Field::new("cr_refunded_addr_sk", DataType::Int64, true),
-    Field::new("cr_returning_customer_sk", DataType::Int64, true),
-    Field::new("cr_returning_cdemo_sk", DataType::Int64, true),
-    Field::new("cr_returning_hdemo_sk", DataType::Int64, true),
-    Field::new("cr_returning_addr_sk", DataType::Int64, true),
-    Field::new("cr_call_center_sk", DataType::Int64, true),
-    Field::new("cr_catalog_page_sk", DataType::Int64, true),
-    Field::new("cr_ship_mode_sk", DataType::Int64, true),
-    Field::new("cr_warehouse_sk", DataType::Int64, true),
-    Field::new("cr_reason_sk", DataType::Int64, true),
-    Field::new("cr_order_number", DataType::Int64, true),
-    Field::new("cr_return_quantity", DataType::Int32, true),
-    Field::new("cr_return_amount", DataType::Decimal128(38, 2), true),
-    Field::new("cr_return_tax", DataType::Decimal128(38, 2), true),
-    Field::new("cr_return_amount_inc_tax", DataType::Decimal128(38, 2), true),
-    Field::new("cr_fee", DataType::Decimal128(38, 2), true),
-    Field::new("cr_return_ship_cost", DataType::Decimal128(38, 2), true),
-    Field::new("cr_refunded_cash", DataType::Decimal128(38, 2), true),
-    Field::new("cr_reversed_charge", DataType::Decimal128(38, 2), true),
-    Field::new("cr_store_credit", DataType::Decimal128(38, 2), true),
-    Field::new("cr_net_loss", DataType::Decimal128(38, 2), true),
-]))
+        Field::new("cr_returned_date_sk", DataType::Int64, true),
+        Field::new("cr_returned_time_sk", DataType::Int64, true),
+        Field::new("cr_item_sk", DataType::Int64, true),
+        Field::new("cr_refunded_customer_sk", DataType::Int64, true),
+        Field::new("cr_refunded_cdemo_sk", DataType::Int64, true),
+        Field::new("cr_refunded_hdemo_sk", DataType::Int64, true),
+        Field::new("cr_refunded_addr_sk", DataType::Int64, true),
+        Field::new("cr_returning_customer_sk", DataType::Int64, true),
+        Field::new("cr_returning_cdemo_sk", DataType::Int64, true),
+        Field::new("cr_returning_hdemo_sk", DataType::Int64, true),
+        Field::new("cr_returning_addr_sk", DataType::Int64, true),
+        Field::new("cr_call_center_sk", DataType::Int64, true),
+        Field::new("cr_catalog_page_sk", DataType::Int64, true),
+        Field::new("cr_ship_mode_sk", DataType::Int64, true),
+        Field::new("cr_warehouse_sk", DataType::Int64, true),
+        Field::new("cr_reason_sk", DataType::Int64, true),
+        Field::new("cr_order_number", DataType::Int64, true),
+        Field::new("cr_return_quantity", DataType::Int32, true),
+        Field::new("cr_return_amount", DataType::Decimal128(38, 2), true),
+        Field::new("cr_return_tax", DataType::Decimal128(38, 2), true),
+        Field::new(
+            "cr_return_amount_inc_tax",
+            DataType::Decimal128(38, 2),
+            true,
+        ),
+        Field::new("cr_fee", DataType::Decimal128(38, 2), true),
+        Field::new("cr_return_ship_cost", DataType::Decimal128(38, 2), true),
+        Field::new("cr_refunded_cash", DataType::Decimal128(38, 2), true),
+        Field::new("cr_reversed_charge", DataType::Decimal128(38, 2), true),
+        Field::new("cr_store_credit", DataType::Decimal128(38, 2), true),
+        Field::new("cr_net_loss", DataType::Decimal128(38, 2), true),
+    ]))
 }

@@ -240,7 +240,6 @@ impl WebSalesRowGenerator {
     fn is_last_row_in_order(&self) -> bool {
         self.remaining_line_items == 0
     }
-
 }
 
 impl Default for WebSalesRowGenerator {

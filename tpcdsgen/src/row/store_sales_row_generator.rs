@@ -338,7 +338,8 @@ impl RowGenerator for StoreSalesRowGenerator {
 
     fn consume_remaining_seeds_for_row(&mut self) {
         self.abstract_generator.consume_remaining_seeds_for_row();
-        self.store_returns_generator.consume_remaining_seeds_for_row();
+        self.store_returns_generator
+            .consume_remaining_seeds_for_row();
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {

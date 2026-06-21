@@ -1,5 +1,7 @@
-use crate::conversions::{bool_to_yn, decimal_to_i128, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::conversions::{
+    bool_to_yn, decimal_to_i128, opt, sk_opt, string_view_array_from_opt_iter,
+};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,25 +16,40 @@ pub struct PromotionArrow {
 impl PromotionArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Promotion);
-        Self { inner: RowIter::new(PromotionRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(PromotionRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for PromotionArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for PromotionArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::Promotion(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::Promotion(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut p_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut p_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -66,7 +83,11 @@ impl Iterator for PromotionArrow {
             p_name.push(opt(nbm, 7, r.get_p_promo_name().to_owned()));
             p_dmail.push(opt(nbm, 8, bool_to_yn(r.get_p_channel_dmail()).to_owned()));
             p_email.push(opt(nbm, 9, bool_to_yn(r.get_p_channel_email()).to_owned()));
-            p_catalog.push(opt(nbm, 10, bool_to_yn(r.get_p_channel_catalog()).to_owned()));
+            p_catalog.push(opt(
+                nbm,
+                10,
+                bool_to_yn(r.get_p_channel_catalog()).to_owned(),
+            ));
             p_tv.push(opt(nbm, 11, bool_to_yn(r.get_p_channel_tv()).to_owned()));
             p_radio.push(opt(nbm, 12, bool_to_yn(r.get_p_channel_radio()).to_owned()));
             p_press.push(opt(nbm, 13, bool_to_yn(r.get_p_channel_press()).to_owned()));
@@ -74,31 +95,69 @@ impl Iterator for PromotionArrow {
             p_demo.push(opt(nbm, 15, bool_to_yn(r.get_p_channel_demo()).to_owned()));
             p_details.push(opt(nbm, 16, r.get_p_channel_details().to_owned()));
             p_purpose.push(opt(nbm, 17, r.get_p_purpose().to_owned()));
-            p_active.push(opt(nbm, 18, bool_to_yn(r.get_p_discount_active()).to_owned()));
+            p_active.push(opt(
+                nbm,
+                18,
+                bool_to_yn(r.get_p_discount_active()).to_owned(),
+            ));
         }
 
-        let cost_arr = Decimal128Array::from(p_cost).with_precision_and_scale(38, 2).unwrap();
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(p_sk)),
-            Arc::new(string_view_array_from_opt_iter(p_id.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(p_start)),
-            Arc::new(Int64Array::from(p_end)),
-            Arc::new(Int64Array::from(p_item)),
-            Arc::new(cost_arr),
-            Arc::new(Int32Array::from(p_response)),
-            Arc::new(string_view_array_from_opt_iter(p_name.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_dmail.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_email.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_catalog.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_tv.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_radio.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_press.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_event.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_demo.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_details.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_purpose.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(p_active.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        let cost_arr = Decimal128Array::from(p_cost)
+            .with_precision_and_scale(38, 2)
+            .unwrap();
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(p_sk)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_id.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(p_start)),
+                    Arc::new(Int64Array::from(p_end)),
+                    Arc::new(Int64Array::from(p_item)),
+                    Arc::new(cost_arr),
+                    Arc::new(Int32Array::from(p_response)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_name.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_dmail.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_email.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_catalog.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_tv.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_radio.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_press.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_event.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_demo.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_details.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_purpose.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        p_active.iter().map(|s| s.as_deref()),
+                    )),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -106,24 +165,24 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("p_promo_sk", DataType::Int64, true),
-    Field::new("p_promo_id", DataType::Utf8View, true),
-    Field::new("p_start_date_sk", DataType::Int64, true),
-    Field::new("p_end_date_sk", DataType::Int64, true),
-    Field::new("p_item_sk", DataType::Int64, true),
-    Field::new("p_cost", DataType::Decimal128(38, 2), true),
-    Field::new("p_response_target", DataType::Int32, true),
-    Field::new("p_promo_name", DataType::Utf8View, true),
-    Field::new("p_channel_dmail", DataType::Utf8View, true),
-    Field::new("p_channel_email", DataType::Utf8View, true),
-    Field::new("p_channel_catalog", DataType::Utf8View, true),
-    Field::new("p_channel_tv", DataType::Utf8View, true),
-    Field::new("p_channel_radio", DataType::Utf8View, true),
-    Field::new("p_channel_press", DataType::Utf8View, true),
-    Field::new("p_channel_event", DataType::Utf8View, true),
-    Field::new("p_channel_demo", DataType::Utf8View, true),
-    Field::new("p_channel_details", DataType::Utf8View, true),
-    Field::new("p_purpose", DataType::Utf8View, true),
-    Field::new("p_discount_active", DataType::Utf8View, true),
-]))
+        Field::new("p_promo_sk", DataType::Int64, true),
+        Field::new("p_promo_id", DataType::Utf8View, true),
+        Field::new("p_start_date_sk", DataType::Int64, true),
+        Field::new("p_end_date_sk", DataType::Int64, true),
+        Field::new("p_item_sk", DataType::Int64, true),
+        Field::new("p_cost", DataType::Decimal128(38, 2), true),
+        Field::new("p_response_target", DataType::Int32, true),
+        Field::new("p_promo_name", DataType::Utf8View, true),
+        Field::new("p_channel_dmail", DataType::Utf8View, true),
+        Field::new("p_channel_email", DataType::Utf8View, true),
+        Field::new("p_channel_catalog", DataType::Utf8View, true),
+        Field::new("p_channel_tv", DataType::Utf8View, true),
+        Field::new("p_channel_radio", DataType::Utf8View, true),
+        Field::new("p_channel_press", DataType::Utf8View, true),
+        Field::new("p_channel_event", DataType::Utf8View, true),
+        Field::new("p_channel_demo", DataType::Utf8View, true),
+        Field::new("p_channel_details", DataType::Utf8View, true),
+        Field::new("p_purpose", DataType::Utf8View, true),
+        Field::new("p_discount_active", DataType::Utf8View, true),
+    ]))
 }

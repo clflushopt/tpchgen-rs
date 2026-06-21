@@ -1,5 +1,5 @@
 use crate::conversions::{bool_to_yn, date_to_date32, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,25 +14,40 @@ pub struct DateDimArrow {
 impl DateDimArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::DateDim);
-        Self { inner: RowIter::new(DateDimRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(DateDimRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for DateDimArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for DateDimArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::DateDim(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::DateDim(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut d_date_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut d_date_id: Vec<String> = Vec::with_capacity(rows.len());
@@ -96,42 +111,70 @@ impl Iterator for DateDimArrow {
         }
 
         let mut id_b = StringViewBuilder::with_capacity(d_date_id.len());
-        for s in &d_date_id { id_b.append_value(s); }
+        for s in &d_date_id {
+            id_b.append_value(s);
+        }
         let mut day_name_b = StringViewBuilder::with_capacity(d_day_name.len());
-        for s in &d_day_name { day_name_b.append_value(s); }
+        for s in &d_day_name {
+            day_name_b.append_value(s);
+        }
         let mut quarter_name_b = StringViewBuilder::with_capacity(d_quarter_name.len());
-        for s in &d_quarter_name { quarter_name_b.append_value(s); }
+        for s in &d_quarter_name {
+            quarter_name_b.append_value(s);
+        }
 
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(d_date_sk)),
-            Arc::new(id_b.finish()),
-            Arc::new(Date32Array::from_iter_values(d_date)),
-            Arc::new(Int32Array::from_iter_values(d_month_seq)),
-            Arc::new(Int32Array::from_iter_values(d_week_seq)),
-            Arc::new(Int32Array::from_iter_values(d_quarter_seq)),
-            Arc::new(Int32Array::from_iter_values(d_year)),
-            Arc::new(Int32Array::from_iter_values(d_dow)),
-            Arc::new(Int32Array::from_iter_values(d_moy)),
-            Arc::new(Int32Array::from_iter_values(d_dom)),
-            Arc::new(Int32Array::from_iter_values(d_qoy)),
-            Arc::new(Int32Array::from_iter_values(d_fy_year)),
-            Arc::new(Int32Array::from_iter_values(d_fy_quarter_seq)),
-            Arc::new(Int32Array::from_iter_values(d_fy_week_seq)),
-            Arc::new(day_name_b.finish()),
-            Arc::new(quarter_name_b.finish()),
-            Arc::new(string_view_array_from_opt_iter(d_holiday.iter().map(|s| Some(*s)))),
-            Arc::new(string_view_array_from_opt_iter(d_weekend.iter().map(|s| Some(*s)))),
-            Arc::new(string_view_array_from_opt_iter(d_following_holiday.iter().map(|s| Some(*s)))),
-            Arc::new(Int32Array::from_iter_values(d_first_dom)),
-            Arc::new(Int32Array::from_iter_values(d_last_dom)),
-            Arc::new(Int32Array::from_iter_values(d_same_day_ly)),
-            Arc::new(Int32Array::from_iter_values(d_same_day_lq)),
-            Arc::new(string_view_array_from_opt_iter(d_current_day.iter().map(|s| Some(*s)))),
-            Arc::new(string_view_array_from_opt_iter(d_current_week.iter().map(|s| Some(*s)))),
-            Arc::new(string_view_array_from_opt_iter(d_current_month.iter().map(|s| Some(*s)))),
-            Arc::new(string_view_array_from_opt_iter(d_current_quarter.iter().map(|s| Some(*s)))),
-            Arc::new(string_view_array_from_opt_iter(d_current_year.iter().map(|s| Some(*s)))),
-        ]).unwrap())
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(d_date_sk)),
+                    Arc::new(id_b.finish()),
+                    Arc::new(Date32Array::from_iter_values(d_date)),
+                    Arc::new(Int32Array::from_iter_values(d_month_seq)),
+                    Arc::new(Int32Array::from_iter_values(d_week_seq)),
+                    Arc::new(Int32Array::from_iter_values(d_quarter_seq)),
+                    Arc::new(Int32Array::from_iter_values(d_year)),
+                    Arc::new(Int32Array::from_iter_values(d_dow)),
+                    Arc::new(Int32Array::from_iter_values(d_moy)),
+                    Arc::new(Int32Array::from_iter_values(d_dom)),
+                    Arc::new(Int32Array::from_iter_values(d_qoy)),
+                    Arc::new(Int32Array::from_iter_values(d_fy_year)),
+                    Arc::new(Int32Array::from_iter_values(d_fy_quarter_seq)),
+                    Arc::new(Int32Array::from_iter_values(d_fy_week_seq)),
+                    Arc::new(day_name_b.finish()),
+                    Arc::new(quarter_name_b.finish()),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_holiday.iter().map(|s| Some(*s)),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_weekend.iter().map(|s| Some(*s)),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_following_holiday.iter().map(|s| Some(*s)),
+                    )),
+                    Arc::new(Int32Array::from_iter_values(d_first_dom)),
+                    Arc::new(Int32Array::from_iter_values(d_last_dom)),
+                    Arc::new(Int32Array::from_iter_values(d_same_day_ly)),
+                    Arc::new(Int32Array::from_iter_values(d_same_day_lq)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_current_day.iter().map(|s| Some(*s)),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_current_week.iter().map(|s| Some(*s)),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_current_month.iter().map(|s| Some(*s)),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_current_quarter.iter().map(|s| Some(*s)),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        d_current_year.iter().map(|s| Some(*s)),
+                    )),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -139,33 +182,33 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("d_date_sk", DataType::Int64, true),
-    Field::new("d_date_id", DataType::Utf8View, false),
-    Field::new("d_date", DataType::Date32, false),
-    Field::new("d_month_seq", DataType::Int32, false),
-    Field::new("d_week_seq", DataType::Int32, false),
-    Field::new("d_quarter_seq", DataType::Int32, false),
-    Field::new("d_year", DataType::Int32, false),
-    Field::new("d_dow", DataType::Int32, false),
-    Field::new("d_moy", DataType::Int32, false),
-    Field::new("d_dom", DataType::Int32, false),
-    Field::new("d_qoy", DataType::Int32, false),
-    Field::new("d_fy_year", DataType::Int32, false),
-    Field::new("d_fy_quarter_seq", DataType::Int32, false),
-    Field::new("d_fy_week_seq", DataType::Int32, false),
-    Field::new("d_day_name", DataType::Utf8View, false),
-    Field::new("d_quarter_name", DataType::Utf8View, false),
-    Field::new("d_holiday", DataType::Utf8View, false),
-    Field::new("d_weekend", DataType::Utf8View, false),
-    Field::new("d_following_holiday", DataType::Utf8View, false),
-    Field::new("d_first_dom", DataType::Int32, false),
-    Field::new("d_last_dom", DataType::Int32, false),
-    Field::new("d_same_day_ly", DataType::Int32, false),
-    Field::new("d_same_day_lq", DataType::Int32, false),
-    Field::new("d_current_day", DataType::Utf8View, false),
-    Field::new("d_current_week", DataType::Utf8View, false),
-    Field::new("d_current_month", DataType::Utf8View, false),
-    Field::new("d_current_quarter", DataType::Utf8View, false),
-    Field::new("d_current_year", DataType::Utf8View, false),
-]))
+        Field::new("d_date_sk", DataType::Int64, true),
+        Field::new("d_date_id", DataType::Utf8View, false),
+        Field::new("d_date", DataType::Date32, false),
+        Field::new("d_month_seq", DataType::Int32, false),
+        Field::new("d_week_seq", DataType::Int32, false),
+        Field::new("d_quarter_seq", DataType::Int32, false),
+        Field::new("d_year", DataType::Int32, false),
+        Field::new("d_dow", DataType::Int32, false),
+        Field::new("d_moy", DataType::Int32, false),
+        Field::new("d_dom", DataType::Int32, false),
+        Field::new("d_qoy", DataType::Int32, false),
+        Field::new("d_fy_year", DataType::Int32, false),
+        Field::new("d_fy_quarter_seq", DataType::Int32, false),
+        Field::new("d_fy_week_seq", DataType::Int32, false),
+        Field::new("d_day_name", DataType::Utf8View, false),
+        Field::new("d_quarter_name", DataType::Utf8View, false),
+        Field::new("d_holiday", DataType::Utf8View, false),
+        Field::new("d_weekend", DataType::Utf8View, false),
+        Field::new("d_following_holiday", DataType::Utf8View, false),
+        Field::new("d_first_dom", DataType::Int32, false),
+        Field::new("d_last_dom", DataType::Int32, false),
+        Field::new("d_same_day_ly", DataType::Int32, false),
+        Field::new("d_same_day_lq", DataType::Int32, false),
+        Field::new("d_current_day", DataType::Utf8View, false),
+        Field::new("d_current_week", DataType::Utf8View, false),
+        Field::new("d_current_month", DataType::Utf8View, false),
+        Field::new("d_current_quarter", DataType::Utf8View, false),
+        Field::new("d_current_year", DataType::Utf8View, false),
+    ]))
 }

@@ -2,7 +2,7 @@ use crate::conversions::{
     address_columns, decimal_to_i128, julian_to_date32, opt, sk_opt,
     string_view_array_from_opt_iter,
 };
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -17,25 +17,40 @@ pub struct StoreArrow {
 impl StoreArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Store);
-        Self { inner: RowIter::new(StoreRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(StoreRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for StoreArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for StoreArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::Store(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::Store(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut s_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut s_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -55,7 +70,8 @@ impl Iterator for StoreArrow {
         let mut s_division_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut s_company_id: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut s_company_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::with_capacity(rows.len());
+        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
+            Vec::with_capacity(rows.len());
         let mut s_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
@@ -82,42 +98,78 @@ impl Iterator for StoreArrow {
             s_tax_pct.push(opt(nbm, 28, decimal_to_i128(r.get_d_tax_percentage())));
         }
 
-        let (street_number, street_name, street_type, suite_number, city, county, state, zip, country, gmt_offset) =
-            address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
+        let (
+            street_number,
+            street_name,
+            street_type,
+            suite_number,
+            city,
+            county,
+            state,
+            zip,
+            country,
+            gmt_offset,
+        ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
 
-        let tax_arr = Decimal128Array::from(s_tax_pct).with_precision_and_scale(38, 2).unwrap();
+        let tax_arr = Decimal128Array::from(s_tax_pct)
+            .with_precision_and_scale(38, 2)
+            .unwrap();
 
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(s_sk)),
-            Arc::new(string_view_array_from_opt_iter(s_id.iter().map(|s| s.as_deref()))),
-            Arc::new(Date32Array::from(s_rec_start)),
-            Arc::new(Date32Array::from(s_rec_end)),
-            Arc::new(Int64Array::from(s_closed_date)),
-            Arc::new(string_view_array_from_opt_iter(s_name.iter().map(|s| s.as_deref()))),
-            Arc::new(Int32Array::from(s_employees)),
-            Arc::new(Int32Array::from(s_floor_space)),
-            Arc::new(string_view_array_from_opt_iter(s_hours.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(s_manager.iter().map(|s| s.as_deref()))),
-            Arc::new(Int32Array::from(s_market_id)),
-            Arc::new(string_view_array_from_opt_iter(s_geography_class.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(s_market_desc.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(s_market_manager.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(s_division_id)),
-            Arc::new(string_view_array_from_opt_iter(s_division_name.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(s_company_id)),
-            Arc::new(string_view_array_from_opt_iter(s_company_name.iter().map(|s| s.as_deref()))),
-            Arc::new(street_number),
-            Arc::new(street_name),
-            Arc::new(street_type),
-            Arc::new(suite_number),
-            Arc::new(city),
-            Arc::new(county),
-            Arc::new(state),
-            Arc::new(zip),
-            Arc::new(country),
-            Arc::new(gmt_offset),
-            Arc::new(tax_arr),
-        ]).unwrap())
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(s_sk)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_id.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Date32Array::from(s_rec_start)),
+                    Arc::new(Date32Array::from(s_rec_end)),
+                    Arc::new(Int64Array::from(s_closed_date)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_name.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int32Array::from(s_employees)),
+                    Arc::new(Int32Array::from(s_floor_space)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_hours.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_manager.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int32Array::from(s_market_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_geography_class.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_market_desc.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_market_manager.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(s_division_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_division_name.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(s_company_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        s_company_name.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(street_number),
+                    Arc::new(street_name),
+                    Arc::new(street_type),
+                    Arc::new(suite_number),
+                    Arc::new(city),
+                    Arc::new(county),
+                    Arc::new(state),
+                    Arc::new(zip),
+                    Arc::new(country),
+                    Arc::new(gmt_offset),
+                    Arc::new(tax_arr),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -125,34 +177,34 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("s_store_sk", DataType::Int64, true),
-    Field::new("s_store_id", DataType::Utf8View, true),
-    Field::new("s_rec_start_date", DataType::Date32, true),
-    Field::new("s_rec_end_date", DataType::Date32, true),
-    Field::new("s_closed_date_sk", DataType::Int64, true),
-    Field::new("s_store_name", DataType::Utf8View, true),
-    Field::new("s_number_employees", DataType::Int32, true),
-    Field::new("s_floor_space", DataType::Int32, true),
-    Field::new("s_hours", DataType::Utf8View, true),
-    Field::new("s_manager", DataType::Utf8View, true),
-    Field::new("s_market_id", DataType::Int32, true),
-    Field::new("s_geography_class", DataType::Utf8View, true),
-    Field::new("s_market_desc", DataType::Utf8View, true),
-    Field::new("s_market_manager", DataType::Utf8View, true),
-    Field::new("s_division_id", DataType::Int64, true),
-    Field::new("s_division_name", DataType::Utf8View, true),
-    Field::new("s_company_id", DataType::Int64, true),
-    Field::new("s_company_name", DataType::Utf8View, true),
-    Field::new("s_street_number", DataType::Int32, true),
-    Field::new("s_street_name", DataType::Utf8View, true),
-    Field::new("s_street_type", DataType::Utf8View, true),
-    Field::new("s_suite_number", DataType::Utf8View, true),
-    Field::new("s_city", DataType::Utf8View, true),
-    Field::new("s_county", DataType::Utf8View, true),
-    Field::new("s_state", DataType::Utf8View, true),
-    Field::new("s_zip", DataType::Utf8View, true),
-    Field::new("s_country", DataType::Utf8View, true),
-    Field::new("s_gmt_offset", DataType::Int32, true),
-    Field::new("s_tax_precentage", DataType::Decimal128(38, 2), true),
-]))
+        Field::new("s_store_sk", DataType::Int64, true),
+        Field::new("s_store_id", DataType::Utf8View, true),
+        Field::new("s_rec_start_date", DataType::Date32, true),
+        Field::new("s_rec_end_date", DataType::Date32, true),
+        Field::new("s_closed_date_sk", DataType::Int64, true),
+        Field::new("s_store_name", DataType::Utf8View, true),
+        Field::new("s_number_employees", DataType::Int32, true),
+        Field::new("s_floor_space", DataType::Int32, true),
+        Field::new("s_hours", DataType::Utf8View, true),
+        Field::new("s_manager", DataType::Utf8View, true),
+        Field::new("s_market_id", DataType::Int32, true),
+        Field::new("s_geography_class", DataType::Utf8View, true),
+        Field::new("s_market_desc", DataType::Utf8View, true),
+        Field::new("s_market_manager", DataType::Utf8View, true),
+        Field::new("s_division_id", DataType::Int64, true),
+        Field::new("s_division_name", DataType::Utf8View, true),
+        Field::new("s_company_id", DataType::Int64, true),
+        Field::new("s_company_name", DataType::Utf8View, true),
+        Field::new("s_street_number", DataType::Int32, true),
+        Field::new("s_street_name", DataType::Utf8View, true),
+        Field::new("s_street_type", DataType::Utf8View, true),
+        Field::new("s_suite_number", DataType::Utf8View, true),
+        Field::new("s_city", DataType::Utf8View, true),
+        Field::new("s_county", DataType::Utf8View, true),
+        Field::new("s_state", DataType::Utf8View, true),
+        Field::new("s_zip", DataType::Utf8View, true),
+        Field::new("s_country", DataType::Utf8View, true),
+        Field::new("s_gmt_offset", DataType::Int32, true),
+        Field::new("s_tax_precentage", DataType::Decimal128(38, 2), true),
+    ]))
 }

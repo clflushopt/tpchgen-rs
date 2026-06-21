@@ -1,5 +1,5 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,25 +14,43 @@ pub struct WebSalesArrow {
 impl WebSalesArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::WebSales);
-        Self { inner: RowIter::new(WebSalesRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(WebSalesRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for WebSalesArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for WebSalesArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .filter_map(|g| if let GeneratedRow::WebSales(r) = g { Some(r) } else { None })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .filter_map(|g| {
+                if let GeneratedRow::WebSales(r) = g {
+                    Some(r)
+                } else {
+                    None
+                }
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut ws_sold_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut ws_sold_time: Vec<Option<i64>> = Vec::with_capacity(rows.len());
@@ -102,49 +120,71 @@ impl Iterator for WebSalesArrow {
             ws_coupon_amt.push(opt(nbm, 27, decimal_to_i128(p.get_coupon_amount())));
             ws_ext_ship_cost.push(opt(nbm, 28, decimal_to_i128(p.get_ext_ship_cost())));
             ws_net_paid.push(opt(nbm, 29, decimal_to_i128(p.get_net_paid())));
-            ws_net_paid_inc_tax.push(opt(nbm, 30, decimal_to_i128(p.get_net_paid_including_tax())));
-            ws_net_paid_inc_ship.push(opt(nbm, 31, decimal_to_i128(p.get_net_paid_including_shipping())));
-            ws_net_paid_inc_ship_tax.push(opt(nbm, 32, decimal_to_i128(p.get_net_paid_including_shipping_and_tax())));
+            ws_net_paid_inc_tax.push(opt(
+                nbm,
+                30,
+                decimal_to_i128(p.get_net_paid_including_tax()),
+            ));
+            ws_net_paid_inc_ship.push(opt(
+                nbm,
+                31,
+                decimal_to_i128(p.get_net_paid_including_shipping()),
+            ));
+            ws_net_paid_inc_ship_tax.push(opt(
+                nbm,
+                32,
+                decimal_to_i128(p.get_net_paid_including_shipping_and_tax()),
+            ));
             ws_net_profit.push(opt(nbm, 33, decimal_to_i128(p.get_net_profit())));
         }
 
-        let dec = |v: Vec<Option<i128>>| Decimal128Array::from(v).with_precision_and_scale(38, 2).unwrap();
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(ws_sold_date)),
-            Arc::new(Int64Array::from(ws_sold_time)),
-            Arc::new(Int64Array::from(ws_ship_date)),
-            Arc::new(Int64Array::from(ws_item)),
-            Arc::new(Int64Array::from(ws_bill_customer)),
-            Arc::new(Int64Array::from(ws_bill_cdemo)),
-            Arc::new(Int64Array::from(ws_bill_hdemo)),
-            Arc::new(Int64Array::from(ws_bill_addr)),
-            Arc::new(Int64Array::from(ws_ship_customer)),
-            Arc::new(Int64Array::from(ws_ship_cdemo)),
-            Arc::new(Int64Array::from(ws_ship_hdemo)),
-            Arc::new(Int64Array::from(ws_ship_addr)),
-            Arc::new(Int64Array::from(ws_web_page)),
-            Arc::new(Int64Array::from(ws_web_site)),
-            Arc::new(Int64Array::from(ws_ship_mode)),
-            Arc::new(Int64Array::from(ws_warehouse)),
-            Arc::new(Int64Array::from(ws_promo)),
-            Arc::new(Int64Array::from(ws_order_number)),
-            Arc::new(Int32Array::from(ws_quantity)),
-            Arc::new(dec(ws_wholesale_cost)),
-            Arc::new(dec(ws_list_price)),
-            Arc::new(dec(ws_sales_price)),
-            Arc::new(dec(ws_ext_discount_amt)),
-            Arc::new(dec(ws_ext_sales_price)),
-            Arc::new(dec(ws_ext_wholesale_cost)),
-            Arc::new(dec(ws_ext_list_price)),
-            Arc::new(dec(ws_ext_tax)),
-            Arc::new(dec(ws_coupon_amt)),
-            Arc::new(dec(ws_ext_ship_cost)),
-            Arc::new(dec(ws_net_paid)),
-            Arc::new(dec(ws_net_paid_inc_tax)),
-            Arc::new(dec(ws_net_paid_inc_ship)),
-            Arc::new(dec(ws_net_paid_inc_ship_tax)),
-            Arc::new(dec(ws_net_profit)),
-        ]).unwrap())
+        let dec = |v: Vec<Option<i128>>| {
+            Decimal128Array::from(v)
+                .with_precision_and_scale(38, 2)
+                .unwrap()
+        };
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(ws_sold_date)),
+                    Arc::new(Int64Array::from(ws_sold_time)),
+                    Arc::new(Int64Array::from(ws_ship_date)),
+                    Arc::new(Int64Array::from(ws_item)),
+                    Arc::new(Int64Array::from(ws_bill_customer)),
+                    Arc::new(Int64Array::from(ws_bill_cdemo)),
+                    Arc::new(Int64Array::from(ws_bill_hdemo)),
+                    Arc::new(Int64Array::from(ws_bill_addr)),
+                    Arc::new(Int64Array::from(ws_ship_customer)),
+                    Arc::new(Int64Array::from(ws_ship_cdemo)),
+                    Arc::new(Int64Array::from(ws_ship_hdemo)),
+                    Arc::new(Int64Array::from(ws_ship_addr)),
+                    Arc::new(Int64Array::from(ws_web_page)),
+                    Arc::new(Int64Array::from(ws_web_site)),
+                    Arc::new(Int64Array::from(ws_ship_mode)),
+                    Arc::new(Int64Array::from(ws_warehouse)),
+                    Arc::new(Int64Array::from(ws_promo)),
+                    Arc::new(Int64Array::from(ws_order_number)),
+                    Arc::new(Int32Array::from(ws_quantity)),
+                    Arc::new(dec(ws_wholesale_cost)),
+                    Arc::new(dec(ws_list_price)),
+                    Arc::new(dec(ws_sales_price)),
+                    Arc::new(dec(ws_ext_discount_amt)),
+                    Arc::new(dec(ws_ext_sales_price)),
+                    Arc::new(dec(ws_ext_wholesale_cost)),
+                    Arc::new(dec(ws_ext_list_price)),
+                    Arc::new(dec(ws_ext_tax)),
+                    Arc::new(dec(ws_coupon_amt)),
+                    Arc::new(dec(ws_ext_ship_cost)),
+                    Arc::new(dec(ws_net_paid)),
+                    Arc::new(dec(ws_net_paid_inc_tax)),
+                    Arc::new(dec(ws_net_paid_inc_ship)),
+                    Arc::new(dec(ws_net_paid_inc_ship_tax)),
+                    Arc::new(dec(ws_net_profit)),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -152,39 +192,43 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("ws_sold_date_sk", DataType::Int64, true),
-    Field::new("ws_sold_time_sk", DataType::Int64, true),
-    Field::new("ws_ship_date_sk", DataType::Int64, true),
-    Field::new("ws_item_sk", DataType::Int64, true),
-    Field::new("ws_bill_customer_sk", DataType::Int64, true),
-    Field::new("ws_bill_cdemo_sk", DataType::Int64, true),
-    Field::new("ws_bill_hdemo_sk", DataType::Int64, true),
-    Field::new("ws_bill_addr_sk", DataType::Int64, true),
-    Field::new("ws_ship_customer_sk", DataType::Int64, true),
-    Field::new("ws_ship_cdemo_sk", DataType::Int64, true),
-    Field::new("ws_ship_hdemo_sk", DataType::Int64, true),
-    Field::new("ws_ship_addr_sk", DataType::Int64, true),
-    Field::new("ws_web_page_sk", DataType::Int64, true),
-    Field::new("ws_web_site_sk", DataType::Int64, true),
-    Field::new("ws_ship_mode_sk", DataType::Int64, true),
-    Field::new("ws_warehouse_sk", DataType::Int64, true),
-    Field::new("ws_promo_sk", DataType::Int64, true),
-    Field::new("ws_order_number", DataType::Int64, true),
-    Field::new("ws_quantity", DataType::Int32, true),
-    Field::new("ws_wholesale_cost", DataType::Decimal128(38, 2), true),
-    Field::new("ws_list_price", DataType::Decimal128(38, 2), true),
-    Field::new("ws_sales_price", DataType::Decimal128(38, 2), true),
-    Field::new("ws_ext_discount_amt", DataType::Decimal128(38, 2), true),
-    Field::new("ws_ext_sales_price", DataType::Decimal128(38, 2), true),
-    Field::new("ws_ext_wholesale_cost", DataType::Decimal128(38, 2), true),
-    Field::new("ws_ext_list_price", DataType::Decimal128(38, 2), true),
-    Field::new("ws_ext_tax", DataType::Decimal128(38, 2), true),
-    Field::new("ws_coupon_amt", DataType::Decimal128(38, 2), true),
-    Field::new("ws_ext_ship_cost", DataType::Decimal128(38, 2), true),
-    Field::new("ws_net_paid", DataType::Decimal128(38, 2), true),
-    Field::new("ws_net_paid_inc_tax", DataType::Decimal128(38, 2), true),
-    Field::new("ws_net_paid_inc_ship", DataType::Decimal128(38, 2), true),
-    Field::new("ws_net_paid_inc_ship_tax", DataType::Decimal128(38, 2), true),
-    Field::new("ws_net_profit", DataType::Decimal128(38, 2), true),
-]))
+        Field::new("ws_sold_date_sk", DataType::Int64, true),
+        Field::new("ws_sold_time_sk", DataType::Int64, true),
+        Field::new("ws_ship_date_sk", DataType::Int64, true),
+        Field::new("ws_item_sk", DataType::Int64, true),
+        Field::new("ws_bill_customer_sk", DataType::Int64, true),
+        Field::new("ws_bill_cdemo_sk", DataType::Int64, true),
+        Field::new("ws_bill_hdemo_sk", DataType::Int64, true),
+        Field::new("ws_bill_addr_sk", DataType::Int64, true),
+        Field::new("ws_ship_customer_sk", DataType::Int64, true),
+        Field::new("ws_ship_cdemo_sk", DataType::Int64, true),
+        Field::new("ws_ship_hdemo_sk", DataType::Int64, true),
+        Field::new("ws_ship_addr_sk", DataType::Int64, true),
+        Field::new("ws_web_page_sk", DataType::Int64, true),
+        Field::new("ws_web_site_sk", DataType::Int64, true),
+        Field::new("ws_ship_mode_sk", DataType::Int64, true),
+        Field::new("ws_warehouse_sk", DataType::Int64, true),
+        Field::new("ws_promo_sk", DataType::Int64, true),
+        Field::new("ws_order_number", DataType::Int64, true),
+        Field::new("ws_quantity", DataType::Int32, true),
+        Field::new("ws_wholesale_cost", DataType::Decimal128(38, 2), true),
+        Field::new("ws_list_price", DataType::Decimal128(38, 2), true),
+        Field::new("ws_sales_price", DataType::Decimal128(38, 2), true),
+        Field::new("ws_ext_discount_amt", DataType::Decimal128(38, 2), true),
+        Field::new("ws_ext_sales_price", DataType::Decimal128(38, 2), true),
+        Field::new("ws_ext_wholesale_cost", DataType::Decimal128(38, 2), true),
+        Field::new("ws_ext_list_price", DataType::Decimal128(38, 2), true),
+        Field::new("ws_ext_tax", DataType::Decimal128(38, 2), true),
+        Field::new("ws_coupon_amt", DataType::Decimal128(38, 2), true),
+        Field::new("ws_ext_ship_cost", DataType::Decimal128(38, 2), true),
+        Field::new("ws_net_paid", DataType::Decimal128(38, 2), true),
+        Field::new("ws_net_paid_inc_tax", DataType::Decimal128(38, 2), true),
+        Field::new("ws_net_paid_inc_ship", DataType::Decimal128(38, 2), true),
+        Field::new(
+            "ws_net_paid_inc_ship_tax",
+            DataType::Decimal128(38, 2),
+            true,
+        ),
+        Field::new("ws_net_profit", DataType::Decimal128(38, 2), true),
+    ]))
 }

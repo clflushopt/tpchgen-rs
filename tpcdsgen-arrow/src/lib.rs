@@ -98,7 +98,13 @@ pub(crate) struct RowIter<G: RowGenerator> {
 
 impl<G: RowGenerator> RowIter<G> {
     pub(crate) fn new(generator: G, session: Session, row_count: i64) -> Self {
-        Self { generator, session, current_row: 1, row_count, pending: VecDeque::new() }
+        Self {
+            generator,
+            session,
+            current_row: 1,
+            row_count,
+            pending: VecDeque::new(),
+        }
     }
 }
 
@@ -110,7 +116,8 @@ impl<G: RowGenerator> Iterator for RowIter<G> {
             if self.current_row > self.row_count {
                 return None;
             }
-            let result = self.generator
+            let result = self
+                .generator
                 .generate_row_and_child_rows(self.current_row, &self.session, None, None)
                 .expect("row gen");
             for row in result.get_rows() {

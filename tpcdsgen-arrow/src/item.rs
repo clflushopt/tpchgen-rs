@@ -1,7 +1,7 @@
 use crate::conversions::{
     decimal_to_i128, is_null, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
 };
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Decimal128Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -16,25 +16,40 @@ pub struct ItemArrow {
 impl ItemArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Item);
-        Self { inner: RowIter::new(ItemRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(ItemRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
-    pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
+    pub fn with_batch_size(mut self, batch_size: usize) -> Self {
+        self.batch_size = batch_size;
+        self
+    }
 }
 
 impl RecordBatchIterator for ItemArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for ItemArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::Item(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::Item(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut i_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut i_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
@@ -65,7 +80,11 @@ impl Iterator for ItemArrow {
             i_id.push(opt(nbm, 1, r.get_i_item_id().to_owned()));
             // IRecStartDateId is at bit 2 which CAN be set (not in not_null_bit_map);
             // check the null bit first, then apply the julian-day < 0 sentinel.
-            i_rec_start.push(if is_null(nbm, 2) { None } else { julian_to_date32(r.get_i_rec_start_date_id()) });
+            i_rec_start.push(if is_null(nbm, 2) {
+                None
+            } else {
+                julian_to_date32(r.get_i_rec_start_date_id())
+            });
             i_rec_end.push(julian_to_date32(r.get_i_rec_end_date_id()));
             i_desc.push(opt(nbm, 4, r.get_i_item_desc().to_owned()));
             i_current_price.push(opt(nbm, 5, decimal_to_i128(r.get_i_current_price())));
@@ -87,33 +106,67 @@ impl Iterator for ItemArrow {
             i_product_name.push(opt(nbm, 21, r.get_i_product_name().to_owned()));
         }
 
-        let price_arr = Decimal128Array::from(i_current_price).with_precision_and_scale(38, 2).unwrap();
-        let wholesale_arr = Decimal128Array::from(i_wholesale_cost).with_precision_and_scale(38, 2).unwrap();
+        let price_arr = Decimal128Array::from(i_current_price)
+            .with_precision_and_scale(38, 2)
+            .unwrap();
+        let wholesale_arr = Decimal128Array::from(i_wholesale_cost)
+            .with_precision_and_scale(38, 2)
+            .unwrap();
 
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int64Array::from(i_sk)),
-            Arc::new(string_view_array_from_opt_iter(i_id.iter().map(|s| s.as_deref()))),
-            Arc::new(Date32Array::from(i_rec_start)),
-            Arc::new(Date32Array::from(i_rec_end)),
-            Arc::new(string_view_array_from_opt_iter(i_desc.iter().map(|s| s.as_deref()))),
-            Arc::new(price_arr),
-            Arc::new(wholesale_arr),
-            Arc::new(Int64Array::from(i_brand_id)),
-            Arc::new(string_view_array_from_opt_iter(i_brand.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(i_class_id)),
-            Arc::new(string_view_array_from_opt_iter(i_class.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(i_category_id)),
-            Arc::new(string_view_array_from_opt_iter(i_category.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(i_manufact_id)),
-            Arc::new(string_view_array_from_opt_iter(i_manufact.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(i_size.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(i_formulation.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(i_color.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(i_units.iter().map(|s| s.as_deref()))),
-            Arc::new(string_view_array_from_opt_iter(i_container.iter().map(|s| s.as_deref()))),
-            Arc::new(Int64Array::from(i_manager_id)),
-            Arc::new(string_view_array_from_opt_iter(i_product_name.iter().map(|s| s.as_deref()))),
-        ]).unwrap())
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int64Array::from(i_sk)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_id.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Date32Array::from(i_rec_start)),
+                    Arc::new(Date32Array::from(i_rec_end)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_desc.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(price_arr),
+                    Arc::new(wholesale_arr),
+                    Arc::new(Int64Array::from(i_brand_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_brand.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(i_class_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_class.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(i_category_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_category.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(i_manufact_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_manufact.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_size.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_formulation.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_color.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_units.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_container.iter().map(|s| s.as_deref()),
+                    )),
+                    Arc::new(Int64Array::from(i_manager_id)),
+                    Arc::new(string_view_array_from_opt_iter(
+                        i_product_name.iter().map(|s| s.as_deref()),
+                    )),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -121,27 +174,27 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("i_item_sk", DataType::Int64, true),
-    Field::new("i_item_id", DataType::Utf8View, true),
-    Field::new("i_rec_start_date", DataType::Date32, true),
-    Field::new("i_rec_end_date", DataType::Date32, true),
-    Field::new("i_item_desc", DataType::Utf8View, true),
-    Field::new("i_current_price", DataType::Decimal128(38, 2), true),
-    Field::new("i_wholesale_cost", DataType::Decimal128(38, 2), true),
-    Field::new("i_brand_id", DataType::Int64, true),
-    Field::new("i_brand", DataType::Utf8View, true),
-    Field::new("i_class_id", DataType::Int64, true),
-    Field::new("i_class", DataType::Utf8View, true),
-    Field::new("i_category_id", DataType::Int64, true),
-    Field::new("i_category", DataType::Utf8View, true),
-    Field::new("i_manufact_id", DataType::Int64, true),
-    Field::new("i_manufact", DataType::Utf8View, true),
-    Field::new("i_size", DataType::Utf8View, true),
-    Field::new("i_formulation", DataType::Utf8View, true),
-    Field::new("i_color", DataType::Utf8View, true),
-    Field::new("i_units", DataType::Utf8View, true),
-    Field::new("i_container", DataType::Utf8View, true),
-    Field::new("i_manager_id", DataType::Int64, true),
-    Field::new("i_product_name", DataType::Utf8View, true),
-]))
+        Field::new("i_item_sk", DataType::Int64, true),
+        Field::new("i_item_id", DataType::Utf8View, true),
+        Field::new("i_rec_start_date", DataType::Date32, true),
+        Field::new("i_rec_end_date", DataType::Date32, true),
+        Field::new("i_item_desc", DataType::Utf8View, true),
+        Field::new("i_current_price", DataType::Decimal128(38, 2), true),
+        Field::new("i_wholesale_cost", DataType::Decimal128(38, 2), true),
+        Field::new("i_brand_id", DataType::Int64, true),
+        Field::new("i_brand", DataType::Utf8View, true),
+        Field::new("i_class_id", DataType::Int64, true),
+        Field::new("i_class", DataType::Utf8View, true),
+        Field::new("i_category_id", DataType::Int64, true),
+        Field::new("i_category", DataType::Utf8View, true),
+        Field::new("i_manufact_id", DataType::Int64, true),
+        Field::new("i_manufact", DataType::Utf8View, true),
+        Field::new("i_size", DataType::Utf8View, true),
+        Field::new("i_formulation", DataType::Utf8View, true),
+        Field::new("i_color", DataType::Utf8View, true),
+        Field::new("i_units", DataType::Utf8View, true),
+        Field::new("i_container", DataType::Utf8View, true),
+        Field::new("i_manager_id", DataType::Int64, true),
+        Field::new("i_product_name", DataType::Utf8View, true),
+    ]))
 }

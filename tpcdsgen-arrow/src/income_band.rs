@@ -1,5 +1,5 @@
 use crate::conversions::opt;
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
+use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
@@ -14,7 +14,10 @@ pub struct IncomeBandArrow {
 impl IncomeBandArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::IncomeBand);
-        Self { inner: RowIter::new(IncomeBandRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
+        Self {
+            inner: RowIter::new(IncomeBandRowGenerator::new(), session, row_count),
+            batch_size: DEFAULT_BATCH_SIZE,
+        }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self {
@@ -24,18 +27,27 @@ impl IncomeBandArrow {
 }
 
 impl RecordBatchIterator for IncomeBandArrow {
-    fn schema(&self) -> &SchemaRef { &SCHEMA }
+    fn schema(&self) -> &SchemaRef {
+        &SCHEMA
+    }
 }
 
 impl Iterator for IncomeBandArrow {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<RecordBatch> {
-        let rows: Vec<_> = self.inner.by_ref()
-            .map(|g| match g { GeneratedRow::IncomeBand(r) => r, _ => unreachable!() })
+        let rows: Vec<_> = self
+            .inner
+            .by_ref()
+            .map(|g| match g {
+                GeneratedRow::IncomeBand(r) => r,
+                _ => unreachable!(),
+            })
             .take(self.batch_size)
             .collect();
-        if rows.is_empty() { return None; }
+        if rows.is_empty() {
+            return None;
+        }
 
         let mut band_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut lower: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -48,11 +60,17 @@ impl Iterator for IncomeBandArrow {
             upper.push(opt(nbm, 2, r.get_ib_upper_bound()));
         }
 
-        Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
-            Arc::new(Int32Array::from(band_id)),
-            Arc::new(Int32Array::from(lower)),
-            Arc::new(Int32Array::from(upper)),
-        ]).unwrap())
+        Some(
+            RecordBatch::try_new(
+                Arc::clone(self.schema()),
+                vec![
+                    Arc::new(Int32Array::from(band_id)),
+                    Arc::new(Int32Array::from(lower)),
+                    Arc::new(Int32Array::from(upper)),
+                ],
+            )
+            .unwrap(),
+        )
     }
 }
 
@@ -60,8 +78,8 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
-    Field::new("ib_income_band_id", DataType::Int32, false),
-    Field::new("ib_lower_bound", DataType::Int32, false),
-    Field::new("ib_upper_bound", DataType::Int32, false),
-]))
+        Field::new("ib_income_band_id", DataType::Int32, false),
+        Field::new("ib_lower_bound", DataType::Int32, false),
+        Field::new("ib_upper_bound", DataType::Int32, false),
+    ]))
 }
