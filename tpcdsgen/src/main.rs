@@ -199,7 +199,6 @@ fn generate_store_sales(session: &Session) -> Result<()> {
 
         if result.should_end_row() {
             generator.consume_remaining_seeds_for_row();
-            generator.consume_child_seeds();
             row_number += 1;
         }
     }
@@ -255,7 +254,6 @@ fn generate_catalog_sales(session: &Session) -> Result<()> {
 
         if result.should_end_row() {
             generator.consume_remaining_seeds_for_row();
-            generator.consume_child_seeds();
             row_number += 1;
         }
     }
@@ -311,7 +309,6 @@ fn generate_web_sales(session: &Session) -> Result<()> {
 
         if result.should_end_row() {
             generator.consume_remaining_seeds_for_row();
-            generator.consume_child_seeds();
             row_number += 1;
         }
     }

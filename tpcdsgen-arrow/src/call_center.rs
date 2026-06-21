@@ -1,24 +1,20 @@
 use crate::conversions::{address_columns, decimal_to_i128, is_null, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
-use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{CallCenterRowGenerator, GeneratedRow, RowGenerator};
+use tpcdsgen::row::{CallCenterRowGenerator, GeneratedRow};
 
 pub struct CallCenterArrow {
-    generator: CallCenterRowGenerator,
-    session: Session,
-    row_count: i64,
-    current_row: i64,
+    inner: RowIter<CallCenterRowGenerator>,
     batch_size: usize,
 }
 
 impl CallCenterArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::CallCenter);
-        Self { generator: CallCenterRowGenerator::new(), session, row_count, current_row: 1, batch_size: DEFAULT_BATCH_SIZE }
+        Self { inner: RowIter::new(CallCenterRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
@@ -29,71 +25,65 @@ impl RecordBatchIterator for CallCenterArrow {
 }
 
 impl Iterator for CallCenterArrow {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = RecordBatch;
 
-    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
-        if self.current_row > self.row_count { return None; }
-        let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
+    fn next(&mut self) -> Option<RecordBatch> {
+        let rows: Vec<_> = self.inner.by_ref()
+            .map(|g| match g { GeneratedRow::CallCenter(r) => r, _ => unreachable!() })
+            .take(self.batch_size)
+            .collect();
+        if rows.is_empty() { return None; }
 
-        let mut cc_sk: Vec<Option<i64>> = Vec::new();
-        let mut cc_id: Vec<Option<String>> = Vec::new();
-        let mut cc_rec_start: Vec<Option<String>> = Vec::new();
-        let mut cc_rec_end: Vec<Option<String>> = Vec::new();
-        let mut cc_closed_date: Vec<Option<String>> = Vec::new();
-        let mut cc_open_date: Vec<Option<String>> = Vec::new();
-        let mut cc_name: Vec<Option<String>> = Vec::new();
-        let mut cc_class: Vec<Option<String>> = Vec::new();
-        let mut cc_employees: Vec<Option<i32>> = Vec::new();
-        let mut cc_sq_ft: Vec<Option<i32>> = Vec::new();
-        let mut cc_hours: Vec<Option<String>> = Vec::new();
-        let mut cc_manager: Vec<Option<String>> = Vec::new();
-        let mut cc_market_id: Vec<Option<i32>> = Vec::new();
-        let mut cc_market_class: Vec<Option<String>> = Vec::new();
-        let mut cc_market_desc: Vec<Option<String>> = Vec::new();
-        let mut cc_market_manager: Vec<Option<String>> = Vec::new();
-        let mut cc_division_id: Vec<Option<i32>> = Vec::new();
-        let mut cc_division_name: Vec<Option<String>> = Vec::new();
-        let mut cc_company: Vec<Option<i32>> = Vec::new();
-        let mut cc_company_name: Vec<Option<String>> = Vec::new();
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::new();
-        let mut cc_tax_pct: Vec<Option<i128>> = Vec::new();
+        let mut cc_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut cc_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_rec_start: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_rec_end: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_closed_date: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_open_date: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_sq_ft: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_hours: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_market_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_market_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_market_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_division_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_division_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_company: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_company_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::with_capacity(rows.len());
+        let mut cc_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
-        for row_number in self.current_row..=end {
-            let result = self.generator.generate_row_and_child_rows(row_number, &self.session, None, None).expect("row gen");
-            for g in result.get_rows() {
-                if let GeneratedRow::CallCenter(r) = g {
-                    let nbm = r.get_null_bit_map();
-                    cc_sk.push(sk_opt(nbm, 0, r.get_cc_call_center_sk()));
-                    cc_id.push(opt(nbm, 1, r.get_cc_call_center_id().to_owned()));
-                    cc_rec_start.push(opt(nbm, 2, r.get_cc_rec_start_date_id().to_owned()));
-                    // rec_end and closed_date default to "" when unset; "" in .dat == null.
-                    let rec_end = r.get_cc_rec_end_date_id();
-                    cc_rec_end.push(if is_null(nbm, 3) || rec_end.is_empty() { None } else { Some(rec_end.to_owned()) });
-                    let closed = r.get_cc_closed_date_id();
-                    cc_closed_date.push(if is_null(nbm, 4) || closed.is_empty() { None } else { Some(closed.to_owned()) });
-                    cc_open_date.push(opt(nbm, 5, r.get_cc_open_date_id().to_owned()));
-                    cc_name.push(opt(nbm, 6, r.get_cc_name().to_owned()));
-                    cc_class.push(opt(nbm, 7, r.get_cc_class().to_owned()));
-                    cc_employees.push(opt(nbm, 8, r.get_cc_employees()));
-                    cc_sq_ft.push(opt(nbm, 9, r.get_cc_sq_ft()));
-                    cc_hours.push(opt(nbm, 10, r.get_cc_hours().to_owned()));
-                    cc_manager.push(opt(nbm, 11, r.get_cc_manager().to_owned()));
-                    cc_market_id.push(opt(nbm, 12, r.get_cc_market_id()));
-                    cc_market_class.push(opt(nbm, 13, r.get_cc_market_class().to_owned()));
-                    cc_market_desc.push(opt(nbm, 14, r.get_cc_market_desc().to_owned()));
-                    cc_market_manager.push(opt(nbm, 15, r.get_cc_market_manager().to_owned()));
-                    cc_division_id.push(opt(nbm, 16, r.get_cc_division_id()));
-                    cc_division_name.push(opt(nbm, 17, r.get_cc_division_name().to_owned()));
-                    cc_company.push(opt(nbm, 18, r.get_cc_company()));
-                    cc_company_name.push(opt(nbm, 19, r.get_cc_company_name().to_owned()));
-                    addr_rows.push((r.get_cc_address().clone(), nbm, 20));
-                    cc_tax_pct.push(opt(nbm, 30, decimal_to_i128(*r.get_cc_tax_percentage())));
-                }
-            }
-            self.generator.consume_remaining_seeds_for_row();
+        for r in &rows {
+            let nbm = r.get_null_bit_map();
+            cc_sk.push(sk_opt(nbm, 0, r.get_cc_call_center_sk()));
+            cc_id.push(opt(nbm, 1, r.get_cc_call_center_id().to_owned()));
+            cc_rec_start.push(opt(nbm, 2, r.get_cc_rec_start_date_id().to_owned()));
+            let rec_end = r.get_cc_rec_end_date_id();
+            cc_rec_end.push(if is_null(nbm, 3) || rec_end.is_empty() { None } else { Some(rec_end.to_owned()) });
+            let closed = r.get_cc_closed_date_id();
+            cc_closed_date.push(if is_null(nbm, 4) || closed.is_empty() { None } else { Some(closed.to_owned()) });
+            cc_open_date.push(opt(nbm, 5, r.get_cc_open_date_id().to_owned()));
+            cc_name.push(opt(nbm, 6, r.get_cc_name().to_owned()));
+            cc_class.push(opt(nbm, 7, r.get_cc_class().to_owned()));
+            cc_employees.push(opt(nbm, 8, r.get_cc_employees()));
+            cc_sq_ft.push(opt(nbm, 9, r.get_cc_sq_ft()));
+            cc_hours.push(opt(nbm, 10, r.get_cc_hours().to_owned()));
+            cc_manager.push(opt(nbm, 11, r.get_cc_manager().to_owned()));
+            cc_market_id.push(opt(nbm, 12, r.get_cc_market_id()));
+            cc_market_class.push(opt(nbm, 13, r.get_cc_market_class().to_owned()));
+            cc_market_desc.push(opt(nbm, 14, r.get_cc_market_desc().to_owned()));
+            cc_market_manager.push(opt(nbm, 15, r.get_cc_market_manager().to_owned()));
+            cc_division_id.push(opt(nbm, 16, r.get_cc_division_id()));
+            cc_division_name.push(opt(nbm, 17, r.get_cc_division_name().to_owned()));
+            cc_company.push(opt(nbm, 18, r.get_cc_company()));
+            cc_company_name.push(opt(nbm, 19, r.get_cc_company_name().to_owned()));
+            addr_rows.push((r.get_cc_address().clone(), nbm, 20));
+            cc_tax_pct.push(opt(nbm, 30, decimal_to_i128(*r.get_cc_tax_percentage())));
         }
-        self.current_row = end + 1;
-        if cc_sk.is_empty() { return None; }
 
         let (street_number, street_name, street_type, suite_number, city, county, state, zip, country, gmt_offset) =
             address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
@@ -132,7 +122,7 @@ impl Iterator for CallCenterArrow {
             Arc::new(country),
             Arc::new(gmt_offset),
             Arc::new(tax_arr),
-        ]))
+        ]).unwrap())
     }
 }
 

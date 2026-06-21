@@ -2,26 +2,22 @@ use crate::conversions::{
     address_columns, decimal_to_i128, julian_to_date32, opt, sk_opt,
     string_view_array_from_opt_iter,
 };
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
 use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
-use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, RowGenerator, WebSiteRowGenerator};
+use tpcdsgen::row::{GeneratedRow, WebSiteRowGenerator};
 
 pub struct WebSiteArrow {
-    generator: WebSiteRowGenerator,
-    session: Session,
-    row_count: i64,
-    current_row: i64,
+    inner: RowIter<WebSiteRowGenerator>,
     batch_size: usize,
 }
 
 impl WebSiteArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::WebSite);
-        Self { generator: WebSiteRowGenerator::new(), session, row_count, current_row: 1, batch_size: DEFAULT_BATCH_SIZE }
+        Self { inner: RowIter::new(WebSiteRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
@@ -32,58 +28,53 @@ impl RecordBatchIterator for WebSiteArrow {
 }
 
 impl Iterator for WebSiteArrow {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = RecordBatch;
 
-    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
-        if self.current_row > self.row_count { return None; }
-        let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
+    fn next(&mut self) -> Option<RecordBatch> {
+        let rows: Vec<_> = self.inner.by_ref()
+            .map(|g| match g { GeneratedRow::WebSite(r) => r, _ => unreachable!() })
+            .take(self.batch_size)
+            .collect();
+        if rows.is_empty() { return None; }
 
-        let mut web_sk: Vec<Option<i64>> = Vec::new();
-        let mut web_id: Vec<Option<String>> = Vec::new();
-        let mut web_rec_start: Vec<Option<i32>> = Vec::new();
-        let mut web_rec_end: Vec<Option<i32>> = Vec::new();
-        let mut web_name: Vec<Option<String>> = Vec::new();
-        let mut web_open_date: Vec<Option<i64>> = Vec::new();
-        let mut web_close_date: Vec<Option<i64>> = Vec::new();
-        let mut web_class: Vec<Option<String>> = Vec::new();
-        let mut web_manager: Vec<Option<String>> = Vec::new();
-        let mut web_market_id: Vec<Option<i32>> = Vec::new();
-        let mut web_market_class: Vec<Option<String>> = Vec::new();
-        let mut web_market_desc: Vec<Option<String>> = Vec::new();
-        let mut web_market_manager: Vec<Option<String>> = Vec::new();
-        let mut web_company_id: Vec<Option<i32>> = Vec::new();
-        let mut web_company_name: Vec<Option<String>> = Vec::new();
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::new();
-        let mut web_tax_pct: Vec<Option<i128>> = Vec::new();
+        let mut web_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut web_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut web_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut web_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_open_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut web_close_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut web_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut web_market_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_market_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_market_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut web_company_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut web_company_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::with_capacity(rows.len());
+        let mut web_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
-        for row_number in self.current_row..=end {
-            let result = self.generator.generate_row_and_child_rows(row_number, &self.session, None, None).expect("row gen");
-            for g in result.get_rows() {
-                if let GeneratedRow::WebSite(r) = g {
-                    let nbm = r.null_bit_map();
-                    web_sk.push(sk_opt(nbm, 0, r.get_web_site_sk()));
-                    web_id.push(opt(nbm, 1, r.get_web_site_id().to_owned()));
-                    web_rec_start.push(julian_to_date32(r.get_web_rec_start_date_id()));
-                    web_rec_end.push(julian_to_date32(r.get_web_rec_end_date_id()));
-                    web_name.push(opt(nbm, 4, r.web_name().to_owned()));
-                    web_open_date.push(sk_opt(nbm, 5, r.web_open_date()));
-                    web_close_date.push(sk_opt(nbm, 6, r.web_close_date()));
-                    web_class.push(opt(nbm, 7, r.web_class().to_owned()));
-                    web_manager.push(opt(nbm, 8, r.web_manager().to_owned()));
-                    web_market_id.push(opt(nbm, 9, r.web_market_id()));
-                    web_market_class.push(opt(nbm, 10, r.web_market_class().to_owned()));
-                    web_market_desc.push(opt(nbm, 11, r.web_market_desc().to_owned()));
-                    web_market_manager.push(opt(nbm, 12, r.web_market_manager().to_owned()));
-                    web_company_id.push(opt(nbm, 13, r.web_company_id()));
-                    web_company_name.push(opt(nbm, 14, r.web_company_name().to_owned()));
-                    addr_rows.push((r.web_address().clone(), nbm, 15));
-                    web_tax_pct.push(opt(nbm, 25, decimal_to_i128(*r.web_tax_percentage())));
-                }
-            }
-            self.generator.consume_remaining_seeds_for_row();
+        for r in &rows {
+            let nbm = r.null_bit_map();
+            web_sk.push(sk_opt(nbm, 0, r.get_web_site_sk()));
+            web_id.push(opt(nbm, 1, r.get_web_site_id().to_owned()));
+            web_rec_start.push(julian_to_date32(r.get_web_rec_start_date_id()));
+            web_rec_end.push(julian_to_date32(r.get_web_rec_end_date_id()));
+            web_name.push(opt(nbm, 4, r.web_name().to_owned()));
+            web_open_date.push(sk_opt(nbm, 5, r.web_open_date()));
+            web_close_date.push(sk_opt(nbm, 6, r.web_close_date()));
+            web_class.push(opt(nbm, 7, r.web_class().to_owned()));
+            web_manager.push(opt(nbm, 8, r.web_manager().to_owned()));
+            web_market_id.push(opt(nbm, 9, r.web_market_id()));
+            web_market_class.push(opt(nbm, 10, r.web_market_class().to_owned()));
+            web_market_desc.push(opt(nbm, 11, r.web_market_desc().to_owned()));
+            web_market_manager.push(opt(nbm, 12, r.web_market_manager().to_owned()));
+            web_company_id.push(opt(nbm, 13, r.web_company_id()));
+            web_company_name.push(opt(nbm, 14, r.web_company_name().to_owned()));
+            addr_rows.push((r.web_address().clone(), nbm, 15));
+            web_tax_pct.push(opt(nbm, 25, decimal_to_i128(*r.web_tax_percentage())));
         }
-        self.current_row = end + 1;
-        if web_sk.is_empty() { return None; }
 
         let (street_number, street_name, street_type, suite_number, city, county, state, zip, country, gmt_offset) =
             address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
@@ -117,7 +108,7 @@ impl Iterator for WebSiteArrow {
             Arc::new(country),
             Arc::new(gmt_offset),
             Arc::new(tax_arr),
-        ]))
+        ]).unwrap())
     }
 }
 

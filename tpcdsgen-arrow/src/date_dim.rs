@@ -1,24 +1,20 @@
 use crate::conversions::{bool_to_yn, date_to_date32, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewBuilder};
-use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{DateDimRowGenerator, GeneratedRow, RowGenerator};
+use tpcdsgen::row::{DateDimRowGenerator, GeneratedRow};
 
 pub struct DateDimArrow {
-    generator: DateDimRowGenerator,
-    session: Session,
-    row_count: i64,
-    current_row: i64,
+    inner: RowIter<DateDimRowGenerator>,
     batch_size: usize,
 }
 
 impl DateDimArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::DateDim);
-        Self { generator: DateDimRowGenerator::new(), session, row_count, current_row: 1, batch_size: DEFAULT_BATCH_SIZE }
+        Self { inner: RowIter::new(DateDimRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
@@ -29,80 +25,75 @@ impl RecordBatchIterator for DateDimArrow {
 }
 
 impl Iterator for DateDimArrow {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = RecordBatch;
 
-    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
-        if self.current_row > self.row_count { return None; }
-        let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
+    fn next(&mut self) -> Option<RecordBatch> {
+        let rows: Vec<_> = self.inner.by_ref()
+            .map(|g| match g { GeneratedRow::DateDim(r) => r, _ => unreachable!() })
+            .take(self.batch_size)
+            .collect();
+        if rows.is_empty() { return None; }
 
-        let mut d_date_sk: Vec<Option<i64>> = Vec::new();
-        let mut d_date_id: Vec<String> = Vec::new();
-        let mut d_date: Vec<i32> = Vec::new();
-        let mut d_month_seq: Vec<i32> = Vec::new();
-        let mut d_week_seq: Vec<i32> = Vec::new();
-        let mut d_quarter_seq: Vec<i32> = Vec::new();
-        let mut d_year: Vec<i32> = Vec::new();
-        let mut d_dow: Vec<i32> = Vec::new();
-        let mut d_moy: Vec<i32> = Vec::new();
-        let mut d_dom: Vec<i32> = Vec::new();
-        let mut d_qoy: Vec<i32> = Vec::new();
-        let mut d_fy_year: Vec<i32> = Vec::new();
-        let mut d_fy_quarter_seq: Vec<i32> = Vec::new();
-        let mut d_fy_week_seq: Vec<i32> = Vec::new();
-        let mut d_day_name: Vec<String> = Vec::new();
-        let mut d_quarter_name: Vec<String> = Vec::new();
-        let mut d_holiday: Vec<&'static str> = Vec::new();
-        let mut d_weekend: Vec<&'static str> = Vec::new();
-        let mut d_following_holiday: Vec<&'static str> = Vec::new();
-        let mut d_first_dom: Vec<i32> = Vec::new();
-        let mut d_last_dom: Vec<i32> = Vec::new();
-        let mut d_same_day_ly: Vec<i32> = Vec::new();
-        let mut d_same_day_lq: Vec<i32> = Vec::new();
-        let mut d_current_day: Vec<&'static str> = Vec::new();
-        let mut d_current_week: Vec<&'static str> = Vec::new();
-        let mut d_current_month: Vec<&'static str> = Vec::new();
-        let mut d_current_quarter: Vec<&'static str> = Vec::new();
-        let mut d_current_year: Vec<&'static str> = Vec::new();
+        let mut d_date_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut d_date_id: Vec<String> = Vec::with_capacity(rows.len());
+        let mut d_date: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_month_seq: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_week_seq: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_quarter_seq: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_year: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_dow: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_moy: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_dom: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_qoy: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_fy_year: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_fy_quarter_seq: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_fy_week_seq: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_day_name: Vec<String> = Vec::with_capacity(rows.len());
+        let mut d_quarter_name: Vec<String> = Vec::with_capacity(rows.len());
+        let mut d_holiday: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let mut d_weekend: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let mut d_following_holiday: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let mut d_first_dom: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_last_dom: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_same_day_ly: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_same_day_lq: Vec<i32> = Vec::with_capacity(rows.len());
+        let mut d_current_day: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let mut d_current_week: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let mut d_current_month: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let mut d_current_quarter: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let mut d_current_year: Vec<&'static str> = Vec::with_capacity(rows.len());
 
-        for row_number in self.current_row..=end {
-            let result = self.generator.generate_row_and_child_rows(row_number, &self.session, None, None).expect("row gen");
-            for g in result.get_rows() {
-                if let GeneratedRow::DateDim(r) = g {
-                    let nbm = r.null_bit_map();
-                    d_date_sk.push(sk_opt(nbm, 0, r.d_date_sk));
-                    d_date_id.push(r.d_date_id.clone());
-                    d_date.push(date_to_date32(&r.d_date));
-                    d_month_seq.push(r.d_month_seq);
-                    d_week_seq.push(r.d_week_seq);
-                    d_quarter_seq.push(r.d_quarter_seq);
-                    d_year.push(r.d_year);
-                    d_dow.push(r.d_dow);
-                    d_moy.push(r.d_moy);
-                    d_dom.push(r.d_dom);
-                    d_qoy.push(r.d_qoy);
-                    d_fy_year.push(r.d_fy_year);
-                    d_fy_quarter_seq.push(r.d_fy_quarter_seq);
-                    d_fy_week_seq.push(r.d_fy_week_seq);
-                    d_day_name.push(r.d_day_name.clone());
-                    d_quarter_name.push(r.d_quarter_name.clone());
-                    d_holiday.push(bool_to_yn(r.d_holiday));
-                    d_weekend.push(bool_to_yn(r.d_weekend));
-                    d_following_holiday.push(bool_to_yn(r.d_following_holiday));
-                    d_first_dom.push(r.d_first_dom);
-                    d_last_dom.push(r.d_last_dom);
-                    d_same_day_ly.push(r.d_same_day_ly);
-                    d_same_day_lq.push(r.d_same_day_lq);
-                    d_current_day.push(bool_to_yn(r.d_current_day));
-                    d_current_week.push(bool_to_yn(r.d_current_week));
-                    d_current_month.push(bool_to_yn(r.d_current_month));
-                    d_current_quarter.push(bool_to_yn(r.d_current_quarter));
-                    d_current_year.push(bool_to_yn(r.d_current_year));
-                }
-            }
-            self.generator.consume_remaining_seeds_for_row();
+        for r in &rows {
+            let nbm = r.null_bit_map();
+            d_date_sk.push(sk_opt(nbm, 0, r.d_date_sk));
+            d_date_id.push(r.d_date_id.clone());
+            d_date.push(date_to_date32(&r.d_date));
+            d_month_seq.push(r.d_month_seq);
+            d_week_seq.push(r.d_week_seq);
+            d_quarter_seq.push(r.d_quarter_seq);
+            d_year.push(r.d_year);
+            d_dow.push(r.d_dow);
+            d_moy.push(r.d_moy);
+            d_dom.push(r.d_dom);
+            d_qoy.push(r.d_qoy);
+            d_fy_year.push(r.d_fy_year);
+            d_fy_quarter_seq.push(r.d_fy_quarter_seq);
+            d_fy_week_seq.push(r.d_fy_week_seq);
+            d_day_name.push(r.d_day_name.clone());
+            d_quarter_name.push(r.d_quarter_name.clone());
+            d_holiday.push(bool_to_yn(r.d_holiday));
+            d_weekend.push(bool_to_yn(r.d_weekend));
+            d_following_holiday.push(bool_to_yn(r.d_following_holiday));
+            d_first_dom.push(r.d_first_dom);
+            d_last_dom.push(r.d_last_dom);
+            d_same_day_ly.push(r.d_same_day_ly);
+            d_same_day_lq.push(r.d_same_day_lq);
+            d_current_day.push(bool_to_yn(r.d_current_day));
+            d_current_week.push(bool_to_yn(r.d_current_week));
+            d_current_month.push(bool_to_yn(r.d_current_month));
+            d_current_quarter.push(bool_to_yn(r.d_current_quarter));
+            d_current_year.push(bool_to_yn(r.d_current_year));
         }
-        self.current_row = end + 1;
-        if d_date_sk.is_empty() { return None; }
 
         let mut id_b = StringViewBuilder::with_capacity(d_date_id.len());
         for s in &d_date_id { id_b.append_value(s); }
@@ -140,7 +131,7 @@ impl Iterator for DateDimArrow {
             Arc::new(string_view_array_from_opt_iter(d_current_month.iter().map(|s| Some(*s)))),
             Arc::new(string_view_array_from_opt_iter(d_current_quarter.iter().map(|s| Some(*s)))),
             Arc::new(string_view_array_from_opt_iter(d_current_year.iter().map(|s| Some(*s)))),
-        ]))
+        ]).unwrap())
     }
 }
 

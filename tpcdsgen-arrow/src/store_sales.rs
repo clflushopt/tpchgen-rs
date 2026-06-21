@@ -1,24 +1,20 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
-use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreSalesRowGenerator};
+use tpcdsgen::row::{GeneratedRow, StoreSalesRowGenerator};
 
 pub struct StoreSalesArrow {
-    generator: StoreSalesRowGenerator,
-    session: Session,
-    row_count: i64,
-    current_row: i64,
+    inner: RowIter<StoreSalesRowGenerator>,
     batch_size: usize,
 }
 
 impl StoreSalesArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::StoreSales);
-        Self { generator: StoreSalesRowGenerator::new(), session, row_count, current_row: 1, batch_size: DEFAULT_BATCH_SIZE }
+        Self { inner: RowIter::new(StoreSalesRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
@@ -29,75 +25,68 @@ impl RecordBatchIterator for StoreSalesArrow {
 }
 
 impl Iterator for StoreSalesArrow {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = RecordBatch;
 
-    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
-        if self.current_row > self.row_count { return None; }
+    fn next(&mut self) -> Option<RecordBatch> {
+        let rows: Vec<_> = self.inner.by_ref()
+            .filter_map(|g| if let GeneratedRow::StoreSales(r) = g { Some(r) } else { None })
+            .take(self.batch_size)
+            .collect();
+        if rows.is_empty() { return None; }
 
-        let mut ss_sold_date: Vec<Option<i64>> = Vec::new();
-        let mut ss_sold_time: Vec<Option<i64>> = Vec::new();
-        let mut ss_item: Vec<Option<i64>> = Vec::new();
-        let mut ss_customer: Vec<Option<i64>> = Vec::new();
-        let mut ss_cdemo: Vec<Option<i64>> = Vec::new();
-        let mut ss_hdemo: Vec<Option<i64>> = Vec::new();
-        let mut ss_addr: Vec<Option<i64>> = Vec::new();
-        let mut ss_store: Vec<Option<i64>> = Vec::new();
-        let mut ss_promo: Vec<Option<i64>> = Vec::new();
-        let mut ss_ticket: Vec<Option<i64>> = Vec::new();
-        let mut ss_quantity: Vec<Option<i32>> = Vec::new();
-        let mut ss_wholesale_cost: Vec<Option<i128>> = Vec::new();
-        let mut ss_list_price: Vec<Option<i128>> = Vec::new();
-        let mut ss_sales_price: Vec<Option<i128>> = Vec::new();
-        let mut ss_ext_discount_amt: Vec<Option<i128>> = Vec::new();
-        let mut ss_ext_sales_price: Vec<Option<i128>> = Vec::new();
-        let mut ss_ext_wholesale_cost: Vec<Option<i128>> = Vec::new();
-        let mut ss_ext_list_price: Vec<Option<i128>> = Vec::new();
-        let mut ss_ext_tax: Vec<Option<i128>> = Vec::new();
-        let mut ss_coupon_amt: Vec<Option<i128>> = Vec::new();
-        let mut ss_net_paid: Vec<Option<i128>> = Vec::new();
-        let mut ss_net_paid_inc_tax: Vec<Option<i128>> = Vec::new();
-        let mut ss_net_profit: Vec<Option<i128>> = Vec::new();
+        let mut ss_sold_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_sold_time: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_item: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_customer: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_cdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_hdemo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_addr: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_store: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_promo: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_ticket: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ss_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ss_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_list_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_sales_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_ext_discount_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_ext_sales_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_ext_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_ext_list_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_ext_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_coupon_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_net_paid: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_net_paid_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let mut ss_net_profit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
-        while self.current_row <= self.row_count && ss_sold_date.len() < self.batch_size {
-            let result = self.generator.generate_row_and_child_rows(self.current_row, &self.session, None, None).expect("row gen");
-            for g in result.get_rows() {
-                if let GeneratedRow::StoreSales(r) = g {
-                    let nbm = r.null_bit_map();
-                    let p = r.get_ss_pricing();
-                    ss_sold_date.push(sk_opt(nbm, 0, r.get_ss_sold_date_sk()));
-                    ss_sold_time.push(sk_opt(nbm, 1, r.get_ss_sold_time_sk()));
-                    ss_item.push(sk_opt(nbm, 2, r.get_ss_sold_item_sk()));
-                    ss_customer.push(sk_opt(nbm, 3, r.get_ss_sold_customer_sk()));
-                    ss_cdemo.push(sk_opt(nbm, 4, r.get_ss_sold_cdemo_sk()));
-                    ss_hdemo.push(sk_opt(nbm, 5, r.get_ss_sold_hdemo_sk()));
-                    ss_addr.push(sk_opt(nbm, 6, r.get_ss_sold_addr_sk()));
-                    ss_store.push(sk_opt(nbm, 7, r.get_ss_sold_store_sk()));
-                    ss_promo.push(sk_opt(nbm, 8, r.get_ss_sold_promo_sk()));
-                    ss_ticket.push(sk_opt(nbm, 9, r.get_ss_ticket_number()));
-                    ss_quantity.push(opt(nbm, 10, p.get_quantity()));
-                    ss_wholesale_cost.push(opt(nbm, 11, decimal_to_i128(p.get_wholesale_cost())));
-                    ss_list_price.push(opt(nbm, 12, decimal_to_i128(p.get_list_price())));
-                    ss_sales_price.push(opt(nbm, 13, decimal_to_i128(p.get_sales_price())));
-                    // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
-                    ss_ext_discount_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
-                    ss_ext_sales_price.push(opt(nbm, 15, decimal_to_i128(p.get_ext_sales_price())));
-                    ss_ext_wholesale_cost.push(opt(nbm, 16, decimal_to_i128(p.get_ext_wholesale_cost())));
-                    ss_ext_list_price.push(opt(nbm, 17, decimal_to_i128(p.get_ext_list_price())));
-                    ss_ext_tax.push(opt(nbm, 18, decimal_to_i128(p.get_ext_tax())));
-                    // Java bug: coupon_amount appears again at position 19
-                    ss_coupon_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
-                    ss_net_paid.push(opt(nbm, 19, decimal_to_i128(p.get_net_paid())));
-                    ss_net_paid_inc_tax.push(opt(nbm, 20, decimal_to_i128(p.get_net_paid_including_tax())));
-                    ss_net_profit.push(opt(nbm, 21, decimal_to_i128(p.get_net_profit())));
-                }
-            }
-            if result.should_end_row() {
-                self.generator.consume_remaining_seeds_for_row();
-                self.generator.consume_child_seeds();
-                self.current_row += 1;
-            }
+        for r in &rows {
+            let nbm = r.null_bit_map();
+            let p = r.get_ss_pricing();
+            ss_sold_date.push(sk_opt(nbm, 0, r.get_ss_sold_date_sk()));
+            ss_sold_time.push(sk_opt(nbm, 1, r.get_ss_sold_time_sk()));
+            ss_item.push(sk_opt(nbm, 2, r.get_ss_sold_item_sk()));
+            ss_customer.push(sk_opt(nbm, 3, r.get_ss_sold_customer_sk()));
+            ss_cdemo.push(sk_opt(nbm, 4, r.get_ss_sold_cdemo_sk()));
+            ss_hdemo.push(sk_opt(nbm, 5, r.get_ss_sold_hdemo_sk()));
+            ss_addr.push(sk_opt(nbm, 6, r.get_ss_sold_addr_sk()));
+            ss_store.push(sk_opt(nbm, 7, r.get_ss_sold_store_sk()));
+            ss_promo.push(sk_opt(nbm, 8, r.get_ss_sold_promo_sk()));
+            ss_ticket.push(sk_opt(nbm, 9, r.get_ss_ticket_number()));
+            ss_quantity.push(opt(nbm, 10, p.get_quantity()));
+            ss_wholesale_cost.push(opt(nbm, 11, decimal_to_i128(p.get_wholesale_cost())));
+            ss_list_price.push(opt(nbm, 12, decimal_to_i128(p.get_list_price())));
+            ss_sales_price.push(opt(nbm, 13, decimal_to_i128(p.get_sales_price())));
+            // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
+            ss_ext_discount_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
+            ss_ext_sales_price.push(opt(nbm, 15, decimal_to_i128(p.get_ext_sales_price())));
+            ss_ext_wholesale_cost.push(opt(nbm, 16, decimal_to_i128(p.get_ext_wholesale_cost())));
+            ss_ext_list_price.push(opt(nbm, 17, decimal_to_i128(p.get_ext_list_price())));
+            ss_ext_tax.push(opt(nbm, 18, decimal_to_i128(p.get_ext_tax())));
+            // Java bug: coupon_amount appears again at position 19
+            ss_coupon_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
+            ss_net_paid.push(opt(nbm, 19, decimal_to_i128(p.get_net_paid())));
+            ss_net_paid_inc_tax.push(opt(nbm, 20, decimal_to_i128(p.get_net_paid_including_tax())));
+            ss_net_profit.push(opt(nbm, 21, decimal_to_i128(p.get_net_profit())));
         }
-        if ss_sold_date.is_empty() { return None; }
 
         let dec = |v: Vec<Option<i128>>| Decimal128Array::from(v).with_precision_and_scale(38, 2).unwrap();
         Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
@@ -124,7 +113,7 @@ impl Iterator for StoreSalesArrow {
             Arc::new(dec(ss_net_paid)),
             Arc::new(dec(ss_net_paid_inc_tax)),
             Arc::new(dec(ss_net_profit)),
-        ]))
+        ]).unwrap())
     }
 }
 

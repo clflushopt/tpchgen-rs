@@ -2,26 +2,22 @@ use crate::conversions::{
     address_columns, decimal_to_i128, julian_to_date32, opt, sk_opt,
     string_view_array_from_opt_iter,
 };
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
 use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
-use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, RowGenerator, StoreRowGenerator};
+use tpcdsgen::row::{GeneratedRow, StoreRowGenerator};
 
 pub struct StoreArrow {
-    generator: StoreRowGenerator,
-    session: Session,
-    row_count: i64,
-    current_row: i64,
+    inner: RowIter<StoreRowGenerator>,
     batch_size: usize,
 }
 
 impl StoreArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Store);
-        Self { generator: StoreRowGenerator::new(), session, row_count, current_row: 1, batch_size: DEFAULT_BATCH_SIZE }
+        Self { inner: RowIter::new(StoreRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
@@ -32,64 +28,59 @@ impl RecordBatchIterator for StoreArrow {
 }
 
 impl Iterator for StoreArrow {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = RecordBatch;
 
-    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
-        if self.current_row > self.row_count { return None; }
-        let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
+    fn next(&mut self) -> Option<RecordBatch> {
+        let rows: Vec<_> = self.inner.by_ref()
+            .map(|g| match g { GeneratedRow::Store(r) => r, _ => unreachable!() })
+            .take(self.batch_size)
+            .collect();
+        if rows.is_empty() { return None; }
 
-        let mut s_sk: Vec<Option<i64>> = Vec::new();
-        let mut s_id: Vec<Option<String>> = Vec::new();
-        let mut s_rec_start: Vec<Option<i32>> = Vec::new();
-        let mut s_rec_end: Vec<Option<i32>> = Vec::new();
-        let mut s_closed_date: Vec<Option<i64>> = Vec::new();
-        let mut s_name: Vec<Option<String>> = Vec::new();
-        let mut s_employees: Vec<Option<i32>> = Vec::new();
-        let mut s_floor_space: Vec<Option<i32>> = Vec::new();
-        let mut s_hours: Vec<Option<String>> = Vec::new();
-        let mut s_manager: Vec<Option<String>> = Vec::new();
-        let mut s_market_id: Vec<Option<i32>> = Vec::new();
-        let mut s_geography_class: Vec<Option<String>> = Vec::new();
-        let mut s_market_desc: Vec<Option<String>> = Vec::new();
-        let mut s_market_manager: Vec<Option<String>> = Vec::new();
-        let mut s_division_id: Vec<Option<i64>> = Vec::new();
-        let mut s_division_name: Vec<Option<String>> = Vec::new();
-        let mut s_company_id: Vec<Option<i64>> = Vec::new();
-        let mut s_company_name: Vec<Option<String>> = Vec::new();
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::new();
-        let mut s_tax_pct: Vec<Option<i128>> = Vec::new();
+        let mut s_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut s_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut s_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut s_closed_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut s_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut s_floor_space: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut s_hours: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut s_geography_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_market_desc: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_market_manager: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_division_id: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut s_division_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut s_company_id: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut s_company_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::with_capacity(rows.len());
+        let mut s_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
 
-        for row_number in self.current_row..=end {
-            let result = self.generator.generate_row_and_child_rows(row_number, &self.session, None, None).expect("row gen");
-            for g in result.get_rows() {
-                if let GeneratedRow::Store(r) = g {
-                    let nbm = r.null_bit_map();
-                    s_sk.push(sk_opt(nbm, 0, r.get_store_sk()));
-                    s_id.push(opt(nbm, 1, r.get_store_id().to_owned()));
-                    s_rec_start.push(julian_to_date32(r.get_rec_start_date_id()));
-                    s_rec_end.push(julian_to_date32(r.get_rec_end_date_id()));
-                    s_closed_date.push(sk_opt(nbm, 4, r.get_closed_date_id()));
-                    s_name.push(opt(nbm, 5, r.get_store_name().to_owned()));
-                    s_employees.push(opt(nbm, 6, r.get_employees()));
-                    s_floor_space.push(opt(nbm, 7, r.get_floor_space()));
-                    s_hours.push(opt(nbm, 8, r.get_hours().to_owned()));
-                    s_manager.push(opt(nbm, 9, r.get_store_manager().to_owned()));
-                    s_market_id.push(opt(nbm, 10, r.get_market_id()));
-                    s_geography_class.push(opt(nbm, 11, r.get_geography_class().to_owned()));
-                    s_market_desc.push(opt(nbm, 12, r.get_market_desc().to_owned()));
-                    s_market_manager.push(opt(nbm, 13, r.get_market_manager().to_owned()));
-                    s_division_id.push(opt(nbm, 14, r.get_division_id()));
-                    s_division_name.push(opt(nbm, 15, r.get_division_name().to_owned()));
-                    s_company_id.push(opt(nbm, 16, r.get_company_id()));
-                    s_company_name.push(opt(nbm, 17, r.get_company_name().to_owned()));
-                    addr_rows.push((r.get_address().clone(), nbm, 18));
-                    s_tax_pct.push(opt(nbm, 28, decimal_to_i128(r.get_d_tax_percentage())));
-                }
-            }
-            self.generator.consume_remaining_seeds_for_row();
+        for r in &rows {
+            let nbm = r.null_bit_map();
+            s_sk.push(sk_opt(nbm, 0, r.get_store_sk()));
+            s_id.push(opt(nbm, 1, r.get_store_id().to_owned()));
+            s_rec_start.push(julian_to_date32(r.get_rec_start_date_id()));
+            s_rec_end.push(julian_to_date32(r.get_rec_end_date_id()));
+            s_closed_date.push(sk_opt(nbm, 4, r.get_closed_date_id()));
+            s_name.push(opt(nbm, 5, r.get_store_name().to_owned()));
+            s_employees.push(opt(nbm, 6, r.get_employees()));
+            s_floor_space.push(opt(nbm, 7, r.get_floor_space()));
+            s_hours.push(opt(nbm, 8, r.get_hours().to_owned()));
+            s_manager.push(opt(nbm, 9, r.get_store_manager().to_owned()));
+            s_market_id.push(opt(nbm, 10, r.get_market_id()));
+            s_geography_class.push(opt(nbm, 11, r.get_geography_class().to_owned()));
+            s_market_desc.push(opt(nbm, 12, r.get_market_desc().to_owned()));
+            s_market_manager.push(opt(nbm, 13, r.get_market_manager().to_owned()));
+            s_division_id.push(opt(nbm, 14, r.get_division_id()));
+            s_division_name.push(opt(nbm, 15, r.get_division_name().to_owned()));
+            s_company_id.push(opt(nbm, 16, r.get_company_id()));
+            s_company_name.push(opt(nbm, 17, r.get_company_name().to_owned()));
+            addr_rows.push((r.get_address().clone(), nbm, 18));
+            s_tax_pct.push(opt(nbm, 28, decimal_to_i128(r.get_d_tax_percentage())));
         }
-        self.current_row = end + 1;
-        if s_sk.is_empty() { return None; }
 
         let (street_number, street_name, street_type, suite_number, city, county, state, zip, country, gmt_offset) =
             address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
@@ -126,7 +117,7 @@ impl Iterator for StoreArrow {
             Arc::new(country),
             Arc::new(gmt_offset),
             Arc::new(tax_arr),
-        ]))
+        ]).unwrap())
     }
 }
 

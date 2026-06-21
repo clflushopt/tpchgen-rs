@@ -81,7 +81,7 @@ where
 {
     let all_rows = collect_rows(gen, row_count, session, extract);
     let mut offset = 0;
-    while let Some(arrow_batch) = arrow.next().transpose().unwrap() {
+    while let Some(arrow_batch) = arrow.next() {
         let n = arrow_batch.num_rows();
         let schema = Arc::clone(arrow.schema());
         let reparsed = parse_dat(&all_rows[offset..offset + n], &schema);

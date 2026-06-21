@@ -1,24 +1,20 @@
 use crate::conversions::{address_columns, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
-use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{GeneratedRow, RowGenerator, WarehouseRowGenerator};
+use tpcdsgen::row::{GeneratedRow, WarehouseRowGenerator};
 
 pub struct WarehouseArrow {
-    generator: WarehouseRowGenerator,
-    session: Session,
-    row_count: i64,
-    current_row: i64,
+    inner: RowIter<WarehouseRowGenerator>,
     batch_size: usize,
 }
 
 impl WarehouseArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::Warehouse);
-        Self { generator: WarehouseRowGenerator::new(), session, row_count, current_row: 1, batch_size: DEFAULT_BATCH_SIZE }
+        Self { inner: RowIter::new(WarehouseRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
@@ -29,34 +25,29 @@ impl RecordBatchIterator for WarehouseArrow {
 }
 
 impl Iterator for WarehouseArrow {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = RecordBatch;
 
-    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
-        if self.current_row > self.row_count { return None; }
-        let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
+    fn next(&mut self) -> Option<RecordBatch> {
+        let rows: Vec<_> = self.inner.by_ref()
+            .map(|g| match g { GeneratedRow::Warehouse(r) => r, _ => unreachable!() })
+            .take(self.batch_size)
+            .collect();
+        if rows.is_empty() { return None; }
 
-        let mut w_sk: Vec<Option<i64>> = Vec::new();
-        let mut w_id: Vec<Option<String>> = Vec::new();
-        let mut w_name: Vec<Option<String>> = Vec::new();
-        let mut w_sq_ft: Vec<Option<i32>> = Vec::new();
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::new();
+        let mut w_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut w_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut w_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut w_sq_ft: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> = Vec::with_capacity(rows.len());
 
-        for row_number in self.current_row..=end {
-            let result = self.generator.generate_row_and_child_rows(row_number, &self.session, None, None).expect("row gen");
-            for g in result.get_rows() {
-                if let GeneratedRow::Warehouse(r) = g {
-                    let nbm = r.null_bit_map();
-                    w_sk.push(sk_opt(nbm, 0, r.get_w_warehouse_sk()));
-                    w_id.push(opt(nbm, 1, r.get_w_warehouse_id().to_owned()));
-                    w_name.push(opt(nbm, 2, r.get_w_warehouse_name().to_owned()));
-                    w_sq_ft.push(opt(nbm, 3, r.get_w_warehouse_sq_ft()));
-                    addr_rows.push((r.get_w_address().clone(), nbm, 4));
-                }
-            }
-            self.generator.consume_remaining_seeds_for_row();
+        for r in &rows {
+            let nbm = r.null_bit_map();
+            w_sk.push(sk_opt(nbm, 0, r.get_w_warehouse_sk()));
+            w_id.push(opt(nbm, 1, r.get_w_warehouse_id().to_owned()));
+            w_name.push(opt(nbm, 2, r.get_w_warehouse_name().to_owned()));
+            w_sq_ft.push(opt(nbm, 3, r.get_w_warehouse_sq_ft()));
+            addr_rows.push((r.get_w_address().clone(), nbm, 4));
         }
-        self.current_row = end + 1;
-        if w_sk.is_empty() { return None; }
 
         let (street_number, street_name, street_type, suite_number, city, county, state, zip, country, gmt_offset) =
             address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
@@ -76,7 +67,7 @@ impl Iterator for WarehouseArrow {
             Arc::new(zip),
             Arc::new(country),
             Arc::new(gmt_offset),
-        ]))
+        ]).unwrap())
     }
 }
 

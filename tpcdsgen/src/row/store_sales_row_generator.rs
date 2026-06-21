@@ -209,15 +209,6 @@ impl Default for StoreSalesRowGenerator {
     }
 }
 
-impl StoreSalesRowGenerator {
-    /// Consume remaining seeds for the child (store_returns) generator.
-    /// This should be called when shouldEndRow() is true, like Java's Results.rowStop()
-    pub fn consume_child_seeds(&mut self) {
-        self.store_returns_generator
-            .consume_remaining_seeds_for_row();
-    }
-}
-
 impl RowGenerator for StoreSalesRowGenerator {
     fn generate_row_and_child_rows(
         &mut self,
@@ -347,6 +338,7 @@ impl RowGenerator for StoreSalesRowGenerator {
 
     fn consume_remaining_seeds_for_row(&mut self) {
         self.abstract_generator.consume_remaining_seeds_for_row();
+        self.store_returns_generator.consume_remaining_seeds_for_row();
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {

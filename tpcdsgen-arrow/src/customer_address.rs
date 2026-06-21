@@ -1,24 +1,20 @@
 use crate::conversions::{is_null, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator, RowIter};
 use arrow::array::{Int32Array, Int64Array, RecordBatch, StringViewBuilder};
-use arrow::error::ArrowError;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::row::{CustomerAddressRowGenerator, GeneratedRow, RowGenerator};
+use tpcdsgen::row::{CustomerAddressRowGenerator, GeneratedRow};
 
 pub struct CustomerAddressArrow {
-    generator: CustomerAddressRowGenerator,
-    session: Session,
-    row_count: i64,
-    current_row: i64,
+    inner: RowIter<CustomerAddressRowGenerator>,
     batch_size: usize,
 }
 
 impl CustomerAddressArrow {
     pub fn new(session: Session) -> Self {
         let row_count = session.get_scaling().get_row_count(Table::CustomerAddress);
-        Self { generator: CustomerAddressRowGenerator::new(), session, row_count, current_row: 1, batch_size: DEFAULT_BATCH_SIZE }
+        Self { inner: RowIter::new(CustomerAddressRowGenerator::new(), session, row_count), batch_size: DEFAULT_BATCH_SIZE }
     }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self { self.batch_size = batch_size; self }
@@ -29,15 +25,18 @@ impl RecordBatchIterator for CustomerAddressArrow {
 }
 
 impl Iterator for CustomerAddressArrow {
-    type Item = Result<RecordBatch, ArrowError>;
+    type Item = RecordBatch;
 
-    fn next(&mut self) -> Option<Result<RecordBatch, ArrowError>> {
-        if self.current_row > self.row_count { return None; }
-        let end = (self.current_row + self.batch_size as i64 - 1).min(self.row_count);
+    fn next(&mut self) -> Option<RecordBatch> {
+        let rows: Vec<_> = self.inner.by_ref()
+            .map(|g| match g { GeneratedRow::CustomerAddress(r) => r, _ => unreachable!() })
+            .take(self.batch_size)
+            .collect();
+        if rows.is_empty() { return None; }
 
-        let mut ca_addr_sk: Vec<Option<i64>> = Vec::new();
-        let mut ca_addr_id: Vec<Option<String>> = Vec::new();
-        let mut street_number: Vec<Option<i32>> = Vec::new();
+        let mut ca_addr_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut ca_addr_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut street_number: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut street_name_b = StringViewBuilder::new();
         let mut street_type_b = StringViewBuilder::new();
         let mut suite_number_b = StringViewBuilder::new();
@@ -46,37 +45,29 @@ impl Iterator for CustomerAddressArrow {
         let mut state_b = StringViewBuilder::new();
         let mut zip_b = StringViewBuilder::new();
         let mut country_b = StringViewBuilder::new();
-        let mut gmt_offset: Vec<Option<i32>> = Vec::new();
-        let mut location_type: Vec<Option<String>> = Vec::new();
+        let mut gmt_offset: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut location_type: Vec<Option<String>> = Vec::with_capacity(rows.len());
 
-        for row_number in self.current_row..=end {
-            let result = self.generator.generate_row_and_child_rows(row_number, &self.session, None, None).expect("row gen");
-            for g in result.get_rows() {
-                if let GeneratedRow::CustomerAddress(r) = g {
-                    let nbm = r.null_bit_map();
-                    let a = r.get_ca_address();
-                    ca_addr_sk.push(sk_opt(nbm, 0, r.get_ca_addr_sk()));
-                    ca_addr_id.push(opt(nbm, 1, r.get_ca_addr_id().to_owned()));
-                    street_number.push(if is_null(nbm, 2) { None } else { Some(a.get_street_number()) });
-                    if is_null(nbm, 3) { street_name_b.append_null(); } else { street_name_b.append_value(&a.get_street_name()); }
-                    if is_null(nbm, 4) { street_type_b.append_null(); } else { street_type_b.append_value(a.get_street_type()); }
-                    if is_null(nbm, 5) { suite_number_b.append_null(); } else { suite_number_b.append_value(a.get_suite_number()); }
-                    if is_null(nbm, 6) { city_b.append_null(); } else { city_b.append_value(a.get_city()); }
-                    match a.get_county() {
-                        Some(c) if !is_null(nbm, 7) => county_b.append_value(c),
-                        _ => county_b.append_null(),
-                    }
-                    if is_null(nbm, 8) { state_b.append_null(); } else { state_b.append_value(a.get_state()); }
-                    if is_null(nbm, 9) { zip_b.append_null(); } else { zip_b.append_value(&format!("{:05}", a.get_zip())); }
-                    if is_null(nbm, 10) { country_b.append_null(); } else { country_b.append_value(a.get_country()); }
-                    gmt_offset.push(if is_null(nbm, 11) { None } else { Some(a.get_gmt_offset()) });
-                    location_type.push(opt(nbm, 12, r.get_ca_location_type().to_owned()));
-                }
+        for r in &rows {
+            let nbm = r.null_bit_map();
+            let a = r.get_ca_address();
+            ca_addr_sk.push(sk_opt(nbm, 0, r.get_ca_addr_sk()));
+            ca_addr_id.push(opt(nbm, 1, r.get_ca_addr_id().to_owned()));
+            street_number.push(if is_null(nbm, 2) { None } else { Some(a.get_street_number()) });
+            if is_null(nbm, 3) { street_name_b.append_null(); } else { street_name_b.append_value(&a.get_street_name()); }
+            if is_null(nbm, 4) { street_type_b.append_null(); } else { street_type_b.append_value(a.get_street_type()); }
+            if is_null(nbm, 5) { suite_number_b.append_null(); } else { suite_number_b.append_value(a.get_suite_number()); }
+            if is_null(nbm, 6) { city_b.append_null(); } else { city_b.append_value(a.get_city()); }
+            match a.get_county() {
+                Some(c) if !is_null(nbm, 7) => county_b.append_value(c),
+                _ => county_b.append_null(),
             }
-            self.generator.consume_remaining_seeds_for_row();
+            if is_null(nbm, 8) { state_b.append_null(); } else { state_b.append_value(a.get_state()); }
+            if is_null(nbm, 9) { zip_b.append_null(); } else { zip_b.append_value(&format!("{:05}", a.get_zip())); }
+            if is_null(nbm, 10) { country_b.append_null(); } else { country_b.append_value(a.get_country()); }
+            gmt_offset.push(if is_null(nbm, 11) { None } else { Some(a.get_gmt_offset()) });
+            location_type.push(opt(nbm, 12, r.get_ca_location_type().to_owned()));
         }
-        self.current_row = end + 1;
-        if ca_addr_sk.is_empty() { return None; }
 
         Some(RecordBatch::try_new(Arc::clone(self.schema()), vec![
             Arc::new(Int64Array::from(ca_addr_sk)),
@@ -92,7 +83,7 @@ impl Iterator for CustomerAddressArrow {
             Arc::new(country_b.finish()),
             Arc::new(Int32Array::from(gmt_offset)),
             Arc::new(string_view_array_from_opt_iter(location_type.iter().map(|s| s.as_deref()))),
-        ]))
+        ]).unwrap())
     }
 }
 

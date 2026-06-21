@@ -266,11 +266,6 @@ impl CatalogSalesRowGenerator {
         self.remaining_line_items == 0
     }
 
-    /// Consume remaining seeds for the child (catalog_returns) generator.
-    pub fn consume_child_seeds(&mut self) {
-        self.catalog_returns_generator
-            .consume_remaining_seeds_for_row();
-    }
 }
 
 impl Default for CatalogSalesRowGenerator {
@@ -470,6 +465,7 @@ impl RowGenerator for CatalogSalesRowGenerator {
 
     fn consume_remaining_seeds_for_row(&mut self) {
         self.abstract_generator.consume_remaining_seeds_for_row();
+        self.catalog_returns_generator.consume_remaining_seeds_for_row();
     }
 
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
