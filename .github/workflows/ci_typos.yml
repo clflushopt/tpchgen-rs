@@ -37,6 +37,6 @@ jobs:
     env:
       FORCE_COLOR: 1
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Check typos
         uses: crate-ci/typos@v1.47.2
