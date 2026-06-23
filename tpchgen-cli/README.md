@@ -72,6 +72,11 @@ for PART in `seq 2 3`; do
 done
 ```
 
+By default `tpchgen-cli` shows a per-table progress bar on stderr while data
+is generated. Pass `--no-progress` to disable it (it is also disabled
+automatically when `--quiet` is set, when `--stdout` is used, or when stderr
+is not a terminal, e.g. in CI logs).
+
 ## Performance
 
 | Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |

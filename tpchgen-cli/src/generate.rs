@@ -3,8 +3,7 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
-use crate::progress::ProgressTracker;
-use crate::Table;
+use crate::progress::TableProgress;
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
@@ -51,12 +50,38 @@ pub trait Sink: Send {
 /// I: Iterator<Item = G>
 /// S: Sink that writes buffers somewhere
 pub async fn generate_in_chunks<G, I, S>(
+    sink: S,
+    sources: I,
+    num_threads: usize,
+) -> Result<(), io::Error>
+where
+    G: Source + 'static,
+    I: Iterator<Item = G>,
+    S: Sink + 'static,
+{
+    let progress = Default::default();
+    generate_in_chunks_impl(sink, sources, num_threads, progress).await
+}
+
+pub(crate) async fn generate_in_chunks_with_progress<G, I, S>(
+    sink: S,
+    sources: I,
+    num_threads: usize,
+    progress: TableProgress,
+) -> Result<(), io::Error>
+where
+    G: Source + 'static,
+    I: Iterator<Item = G>,
+    S: Sink + 'static,
+{
+    generate_in_chunks_impl(sink, sources, num_threads, progress).await
+}
+
+async fn generate_in_chunks_impl<G, I, S>(
     mut sink: S,
     sources: I,
     num_threads: usize,
-    progress_tracker: Option<ProgressTracker>,
-    table: Table,
-    rows_per_chunk: u64,
+    progress: TableProgress,
 ) -> Result<(), io::Error>
 where
     G: Source + 'static,
@@ -69,24 +94,20 @@ where
     // use all cores to make data
     debug!("Using {num_threads} threads");
 
-    // create a channel to communicate between the generator tasks and the writer task
-    let (tx, mut rx) = tokio::sync::mpsc::channel(num_threads);
-
-    // write the header
     let Some(first) = sources.peek() else {
         return Ok(()); // no sources
     };
     let header = first.header(Vec::new());
-    tx.send(header)
-        .await
-        .expect("tx just created, it should not be closed");
 
     let sources_and_recyclers = sources.map(|generator| (generator, recycler.clone()));
+
+    // create a channel to communicate between the generator tasks and the writer task
+    let (tx, mut rx) = tokio::sync::mpsc::channel(num_threads);
 
     // convert to an async stream to run on tokio
     let mut stream = futures::stream::iter(sources_and_recyclers)
         // each generator writes to a buffer
-        .map(|(source, recycler)| async move {
+        .map(async |(source, recycler)| {
             let buffer = recycler.new_buffer(1024 * 1024 * 8);
             // do the work in a task (on a different thread)
             let mut join_set = JoinSet::new();
@@ -114,14 +135,13 @@ where
     // The writer task runs in a blocking thread to avoid blocking the async
     // runtime. It reads from the channel and writes to the sink (doing File IO)
     let captured_recycler = recycler.clone();
-    let captured_progress_for_buffers = progress_tracker.clone();
+    let captured_progress = progress.clone();
     let writer_task = tokio::task::spawn_blocking(move || {
+        sink.sink(&header)?;
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
             captured_recycler.return_buffer(buffer);
-            if let Some(ref tracker) = captured_progress_for_buffers {
-                tracker.increment(table, rows_per_chunk);
-            }
+            captured_progress.increment_output_unit();
         }
         // No more input, flush the sink and return
         sink.flush()
@@ -175,5 +195,98 @@ impl BufferRecycler {
     fn return_buffer(&self, buffer: Vec<u8>) {
         let mut buffers = self.buffers.lock().unwrap();
         buffers.push_back(buffer);
+    }
+}
+
+#[cfg(all(test, feature = "progress"))]
+mod tests {
+    use super::*;
+    use crate::progress::{ProgressTracker, RunProgress};
+    use crate::Table;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[derive(Debug)]
+    struct CountingProgress {
+        increments: AtomicU64,
+    }
+
+    impl ProgressTracker for CountingProgress {
+        fn increment(&self, _table: Table, units: u64) {
+            self.increments.fetch_add(units, Ordering::Relaxed);
+        }
+    }
+
+    struct TestSource {
+        header: &'static [u8],
+        data: &'static [u8],
+    }
+
+    impl Source for TestSource {
+        fn header(&self, mut buffer: Vec<u8>) -> Vec<u8> {
+            buffer.extend_from_slice(self.header);
+            buffer
+        }
+
+        fn create(self, mut buffer: Vec<u8>) -> Vec<u8> {
+            buffer.extend_from_slice(self.data);
+            buffer
+        }
+    }
+
+    struct CapturingSink {
+        writes: Arc<Mutex<Vec<Vec<u8>>>>,
+    }
+
+    impl Sink for CapturingSink {
+        fn sink(&mut self, buffer: &[u8]) -> Result<(), io::Error> {
+            self.writes.lock().unwrap().push(buffer.to_vec());
+            Ok(())
+        }
+
+        fn flush(self) -> Result<(), io::Error> {
+            Ok(())
+        }
+    }
+
+    #[tokio::test]
+    async fn progress_counts_generated_chunks_not_header() {
+        let writes = Arc::new(Mutex::new(Vec::new()));
+        let tracker = Arc::new(CountingProgress {
+            increments: AtomicU64::new(0),
+        });
+        let progress: Arc<dyn ProgressTracker> = tracker.clone();
+        let progress = RunProgress::with_tracker(progress).for_table(Table::Region);
+
+        let sources = vec![
+            TestSource {
+                header: b"header\n",
+                data: b"row-1\n",
+            },
+            TestSource {
+                header: b"header\n",
+                data: b"row-2\n",
+            },
+        ];
+
+        generate_in_chunks_with_progress(
+            CapturingSink {
+                writes: Arc::clone(&writes),
+            },
+            sources.into_iter(),
+            1,
+            progress,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
+        assert_eq!(
+            *writes.lock().unwrap(),
+            vec![
+                b"header\n".to_vec(),
+                b"row-1\n".to_vec(),
+                b"row-2\n".to_vec()
+            ]
+        );
     }
 }

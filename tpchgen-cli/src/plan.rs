@@ -197,11 +197,6 @@ impl GenerationPlan {
     pub fn chunk_count(&self) -> usize {
         self.part_list.clone().count()
     }
-
-    /// Return the total row count
-    pub fn row_count(table: Table, scale_factor: f64) -> i64 {
-        OutputSize::row_count_for_table(table, scale_factor)
-    }
 }
 
 /// Converts the `GenerationPlan` into an iterator of (part_number, num_parts)

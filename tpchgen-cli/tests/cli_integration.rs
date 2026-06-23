@@ -95,14 +95,13 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
         .arg("part")
         .arg("--output-dir")
         .arg(temp_dir.path())
-        .arg("--verbose")
         .assert()
         .success();
 
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(
         stderr.contains("already exists, skipping generation"),
-        "Expected skip message not found in stderr: {}",
+        "Expected warning message not found in stderr: {}",
         stderr
     );
 
@@ -151,14 +150,13 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
         .arg("part")
         .arg("--output-dir")
         .arg(temp_dir.path())
-        .arg("--verbose")
         .assert()
         .success();
 
     let stderr = String::from_utf8_lossy(&output.get_output().stderr);
     assert!(
         stderr.contains("already exists, skipping generation"),
-        "Expected skip message not found in stderr: {}",
+        "Expected warning message not found in stderr: {}",
         stderr
     );
 
@@ -643,6 +641,59 @@ async fn test_quiet_flag_suppresses_warnings() {
         "Expected no warning messages in stderr with --quiet flag, but found: {}",
         stderr
     );
+}
+
+/// Test that --no-progress is accepted and produces no progress bar output.
+/// Note: in `assert_cmd`-driven tests stderr is not a TTY so progress is also
+/// auto-disabled; this test mainly locks in the flag's existence and verifies
+/// no progress glyphs leak into the output.
+#[test]
+fn test_tpchgen_cli_no_progress_flag() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let output = cargo_bin_cmd!("tpchgen-cli")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("region")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    for glyph in ["█", "▓", "░", "Progress:"] {
+        assert!(
+            !stderr.contains(glyph),
+            "Expected no progress bar glyph {glyph:?} in stderr, but found: {stderr}"
+        );
+    }
+}
+
+/// Test that the progress bar is auto-suppressed when stderr is not a TTY
+/// (as is the case under `assert_cmd`, CI logs, and pipe redirection),
+/// even without passing `--no-progress`. This locks in the contract that
+/// CI logs are never polluted with progress glyphs by default.
+#[test]
+fn test_tpchgen_cli_progress_auto_disabled_on_non_tty() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let output = cargo_bin_cmd!("tpchgen-cli")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("region")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let stderr = String::from_utf8_lossy(&output.get_output().stderr);
+    for glyph in ["█", "▓", "░", "Progress:"] {
+        assert!(
+            !stderr.contains(glyph),
+            "Expected progress to be auto-disabled on non-TTY stderr, but found {glyph:?} in: {stderr}"
+        );
+    }
 }
 
 fn read_gzipped_file_to_string<P: AsRef<Path>>(path: P) -> Result<String, std::io::Error> {

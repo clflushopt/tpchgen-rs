@@ -1,8 +1,7 @@
 //! Parquet output format
 
-use crate::progress::ProgressTracker;
+use crate::progress::TableProgress;
 use crate::statistics::WriteStatistics;
-use crate::Table;
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
 use log::debug;
@@ -34,9 +33,47 @@ pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
-    progress_tracker: Option<ProgressTracker>,
-    table: Table,
-    rows_per_chunk: u64,
+) -> Result<(), io::Error>
+where
+    I: Iterator<Item: RecordBatchIterator> + 'static,
+{
+    let progress = Default::default();
+    generate_parquet_impl(
+        writer,
+        iter_iter,
+        num_threads,
+        parquet_compression,
+        progress,
+    )
+    .await
+}
+
+pub(crate) async fn generate_parquet_with_progress<W: Write + Send + IntoSize + 'static, I>(
+    writer: W,
+    iter_iter: I,
+    num_threads: usize,
+    parquet_compression: Compression,
+    progress: TableProgress,
+) -> Result<(), io::Error>
+where
+    I: Iterator<Item: RecordBatchIterator> + 'static,
+{
+    generate_parquet_impl(
+        writer,
+        iter_iter,
+        num_threads,
+        parquet_compression,
+        progress,
+    )
+    .await
+}
+
+async fn generate_parquet_impl<W: Write + Send + IntoSize + 'static, I>(
+    writer: W,
+    iter_iter: I,
+    num_threads: usize,
+    parquet_compression: Compression,
+    progress: TableProgress,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
@@ -91,25 +128,25 @@ where
         Sender<Vec<ArrowColumnChunk>>,
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
-    let captured_progress = progress_tracker.clone();
+    let captured_progress = progress.clone();
     let writer_task = tokio::task::spawn_blocking(move || {
         // Create parquet writer
         let mut writer =
             SerializedFileWriter::new(writer, root_schema, writer_properties_captured).unwrap();
 
-        while let Some(chunks) = rx.blocking_recv() {
+        while let Some(column_chunks) = rx.blocking_recv() {
             // Start row group
             let mut row_group_writer = writer.next_row_group().unwrap();
 
             // Slap the chunks into the row group
-            for chunk in chunks {
-                chunk.append_to_row_group(&mut row_group_writer).unwrap();
+            for column_chunk in column_chunks {
+                column_chunk
+                    .append_to_row_group(&mut row_group_writer)
+                    .unwrap();
             }
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
-            if let Some(ref tracker) = captured_progress {
-                tracker.increment(table, rows_per_chunk);
-            }
+            captured_progress.increment_output_unit();
         }
         let size = writer.into_inner()?.into_size()?;
         statistics.increment_bytes(size);
@@ -117,10 +154,10 @@ where
     });
 
     // now, drive the input stream and send results to the writer task
-    while let Some(chunks) = row_group_stream.next().await {
+    while let Some(column_chunks) = row_group_stream.next().await {
         // send the chunks to the writer task
-        if let Err(e) = tx.send(chunks).await {
-            debug!("Error sending chunks to writer: {e}");
+        if let Err(e) = tx.send(column_chunks).await {
+            debug!("Error sending row group to writer: {e}");
             break; // stop early
         }
     }
@@ -174,4 +211,58 @@ where
         .into_iter()
         .map(|col_writer| col_writer.close().unwrap())
         .collect()
+}
+
+#[cfg(all(test, feature = "progress"))]
+mod tests {
+    use super::*;
+    use crate::progress::{ProgressTracker, RunProgress};
+    use crate::Table;
+    use std::fs::File;
+    use std::io::BufWriter;
+    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::Arc;
+    use tpchgen::generators::RegionGenerator;
+    use tpchgen_arrow::RegionArrow;
+
+    #[derive(Debug)]
+    struct CountingProgress {
+        increments: AtomicU64,
+    }
+
+    impl ProgressTracker for CountingProgress {
+        fn increment(&self, _table: Table, row_groups: u64) {
+            self.increments.fetch_add(row_groups, Ordering::Relaxed);
+        }
+    }
+
+    fn region_source() -> RegionArrow {
+        RegionArrow::new(RegionGenerator::default()).with_batch_size(5)
+    }
+
+    #[tokio::test]
+    async fn progress_counts_written_row_groups() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let output_path = output_dir.path().join("progress.parquet");
+        let writer = BufWriter::new(File::create(&output_path).unwrap());
+
+        let tracker = Arc::new(CountingProgress {
+            increments: AtomicU64::new(0),
+        });
+        let progress: Arc<dyn ProgressTracker> = tracker.clone();
+        let progress = RunProgress::with_tracker(progress).for_table(Table::Region);
+
+        generate_parquet_with_progress(
+            writer,
+            vec![region_source(), region_source()].into_iter(),
+            1,
+            Compression::UNCOMPRESSED,
+            progress,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
+        assert!(std::fs::metadata(output_path).unwrap().len() > 0);
+    }
 }

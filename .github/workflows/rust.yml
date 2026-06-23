@@ -20,6 +20,10 @@ jobs:
         run: cargo clippy -- -D warnings
       - name: Check
         run: cargo check --verbose --workspace --all-targets
+      - name: Check tpchgen-cli without default features
+        run: cargo check -p tpchgen-cli --no-default-features
+      - name: Check tpchgen-cli with custom progress feature
+        run: cargo check -p tpchgen-cli --no-default-features --features progress
 
   # Tests for tpchgen
   test-tests-tpchgen:

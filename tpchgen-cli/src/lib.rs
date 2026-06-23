@@ -31,6 +31,9 @@ pub mod generate;
 pub mod output_plan;
 pub mod parquet;
 pub mod plan;
+#[cfg(not(feature = "progress"))]
+mod progress;
+#[cfg(feature = "progress")]
 pub mod progress;
 pub mod runner;
 pub mod statistics;
@@ -38,11 +41,15 @@ pub mod tbl;
 
 use crate::generate::Sink;
 use crate::parquet::IntoSize;
+#[cfg(feature = "progress")]
+use crate::progress::ProgressTracker;
 use crate::statistics::WriteStatistics;
 use std::fmt::Display;
 use std::fs::File;
 use std::io::{self, BufWriter, Stdout, Write};
 use std::str::FromStr;
+#[cfg(feature = "progress")]
+use std::sync::Arc;
 
 /// Wrapper around a buffer writer that counts the number of buffers and bytes written
 pub struct WriterSink<W: Write> {
@@ -90,7 +97,7 @@ impl IntoSize for BufWriter<File> {
 ///
 /// Represents the 8 tables in the TPC-H benchmark schema.
 /// Tables are ordered by size (smallest to largest at SF=1).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Table {
     /// Nation table (25 rows)
     Nation,
@@ -237,8 +244,6 @@ pub struct GeneratorConfig {
     pub stdout: bool,
     /// CSV delimiter character (only applies to CSV format)
     pub csv_delimiter: char,
-    /// Show progress bars during generation
-    pub show_progress: bool,
 }
 
 impl Default for GeneratorConfig {
@@ -255,7 +260,6 @@ impl Default for GeneratorConfig {
             part: None,
             stdout: false,
             csv_delimiter: ',',
-            show_progress: true,
         }
     }
 }
@@ -296,6 +300,8 @@ impl Default for GeneratorConfig {
 /// ```
 pub struct TpchGenerator {
     config: GeneratorConfig,
+    #[cfg(feature = "progress")]
+    progress_tracker: Option<Arc<dyn ProgressTracker>>,
 }
 
 impl TpchGenerator {
@@ -349,6 +355,8 @@ impl TpchGenerator {
         use tpchgen::text::TextPool;
 
         let config = self.config;
+        #[cfg(feature = "progress")]
+        let progress_tracker = self.progress_tracker;
 
         // Create output directory if it doesn't exist and we are not writing to stdout
         if !config.stdout {
@@ -396,7 +404,13 @@ impl TpchGenerator {
         info!("Created static distributions and text pools in {elapsed:?}");
 
         // Run
-        let runner = PlanRunner::new(output_plans, config.num_threads, config.show_progress);
+        let runner = PlanRunner::new(output_plans, config.num_threads);
+        #[cfg(feature = "progress")]
+        let runner = if let Some(tracker) = progress_tracker {
+            runner.with_progress_tracker(tracker)
+        } else {
+            runner
+        };
         runner.run().await?;
         info!("Generation complete!");
         Ok(())
@@ -418,7 +432,6 @@ impl TpchGenerator {
 /// - Threads: number of CPUs
 /// - Parquet compression: SNAPPY
 /// - Row group size: 7MB
-/// - Show progress: true
 ///
 /// # Examples
 ///
@@ -444,6 +457,8 @@ impl TpchGenerator {
 #[derive(Debug, Clone)]
 pub struct TpchGeneratorBuilder {
     config: GeneratorConfig,
+    #[cfg(feature = "progress")]
+    progress_tracker: Option<Arc<dyn ProgressTracker>>,
 }
 
 impl TpchGeneratorBuilder {
@@ -459,6 +474,8 @@ impl TpchGeneratorBuilder {
     pub fn new() -> Self {
         Self {
             config: GeneratorConfig::default(),
+            #[cfg(feature = "progress")]
+            progress_tracker: None,
         }
     }
 
@@ -533,9 +550,14 @@ impl TpchGeneratorBuilder {
         self
     }
 
-    /// Show progress bars during generation
-    pub fn with_show_progress(mut self, show_progress: bool) -> Self {
-        self.config.show_progress = show_progress;
+    /// Attach a custom [`ProgressTracker`] to receive generation progress updates.
+    ///
+    /// The runner calls [`ProgressTracker::finish`] on successful completion.
+    /// Trackers that need error or panic cleanup should use `Drop` as a
+    /// fallback. See [`progress`] for the full contract and examples.
+    #[cfg(feature = "progress")]
+    pub fn with_progress_tracker(mut self, tracker: Arc<dyn ProgressTracker>) -> Self {
+        self.progress_tracker = Some(tracker);
         self
     }
 
@@ -543,6 +565,8 @@ impl TpchGeneratorBuilder {
     pub fn build(self) -> TpchGenerator {
         TpchGenerator {
             config: self.config,
+            #[cfg(feature = "progress")]
+            progress_tracker: self.progress_tracker,
         }
     }
 }
@@ -550,5 +574,63 @@ impl TpchGeneratorBuilder {
 impl Default for TpchGeneratorBuilder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(all(test, feature = "progress"))]
+mod tests {
+    use super::*;
+    use crate::progress::ProgressTracker;
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc, Mutex,
+    };
+
+    #[derive(Debug, Default)]
+    struct RecordingProgress {
+        registered: Mutex<Vec<(Table, u64)>>,
+        increments: Mutex<Vec<(Table, u64)>>,
+        finishes: AtomicU64,
+    }
+
+    impl ProgressTracker for RecordingProgress {
+        fn register(&self, table: Table, total_units: u64) {
+            self.registered.lock().unwrap().push((table, total_units));
+        }
+
+        fn increment(&self, table: Table, units: u64) {
+            self.increments.lock().unwrap().push((table, units));
+        }
+
+        fn finish(&self) {
+            self.finishes.fetch_add(1, Ordering::Relaxed);
+        }
+    }
+
+    #[tokio::test]
+    async fn builder_passes_custom_progress_tracker_to_runner() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let tracker = Arc::new(RecordingProgress::default());
+        let progress: Arc<dyn ProgressTracker> = tracker.clone();
+
+        TpchGenerator::builder()
+            .with_output_dir(output_dir.path())
+            .with_tables(vec![Table::Region])
+            .with_num_threads(1)
+            .with_progress_tracker(progress)
+            .build()
+            .generate()
+            .await
+            .unwrap();
+
+        assert_eq!(
+            *tracker.registered.lock().unwrap(),
+            vec![(Table::Region, 1)]
+        );
+        assert_eq!(
+            *tracker.increments.lock().unwrap(),
+            vec![(Table::Region, 1)]
+        );
+        assert_eq!(tracker.finishes.load(Ordering::Relaxed), 1);
     }
 }

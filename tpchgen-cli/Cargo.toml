@@ -28,7 +28,15 @@ futures = "0.3.31"
 num_cpus = "1.0"
 log = "0.4.26"
 env_logger = "0.11.7"
-indicatif = "0.18.3"
+indicatif = { version = "0.18.3", optional = true }
+
+[features]
+default = ["indicatif-progress"]
+# Enable progress callbacks for applications that want to provide their own
+# progress reporting without pulling in the default terminal progress bars.
+progress = []
+# Enable the default CLI terminal progress bars backed by `indicatif`.
+indicatif-progress = ["progress", "dep:indicatif"]
 
 [dev-dependencies]
 assert_cmd = "2.0"

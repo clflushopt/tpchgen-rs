@@ -11,8 +11,14 @@ use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
 use log::{info, LevelFilter};
 use std::io;
+#[cfg(feature = "indicatif-progress")]
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::str::FromStr;
+#[cfg(feature = "indicatif-progress")]
+use std::sync::Arc;
+#[cfg(feature = "indicatif-progress")]
+use tpchgen_cli::progress::IndicatifProgress;
 use tpchgen_cli::{
     Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
@@ -120,21 +126,29 @@ struct CommonArgs {
     #[arg(long, default_value_t = false)]
     stdout: bool,
 
-    /// Disable progress bars during data generation
+    /// Disable progress bars during data generation.
+    ///
+    /// Bars are also auto-suppressed by `--quiet`, `--stdout`, or when
+    /// stderr is not a terminal.
     #[arg(long = "no-progress", action = ArgAction::SetFalse, default_value_t = true)]
-    progress: bool,
+    progress_bars_enabled: bool,
 }
 
 impl CommonArgs {
-    /// Create a [`TpchGeneratorBuilder`] pre-configured with the common options.
+    /// Initialize CLI logging/progress output and create a
+    /// [`TpchGeneratorBuilder`] pre-configured with the common options.
     fn builder(self, format: OutputFormat) -> TpchGeneratorBuilder {
+        #[cfg(feature = "indicatif-progress")]
+        let progress = self
+            .should_show_progress_bars()
+            .then(|| Arc::new(IndicatifProgress::new()));
+
         let mut builder = TpchGenerator::builder()
             .with_scale_factor(self.scale_factor)
             .with_output_dir(self.output_dir)
             .with_format(format)
             .with_num_threads(self.num_threads)
-            .with_stdout(self.stdout)
-            .with_show_progress(self.progress && !self.quiet);
+            .with_stdout(self.stdout);
 
         if let Some(tables) = self.tables {
             builder = builder.with_tables(tables);
@@ -146,7 +160,29 @@ impl CommonArgs {
             builder = builder.with_part(part);
         }
 
+        #[cfg(feature = "indicatif-progress")]
+        {
+            configure_logging(
+                self.verbose,
+                self.quiet,
+                progress.as_ref().map(|progress| progress.log_writer()),
+            );
+            if let Some(progress) = progress {
+                builder = builder.with_progress_tracker(progress);
+            }
+        }
+        #[cfg(not(feature = "indicatif-progress"))]
+        configure_logging(self.verbose, self.quiet, None);
+
         builder
+    }
+
+    #[cfg(feature = "indicatif-progress")]
+    fn should_show_progress_bars(&self) -> bool {
+        // Show progress only on an interactive terminal and when no flag
+        // suppresses it. `--stdout` is included so piped data isn't
+        // interleaved with bar redraws on shared shells.
+        self.progress_bars_enabled && !self.quiet && !self.stdout && io::stderr().is_terminal()
     }
 }
 
@@ -310,14 +346,6 @@ async fn main() -> io::Result<()> {
 impl Cli {
     /// Main function to run the generation
     async fn main(self) -> io::Result<()> {
-        let common = match &self.command {
-            Some(Commands::Tbl(args)) => &args.common,
-            Some(Commands::Csv(args)) => &args.common,
-            Some(Commands::Parquet(args)) => &args.common,
-            None => &self.args.common,
-        };
-        configure_logging(common.verbose, common.quiet);
-
         match self.command {
             Some(Commands::Tbl(args)) => args.run().await,
             Some(Commands::Csv(args)) => args.run().await,
@@ -328,21 +356,23 @@ impl Cli {
 
     async fn run(self) -> io::Result<()> {
         // Warn about --format migration to subcommands (only when explicitly provided)
-        let format = if let Some(format) = self.args.format {
+        let (format, subcommand) = if let Some(format) = self.args.format {
             let subcommand = match format {
                 OutputFormat::Parquet => "parquet",
                 OutputFormat::Csv => "csv",
                 OutputFormat::Tbl => "tbl",
             };
-            log::warn!(
-                "The --format flag will be removed in v4.0.0. Use `tpchgen-cli {subcommand}` instead."
-            );
-            format
+            (format, Some(subcommand))
         } else {
-            OutputFormat::Tbl
+            (OutputFormat::Tbl, None)
         };
 
         let mut builder = self.args.common.builder(format);
+        if let Some(subcommand) = subcommand {
+            log::warn!(
+                "The --format flag will be removed in v4.0.0. Use `tpchgen-cli {subcommand}` instead."
+            );
+        }
 
         if let Some(parquet_compression) = self.args.parquet_compression {
             if format == OutputFormat::Parquet {
@@ -399,20 +429,28 @@ impl ParquetArgs {
     }
 }
 
-fn configure_logging(verbose: bool, quiet: bool) {
+fn configure_logging(
+    verbose: bool,
+    quiet: bool,
+    log_writer: Option<Box<dyn io::Write + Send + 'static>>,
+) {
+    let mut builder = env_logger::builder();
     if quiet {
         // Quiet mode: only show error-level logs
-        env_logger::builder()
-            .filter_level(LevelFilter::Error)
-            .init();
+        builder.filter_level(LevelFilter::Error);
     } else if verbose {
-        env_logger::builder().filter_level(LevelFilter::Info).init();
-        info!("Verbose output enabled (ignoring RUST_LOG environment variable)");
+        builder.filter_level(LevelFilter::Info);
     } else {
         // Default: show warnings and errors, but respect RUST_LOG if set
-        env_logger::builder()
-            .filter_level(LevelFilter::Warn)
-            .parse_default_env()
-            .init();
+        builder.filter_level(LevelFilter::Warn).parse_default_env();
+    }
+    if let Some(log_writer) = log_writer {
+        builder.target(env_logger::Target::Pipe(log_writer));
+    }
+
+    builder.init();
+
+    if verbose {
+        info!("Verbose output enabled (ignoring RUST_LOG environment variable)");
     }
 }
