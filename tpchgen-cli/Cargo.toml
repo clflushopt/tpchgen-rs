@@ -18,8 +18,8 @@ name = "tpchgen-cli"
 path = "bin/main.rs"
 
 [dependencies]
-arrow = "58"
-parquet = "58"
+arrow = "59"
+parquet = "59"
 clap = { version = "4.5.32", features = ["derive"] }
 tpchgen = { path = "../tpchgen", version = "2.0.2" }
 tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }

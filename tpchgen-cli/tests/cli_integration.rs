@@ -406,7 +406,7 @@ async fn test_write_parquet_row_group_size_default() {
         vec![
             RowGroups {
                 table: "customer",
-                row_group_bytes: vec![6523694, 6509728, 6508417, 6518582],
+                row_group_bytes: vec![6522719, 6507058, 6507800, 6515798],
             },
             RowGroups {
                 table: "lineitem",
@@ -427,19 +427,19 @@ async fn test_write_parquet_row_group_size_default() {
             RowGroups {
                 table: "orders",
                 row_group_bytes: vec![
-                    7842293, 7842276, 7847651, 7844507, 7849468, 7847495, 7838699, 7841044,
-                    7840487, 7839166, 7841356, 7839460, 7843712, 7834117, 7840051, 7838256,
+                    7842293, 7841931, 7847396, 7844507, 7849243, 7847495, 7838444, 7841044,
+                    7840217, 7837271, 7841056, 7839265, 7843712, 7834117, 7839886, 7838091,
                 ],
             },
             RowGroups {
                 table: "part",
-                row_group_bytes: vec![7013437, 7014324],
+                row_group_bytes: vec![7012918, 7014223],
             },
             RowGroups {
                 table: "partsupp",
                 row_group_bytes: vec![
-                    7294343, 7277020, 7291816, 7287548, 7285532, 7292484, 7279927, 7300829,
-                    7284682, 7291052, 7286819, 7297626, 7292903, 7295373, 7290239, 7279755,
+                    7292900, 7275703, 7290373, 7286175, 7284159, 7291041, 7278512, 7298320,
+                    7283253, 7289609, 7285376, 7295104, 7290407, 7293930, 7287756, 7278354,
                 ],
             },
             RowGroups {
@@ -474,7 +474,7 @@ async fn test_write_parquet_row_group_size_20mb() {
         vec![
             RowGroups {
                 table: "customer",
-                row_group_bytes: vec![12848012, 12841373],
+                row_group_bytes: vec![12844748, 12838467],
             },
             RowGroups {
                 table: "lineitem",
@@ -490,15 +490,15 @@ async fn test_write_parquet_row_group_size_20mb() {
             },
             RowGroups {
                 table: "orders",
-                row_group_bytes: vec![19815261, 19819775, 19810468, 19806802, 19802354, 19795478],
+                row_group_bytes: vec![19815261, 19819445, 19810193, 19806532, 19802204, 19795267],
             },
             RowGroups {
                 table: "part",
-                row_group_bytes: vec![13920228],
+                row_group_bytes: vec![13919709],
             },
             RowGroups {
                 table: "partsupp",
-                row_group_bytes: vec![18979513, 18992386, 18975044, 18978110, 18996633, 18983782],
+                row_group_bytes: vec![18978072, 18990959, 18973658, 18976682, 18995233, 18981274],
             },
             RowGroups {
                 table: "region",
