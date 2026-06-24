@@ -16,6 +16,7 @@ path = "src/lib.rs"
 [[bin]]
 name = "tpchgen-cli"
 path = "bin/main.rs"
+required-features = ["indicatif-progress"]
 
 [dependencies]
 arrow = "58"

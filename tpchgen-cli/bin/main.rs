@@ -10,14 +10,10 @@
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
 use log::{info, LevelFilter};
-use std::io;
-#[cfg(feature = "indicatif-progress")]
-use std::io::IsTerminal;
+use std::io::{self, IsTerminal};
 use std::path::PathBuf;
 use std::str::FromStr;
-#[cfg(feature = "indicatif-progress")]
 use std::sync::Arc;
-#[cfg(feature = "indicatif-progress")]
 use tpchgen_cli::progress::IndicatifProgress;
 use tpchgen_cli::{
     Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
@@ -138,7 +134,6 @@ impl CommonArgs {
     /// Initialize CLI logging/progress output and create a
     /// [`TpchGeneratorBuilder`] pre-configured with the common options.
     fn builder(self, format: OutputFormat) -> TpchGeneratorBuilder {
-        #[cfg(feature = "indicatif-progress")]
         let progress = self
             .should_show_progress_bars()
             .then(|| Arc::new(IndicatifProgress::new()));
@@ -160,24 +155,18 @@ impl CommonArgs {
             builder = builder.with_part(part);
         }
 
-        #[cfg(feature = "indicatif-progress")]
-        {
-            configure_logging(
-                self.verbose,
-                self.quiet,
-                progress.as_ref().map(|progress| progress.log_writer()),
-            );
-            if let Some(progress) = progress {
-                builder = builder.with_progress_tracker(progress);
-            }
+        configure_logging(
+            self.verbose,
+            self.quiet,
+            progress.as_ref().map(|progress| progress.log_writer()),
+        );
+        if let Some(progress) = progress {
+            builder = builder.with_progress_tracker(progress);
         }
-        #[cfg(not(feature = "indicatif-progress"))]
-        configure_logging(self.verbose, self.quiet, None);
 
         builder
     }
 
-    #[cfg(feature = "indicatif-progress")]
     fn should_show_progress_bars(&self) -> bool {
         // Show progress only on an interactive terminal and when no flag
         // suppresses it. `--stdout` is included so piped data isn't
