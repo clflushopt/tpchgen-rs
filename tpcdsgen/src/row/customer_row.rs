@@ -86,6 +86,82 @@ impl CustomerRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_c_customer_sk(&self) -> i64 {
+        self.c_customer_sk
+    }
+
+    pub fn get_c_customer_id(&self) -> &str {
+        &self.c_customer_id
+    }
+
+    pub fn get_c_current_cdemo_sk(&self) -> i64 {
+        self.c_current_cdemo_sk
+    }
+
+    pub fn get_c_current_hdemo_sk(&self) -> i64 {
+        self.c_current_hdemo_sk
+    }
+
+    pub fn get_c_current_addr_sk(&self) -> i64 {
+        self.c_current_addr_sk
+    }
+
+    pub fn get_c_first_shipto_date_id(&self) -> i32 {
+        self.c_first_shipto_date_id
+    }
+
+    pub fn get_c_first_sales_date_id(&self) -> i32 {
+        self.c_first_sales_date_id
+    }
+
+    pub fn get_c_salutation(&self) -> &str {
+        &self.c_salutation
+    }
+
+    pub fn get_c_first_name(&self) -> &str {
+        &self.c_first_name
+    }
+
+    pub fn get_c_last_name(&self) -> &str {
+        &self.c_last_name
+    }
+
+    pub fn get_c_preferred_cust_flag(&self) -> bool {
+        self.c_preferred_cust_flag
+    }
+
+    pub fn get_c_birth_day(&self) -> i32 {
+        self.c_birth_day
+    }
+
+    pub fn get_c_birth_month(&self) -> i32 {
+        self.c_birth_month
+    }
+
+    pub fn get_c_birth_year(&self) -> i32 {
+        self.c_birth_year
+    }
+
+    pub fn get_c_birth_country(&self) -> &str {
+        &self.c_birth_country
+    }
+
+    pub fn get_c_login(&self) -> Option<&str> {
+        self.c_login.as_deref()
+    }
+
+    pub fn get_c_email_address(&self) -> &str {
+        &self.c_email_address
+    }
+
+    pub fn get_c_last_review_date(&self) -> i32 {
+        self.c_last_review_date
+    }
+
     /// Check if a column is null based on the null bit map
     fn is_null(&self, column: CustomerGeneratorColumn) -> bool {
         let position = column.get_global_column_number()

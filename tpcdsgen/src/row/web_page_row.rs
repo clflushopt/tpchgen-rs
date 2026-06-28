@@ -148,6 +148,34 @@ impl WebPageRow {
             date.to_string()
         }
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_wp_page_sk(&self) -> i64 {
+        self.wp_page_sk
+    }
+
+    pub fn get_wp_page_id(&self) -> &str {
+        &self.wp_page_id
+    }
+
+    pub fn get_wp_rec_start_date_id(&self) -> i64 {
+        self.wp_rec_start_date_id
+    }
+
+    pub fn get_wp_rec_end_date_id(&self) -> i64 {
+        self.wp_rec_end_date_id
+    }
+
+    pub fn get_wp_url(&self) -> &str {
+        &self.wp_url
+    }
+
+    pub fn get_wp_type(&self) -> &str {
+        &self.wp_type
+    }
 }
 
 impl TableRow for WebPageRow {

@@ -15,3 +15,5 @@ extend-ignore-re = [
 
 [default.extend-words]
 auxillaries = "auxillaries"
+# TPC-DS spells the store tax column as s_tax_precentage.
+precentage = "precentage"

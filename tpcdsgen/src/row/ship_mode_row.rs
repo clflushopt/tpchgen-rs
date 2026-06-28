@@ -56,6 +56,10 @@ impl ShipModeRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     pub fn get_sm_ship_mode_sk(&self) -> i64 {
         self.sm_ship_mode_sk
     }

@@ -54,6 +54,10 @@ impl WarehouseRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     pub fn get_w_warehouse_sk(&self) -> i64 {
         self.w_warehouse_sk
     }

@@ -43,6 +43,46 @@ impl CustomerDemographicsRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_cd_demo_sk(&self) -> i64 {
+        self.cd_demo_sk
+    }
+
+    pub fn get_cd_gender(&self) -> &str {
+        &self.cd_gender
+    }
+
+    pub fn get_cd_marital_status(&self) -> &str {
+        &self.cd_marital_status
+    }
+
+    pub fn get_cd_education_status(&self) -> &str {
+        &self.cd_education_status
+    }
+
+    pub fn get_cd_purchase_estimate(&self) -> i32 {
+        self.cd_purchase_estimate
+    }
+
+    pub fn get_cd_credit_rating(&self) -> &str {
+        &self.cd_credit_rating
+    }
+
+    pub fn get_cd_dep_count(&self) -> i32 {
+        self.cd_dep_count
+    }
+
+    pub fn get_cd_dep_employed_count(&self) -> i32 {
+        self.cd_dep_employed_count
+    }
+
+    pub fn get_cd_dep_college_count(&self) -> i32 {
+        self.cd_dep_college_count
+    }
+
     /// Check if a column should be null based on the null bitmap (TableRowWithNulls logic)
     fn should_be_null(&self, column_position: i32) -> bool {
         ((self.null_bit_map >> column_position) & 1) == 1

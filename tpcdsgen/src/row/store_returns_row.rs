@@ -100,6 +100,54 @@ impl StoreReturnsRow {
             - StoreReturnsGeneratorColumn::SrReturnedDateSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_sr_returned_date_sk(&self) -> i64 {
+        self.sr_returned_date_sk
+    }
+
+    pub fn get_sr_returned_time_sk(&self) -> i64 {
+        self.sr_returned_time_sk
+    }
+
+    pub fn get_sr_item_sk(&self) -> i64 {
+        self.sr_item_sk
+    }
+
+    pub fn get_sr_customer_sk(&self) -> i64 {
+        self.sr_customer_sk
+    }
+
+    pub fn get_sr_cdemo_sk(&self) -> i64 {
+        self.sr_cdemo_sk
+    }
+
+    pub fn get_sr_hdemo_sk(&self) -> i64 {
+        self.sr_hdemo_sk
+    }
+
+    pub fn get_sr_addr_sk(&self) -> i64 {
+        self.sr_addr_sk
+    }
+
+    pub fn get_sr_store_sk(&self) -> i64 {
+        self.sr_store_sk
+    }
+
+    pub fn get_sr_reason_sk(&self) -> i64 {
+        self.sr_reason_sk
+    }
+
+    pub fn get_sr_ticket_number(&self) -> i64 {
+        self.sr_ticket_number
+    }
+
+    pub fn get_sr_pricing(&self) -> &Pricing {
+        &self.sr_pricing
+    }
 }
 
 impl TableRow for StoreReturnsRow {

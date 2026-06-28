@@ -527,7 +527,6 @@ fn benchmark_table(
                     }
                     if result.should_end_row() {
                         gen.consume_remaining_seeds_for_row();
-                        gen.consume_child_seeds();
                         row_number += 1;
                     }
                 }
@@ -544,7 +543,6 @@ fn benchmark_table(
                     }
                     if result.should_end_row() {
                         gen.consume_remaining_seeds_for_row();
-                        gen.consume_child_seeds();
                         row_number += 1;
                     }
                 }
@@ -572,7 +570,6 @@ fn benchmark_table(
                     }
                     if result.should_end_row() {
                         gen.consume_remaining_seeds_for_row();
-                        gen.consume_child_seeds();
                         row_number += 1;
                     }
                 }
@@ -589,7 +586,6 @@ fn benchmark_table(
                     }
                     if result.should_end_row() {
                         gen.consume_remaining_seeds_for_row();
-                        gen.consume_child_seeds();
                         row_number += 1;
                     }
                 }
@@ -617,7 +613,6 @@ fn benchmark_table(
                     }
                     if result.should_end_row() {
                         gen.consume_remaining_seeds_for_row();
-                        gen.consume_child_seeds();
                         row_number += 1;
                     }
                 }
@@ -634,7 +629,6 @@ fn benchmark_table(
                     }
                     if result.should_end_row() {
                         gen.consume_remaining_seeds_for_row();
-                        gen.consume_child_seeds();
                         row_number += 1;
                     }
                 }

@@ -47,6 +47,10 @@ impl ReasonRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     pub fn get_r_reason_sk(&self) -> i64 {
         self.r_reason_sk
     }

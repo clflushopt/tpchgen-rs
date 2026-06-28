@@ -125,6 +125,10 @@ impl DateDimRow {
         }
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     /// Check if a column should be NULL based on the null bitmap
     fn is_field_null(&self, column_index: usize) -> bool {
         (self.null_bit_map & (1 << column_index)) != 0

@@ -119,6 +119,82 @@ impl CatalogReturnsRow {
             value.to_string()
         }
     }
+
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
+    pub fn get_cr_returned_date_sk(&self) -> i64 {
+        self.cr_returned_date_sk
+    }
+
+    pub fn get_cr_returned_time_sk(&self) -> i64 {
+        self.cr_returned_time_sk
+    }
+
+    pub fn get_cr_item_sk(&self) -> i64 {
+        self.cr_item_sk
+    }
+
+    pub fn get_cr_refunded_customer_sk(&self) -> i64 {
+        self.cr_refunded_customer_sk
+    }
+
+    pub fn get_cr_refunded_cdemo_sk(&self) -> i64 {
+        self.cr_refunded_cdemo_sk
+    }
+
+    pub fn get_cr_refunded_hdemo_sk(&self) -> i64 {
+        self.cr_refunded_hdemo_sk
+    }
+
+    pub fn get_cr_refunded_addr_sk(&self) -> i64 {
+        self.cr_refunded_addr_sk
+    }
+
+    pub fn get_cr_returning_customer_sk(&self) -> i64 {
+        self.cr_returning_customer_sk
+    }
+
+    pub fn get_cr_returning_cdemo_sk(&self) -> i64 {
+        self.cr_returning_cdemo_sk
+    }
+
+    pub fn get_cr_returning_hdemo_sk(&self) -> i64 {
+        self.cr_returning_hdemo_sk
+    }
+
+    pub fn get_cr_returning_addr_sk(&self) -> i64 {
+        self.cr_returning_addr_sk
+    }
+
+    pub fn get_cr_call_center_sk(&self) -> i64 {
+        self.cr_call_center_sk
+    }
+
+    pub fn get_cr_catalog_page_sk(&self) -> i64 {
+        self.cr_catalog_page_sk
+    }
+
+    pub fn get_cr_ship_mode_sk(&self) -> i64 {
+        self.cr_ship_mode_sk
+    }
+
+    pub fn get_cr_warehouse_sk(&self) -> i64 {
+        self.cr_warehouse_sk
+    }
+
+    pub fn get_cr_reason_sk(&self) -> i64 {
+        self.cr_reason_sk
+    }
+
+    pub fn get_cr_order_number(&self) -> i64 {
+        self.cr_order_number
+    }
+
+    pub fn get_cr_pricing(&self) -> &Pricing {
+        &self.cr_pricing
+    }
 }
 
 impl TableRow for CatalogReturnsRow {

@@ -57,6 +57,10 @@ impl HouseholdDemographicsRow {
         self.null_bit_map
     }
 
+    pub fn null_bit_map(&self) -> i64 {
+        self.null_bit_map
+    }
+
     /// Check if a field should be null based on the null bitmap
     fn is_null(&self, column_position: i32) -> bool {
         (self.null_bit_map & (1 << column_position)) != 0
