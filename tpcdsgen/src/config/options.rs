@@ -1,7 +1,13 @@
 use crate::config::{CompatMode, Session, Table};
-use crate::error::{InvalidOptionError, Result};
+use crate::error::{InvalidOptionError, Result, TpcdsError};
 use clap::Parser;
+use std::fmt;
 
+/// TPC-DS command-line options.
+///
+/// [`Options`] parses CLI arguments using [`clap`].
+/// Use [`Options::to_session`] to
+/// convert these values into a validated [`Session`] for row generation.
 #[derive(Parser, Debug, Clone)]
 #[command(name = "tpcdsgen")]
 #[command(about = "Rust implementation of TPC-DS data generator")]
@@ -56,69 +62,14 @@ pub struct Options {
 }
 
 impl Options {
-    // Default constants (matching Java implementation)
-    pub const DEFAULT_SCALE: f64 = 1.0;
-    pub const DEFAULT_DIRECTORY: &'static str = ".";
-    pub const DEFAULT_SUFFIX: &'static str = ".dat";
-    pub const DEFAULT_NULL_STRING: &'static str = "";
-    pub const DEFAULT_SEPARATOR: char = '|';
-    pub const DEFAULT_DO_NOT_TERMINATE: bool = false;
-    pub const DEFAULT_NO_SEXISM: bool = false;
-    pub const DEFAULT_PARALLELISM: i32 = 1;
-    pub const DEFAULT_OVERWRITE: bool = false;
-    pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
-
+    /// Create options using clap's CLI defaults.
     pub fn new() -> Self {
-        Self {
-            scale: Self::DEFAULT_SCALE,
-            directory: Self::DEFAULT_DIRECTORY.to_string(),
-            suffix: Self::DEFAULT_SUFFIX.to_string(),
-            table: None,
-            null_string: Self::DEFAULT_NULL_STRING.to_string(),
-            separator: Self::DEFAULT_SEPARATOR.to_string(),
-            do_not_terminate: Self::DEFAULT_DO_NOT_TERMINATE,
-            no_sexism: Self::DEFAULT_NO_SEXISM,
-            parallelism: Self::DEFAULT_PARALLELISM,
-            overwrite: Self::DEFAULT_OVERWRITE,
-            compat: Self::DEFAULT_COMPAT,
-        }
+        Self::parse_from(["tpcdsgen"])
     }
 
-    /// Convert Options to Session, performing validation
+    /// Convert options into a validated [`Session`].
     pub fn to_session(&self) -> Result<Session> {
-        self.validate_properties()?;
-
-        let table_option = if let Some(table_str) = &self.table {
-            Some(self.parse_table(table_str)?)
-        } else {
-            None
-        };
-
-        // Parse separator (should be single character)
-        let separator_char = if self.separator.len() == 1 {
-            self.separator.chars().next().unwrap()
-        } else {
-            return Err(InvalidOptionError::with_message(
-                "separator",
-                &self.separator,
-                "Separator must be a single character",
-            )
-            .into());
-        };
-
-        Ok(Session::new(
-            self.scale,
-            self.directory.clone(),
-            self.suffix.clone(),
-            table_option,
-            self.null_string.clone(),
-            separator_char,
-            self.do_not_terminate,
-            self.no_sexism,
-            self.parallelism,
-            self.overwrite,
-            self.compat,
-        ))
+        Session::try_from(self.clone())
     }
 
     /// Parse table name to Table enum (case-insensitive)
@@ -184,6 +135,95 @@ impl Options {
     }
 }
 
+impl TryFrom<Options> for Session {
+    type Error = TpcdsError;
+
+    fn try_from(options: Options) -> Result<Self> {
+        options.validate_properties()?;
+
+        let table_option = if let Some(table_str) = &options.table {
+            Some(options.parse_table(table_str)?)
+        } else {
+            None
+        };
+
+        // Parse separator (should be single character)
+        let separator_char = if options.separator.len() == 1 {
+            options.separator.chars().next().unwrap()
+        } else {
+            return Err(InvalidOptionError::with_message(
+                "separator",
+                &options.separator,
+                "Separator must be a single character",
+            )
+            .into());
+        };
+
+        Ok(Session::new(
+            options.scale,
+            options.directory,
+            options.suffix,
+            table_option,
+            options.null_string,
+            separator_char,
+            options.do_not_terminate,
+            options.no_sexism,
+            options.parallelism,
+            options.overwrite,
+            options.compat,
+        ))
+    }
+}
+
+impl fmt::Display for Options {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut output = Vec::new();
+        let default = Options::new();
+
+        if self.scale != default.scale {
+            output.push(format!("--scale {}", self.scale));
+        }
+        if self.directory != default.directory {
+            output.push(format!("--directory {}", self.directory));
+        }
+        if self.suffix != default.suffix {
+            output.push(format!("--suffix {}", self.suffix));
+        }
+        if let Some(table) = &self.table {
+            output.push(format!("--table {}", table));
+        }
+        if self.null_string != default.null_string {
+            output.push(format!("--null {}", self.null_string));
+        }
+        if self.separator != default.separator {
+            output.push(format!("--separator {}", self.separator));
+        }
+        if self.do_not_terminate != default.do_not_terminate {
+            output.push("--do-not-terminate".to_string());
+        }
+        if self.no_sexism != default.no_sexism {
+            output.push("--no-sexism".to_string());
+        }
+        if self.parallelism != default.parallelism {
+            output.push(format!("--parallelism {}", self.parallelism));
+        }
+        if self.overwrite != default.overwrite {
+            output.push("--overwrite".to_string());
+        }
+        if self.compat != default.compat {
+            output.push(format!(
+                "--compat {}",
+                match self.compat {
+                    CompatMode::Trino => "trino",
+                    CompatMode::C => "c",
+                }
+            ));
+        }
+
+        write!(f, "{}", output.join(" "))
+    }
+}
+
 impl Default for Options {
     fn default() -> Self {
         Self::new()
@@ -217,6 +257,44 @@ mod tests {
         assert_eq!(session.get_target_directory(), ".");
         assert_eq!(session.get_suffix(), ".dat");
         assert!(!session.generate_only_one_table());
+    }
+
+    #[test]
+    fn test_try_from_options_to_session() {
+        let mut options = Options::new();
+        options.scale = 2.0;
+        options.table = Some("catalog_sales".to_string());
+
+        let session = Session::try_from(options).unwrap();
+
+        assert_eq!(session.get_scaling().get_scale(), 2.0);
+        assert_eq!(session.get_table(), Some(Table::CatalogSales));
+    }
+
+    #[test]
+    fn test_display_defaults() {
+        let options = Options::new();
+        assert_eq!(options.to_string(), "");
+    }
+
+    #[test]
+    fn test_display_non_defaults() {
+        let options = Options {
+            scale: 2.0,
+            directory: "/tmp".to_string(),
+            suffix: ".csv".to_string(),
+            table: Some("catalog_sales".to_string()),
+            null_string: "NULL".to_string(),
+            separator: ",".to_string(),
+            do_not_terminate: true,
+            no_sexism: true,
+            parallelism: 4,
+            overwrite: true,
+            compat: CompatMode::C,
+        };
+
+        let expected = "--scale 2 --directory /tmp --suffix .csv --table catalog_sales --null NULL --separator , --do-not-terminate --no-sexism --parallelism 4 --overwrite --compat c";
+        assert_eq!(options.to_string(), expected);
     }
 
     #[test]

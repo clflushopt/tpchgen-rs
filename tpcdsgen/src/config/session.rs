@@ -193,49 +193,25 @@ impl Session {
 
     /// Reconstruct command line arguments that would produce this session
     pub fn get_command_line_arguments(&self) -> String {
-        let mut output = Vec::new();
+        Options::from(self.clone()).to_string()
+    }
+}
 
-        if self.scaling.get_scale() != Options::DEFAULT_SCALE {
-            output.push(format!("--scale {}", self.scaling.get_scale()));
+impl From<Session> for Options {
+    fn from(session: Session) -> Self {
+        Options {
+            scale: session.scaling.get_scale(),
+            directory: session.target_directory,
+            suffix: session.suffix,
+            table: session.table.map(|table| table.get_name().to_string()),
+            null_string: session.null_string,
+            separator: session.separator.to_string(),
+            do_not_terminate: session.do_not_terminate,
+            no_sexism: session.no_sexism,
+            parallelism: session.parallelism,
+            overwrite: session.overwrite,
+            compat: session.compat_mode,
         }
-        if self.target_directory != Options::DEFAULT_DIRECTORY {
-            output.push(format!("--directory {}", self.target_directory));
-        }
-        if self.suffix != Options::DEFAULT_SUFFIX {
-            output.push(format!("--suffix {}", self.suffix));
-        }
-        if let Some(table) = self.table {
-            output.push(format!("--table {}", table.get_name()));
-        }
-        if self.null_string != Options::DEFAULT_NULL_STRING {
-            output.push(format!("--null {}", self.null_string));
-        }
-        if self.separator != Options::DEFAULT_SEPARATOR {
-            output.push(format!("--separator {}", self.separator));
-        }
-        if self.do_not_terminate != Options::DEFAULT_DO_NOT_TERMINATE {
-            output.push("--do-not-terminate".to_string());
-        }
-        if self.no_sexism != Options::DEFAULT_NO_SEXISM {
-            output.push("--no-sexism".to_string());
-        }
-        if self.parallelism != Options::DEFAULT_PARALLELISM {
-            output.push(format!("--parallelism {}", self.parallelism));
-        }
-        if self.overwrite != Options::DEFAULT_OVERWRITE {
-            output.push("--overwrite".to_string());
-        }
-        if self.compat_mode != CompatMode::default() {
-            output.push(format!(
-                "--compat {}",
-                match self.compat_mode {
-                    CompatMode::Trino => "trino",
-                    CompatMode::C => "c",
-                }
-            ));
-        }
-
-        output.join(" ")
     }
 }
 
