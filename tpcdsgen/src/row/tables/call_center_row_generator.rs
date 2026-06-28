@@ -64,12 +64,6 @@ impl CallCenterRowGenerator {
         // the start and end dates are the version information for the row.
         let scd_key: SlowlyChangingDimensionKey = compute_scd_key(Table::CallCenter, row_number);
 
-        let end_date_str = if scd_key.get_end_date() == -1 {
-            String::new() // Empty string for null end dates
-        } else {
-            Date::julian_to_date_string(scd_key.get_end_date())
-        };
-
         let scaling = session.get_scaling();
         let is_new_business_key = scd_key.is_new_business_key();
 
@@ -80,8 +74,7 @@ impl CallCenterRowGenerator {
                 .get_random_number_stream(&CallCenterGeneratorColumn::CcOpenDateId);
             let open_date_random =
                 RandomValueGenerator::generate_uniform_random_int(-365, 0, open_date_stream);
-            let open_date_julian = JULIAN_DATE_START - open_date_random as i64;
-            let open_date_id = open_date_julian.to_string();
+            let open_date_id = JULIAN_DATE_START - open_date_random as i64;
 
             let number_of_call_centers =
                 CallCenterDistributions::get_number_of_call_centers().unwrap_or(12);
@@ -109,7 +102,7 @@ impl CallCenterRowGenerator {
             // Use values from previous row - DO NOT consume random streams!
             if let Some(ref prev_row) = self.previous_row {
                 (
-                    prev_row.get_cc_open_date_id().to_string(),
+                    prev_row.get_cc_open_date_id(),
                     prev_row.get_cc_name().to_string(),
                     prev_row.get_cc_address().clone(),
                 )
@@ -376,9 +369,9 @@ impl CallCenterRowGenerator {
             .set_null_bit_map(0)
             .set_cc_call_center_sk(row_number)
             .set_cc_call_center_id(scd_key.get_business_key().to_string())
-            .set_cc_rec_start_date_id(Date::julian_to_date_string(scd_key.get_start_date()))
-            .set_cc_rec_end_date_id(end_date_str)
-            .set_cc_closed_date_id(String::new())
+            .set_cc_rec_start_date_id(scd_key.get_start_date())
+            .set_cc_rec_end_date_id(scd_key.get_end_date())
+            .set_cc_closed_date_id(-1)
             .set_cc_open_date_id(cc_open_date_id)
             .set_cc_name(cc_name)
             .set_cc_class(cc_class.to_string())

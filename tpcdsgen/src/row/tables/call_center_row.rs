@@ -1,5 +1,5 @@
 use crate::row::TableRow;
-use crate::types::{Address, Decimal};
+use crate::types::{Address, Date, Decimal};
 
 /// Call Center row data structure (CallCenterRow)
 /// Contains all fields for the CALL_CENTER table in TPC-DS
@@ -8,12 +8,15 @@ pub struct CallCenterRow {
     // Primary key
     cc_call_center_sk: i64,
 
-    // Business key and versioning
+    // Business key and versioning.
+    //
+    // Record dates are stored as Julian day numbers. Open/closed dates are
+    // DATE_DIM surrogate keys. They are formatted only when writing .dat output.
     cc_call_center_id: String,
-    cc_rec_start_date_id: String,
-    cc_rec_end_date_id: String,
-    cc_closed_date_id: String,
-    cc_open_date_id: String,
+    cc_rec_start_date_id: i64,
+    cc_rec_end_date_id: i64,
+    cc_closed_date_id: i64,
+    cc_open_date_id: i64,
 
     // Call center information
     cc_name: String,
@@ -60,20 +63,20 @@ impl CallCenterRow {
         &self.cc_call_center_id
     }
 
-    pub fn get_cc_rec_start_date_id(&self) -> &str {
-        &self.cc_rec_start_date_id
+    pub fn get_cc_rec_start_date_id(&self) -> i64 {
+        self.cc_rec_start_date_id
     }
 
-    pub fn get_cc_rec_end_date_id(&self) -> &str {
-        &self.cc_rec_end_date_id
+    pub fn get_cc_rec_end_date_id(&self) -> i64 {
+        self.cc_rec_end_date_id
     }
 
-    pub fn get_cc_closed_date_id(&self) -> &str {
-        &self.cc_closed_date_id
+    pub fn get_cc_closed_date_id(&self) -> i64 {
+        self.cc_closed_date_id
     }
 
-    pub fn get_cc_open_date_id(&self) -> &str {
-        &self.cc_open_date_id
+    pub fn get_cc_open_date_id(&self) -> i64 {
+        self.cc_open_date_id
     }
 
     pub fn get_cc_name(&self) -> &str {
@@ -166,6 +169,24 @@ impl CallCenterRow {
             value.to_string()
         }
     }
+
+    /// Format a Julian day number as a .dat date string, handling nulls.
+    fn format_date(&self, julian_days: i64, column_position: i32) -> String {
+        if self.is_null(column_position) || julian_days < 0 {
+            String::new()
+        } else {
+            Date::from_julian_days(julian_days as i32).to_string()
+        }
+    }
+
+    /// Format a DATE_DIM surrogate key, handling nulls.
+    fn format_key(&self, value: i64, column_position: i32) -> String {
+        if self.is_null(column_position) || value < 0 {
+            String::new()
+        } else {
+            value.to_string()
+        }
+    }
 }
 
 impl TableRow for CallCenterRow {
@@ -174,10 +195,10 @@ impl TableRow for CallCenterRow {
         vec![
             self.format_numeric(self.cc_call_center_sk, 0),
             self.format_value(&self.cc_call_center_id, 1),
-            self.format_value(&self.cc_rec_start_date_id, 2),
-            self.format_value(&self.cc_rec_end_date_id, 3),
-            self.format_value(&self.cc_closed_date_id, 4),
-            self.format_value(&self.cc_open_date_id, 5),
+            self.format_date(self.cc_rec_start_date_id, 2),
+            self.format_date(self.cc_rec_end_date_id, 3),
+            self.format_key(self.cc_closed_date_id, 4),
+            self.format_key(self.cc_open_date_id, 5),
             self.format_value(&self.cc_name, 6),
             self.format_value(&self.cc_class, 7),
             self.format_numeric(self.cc_employees, 8),
@@ -213,10 +234,10 @@ impl TableRow for CallCenterRow {
 pub struct CallCenterRowBuilder {
     cc_call_center_sk: Option<i64>,
     cc_call_center_id: Option<String>,
-    cc_rec_start_date_id: Option<String>,
-    cc_rec_end_date_id: Option<String>,
-    cc_closed_date_id: Option<String>,
-    cc_open_date_id: Option<String>,
+    cc_rec_start_date_id: Option<i64>,
+    cc_rec_end_date_id: Option<i64>,
+    cc_closed_date_id: Option<i64>,
+    cc_open_date_id: Option<i64>,
     cc_name: Option<String>,
     cc_class: Option<String>,
     cc_employees: Option<i32>,
@@ -252,22 +273,22 @@ impl CallCenterRowBuilder {
         self
     }
 
-    pub fn set_cc_rec_start_date_id(mut self, value: String) -> Self {
+    pub fn set_cc_rec_start_date_id(mut self, value: i64) -> Self {
         self.cc_rec_start_date_id = Some(value);
         self
     }
 
-    pub fn set_cc_rec_end_date_id(mut self, value: String) -> Self {
+    pub fn set_cc_rec_end_date_id(mut self, value: i64) -> Self {
         self.cc_rec_end_date_id = Some(value);
         self
     }
 
-    pub fn set_cc_closed_date_id(mut self, value: String) -> Self {
+    pub fn set_cc_closed_date_id(mut self, value: i64) -> Self {
         self.cc_closed_date_id = Some(value);
         self
     }
 
-    pub fn set_cc_open_date_id(mut self, value: String) -> Self {
+    pub fn set_cc_open_date_id(mut self, value: i64) -> Self {
         self.cc_open_date_id = Some(value);
         self
     }
@@ -362,10 +383,10 @@ impl CallCenterRowBuilder {
         CallCenterRow {
             cc_call_center_sk: self.cc_call_center_sk.unwrap_or(0),
             cc_call_center_id: self.cc_call_center_id.unwrap_or_default(),
-            cc_rec_start_date_id: self.cc_rec_start_date_id.unwrap_or_default(),
-            cc_rec_end_date_id: self.cc_rec_end_date_id.unwrap_or_default(),
-            cc_closed_date_id: self.cc_closed_date_id.unwrap_or_default(), // Default empty for null
-            cc_open_date_id: self.cc_open_date_id.unwrap_or_default(),
+            cc_rec_start_date_id: self.cc_rec_start_date_id.unwrap_or(-1),
+            cc_rec_end_date_id: self.cc_rec_end_date_id.unwrap_or(-1),
+            cc_closed_date_id: self.cc_closed_date_id.unwrap_or(-1),
+            cc_open_date_id: self.cc_open_date_id.unwrap_or(-1),
             cc_name: self.cc_name.unwrap_or_default(),
             cc_class: self.cc_class.unwrap_or_default(),
             cc_employees: self.cc_employees.unwrap_or(0),
@@ -412,10 +433,10 @@ mod tests {
         let row = CallCenterRow::builder()
             .set_cc_call_center_sk(1)
             .set_cc_call_center_id("AAAAAAAABAAAAAAA".to_string())
-            .set_cc_rec_start_date_id(2450815.to_string())
-            .set_cc_rec_end_date_id(2451179.to_string())
-            .set_cc_closed_date_id((-1).to_string())
-            .set_cc_open_date_id(2450816.to_string())
+            .set_cc_rec_start_date_id(2450815)
+            .set_cc_rec_end_date_id(2451179)
+            .set_cc_closed_date_id(-1)
+            .set_cc_open_date_id(2450816)
             .set_cc_name("NY Metro".to_string())
             .set_cc_class("large".to_string())
             .set_cc_employees(2)
