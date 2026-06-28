@@ -1,8 +1,10 @@
 use clap::{ArgAction, Args, Subcommand};
+use std::fmt;
 use std::path::PathBuf;
 use tpchgen_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
+const NOT_IMPLEMENTED: &str = "TPC-DS data generation is not yet implemented";
 
 #[derive(Args)]
 #[command(version)]
@@ -156,9 +158,25 @@ impl CommonArgs {
             self.quiet,
             self.progress_bars_enabled,
         );
-        Ok(())
+        Err(Box::new(NotImplemented))
     }
 }
+
+struct NotImplemented;
+
+impl fmt::Display for NotImplemented {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(NOT_IMPLEMENTED)
+    }
+}
+
+impl fmt::Debug for NotImplemented {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
+impl std::error::Error for NotImplemented {}
 
 fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
     let parsed = match s {

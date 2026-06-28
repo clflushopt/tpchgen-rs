@@ -41,9 +41,9 @@ fn test_tpcgen_tpch_command_forms() {
     }
 }
 
-/// Test the TPC-DS command forms currently parse but do not write output.
+/// Test the TPC-DS command forms parse and report that generation is unavailable.
 #[test]
-fn test_tpcgen_tpcds_command_forms_are_noops() {
+fn test_tpcgen_tpcds_command_forms_are_not_implemented() {
     let forms: &[(&[&str], &[&str], &str)] = &[
         (&["tpcds"], &[], "reason.dat"),
         (&["tpcds", "dat"], &[], "reason.dat"),
@@ -58,7 +58,7 @@ fn test_tpcgen_tpcds_command_forms_are_noops() {
     for (form, format_args, unexpected_file) in forms {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-        cargo_bin_cmd!("tpcgen")
+        let assert = cargo_bin_cmd!("tpcgen")
             .args(*form)
             .arg("--scale-factor")
             .arg("1")
@@ -70,7 +70,15 @@ fn test_tpcgen_tpcds_command_forms_are_noops() {
             .arg("--no-progress")
             .args(*format_args)
             .assert()
-            .success();
+            .failure();
+
+        let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(
+            stderr.contains("TPC-DS data generation is not yet implemented"),
+            "Expected `tpcgen {}` to report that TPC-DS generation is not implemented, got stderr: {}",
+            form.join(" "),
+            stderr
+        );
 
         let unexpected_file = temp_dir.path().join(unexpected_file);
         assert!(
