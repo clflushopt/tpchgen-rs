@@ -1,6 +1,7 @@
 use clap::{ArgAction, Args, Subcommand};
 use std::fmt;
 use std::path::PathBuf;
+use tpcdsgen::config::Options as TpcdsOptions;
 use tpchgen_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -130,34 +131,55 @@ impl Cli {
 
 impl DatArgs {
     fn run(self) -> Result<()> {
-        self.common.run()
+        self.common.run_dat()
     }
 }
 
 impl CsvArgs {
     fn run(self) -> Result<()> {
         let _ = self.delimiter;
-        self.common.run()
+        self.common.run_not_implemented()
     }
 }
 
 impl ParquetArgs {
     fn run(self) -> Result<()> {
         let _ = (self.compression, self.row_group_bytes);
-        self.common.run()
+        self.common.run_not_implemented()
     }
 }
 
 impl CommonArgs {
-    fn run(self) -> Result<()> {
-        let _ = (
-            self.scale_factor,
-            self.output_dir,
-            self.tables,
-            self.verbose,
-            self.quiet,
-            self.progress_bars_enabled,
-        );
+    fn run_dat(self) -> Result<()> {
+        let _ = self.progress_bars_enabled;
+        std::fs::create_dir_all(&self.output_dir)?;
+        if let Some(tables) = &self.tables {
+            for table in tables {
+                self.run_dat_for_table(Some(table.clone()))?;
+            }
+        } else {
+            self.run_dat_for_table(None)?;
+        }
+
+        Ok(())
+    }
+
+    fn run_dat_for_table(&self, table: Option<String>) -> Result<()> {
+        let options = self.to_tpcds_options(table);
+        let session = options.to_session()?;
+        tpcdsgen::dat::generate(&session)
+    }
+
+    fn to_tpcds_options(&self, table: Option<String>) -> TpcdsOptions {
+        let mut options = TpcdsOptions::new();
+        options.scale = self.scale_factor;
+        options.directory = self.output_dir.to_string_lossy().into_owned();
+        options.table = table;
+        options
+    }
+
+    fn run_not_implemented(self) -> Result<()> {
+        let _ = self;
         Err(Box::new(NotImplemented))
     }
 }
