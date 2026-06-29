@@ -1,7 +1,7 @@
-use crate::conversions::{opt, string_view_array_from_opt_iter};
+use crate::conversions::{date_to_date32, opt, string_view_array_from_opt_iter};
 use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::RecordBatch;
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::{Date32Array, RecordBatch, Time32SecondArray};
+use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{DbgenVersionRowGenerator, GeneratedRow};
@@ -50,15 +50,15 @@ impl Iterator for DbgenVersionArrow {
         }
 
         let mut version: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut create_date: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut create_time: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut create_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut create_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut cmdline: Vec<Option<String>> = Vec::with_capacity(rows.len());
 
         for r in &rows {
             let nbm = r.null_bit_map();
             version.push(opt(nbm, 0, r.get_dv_version().to_owned()));
-            create_date.push(opt(nbm, 1, r.get_dv_create_date().to_owned()));
-            create_time.push(opt(nbm, 2, r.get_dv_create_time().to_owned()));
+            create_date.push(opt(nbm, 1, date_to_date32(r.get_dv_create_date())));
+            create_time.push(opt(nbm, 2, r.get_dv_create_time()));
             cmdline.push(opt(nbm, 3, r.get_dv_cmdline_args().to_owned()));
         }
 
@@ -69,12 +69,8 @@ impl Iterator for DbgenVersionArrow {
                     Arc::new(string_view_array_from_opt_iter(
                         version.iter().map(|s| s.as_deref()),
                     )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        create_date.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        create_time.iter().map(|s| s.as_deref()),
-                    )),
+                    Arc::new(Date32Array::from(create_date)),
+                    Arc::new(Time32SecondArray::from(create_time)),
                     Arc::new(string_view_array_from_opt_iter(
                         cmdline.iter().map(|s| s.as_deref()),
                     )),
@@ -90,8 +86,8 @@ static SCHEMA: LazyLock<SchemaRef> = LazyLock::new(make_schema);
 fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("dv_version", DataType::Utf8View, true),
-        Field::new("dv_create_date", DataType::Utf8View, true),
-        Field::new("dv_create_time", DataType::Utf8View, true),
+        Field::new("dv_create_date", DataType::Date32, true),
+        Field::new("dv_create_time", DataType::Time32(TimeUnit::Second), true),
         Field::new("dv_cmdline_args", DataType::Utf8View, true),
     ]))
 }
