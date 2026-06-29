@@ -26,6 +26,7 @@ indicatif = { version = "0.18.3", optional = true }
 log = "0.4.26"
 num_cpus = "1.0"
 parquet = "59"
+tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }
 tokio = { version = "1.44.1", features = ["full"] }
 tpchgen = { path = "../tpchgen", version = "2.0.2" }
 tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }
