@@ -19,7 +19,7 @@ path = "bin/tpchgen_cli.rs"
 required-features = ["indicatif-progress"]
 
 [dependencies]
-arrow = "59"
+arrow = { workspace = true }
 parquet = "59"
 clap = { version = "4.5.32", features = ["derive"] }
 tpchgen = { path = "../tpchgen", version = "2.0.2" }
