@@ -1,5 +1,9 @@
 use crate::config::{CompatMode, Options, Scaling, Table};
 
+/// Configuration for a TPC-DS data generation run.
+///
+/// A `Session` is built from [`Options`] and defines how TPC-DS data is
+/// generated.
 #[derive(Debug, Clone)]
 pub struct Session {
     scaling: Scaling,
@@ -23,6 +27,10 @@ impl Default for Session {
 }
 
 impl Session {
+    /// Create a session for a single generation chunk.
+    ///
+    /// This is equivalent to calling [`Session::new_with_chunk_number`] with
+    /// `chunk_number` set to `1`.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         scale: f64,
@@ -53,6 +61,12 @@ impl Session {
         )
     }
 
+    /// Create a session for a specific generation chunk.
+    ///
+    /// `parallelism` is the total number of chunks to generate, and
+    /// `chunk_number` identifies the chunk represented by this session. The
+    /// caller is responsible for passing values that have already been
+    /// validated by [`Options::to_session`] or equivalent logic.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_chunk_number(
         scale: f64,
@@ -84,12 +98,12 @@ impl Session {
         }
     }
 
-    /// Get default session with all default values
+    /// Return a session using all CLI default values.
     pub fn get_default_session() -> Self {
         Options::new().to_session().unwrap()
     }
 
-    // Builder-like methods (return new Session with updated field)
+    /// Return a copy of this session that only generates `table`.
     pub fn with_table(&self, table: Table) -> Self {
         Session {
             table: Some(table),
@@ -97,6 +111,10 @@ impl Session {
         }
     }
 
+    /// Return a copy of this session with a different scale factor.
+    ///
+    /// The existing compatibility mode is preserved when rebuilding the
+    /// [`Scaling`] configuration.
     pub fn with_scale(&self, scale: f64) -> Self {
         Session {
             scaling: Scaling::new_with_compat(scale, self.compat_mode),
@@ -104,6 +122,10 @@ impl Session {
         }
     }
 
+    /// Return a copy of this session with a different [`CompatMode`].
+    ///
+    /// The scale factor is preserved and the [`Scaling`] configuration is
+    /// rebuilt so row-count calculations use the new mode.
     pub fn with_compat_mode(&self, compat_mode: CompatMode) -> Self {
         Session {
             scaling: Scaling::new_with_compat(self.scaling.get_scale(), compat_mode),
@@ -112,6 +134,7 @@ impl Session {
         }
     }
 
+    /// Return a copy of this session with a different total chunk count.
     pub fn with_parallelism(&self, parallelism: i32) -> Self {
         Session {
             parallelism,
@@ -119,6 +142,7 @@ impl Session {
         }
     }
 
+    /// Return a copy of this session for a different chunk number.
     pub fn with_chunk_number(&self, chunk_number: i32) -> Self {
         Session {
             chunk_number,
@@ -126,6 +150,15 @@ impl Session {
         }
     }
 
+    /// Return a copy of this session with gender-neutral manager names enabled
+    /// or disabled.
+    ///
+    /// When enabled, first names are picked from the general first-name
+    /// distribution instead of the male-only distribution used by the C
+    /// reference implementation. This matches the behavior documented by the
+    /// Trino Java implementation's [`--no-sexism`] option.
+    ///
+    /// [`--no-sexism`]: https://github.com/trinodb/tpcds/blob/8a02abbba864feedc2afd078c8153d66a95bb2d4/src/main/java/io/trino/tpcds/Options.java#L55-L60
     pub fn with_no_sexism(&self, no_sexism: bool) -> Self {
         Session {
             no_sexism,
@@ -133,109 +166,106 @@ impl Session {
         }
     }
 
-    // Accessor methods
+    /// Return the [`Scaling`] settings used for row counts.
     pub fn get_scaling(&self) -> &Scaling {
         &self.scaling
     }
 
+    /// Return the directory where generated files are written.
     pub fn get_target_directory(&self) -> &str {
         &self.target_directory
     }
 
+    /// Return the suffix appended to generated data file names.
     pub fn get_suffix(&self) -> &str {
         &self.suffix
     }
 
+    /// Return `true` if this session should generate a single table.
     pub fn generate_only_one_table(&self) -> bool {
         self.table.is_some()
     }
 
+    /// Return the single table selected for generation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if no single table was configured. Call
+    /// [`Session::generate_only_one_table`] before using this method.
     pub fn get_only_table_to_generate(&self) -> Table {
         self.table
             .unwrap_or_else(|| panic!("table not present - call generate_only_one_table() first"))
     }
 
+    /// Return the optional single-table selection.
     pub fn get_table(&self) -> Option<Table> {
         self.table
     }
 
+    /// Return the string emitted for null values.
     pub fn get_null_string(&self) -> &str {
         &self.null_string
     }
 
+    /// Return the column separator emitted between fields.
     pub fn get_separator(&self) -> char {
         self.separator
     }
 
+    /// Return whether rows should end with the configured column separator.
     pub fn terminate_rows_with_separator(&self) -> bool {
         !self.do_not_terminate
     }
 
+    /// Return whether generated manager names should match the reference
+    /// implementation's original gendered data.
     pub fn is_sexist(&self) -> bool {
         !self.no_sexism
     }
 
+    /// Return the total number of chunks requested for generation.
     pub fn get_parallelism(&self) -> i32 {
         self.parallelism
     }
 
+    /// Return the one-based chunk number represented by this session.
     pub fn get_chunk_number(&self) -> i32 {
         self.chunk_number
     }
 
+    /// Return whether existing output files may be overwritten.
     pub fn should_overwrite(&self) -> bool {
         self.overwrite
     }
 
+    /// Return the reference implementation compatibility mode.
     pub fn get_compat_mode(&self) -> CompatMode {
         self.compat_mode
     }
 
-    /// Reconstruct command line arguments that would produce this session
+    /// Reconstruct command line arguments that would produce this session.
+    ///
+    /// Default-valued options are omitted from the returned string.
     pub fn get_command_line_arguments(&self) -> String {
-        let mut output = Vec::new();
+        Options::from(self.clone()).to_string()
+    }
+}
 
-        if self.scaling.get_scale() != Options::DEFAULT_SCALE {
-            output.push(format!("--scale {}", self.scaling.get_scale()));
+impl From<Session> for Options {
+    fn from(session: Session) -> Self {
+        Options {
+            scale: session.scaling.get_scale(),
+            directory: session.target_directory,
+            suffix: session.suffix,
+            table: session.table.map(|table| table.get_name().to_string()),
+            null_string: session.null_string,
+            separator: session.separator.to_string(),
+            do_not_terminate: session.do_not_terminate,
+            no_sexism: session.no_sexism,
+            parallelism: session.parallelism,
+            overwrite: session.overwrite,
+            compat: session.compat_mode,
         }
-        if self.target_directory != Options::DEFAULT_DIRECTORY {
-            output.push(format!("--directory {}", self.target_directory));
-        }
-        if self.suffix != Options::DEFAULT_SUFFIX {
-            output.push(format!("--suffix {}", self.suffix));
-        }
-        if let Some(table) = self.table {
-            output.push(format!("--table {}", table.get_name()));
-        }
-        if self.null_string != Options::DEFAULT_NULL_STRING {
-            output.push(format!("--null {}", self.null_string));
-        }
-        if self.separator != Options::DEFAULT_SEPARATOR {
-            output.push(format!("--separator {}", self.separator));
-        }
-        if self.do_not_terminate != Options::DEFAULT_DO_NOT_TERMINATE {
-            output.push("--do-not-terminate".to_string());
-        }
-        if self.no_sexism != Options::DEFAULT_NO_SEXISM {
-            output.push("--no-sexism".to_string());
-        }
-        if self.parallelism != Options::DEFAULT_PARALLELISM {
-            output.push(format!("--parallelism {}", self.parallelism));
-        }
-        if self.overwrite != Options::DEFAULT_OVERWRITE {
-            output.push("--overwrite".to_string());
-        }
-        if self.compat_mode != CompatMode::default() {
-            output.push(format!(
-                "--compat {}",
-                match self.compat_mode {
-                    CompatMode::Trino => "trino",
-                    CompatMode::C => "c",
-                }
-            ));
-        }
-
-        output.join(" ")
     }
 }
 

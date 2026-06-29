@@ -2,249 +2,432 @@
 //! canonical pipe-delimited .dat format and comparing against the directly
 //! generated Arrow RecordBatches.
 //!
-//! Strategy: for each table, drive the tpcdsgen RowGenerator to produce
-//! `Vec<String>` values via `TableRow::get_values()`, write them as
-//! pipe-delimited text (one row per line), re-parse with the Arrow CSV reader
-//! using the same schema, and assert the two RecordBatches are equal.
+//! Strategy:
+//! - drive the tpcdsgen RowGenerator to produce rows for each table
+//! - write rows via `TableRow::write_to()` just like the CLI does
+//! - re-parse the output with the Arrow CSV reader using the same schema
+//! - assert that the reparsed and direct Arrow RecordBatches are equal
 
 use arrow::array::RecordBatch;
+use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Options, Session, Table};
 use tpcdsgen::row::{
-    CallCenterRowGenerator, CatalogPageRowGenerator, CustomerAddressRowGenerator,
-    CustomerDemographicsRowGenerator, CustomerRowGenerator, DateDimRowGenerator, GeneratedRow,
-    HouseholdDemographicsRowGenerator, IncomeBandRowGenerator, InventoryRowGenerator,
-    ItemRowGenerator, PromotionRowGenerator, ReasonRowGenerator, RowGenerator,
-    ShipModeRowGenerator, StoreRowGenerator, TableRow, TimeDimRowGenerator, WarehouseRowGenerator,
-    WebPageRowGenerator, WebSiteRowGenerator,
+    CallCenterRowGenerator, CatalogPageRowGenerator, CatalogSalesRowGenerator,
+    CustomerAddressRowGenerator, CustomerDemographicsRowGenerator, CustomerRowGenerator,
+    DateDimRowGenerator, GeneratedRow, HouseholdDemographicsRowGenerator, IncomeBandRowGenerator,
+    InventoryRowGenerator, ItemRowGenerator, PromotionRowGenerator, ReasonRowGenerator,
+    RowGenerator, ShipModeRowGenerator, StoreRowGenerator, StoreSalesRowGenerator, TableRow,
+    TimeDimRowGenerator, WarehouseRowGenerator, WebPageRowGenerator, WebSalesRowGenerator,
+    WebSiteRowGenerator,
 };
 use tpcdsgen_arrow::{
-    CallCenterArrow, CatalogPageArrow, CustomerAddressArrow, CustomerArrow,
-    CustomerDemographicsArrow, DateDimArrow, HouseholdDemographicsArrow, IncomeBandArrow,
-    InventoryArrow, ItemArrow, PromotionArrow, ReasonArrow, RecordBatchIterator, ShipModeArrow,
-    StoreArrow, TimeDimArrow, WarehouseArrow, WebPageArrow, WebSiteArrow,
+    CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
+    CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
+    HouseholdDemographicsArrow, IncomeBandArrow, InventoryArrow, ItemArrow, PromotionArrow,
+    ReasonArrow, RecordBatchIterator, ShipModeArrow, StoreArrow, StoreReturnsArrow,
+    StoreSalesArrow, TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow,
+    WebSiteArrow,
 };
 
-fn session() -> Session {
-    Options::default().to_session().unwrap()
+/// Session options for tests (scale factor 1).
+static SESSION: LazyLock<Session> = LazyLock::new(|| Options::default().to_session().unwrap());
+
+/// Number of rows to test for `table`.
+fn test_row_count(table: Table) -> i64 {
+    // Test up to 10k rows, rather than the entire table, to keep testing time
+    // reasonable for large fact tables.
+    const MAX_REPARSE_SOURCE_ROWS: i64 = 10_000;
+
+    SESSION
+        .get_scaling()
+        .get_row_count(table)
+        .min(MAX_REPARSE_SOURCE_ROWS)
 }
 
-/// Write rows as pipe-delimited text and re-parse with the Arrow CSV reader.
-fn parse_dat(rows: &[Vec<String>], schema: &SchemaRef) -> RecordBatch {
+/// Re-parse `tbl` format with the Arrow CSV reader.
+///
+/// 'tbl' format is pipe delimited, e.g.
+/// ```csv
+/// 1|foo
+/// 2|bar
+/// ```
+/// Note there is no trailing separator
+fn parse_dat<'a>(data: &'a [u8], schema: &'a SchemaRef) -> impl Iterator<Item = RecordBatch> + 'a {
     let null_re = regex::Regex::new("^$").unwrap();
-    let mut data: Vec<u8> = Vec::with_capacity(rows.len() * 64);
-    for values in rows {
-        data.extend_from_slice(values.join("|").as_bytes());
-        data.push(b'\n');
-    }
     let builder = arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema))
-        .with_batch_size(rows.len().max(1))
-        .with_delimiter(b'|')
+        .with_delimiter(SESSION.get_separator() as u8)
         .with_header(false)
         .with_null_regex(null_re);
-    let mut reader = builder.build(data.as_slice()).unwrap();
-    let batch = reader.next().unwrap().unwrap();
-    assert!(
-        reader.next().is_none(),
-        "expected exactly one batch from parsed dat"
-    );
-    batch
+    builder
+        .build(data)
+        .unwrap()
+        // csv reader returns Result<RecordBatch>, so check here
+        .map(|batch| batch.expect("parse .tbl data into RecordBatch"))
 }
 
-/// Drive a RowGenerator for `row_count` rows, calling `extract` on each
-/// GeneratedRow to collect the string-value vectors.
-fn collect_rows<G, F>(mut gen: G, row_count: i64, session: &Session, extract: F) -> Vec<Vec<String>>
+/// Yields RecordBatches re-parsed from pipe-delimited output for the specified
+/// table generator `gen`, selecting only rows for which `select` returns true.
+fn reparsed_batches<G, F>(
+    mut gen: G,
+    schema: &SchemaRef,
+    select: F,
+    source_row_count: i64,
+) -> impl Iterator<Item = RecordBatch>
 where
     G: RowGenerator,
-    F: Fn(&GeneratedRow) -> Option<Vec<String>>,
+    F: Fn(&GeneratedRow) -> bool,
 {
-    let mut out = Vec::new();
-    for row_num in 1..=row_count {
-        let result = gen
-            .generate_row_and_child_rows(row_num, session, None, None)
-            .expect("row gen");
-        for g in result.get_rows() {
-            if let Some(v) = extract(g) {
-                out.push(v);
+    let schema = Arc::clone(schema);
+
+    const REPARSE_BUFFER_TARGET_BYTES: usize = 256 * 1024;
+    let separator = SESSION.get_separator();
+    let mut source_row = 1;
+    std::iter::from_fn(move || {
+        let mut data = Vec::new();
+
+        while data.len() < REPARSE_BUFFER_TARGET_BYTES && source_row <= source_row_count {
+            let result = gen
+                .generate_row_and_child_rows(source_row, &SESSION, None, None)
+                .expect("row gen");
+            // Format the rows into `data` as pipe-delimited data.
+            for row in result.get_rows() {
+                if select(row) {
+                    row.write_to(&mut data, separator).unwrap();
+                    data.pop();
+                    // Note: .tbl lines end with '|' which the Arrow CSV parser treats as a
+                    // delimiter for a new column, so replace the last '|' with a newline.
+                    let end_offset = data.len() - 1;
+                    data[end_offset] = b'\n';
+                }
+            }
+            if result.should_end_row() {
+                gen.consume_remaining_seeds_for_row();
+                source_row += 1;
             }
         }
-        gen.consume_remaining_seeds_for_row();
-    }
-    out
+
+        if data.is_empty() {
+            None
+        } else {
+            let batches: Vec<_> = parse_dat(&data, &schema).collect();
+            Some(concat_batches(&schema, &batches).expect("concatenate reparsed batches"))
+        }
+    })
 }
 
-/// Core comparison loop: drive the Arrow generator batch by batch, compare
-/// each batch against the reparsed pipe-delimited rows.
-fn run_test<G, A, F>(gen: G, row_count: i64, session: &Session, mut arrow: A, extract: F)
+/// Compares the output of an Arrow generator `arrow_gen` and an underlying table
+/// generator `gen` by generating and then re-parsing `.tbl` output produced by
+/// the table generator.
+///
+/// The `select` predicate is used to select which rows to include in the
+/// reparsed data.
+///
+/// Arguments:
+/// * `gen`: the [`RowGenerator`] for the table(s)
+/// * `source_row_count`: the number of source rows to generate
+/// * `row_limit`: the maximum number of selected output rows to compare
+/// * `arrow_gen`: the [`RecordBatchIterator`] for the table
+/// * `select`: a predicate to select which rows to include in the reparsed data
+fn run_test<G, A, F>(gen: G, source_row_count: i64, row_limit: usize, arrow_gen: A, select: F)
 where
     G: RowGenerator,
     A: RecordBatchIterator,
-    F: Fn(&GeneratedRow) -> Option<Vec<String>>,
+    F: Fn(&GeneratedRow) -> bool,
 {
-    let all_rows = collect_rows(gen, row_count, session, extract);
-    let mut offset = 0;
-    while let Some(arrow_batch) = arrow.next() {
-        let n = arrow_batch.num_rows();
-        let schema = Arc::clone(arrow.schema());
-        let reparsed = parse_dat(&all_rows[offset..offset + n], &schema);
-        assert_eq!(
-            reparsed, arrow_batch,
-            "batch mismatch at row offset {offset}"
-        );
-        offset += n;
-    }
-    assert_eq!(offset, all_rows.len(), "total row count mismatch");
+    let schema = Arc::clone(arrow_gen.schema());
+
+    // Stream of batches from reparsing `.tbl` output.
+    let reparsed = reparsed_batches(gen, &schema, select, source_row_count);
+
+    // Use FixedSizeBatches to align batch boundaries for comparison.
+    let mut reparsed = FixedSizeBatches::new(reparsed, row_limit);
+    let mut arrow = FixedSizeBatches::new(arrow_gen, row_limit);
+
+    // Compare the two streams, batch by batch.
+    let mut compared_rows = 0;
+    arrow
+        .by_ref()
+        .zip(reparsed.by_ref())
+        .for_each(|(arrow_batch, reparsed_batch)| {
+            compared_rows += arrow_batch.num_rows();
+            assert_eq!(arrow_batch, reparsed_batch);
+        });
+    assert_eq!(compared_rows, row_limit);
+    assert!(
+        arrow.next().is_none(),
+        "direct Arrow iterator produced extra batches"
+    );
+    assert!(
+        reparsed.next().is_none(),
+        "reparsed Arrow iterator produced extra batches"
+    );
 }
 
 // ---------------------------------------------------------------------------
-// One test per dimension/simple table.
-// Paired fact tables (StoreSales+StoreReturns etc.) are omitted here.
+// One test per table.
 // ---------------------------------------------------------------------------
 
-macro_rules! dim_test {
+macro_rules! table_test {
     ($name:ident, $gen:expr, $arrow:expr, $table:expr, $variant:ident) => {
         #[test]
         fn $name() {
-            let s = session();
-            let n = s.get_scaling().get_row_count($table);
+            let source_row_count = SESSION.get_scaling().get_row_count($table);
+            let row_limit = test_row_count($table) as usize;
             run_test(
                 $gen,
-                n,
-                &s,
-                $arrow(s.clone()).with_batch_size(512),
+                source_row_count,
+                row_limit,
+                $arrow(SESSION.clone()),
                 |g| match g {
-                    GeneratedRow::$variant(r) => Some(r.get_values()),
-                    _ => None,
+                    GeneratedRow::$variant(_) => true,
+                    _ => false,
                 },
             );
         }
     };
 }
 
-dim_test!(
+table_test!(
     income_band,
     IncomeBandRowGenerator::new(),
     IncomeBandArrow::new,
     Table::IncomeBand,
     IncomeBand
 );
-dim_test!(
+table_test!(
     reason,
     ReasonRowGenerator::new(),
     ReasonArrow::new,
     Table::Reason,
     Reason
 );
-dim_test!(
+table_test!(
     ship_mode,
     ShipModeRowGenerator::new(),
     ShipModeArrow::new,
     Table::ShipMode,
     ShipMode
 );
-dim_test!(
+table_test!(
     inventory,
     InventoryRowGenerator::new(),
     InventoryArrow::new,
     Table::Inventory,
     Inventory
 );
-dim_test!(
+table_test!(
     household_demographics,
     HouseholdDemographicsRowGenerator::new(),
     HouseholdDemographicsArrow::new,
     Table::HouseholdDemographics,
     HouseholdDemographics
 );
-dim_test!(
+table_test!(
     customer_demographics,
     CustomerDemographicsRowGenerator::new(),
     CustomerDemographicsArrow::new,
     Table::CustomerDemographics,
     CustomerDemographics
 );
-dim_test!(
+table_test!(
     customer_address,
     CustomerAddressRowGenerator::new(),
     CustomerAddressArrow::new,
     Table::CustomerAddress,
     CustomerAddress
 );
-dim_test!(
+table_test!(
     customer,
     CustomerRowGenerator::new(),
     CustomerArrow::new,
     Table::Customer,
     Customer
 );
-dim_test!(
+table_test!(
     catalog_page,
     CatalogPageRowGenerator::new(),
     CatalogPageArrow::new,
     Table::CatalogPage,
     CatalogPage
 );
-dim_test!(
+table_test!(
     time_dim,
     TimeDimRowGenerator::new(),
     TimeDimArrow::new,
     Table::TimeDim,
     TimeDim
 );
-dim_test!(
+table_test!(
     date_dim,
     DateDimRowGenerator::new(),
     DateDimArrow::new,
     Table::DateDim,
     DateDim
 );
-dim_test!(
+table_test!(
     warehouse,
     WarehouseRowGenerator::new(),
     WarehouseArrow::new,
     Table::Warehouse,
     Warehouse
 );
-dim_test!(
+table_test!(
     item,
     ItemRowGenerator::new(),
     ItemArrow::new,
     Table::Item,
     Item
 );
-dim_test!(
+table_test!(
     promotion,
     PromotionRowGenerator::new(),
     PromotionArrow::new,
     Table::Promotion,
     Promotion
 );
-dim_test!(
+table_test!(
     store,
     StoreRowGenerator::new(),
     StoreArrow::new,
     Table::Store,
     Store
 );
-dim_test!(
+table_test!(
     web_page,
     WebPageRowGenerator::new(),
     WebPageArrow::new,
     Table::WebPage,
     WebPage
 );
-dim_test!(
+table_test!(
     web_site,
     WebSiteRowGenerator::new(),
     WebSiteArrow::new,
     Table::WebSite,
     WebSite
 );
-dim_test!(
+table_test!(
     call_center,
     CallCenterRowGenerator::new(),
     CallCenterArrow::new,
     Table::CallCenter,
     CallCenter
 );
+
+table_test!(
+    catalog_sales,
+    CatalogSalesRowGenerator::new(),
+    CatalogSalesArrow::new,
+    Table::CatalogSales,
+    CatalogSales
+);
+table_test!(
+    catalog_returns,
+    CatalogSalesRowGenerator::new(),
+    CatalogReturnsArrow::new,
+    Table::CatalogSales,
+    CatalogReturns
+);
+table_test!(
+    store_sales,
+    StoreSalesRowGenerator::new(),
+    StoreSalesArrow::new,
+    Table::StoreSales,
+    StoreSales
+);
+table_test!(
+    store_returns,
+    StoreSalesRowGenerator::new(),
+    StoreReturnsArrow::new,
+    Table::StoreSales,
+    StoreReturns
+);
+table_test!(
+    web_sales,
+    WebSalesRowGenerator::new(),
+    WebSalesArrow::new,
+    Table::WebSales,
+    WebSales
+);
+table_test!(
+    web_returns,
+    WebSalesRowGenerator::new(),
+    WebReturnsArrow::new,
+    Table::WebSales,
+    WebReturns
+);
+
+/// Adapts an iterator of RecordBatches to emit batches with a fixed row count.
+///
+/// This iterator is designed to assist comparing two iterators of RecordBatches
+/// where the batch sizes can be different between the two iterators.
+///
+/// It concatenates small batches and slices large batches so each yielded batch
+/// has `batch_size` rows, except the final batch, which may be smaller.
+///
+/// It stops after `row_limit` rows.
+struct FixedSizeBatches<I> {
+    /// The source of the RecordBatches.
+    inner: I,
+    /// The output batch size, except for the last batch.
+    batch_size: usize,
+    /// How many rows remain until the limit.
+    remaining_rows: usize,
+    /// Partially output batch, if any.
+    pending: Option<RecordBatch>,
+}
+
+impl<I> FixedSizeBatches<I> {
+    fn new(inner: I, row_limit: usize) -> Self {
+        Self {
+            inner,
+            batch_size: 1024,
+            remaining_rows: row_limit,
+            pending: None,
+        }
+    }
+}
+
+impl<I> Iterator for FixedSizeBatches<I>
+where
+    I: Iterator<Item = RecordBatch>,
+{
+    type Item = RecordBatch;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.remaining_rows == 0 {
+            return None;
+        }
+
+        let target_rows = self.batch_size.min(self.remaining_rows);
+        let mut batches = Vec::new();
+        let mut rows = 0;
+
+        while rows < target_rows {
+            let batch = match self.pending.take().or_else(|| self.inner.next()) {
+                Some(batch) => batch,
+                None => break,
+            };
+
+            let remaining = target_rows - rows;
+            if batch.num_rows() <= remaining {
+                rows += batch.num_rows();
+                batches.push(batch);
+            } else {
+                batches.push(batch.slice(0, remaining));
+                self.pending = Some(batch.slice(remaining, batch.num_rows() - remaining));
+                rows = target_rows;
+            }
+        }
+
+        if rows == 0 {
+            None
+        } else {
+            self.remaining_rows -= rows;
+            let schema = batches[0].schema();
+            Some(concat_batches(&schema, &batches).expect("concatenate batches"))
+        }
+    }
+}

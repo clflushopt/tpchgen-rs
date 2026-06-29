@@ -9,9 +9,9 @@ readme = "README.md"
 license = "Apache-2.0"
 
 [dependencies]
-arrow = { version = "58", default-features = false, features = ["prettyprint"] }
+arrow = { workspace = true }
 tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }
 
 [dev-dependencies]
-arrow-csv = "58"
+arrow-csv = { workspace = true }
 regex = "1"
