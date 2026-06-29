@@ -10,8 +10,7 @@ pub struct CallCenterRow {
 
     // Business key and versioning.
     //
-    // Record dates are stored as Julian day numbers. Open/closed dates are
-    // DATE_DIM surrogate keys. They are formatted only when writing .dat output.
+    // Open/closed dates are DATE_DIM surrogate keys.
     cc_call_center_id: String,
     cc_rec_start_date_id: i64,
     cc_rec_end_date_id: i64,
