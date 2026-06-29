@@ -3,7 +3,7 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
-use crate::progress::TableProgress;
+use crate::tpch_cli::progress::TableProgress;
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
@@ -202,8 +202,8 @@ impl BufferRecycler {
 #[cfg(all(test, feature = "progress"))]
 mod tests {
     use super::*;
-    use crate::progress::{ProgressTracker, RunProgress};
-    use crate::Table;
+    use crate::tpch_cli::progress::{ProgressTracker, RunProgress};
+    use crate::tpch_cli::Table;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     #[derive(Debug)]

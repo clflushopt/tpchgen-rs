@@ -18,9 +18,25 @@ name = "tpcgen"
 path = "bin/tpcgen.rs"
 
 [dependencies]
+arrow = "59"
 clap = { version = "4.5.32", features = ["derive"] }
+env_logger = "0.11.7"
+futures = "0.3.31"
+indicatif = { version = "0.18.3", optional = true }
+log = "0.4.26"
+num_cpus = "1.0"
+parquet = "59"
 tokio = { version = "1.44.1", features = ["full"] }
-tpchgen-cli = { path = "../tpchgen-cli", version = "2.0.2", default-features = false, features = ["indicatif-progress"] }
+tpchgen = { path = "../tpchgen", version = "2.0.2" }
+tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }
+
+[features]
+default = ["indicatif-progress"]
+# Enable progress callbacks for applications that want to provide their own
+# progress reporting without pulling in the default terminal progress bars.
+progress = []
+# Enable the default CLI terminal progress bars backed by `indicatif`.
+indicatif-progress = ["progress", "dep:indicatif"]
 
 [dev-dependencies]
 assert_cmd = "2.0"

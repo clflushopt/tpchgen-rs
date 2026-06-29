@@ -3,7 +3,7 @@
 //! # Overview
 //!
 //! [`ProgressTracker`] is a small, dyn-compatible trait that receives
-//! generation events from [`crate::runner::PlanRunner`]. The runner calls:
+//! generation events from [`crate::tpch_cli::runner::PlanRunner`]. The runner calls:
 //!
 //! 1. [`ProgressTracker::register`] once per table, before any worker
 //!    starts, with the total number of output units the table will produce
@@ -38,8 +38,8 @@
 //! # #[cfg(feature = "progress")]
 //! # {
 //! use std::sync::atomic::{AtomicU64, Ordering};
-//! use tpchgen_cli::progress::ProgressTracker;
-//! use tpchgen_cli::Table;
+//! use tpcgen::tpch_cli::progress::ProgressTracker;
+//! use tpcgen::tpch_cli::Table;
 //!
 //! #[derive(Debug)]
 //! struct LoggingTracker {
@@ -60,8 +60,8 @@
 //! # }
 //! ```
 
-use crate::output_plan::OutputPlan;
-use crate::Table;
+use crate::tpch_cli::output_plan::OutputPlan;
+use crate::tpch_cli::Table;
 #[cfg(feature = "progress")]
 use std::collections::BTreeMap;
 #[cfg(feature = "progress")]
@@ -70,7 +70,7 @@ use std::fmt;
 use std::sync::Arc;
 
 /// Receives generation-progress events for one
-/// [`PlanRunner`](crate::runner::PlanRunner) invocation.
+/// [`PlanRunner`](crate::tpch_cli::runner::PlanRunner) invocation.
 ///
 /// See the [module-level documentation](self) for the call-order
 /// contract. Trackers are passed to the runner as an
@@ -101,7 +101,7 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     fn finish(&self) {}
 }
 
-/// Progress handle for one [`PlanRunner::run`](crate::runner::PlanRunner::run)
+/// Progress handle for one [`PlanRunner::run`](crate::tpch_cli::runner::PlanRunner::run)
 /// invocation.
 ///
 /// Owns run-level progress lifecycle: registering totals, accounting for
@@ -208,7 +208,7 @@ pub use indicatif_impl::IndicatifProgress;
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
     use super::ProgressTracker;
-    use crate::Table;
+    use crate::tpch_cli::Table;
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
     use std::collections::BTreeMap;
     use std::io::{self, Write};
@@ -377,7 +377,7 @@ mod indicatif_impl {
 #[cfg(all(test, feature = "progress"))]
 mod tests {
     use super::*;
-    use crate::Table;
+    use crate::tpch_cli::Table;
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,

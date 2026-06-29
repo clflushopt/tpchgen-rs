@@ -2,16 +2,12 @@
 name = "tpchgen-cli"
 version = "2.0.2"
 authors = { workspace = true }
-description = "Blazing fast pure Rust TPC-H data generator command line tool and library."
+description = "Blazing fast pure Rust TPC-H data generator command line tool."
 readme = "README.md"
 edition = { workspace = true }
 homepage = { workspace = true }
 license = { workspace = true }
 repository = { workspace = true }
-
-[lib]
-name = "tpchgen_cli"
-path = "src/lib.rs"
 
 [[bin]]
 name = "tpchgen-cli"
@@ -19,28 +15,23 @@ path = "bin/tpchgen_cli.rs"
 required-features = ["indicatif-progress"]
 
 [dependencies]
-arrow = "59"
-parquet = "59"
 clap = { version = "4.5.32", features = ["derive"] }
-tpchgen = { path = "../tpchgen", version = "2.0.2" }
-tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }
+tpcgen = { path = "../tpcgen", version = "0.1.0", default-features = false }
 tokio = { version = "1.44.1", features = ["full"] }
-futures = "0.3.31"
-num_cpus = "1.0"
-log = "0.4.26"
-env_logger = "0.11.7"
-indicatif = { version = "0.18.3", optional = true }
 
 [features]
 default = ["indicatif-progress"]
 # Enable progress callbacks for applications that want to provide their own
 # progress reporting without pulling in the default terminal progress bars.
-progress = []
+progress = ["tpcgen/progress"]
 # Enable the default CLI terminal progress bars backed by `indicatif`.
-indicatif-progress = ["progress", "dep:indicatif"]
+indicatif-progress = ["progress", "tpcgen/indicatif-progress"]
 
 [dev-dependencies]
 assert_cmd = "2.0"
+parquet = "59"
 predicates = "3.0"
 tempfile = "3.20.0"
 flate2 = "1.1.0"
+tpchgen = { path = "../tpchgen", version = "2.0.2" }
+tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }

@@ -1,7 +1,7 @@
 //! Parquet output format
 
-use crate::progress::TableProgress;
-use crate::statistics::WriteStatistics;
+use crate::tpch_cli::progress::TableProgress;
+use crate::tpch_cli::statistics::WriteStatistics;
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
 use log::debug;
@@ -216,8 +216,8 @@ where
 #[cfg(all(test, feature = "progress"))]
 mod tests {
     use super::*;
-    use crate::progress::{ProgressTracker, RunProgress};
-    use crate::Table;
+    use crate::tpch_cli::progress::{ProgressTracker, RunProgress};
+    use crate::tpch_cli::Table;
     use std::fs::File;
     use std::io::BufWriter;
     use std::sync::atomic::{AtomicU64, Ordering};

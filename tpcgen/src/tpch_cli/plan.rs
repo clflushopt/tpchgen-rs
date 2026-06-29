@@ -1,6 +1,6 @@
 //! * [`GenerationPlan`]: how to generate a specific TPC-H dataset.
 
-use crate::{OutputFormat, Table};
+use crate::tpch_cli::{OutputFormat, Table};
 use log::debug;
 use std::fmt::Display;
 use std::ops::RangeInclusive;
@@ -40,7 +40,7 @@ use tpchgen::generators::{
 ///
 /// # Example
 /// ```
-/// use tpchgen_cli::{GenerationPlan, OutputFormat, Table};
+/// use tpcgen::tpch_cli::{GenerationPlan, OutputFormat, Table};
 ///
 /// let plan = GenerationPlan::try_new(
 ///   Table::Orders,

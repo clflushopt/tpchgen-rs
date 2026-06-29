@@ -2,8 +2,8 @@
 //! * [`OutputPlan`]: an output file that will be generated
 //! * [`OutputPlanGenerator`]: plans the output files to be generated
 
-use crate::plan::GenerationPlan;
-use crate::{OutputFormat, Table};
+use crate::tpch_cli::plan::GenerationPlan;
+use crate::tpch_cli::{OutputFormat, Table};
 use log::debug;
 use parquet::basic::Compression;
 use std::collections::HashSet;

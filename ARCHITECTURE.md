@@ -1,23 +1,35 @@
 # Architecture Guide
 
 ## Crate Organization
-The project is organized into two crates:
+The workspace is organized into crates that separate the data generation, Arrow
+conversion, and command-line tools:
 
-1. `tpchgen`: The core library that implements the data generation logic for TPCH.
-2. `tpchgen-arrow`: Generates the TPCH data directly as the [Apache Arrow](https://arrow.apache.org/) in memory format
-3. `tpchgen-cli`: A CLI tool that uses the `tpchgen` library to generate TPCH data.
+1. `tpchgen`: The core library that implements TPC-H data generation.
+2. `tpchgen-arrow`: Converts TPC-H generated rows directly into the
+   [Apache Arrow] in-memory format.
+3. `tpcdsgen`: The core library that implements TPC-DS data generation.
+4. `tpcdsgen-arrow`: Converts TPC-DS generated rows directly into the
+   [Apache Arrow] in-memory format.
+5. `tpcgen`: The shared command-line implementation crate for TPC benchmark
+   data generation.
+6. `tpchgen-cli`: A compatibility package that provides the backwards
+   compatible `tpchgen-cli` binary.
 
 ## Dependencies
 
-The `tpchgen` crate is designed to be embeddable in as many locations as
-possible and thus has no dependencies by design. For example, it does
-not depend on arrow or parquet crates or display libraries.
+The `tpchgen` and `tpcdsgen` crates are designed to be embeddable in as many
+locations as possible. The TPC-H core crate has no dependencies by design; for
+example, it does not depend on Arrow, Parquet, or display libraries.
 
-`tpchgen-arrow` is similarly designed to be embeddable with minimal dependencies
-and only depends on the [`arrow` crate](https://docs.rs/arrow)
+The `tpchgen-arrow` and `tpcdsgen-arrow` crates are similarly designed to be
+embeddable with minimal dependencies. They depend on the
+[`arrow` crate](https://docs.rs/arrow) and keep Arrow-specific conversion logic
+out of the core generator crates.
 
-The `tpchgen-cli` crate is designed to include many useful features, and thus
-has many more dependencies.
+The `tpcgen` crate contains CLI-oriented dependencies and features, including
+CSV/Parquet output, multi-threaded orchestration, progress reporting, logging,
+and command parsing. The `tpchgen-cli` package is intentionally thin and
+depends on `tpcgen` so existing users can continue using the old binary name.
 
 ## Performance
 
@@ -26,3 +38,6 @@ the code as fast as possible, using some of the following techniques:
 1. Avoiding heap allocations during data generation
 2. Integer arithmetic and display instead of floating point arithmetic and display
 3. Using multiple cores and tuned buffer sizes
+
+
+[Apache Arrow]: https://arrow.apache.org/

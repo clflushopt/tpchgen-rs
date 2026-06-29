@@ -1,23 +1,18 @@
-//! TPCH data generation CLI with a dbgen compatible API.
-//!
-//! This crate provides a CLI for generating TPCH data and tries to remain close
-//! API wise to the original dbgen tool, as in we use the same command line flags
-//! and arguments.
-//!
-//! See the documentation on [`Cli`] for more information on the command line
-
-// Use the library public API
-use crate::progress::IndicatifProgress;
-use crate::{
+#[cfg(feature = "indicatif-progress")]
+use super::progress::IndicatifProgress;
+use super::{
     Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
 use log::{info, LevelFilter};
-use std::io::{self, IsTerminal};
+use std::io;
+#[cfg(feature = "indicatif-progress")]
+use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::str::FromStr;
+#[cfg(feature = "indicatif-progress")]
 use std::sync::Arc;
 
 #[derive(Parser)]
@@ -134,6 +129,7 @@ impl CommonArgs {
     /// Initialize CLI logging/progress output and create a
     /// [`TpchGeneratorBuilder`] pre-configured with the common options.
     fn builder(self, format: OutputFormat) -> TpchGeneratorBuilder {
+        #[cfg(feature = "indicatif-progress")]
         let progress = self
             .should_show_progress_bars()
             .then(|| Arc::new(IndicatifProgress::new()));
@@ -155,11 +151,16 @@ impl CommonArgs {
             builder = builder.with_part(part);
         }
 
+        #[cfg(feature = "indicatif-progress")]
         configure_logging(
             self.verbose,
             self.quiet,
             progress.as_ref().map(|progress| progress.log_writer()),
         );
+        #[cfg(not(feature = "indicatif-progress"))]
+        configure_logging(self.verbose, self.quiet, None);
+
+        #[cfg(feature = "indicatif-progress")]
         if let Some(progress) = progress {
             builder = builder.with_progress_tracker(progress);
         }
@@ -167,6 +168,7 @@ impl CommonArgs {
         builder
     }
 
+    #[cfg(feature = "indicatif-progress")]
     fn should_show_progress_bars(&self) -> bool {
         // Show progress only on an interactive terminal and when no flag
         // suppresses it. `--stdout` is included so piped data isn't

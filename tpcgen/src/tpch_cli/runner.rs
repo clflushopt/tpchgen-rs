@@ -1,16 +1,16 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
-use crate::csv::*;
-use crate::generate::generate_in_chunks_with_progress;
-use crate::generate::Source;
-use crate::output_plan::{OutputLocation, OutputPlan};
-use crate::parquet::generate_parquet_with_progress;
+use crate::tpch_cli::csv::*;
+use crate::tpch_cli::generate::generate_in_chunks_with_progress;
+use crate::tpch_cli::generate::Source;
+use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
+use crate::tpch_cli::parquet::generate_parquet_with_progress;
 #[cfg(feature = "progress")]
-use crate::progress::ProgressTracker;
-use crate::progress::RunProgress;
-use crate::tbl::*;
-use crate::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
-use crate::{OutputFormat, Table, WriterSink};
+use crate::tpch_cli::progress::ProgressTracker;
+use crate::tpch_cli::progress::RunProgress;
+use crate::tpch_cli::tbl::*;
+use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
+use crate::tpch_cli::{OutputFormat, Table, WriterSink};
 use log::{debug, info};
 use std::io;
 use std::io::BufWriter;
@@ -109,7 +109,7 @@ impl PlanRunner {
 /// Scheduling too many tasks requires more memory and leads to context
 /// switching overhead, which can slow down the generation process.
 ///
-/// [`GenerationPlan`]: crate::plan::GenerationPlan
+/// [`GenerationPlan`]: crate::tpch_cli::plan::GenerationPlan
 struct WorkerQueue {
     join_set: JoinSet<io::Result<usize>>,
     /// Current number of threads available to commit
@@ -333,7 +333,7 @@ macro_rules! define_run {
             num_threads: usize,
             progress: RunProgress,
         ) -> io::Result<usize> {
-            use crate::GenerationPlan;
+            use crate::tpch_cli::GenerationPlan;
             let scale_factor = plan.scale_factor();
             info!("Writing {plan} using {num_threads} threads");
 
@@ -466,8 +466,8 @@ define_run!(
 #[cfg(all(test, feature = "progress"))]
 mod tests {
     use super::*;
-    use crate::progress::ProgressTracker;
-    use crate::{Compression, GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+    use crate::tpch_cli::progress::ProgressTracker;
+    use crate::tpch_cli::{Compression, GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc,

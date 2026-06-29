@@ -1,7 +1,8 @@
+//! TPC-DS data generation CLI with a dbgen compatible API.
+use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::fmt;
 use std::path::PathBuf;
-use tpchgen_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const NOT_IMPLEMENTED: &str = "TPC-DS data generation is not yet implemented";
@@ -9,7 +10,7 @@ const NOT_IMPLEMENTED: &str = "TPC-DS data generation is not yet implemented";
 #[derive(Args)]
 #[command(version)]
 #[command(args_conflicts_with_subcommands = true)]
-pub(crate) struct Cli {
+pub struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
@@ -118,7 +119,7 @@ struct CommonArgs {
 }
 
 impl Cli {
-    pub(crate) fn run(self) -> Result<()> {
+    pub fn run(self) -> Result<()> {
         match self.command {
             Some(Commands::Dat(args)) => args.run(),
             Some(Commands::Csv(args)) => args.run(),

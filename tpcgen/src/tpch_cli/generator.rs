@@ -1,57 +1,23 @@
-//! TPC-H Data Generator Library
-//!
-//! This crate provides both a command-line tool and a library for generating
-//! TPC-H benchmark data in various formats (TBL, CSV, Parquet).
-//!
-//! # Examples
-//!
-//! ```no_run
-//! use tpchgen_cli::{TpchGenerator, Table, OutputFormat};
-//! use std::path::PathBuf;
-//!
-//! # async fn example() -> std::io::Result<()> {
-//! let generator = TpchGenerator::builder()
-//!     .with_scale_factor(10.0)
-//!     .with_output_dir(PathBuf::from("./data"))
-//!     .with_tables(vec![Table::Customer, Table::Orders])
-//!     .with_format(OutputFormat::Parquet)
-//!     .with_num_threads(8)
-//!     .build();
-//!
-//! generator.generate().await?;
-//! # Ok(())
-//! # }
-//! ```
-
-pub use crate::plan::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+use super::generate::Sink;
+use super::output_plan::OutputPlanGenerator;
+use super::parquet::IntoSize;
+use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
+#[cfg(feature = "progress")]
+use super::progress::ProgressTracker;
+use super::runner::PlanRunner;
+use super::statistics::WriteStatistics;
 pub use ::parquet::basic::Compression;
-
-pub mod csv;
-pub mod generate;
-pub mod output_plan;
-pub mod parquet;
-pub mod plan;
-#[cfg(not(feature = "progress"))]
-mod progress;
-#[cfg(feature = "progress")]
-pub mod progress;
-pub mod runner;
-pub mod statistics;
-pub mod tbl;
-#[cfg(feature = "indicatif-progress")]
-pub mod tpch_cli;
-
-use crate::generate::Sink;
-use crate::parquet::IntoSize;
-#[cfg(feature = "progress")]
-use crate::progress::ProgressTracker;
-use crate::statistics::WriteStatistics;
+use log::info;
 use std::fmt::Display;
 use std::fs::File;
-use std::io::{self, BufWriter, Stdout, Write};
+use std::io;
+use std::io::{BufWriter, Stdout, Write};
 use std::str::FromStr;
 #[cfg(feature = "progress")]
 use std::sync::Arc;
+use std::time::Instant;
+use tpchgen::distribution::Distributions;
+use tpchgen::text::TextPool;
 
 /// Wrapper around a buffer writer that counts the number of buffers and bytes written
 pub struct WriterSink<W: Write> {
@@ -210,18 +176,6 @@ impl Display for OutputFormat {
 ///
 /// This struct holds all the parameters needed to generate TPC-H benchmark data.
 /// It's typically not constructed directly - use [`TpchGeneratorBuilder`] instead.
-///
-/// # Examples
-///
-/// ```no_run
-/// use tpchgen_cli::{GeneratorConfig, OutputFormat};
-///
-/// // Usually you would use TpchGenerator::builder() instead
-/// let config = GeneratorConfig {
-///     scale_factor: 10.0,
-///     ..Default::default()
-/// };
-/// ```
 #[derive(Debug, Clone)]
 pub struct GeneratorConfig {
     /// Scale factor (e.g., 1.0 for 1GB, 10.0 for 10GB)
@@ -270,36 +224,6 @@ impl Default for GeneratorConfig {
 ///
 /// The main entry point for generating TPC-H benchmark data.
 /// Use the builder pattern via [`TpchGenerator::builder()`] to configure and create instances.
-///
-/// # Examples
-///
-/// ```no_run
-/// use tpchgen_cli::{TpchGenerator, Table, OutputFormat};
-/// use std::path::PathBuf;
-/// use ::parquet::basic::ZstdLevel;
-/// # async fn example() -> std::io::Result<()> {
-/// // Generate all tables at scale factor 1 in TBL format
-/// TpchGenerator::builder()
-///     .with_scale_factor(1.0)
-///     .with_output_dir(PathBuf::from("./data"))
-///     .build()
-///     .generate()
-///     .await?;
-///
-/// // Generate specific tables in Parquet format with compression
-/// TpchGenerator::builder()
-///     .with_scale_factor(10.0)
-///     .with_output_dir(PathBuf::from("./benchmark_data"))
-///     .with_tables(vec![Table::Orders, Table::Lineitem])
-///     .with_format(OutputFormat::Parquet)
-///     .with_parquet_compression(tpchgen_cli::Compression::ZSTD(ZstdLevel::try_new(1).unwrap()))
-///     .with_num_threads(16)
-///     .build()
-///     .generate()
-///     .await?;
-/// # Ok(())
-/// # }
-/// ```
 pub struct TpchGenerator {
     config: GeneratorConfig,
     #[cfg(feature = "progress")]
@@ -307,55 +231,13 @@ pub struct TpchGenerator {
 }
 
 impl TpchGenerator {
-    /// Create a new builder for configuring the generator
-    ///
-    /// This is the recommended way to construct a [`TpchGenerator`].
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use tpchgen_cli::TpchGenerator;
-    ///
-    /// let generator = TpchGenerator::builder()
-    ///     .with_scale_factor(1.0)
-    ///     .build();
-    /// ```
+    /// Create a new builder for configuring the generator.
     pub fn builder() -> TpchGeneratorBuilder {
         TpchGeneratorBuilder::new()
     }
 
-    /// Generate TPC-H data with the configured settings
-    ///
-    /// This async method performs the actual data generation, creating files
-    /// in the configured output directory (or writing to stdout if configured).
-    ///
-    /// # Returns
-    ///
-    /// - `Ok(())` on successful generation
-    /// - `Err(io::Error)` if file I/O or generation fails
-    ///
-    /// # Examples
-    ///
-    /// ```no_run
-    /// use tpchgen_cli::TpchGenerator;
-    ///
-    /// # async fn example() -> std::io::Result<()> {
-    /// TpchGenerator::builder()
-    ///     .with_scale_factor(1.0)
-    ///     .build()
-    ///     .generate()
-    ///     .await?;
-    /// # Ok(())
-    /// # }
-    /// ```
+    /// Generate TPC-H data with the configured settings.
     pub async fn generate(self) -> io::Result<()> {
-        use crate::output_plan::OutputPlanGenerator;
-        use crate::runner::PlanRunner;
-        use log::info;
-        use std::time::Instant;
-        use tpchgen::distribution::Distributions;
-        use tpchgen::text::TextPool;
-
         let config = self.config;
         #[cfg(feature = "progress")]
         let progress_tracker = self.progress_tracker;
@@ -398,14 +280,13 @@ impl TpchGenerator {
         let output_plans = output_plan_generator.build();
 
         // Force the creation of the distributions and text pool so it doesn't
-        // get charged to the first table
+        // get charged to the first table.
         let start = Instant::now();
         Distributions::static_default();
         TextPool::get_or_init_default();
         let elapsed = start.elapsed();
         info!("Created static distributions and text pools in {elapsed:?}");
 
-        // Run
         let runner = PlanRunner::new(output_plans, config.num_threads);
         #[cfg(feature = "progress")]
         let runner = if let Some(tracker) = progress_tracker {
@@ -419,43 +300,7 @@ impl TpchGenerator {
     }
 }
 
-/// Builder for constructing a [`TpchGenerator`]
-///
-/// Provides a fluent interface for configuring TPC-H data generation parameters.
-/// All builder methods can be chained, and calling [`build()`](TpchGeneratorBuilder::build)
-/// produces a [`TpchGenerator`] ready to generate data.
-///
-/// # Defaults
-///
-/// - Scale factor: 1.0
-/// - Output directory: current directory (".")
-/// - Tables: all 8 tables
-/// - Format: TBL
-/// - Threads: number of CPUs
-/// - Parquet compression: SNAPPY
-/// - Row group size: 7MB
-///
-/// # Examples
-///
-/// ```no_run
-/// use tpchgen_cli::{TpchGenerator, Table, OutputFormat, Compression};
-/// use std::path::PathBuf;
-/// use ::parquet::basic::ZstdLevel;
-///
-/// # async fn example() -> std::io::Result<()> {
-/// let generator = TpchGenerator::builder()
-///     .with_scale_factor(100.0)
-///     .with_output_dir(PathBuf::from("/data/tpch"))
-///     .with_tables(vec![Table::Lineitem, Table::Orders])
-///     .with_format(OutputFormat::Parquet)
-///     .with_parquet_compression(Compression::ZSTD(ZstdLevel::try_new(3).unwrap()))
-///     .with_num_threads(32)
-///     .build();
-///
-/// generator.generate().await?;
-/// # Ok(())
-/// # }
-/// ```
+/// Builder for constructing a [`TpchGenerator`].
 #[derive(Debug, Clone)]
 pub struct TpchGeneratorBuilder {
     config: GeneratorConfig,
@@ -464,15 +309,7 @@ pub struct TpchGeneratorBuilder {
 }
 
 impl TpchGeneratorBuilder {
-    /// Create a new builder with default configuration
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tpchgen_cli::TpchGeneratorBuilder;
-    ///
-    /// let builder = TpchGeneratorBuilder::new();
-    /// ```
+    /// Create a new builder with default configuration.
     pub fn new() -> Self {
         Self {
             config: GeneratorConfig::default(),
@@ -486,67 +323,67 @@ impl TpchGeneratorBuilder {
         self.config.scale_factor
     }
 
-    /// Set the scale factor (e.g., 1.0 for 1GB, 10.0 for 10GB)
+    /// Set the scale factor (e.g., 1.0 for 1GB, 10.0 for 10GB).
     pub fn with_scale_factor(mut self, scale_factor: f64) -> Self {
         self.config.scale_factor = scale_factor;
         self
     }
 
-    /// Set the output directory
+    /// Set the output directory.
     pub fn with_output_dir(mut self, output_dir: impl Into<std::path::PathBuf>) -> Self {
         self.config.output_dir = output_dir.into();
         self
     }
 
-    /// Set which tables to generate (default: all tables)
+    /// Set which tables to generate (default: all tables).
     pub fn with_tables(mut self, tables: Vec<Table>) -> Self {
         self.config.tables = Some(tables);
         self
     }
 
-    /// Set the output format (default: TBL)
+    /// Set the output format (default: TBL).
     pub fn with_format(mut self, format: OutputFormat) -> Self {
         self.config.format = format;
         self
     }
 
-    /// Set the number of threads for parallel generation (default: number of CPUs)
+    /// Set the number of threads for parallel generation (default: number of CPUs).
     pub fn with_num_threads(mut self, num_threads: usize) -> Self {
         self.config.num_threads = num_threads;
         self
     }
 
-    /// Set Parquet compression format (default: SNAPPY)
+    /// Set Parquet compression format (default: SNAPPY).
     pub fn with_parquet_compression(mut self, compression: Compression) -> Self {
         self.config.parquet_compression = compression;
         self
     }
 
-    /// Set target row group size in bytes for Parquet files (default: 7MB)
+    /// Set target row group size in bytes for Parquet files (default: 7MB).
     pub fn with_parquet_row_group_bytes(mut self, bytes: i64) -> Self {
         self.config.parquet_row_group_bytes = bytes;
         self
     }
 
-    /// Set the number of partitions to generate
+    /// Set the number of partitions to generate.
     pub fn with_parts(mut self, parts: i32) -> Self {
         self.config.parts = Some(parts);
         self
     }
 
-    /// Set the specific partition to generate (1-based, requires parts to be set)
+    /// Set the specific partition to generate (1-based, requires parts to be set).
     pub fn with_part(mut self, part: i32) -> Self {
         self.config.part = Some(part);
         self
     }
 
-    /// Write output to stdout instead of files
+    /// Write output to stdout instead of files.
     pub fn with_stdout(mut self, stdout: bool) -> Self {
         self.config.stdout = stdout;
         self
     }
 
-    /// Set the CSV delimiter character (only applies to CSV format, default: ',')
+    /// Set the CSV delimiter character (only applies to CSV format, default: ',').
     pub fn with_csv_delimiter(mut self, delimiter: char) -> Self {
         self.config.csv_delimiter = delimiter;
         self
@@ -556,14 +393,14 @@ impl TpchGeneratorBuilder {
     ///
     /// The runner calls [`ProgressTracker::finish`] on successful completion.
     /// Trackers that need error or panic cleanup should use `Drop` as a
-    /// fallback. See [`progress`] for the full contract and examples.
+    /// fallback. See [`crate::tpch_cli::progress`] for the full contract and examples.
     #[cfg(feature = "progress")]
     pub fn with_progress_tracker(mut self, tracker: Arc<dyn ProgressTracker>) -> Self {
         self.progress_tracker = Some(tracker);
         self
     }
 
-    /// Build the [`TpchGenerator`] with the configured settings
+    /// Build the [`TpchGenerator`] with the configured settings.
     pub fn build(self) -> TpchGenerator {
         TpchGenerator {
             config: self.config,
@@ -582,7 +419,7 @@ impl Default for TpchGeneratorBuilder {
 #[cfg(all(test, feature = "progress"))]
 mod tests {
     use super::*;
-    use crate::progress::ProgressTracker;
+    use crate::tpch_cli::progress::ProgressTracker;
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,
