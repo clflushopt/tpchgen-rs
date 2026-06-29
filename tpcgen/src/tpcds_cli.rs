@@ -1,6 +1,7 @@
 use clap::{ArgAction, Args, Subcommand};
 use std::fmt;
 use std::path::PathBuf;
+use tpcdsgen::config::CompatMode;
 use tpcdsgen::config::Options as TpcdsOptions;
 use tpchgen_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 
@@ -100,6 +101,10 @@ struct CommonArgs {
     #[arg(short = 'T', long = "tables", value_delimiter = ',')]
     tables: Option<Vec<String>>,
 
+    /// Reference implementation to match (default: trino)
+    #[arg(long, default_value_t = CompatMode::Trino)]
+    compat: CompatMode,
+
     /// Verbose output
     ///
     /// When specified, sets the log level to `info` and ignores the `RUST_LOG`
@@ -175,6 +180,7 @@ impl CommonArgs {
         options.scale = self.scale_factor;
         options.directory = self.output_dir.to_string_lossy().into_owned();
         options.table = table;
+        options.compat = self.compat;
         options
     }
 

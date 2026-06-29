@@ -1,70 +1,78 @@
 use crate::config::{CompatMode, Session, Table};
 use crate::error::{InvalidOptionError, Result, TpcdsError};
-use clap::Parser;
 use std::fmt;
 
-/// TPC-DS command-line options.
+/// TPC-DS generation options.
 ///
-/// [`Options`] parses CLI arguments using [`clap`].
 /// Use [`Options::to_session`] to
 /// convert these values into a validated [`Session`] for row generation.
-#[derive(Parser, Debug, Clone)]
-#[command(name = "tpcdsgen")]
-#[command(about = "Rust implementation of TPC-DS data generator")]
+#[derive(Debug, Clone)]
 pub struct Options {
     /// Volume of data to generate in GB (Default: 1)
-    #[arg(long = "scale", short = 's', default_value = "1")]
     pub scale: f64,
 
     /// Directory to put generated files (Default: .)
-    #[arg(long = "directory", short = 'd', default_value = ".")]
     pub directory: String,
 
     /// Suffix for generated data files (Default: .dat)
-    #[arg(long = "suffix", default_value = ".dat")]
     pub suffix: String,
 
     /// Build only the specified table. If not specified, all tables will be generated
-    #[arg(long = "table", short = 't')]
     pub table: Option<String>,
 
     /// String representation for null values (Default: the empty string)
-    #[arg(long = "null", default_value = "")]
     pub null_string: String,
 
     /// Separator between columns (Default: |)
-    #[arg(long = "separator", default_value = "|")]
     pub separator: String,
 
     /// Do not terminate each row with a separator (Default: false)
-    #[arg(long = "do-not-terminate")]
     pub do_not_terminate: bool,
 
     /// Use gender-neutral manager names.
     /// This diverges from C implementation but is supported by the Java one (i need to check the latest spec)
-    #[arg(long = "no-sexism")]
     pub no_sexism: bool,
 
     /// Build data in `n` separate chunks (Default: 1)
-    #[arg(long = "parallelism", default_value = "1")]
     pub parallelism: i32,
 
     /// Overwrite existing data files for tables
-    #[arg(long = "overwrite")]
     pub overwrite: bool,
 
     /// Reference implementation to match (Default: trino)
     ///
     /// 'trino' produces byte-for-byte output compatible with the Trino Java library.
     /// 'c' corrects known divergences in the Java port to match the original C dsdgen.
-    #[arg(long = "compat", default_value = "trino")]
     pub compat: CompatMode,
 }
 
 impl Options {
-    /// Create options using clap's CLI defaults.
+    pub const DEFAULT_SCALE: f64 = 1.0;
+    pub const DEFAULT_DIRECTORY: &'static str = ".";
+    pub const DEFAULT_SUFFIX: &'static str = ".dat";
+    pub const DEFAULT_NULL_STRING: &'static str = "";
+    pub const DEFAULT_SEPARATOR: char = '|';
+    pub const DEFAULT_DO_NOT_TERMINATE: bool = false;
+    pub const DEFAULT_NO_SEXISM: bool = false;
+    pub const DEFAULT_PARALLELISM: i32 = 1;
+    pub const DEFAULT_OVERWRITE: bool = false;
+    pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
+
+    /// Create options using the generator defaults.
     pub fn new() -> Self {
-        Self::parse_from(["tpcdsgen"])
+        Self {
+            scale: Self::DEFAULT_SCALE,
+            directory: Self::DEFAULT_DIRECTORY.to_string(),
+            suffix: Self::DEFAULT_SUFFIX.to_string(),
+            table: None,
+            null_string: Self::DEFAULT_NULL_STRING.to_string(),
+            separator: Self::DEFAULT_SEPARATOR.to_string(),
+            do_not_terminate: Self::DEFAULT_DO_NOT_TERMINATE,
+            no_sexism: Self::DEFAULT_NO_SEXISM,
+            parallelism: Self::DEFAULT_PARALLELISM,
+            overwrite: Self::DEFAULT_OVERWRITE,
+            compat: Self::DEFAULT_COMPAT,
+        }
     }
 
     /// Convert options into a validated [`Session`].

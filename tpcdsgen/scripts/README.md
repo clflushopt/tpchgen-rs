@@ -130,8 +130,8 @@ Use when an MD5 mismatch needs a row-level diff.
 
 ## Requirements
 
-- **MD5-only (default):** just a Cargo-built `tpcdsgen` binary at
-  `target/debug/tpcdsgen` or `target/release/tpcdsgen`. No Java, no C
+- **MD5-only (default):** just a Cargo-built `tpcgen` binary at
+  `target/debug/tpcgen` or `target/release/tpcgen`. No Java, no C
   reference data, no fixture download.
 - **`--full`, Java:** Maven-built TPC-DS JAR at
   `../tpcds/target/tpcds-*-jar-with-dependencies.jar`

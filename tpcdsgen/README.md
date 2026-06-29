@@ -1,24 +1,24 @@
 # TPC-DS Data Generator Crate
 
-This crate provides the core data generator logic for TPC-H.
+This crate provides the core data generator logic for TPC-DS.
 
 ## Usage
 
 ```bash
-# Build the generator
-cargo build --release
+# Build the unified generator CLI
+cargo build --release -p tpcgen
 
 # Generate all tables at scale factor 1 (default)
-./target/release/tpcdsgen
+./target/release/tpcgen tpcds dat
 
 # Generate all tables at scale factor 10
-./target/release/tpcdsgen --scale 10
+./target/release/tpcgen tpcds dat --scale-factor 10
 
 # Generate specific table
-./target/release/tpcdsgen --table store_sales --scale 10
+./target/release/tpcgen tpcds dat --tables store_sales --scale-factor 10
 
 # Generate to a specific directory
-./target/release/tpcdsgen --scale 10 --directory /path/to/output
+./target/release/tpcgen tpcds dat --scale-factor 10 --output-dir /path/to/output
 ```
 
 ## Generating Fixtures
