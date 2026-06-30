@@ -7,3 +7,6 @@ version = "0.1.0"
 edition = "2021"
 license = { workspace = true }
 homepage = { workspace = true }
+
+[dependencies]
+chrono = "0.4"
