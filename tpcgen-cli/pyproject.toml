@@ -3,7 +3,7 @@ requires = ["maturin>=1.0,<2.0"]
 build-backend = "maturin"
 
 [project]
-name = "tpcgen"
+name = "tpcgen-cli"
 dynamic = ["version", "readme", "license", "authors"]
 description = "Python CLI for TPC-H and TPC-DS data generation"
 requires-python = ">=3.8"
