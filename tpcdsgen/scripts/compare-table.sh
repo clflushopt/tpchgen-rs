@@ -104,7 +104,7 @@ get_generator_for_table() {
     esac
 }
 
-# Find the unified tpcdsgen binary
+# Find the unified tpcgen binary
 find_rust_binary() {
     local target_dir
 
@@ -126,14 +126,14 @@ find_rust_binary() {
     fi
 
     # Try release build
-    local binary="$target_dir/release/tpcdsgen"
+    local binary="$target_dir/release/tpcgen"
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0
     fi
 
     # Try debug build
-    binary="$target_dir/debug/tpcdsgen"
+    binary="$target_dir/debug/tpcgen"
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0
@@ -158,7 +158,7 @@ generate_rust_table() {
     fi
 
     log_info "Generating $table with Rust..."
-    log_info "Using binary: $binary --compat $COMPAT --table $generator --scale $SCALE_FACTOR"
+    log_info "Using binary: $binary tpcds dat --compat $COMPAT --tables $generator --scale-factor $SCALE_FACTOR"
     if [[ "$generator" != "$table" ]]; then
         log_info "Note: $table is generated alongside $generator"
     fi
@@ -167,8 +167,8 @@ generate_rust_table() {
     local temp_dir
     temp_dir=$(mktemp -d)
 
-    # Run Rust generator with --compat, --table, --scale, and --directory flags
-    if ! "$binary" --compat "$COMPAT" --table "$generator" --scale "$SCALE_FACTOR" --directory "$temp_dir" >/dev/null 2>&1; then
+    # Run Rust generator with --compat, --tables, --scale-factor, and --output-dir flags
+    if ! "$binary" tpcds dat --compat "$COMPAT" --tables "$generator" --scale-factor "$SCALE_FACTOR" --output-dir "$temp_dir" >/dev/null 2>&1; then
         log_error "Failed to generate $table with Rust"
         rm -rf "$temp_dir"
         return 1

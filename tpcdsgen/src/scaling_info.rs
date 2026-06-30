@@ -308,6 +308,6 @@ mod tests {
 
         // Test interpolation
         let result_5 = scaling_info.get_row_count_for_scale(5.0).unwrap();
-        assert!(result_5 >= 3 && result_5 <= 12);
+        assert!((3..=12).contains(&result_5));
     }
 }

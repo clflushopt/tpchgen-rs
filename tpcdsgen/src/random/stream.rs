@@ -148,7 +148,7 @@ mod tests {
         let random_double = stream.next_random_double();
 
         // Should be between 0 and 1
-        assert!(random_double >= 0.0 && random_double <= 1.0);
+        assert!((0.0..=1.0).contains(&random_double));
     }
 
     #[test]

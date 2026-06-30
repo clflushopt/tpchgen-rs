@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn test_city_hash() {
         let hash = Address::compute_city_hash("TESTCITY");
-        assert!(hash >= 0 && hash < 10000);
+        assert!((0..10000).contains(&hash));
     }
 
     #[test]

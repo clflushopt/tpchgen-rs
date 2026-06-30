@@ -199,7 +199,7 @@ mod tests {
     #[test]
     fn test_calendar_distribution_loading() {
         let dist = CalendarDistribution::get_instance();
-        assert!(dist.days_of_year.len() > 0);
+        assert!(!dist.days_of_year.is_empty());
         assert_eq!(dist.quarters.len(), dist.days_of_year.len());
         assert_eq!(dist.holiday_flags.len(), dist.days_of_year.len());
     }
@@ -232,7 +232,7 @@ mod tests {
 
         // Day should be in valid range [1, 366]
         assert!(
-            day >= 1 && day <= 366,
+            (1..=366).contains(&day),
             "Day {} should be in range [1, 366]",
             day
         );
@@ -271,7 +271,7 @@ mod tests {
                 .unwrap();
 
         // Both should be valid
-        assert!(day_uniform >= 1 && day_uniform <= 366);
-        assert!(day_sales >= 1 && day_sales <= 366);
+        assert!((1..=366).contains(&day_uniform));
+        assert!((1..=366).contains(&day_sales));
     }
 }

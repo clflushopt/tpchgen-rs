@@ -2,6 +2,10 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use tempfile::tempdir;
 
+// TPCH-specific CLI coverage
+#[path = "cli_integration/tpch.rs"]
+mod tpch;
+
 /// Test the TPC-H command forms for the `tpcgen` binary.
 #[test]
 fn test_tpcgen_tpch_command_forms() {
@@ -126,6 +130,34 @@ fn test_tpcgen_tpcds_dat_multiple_table_selection_command_forms() {
             form.join(" ")
         );
     }
+}
+
+/// Test that TPC-DS DAT generation forwards compatibility mode to tpcdsgen.
+#[test]
+fn test_tpcgen_tpcds_dat_compat_mode() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--compat")
+        .arg("c")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let contents =
+        fs::read_to_string(temp_dir.path().join("reason.dat")).expect("Failed to read DAT file");
+    assert_eq!(
+        contents.lines().count(),
+        75,
+        "Expected C compatibility mode to use C dsdgen reason table cardinality"
+    );
 }
 
 /// Test that default DAT output options generate every main TPC-DS output file.
