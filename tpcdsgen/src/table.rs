@@ -893,8 +893,7 @@ mod tests {
         assert_eq!(first_col.get_name(), "cc_call_center_sk");
         assert_eq!(first_col.get_position(), 0);
 
-        // Convert column table to our table type for comparison
-        let column_table: Table = first_col.get_table().into();
+        let column_table: Table = first_col.get_table();
         assert_eq!(column_table, Table::CallCenter);
     }
 
@@ -907,8 +906,7 @@ mod tests {
         let first_gen_col = table.get_generator_column_by_index(0).unwrap();
         assert_eq!(first_gen_col.get_global_column_number(), 1);
 
-        // Convert generator column table to our table type for comparison
-        let gen_column_table: Table = first_gen_col.get_table().into();
+        let gen_column_table: Table = first_gen_col.get_table();
         assert_eq!(gen_column_table, Table::CallCenter);
     }
 
@@ -953,8 +951,8 @@ mod tests {
     #[test]
     fn test_table_conversions() {
         let table = Table::CallCenter;
-        let column_table: crate::column::Table = table.into();
-        let back_to_table: Table = column_table.into();
+        let column_table: crate::column::Table = table;
+        let back_to_table: Table = column_table;
         assert_eq!(table, back_to_table);
     }
 

@@ -380,8 +380,6 @@ mod tests {
     #[test]
     fn test_web_site_row_generator_creation() {
         let _generator = WebSiteRowGenerator::new();
-        // Should not panic
-        assert!(true);
     }
 
     #[test]

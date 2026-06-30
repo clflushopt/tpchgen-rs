@@ -399,7 +399,7 @@ mod tests {
 
         // Time keys should be in range [0, 86400) seconds in a day
         assert!(
-            result >= 0 && result < 86400,
+            (0..86400).contains(&result),
             "Time key should be valid seconds in day"
         );
     }

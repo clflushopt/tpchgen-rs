@@ -209,7 +209,7 @@ mod tests {
 
         // Hour should be in valid range [0, 23]
         assert!(
-            hour >= 0 && hour <= 23,
+            (0..=23).contains(&hour),
             "Hour {} should be in range [0, 23]",
             hour
         );
@@ -244,8 +244,8 @@ mod tests {
             HoursDistribution::pick_random_hour(HoursWeights::CatalogAndWeb, &mut stream).unwrap();
 
         // All should be valid
-        assert!(hour_uniform >= 0 && hour_uniform <= 23);
-        assert!(hour_store >= 0 && hour_store <= 23);
-        assert!(hour_catalog >= 0 && hour_catalog <= 23);
+        assert!((0..=23).contains(&hour_uniform));
+        assert!((0..=23).contains(&hour_store));
+        assert!((0..=23).contains(&hour_catalog));
     }
 }

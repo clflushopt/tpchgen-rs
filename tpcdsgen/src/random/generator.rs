@@ -351,14 +351,14 @@ mod tests {
     fn test_uniform_random_int() {
         let mut stream = RandomNumberStreamImpl::new(1).unwrap();
         let result = RandomValueGenerator::generate_uniform_random_int(1, 10, &mut stream);
-        assert!(result >= 1 && result <= 10);
+        assert!((1..=10).contains(&result));
     }
 
     #[test]
     fn test_uniform_random_key() {
         let mut stream = RandomNumberStreamImpl::new(1).unwrap();
         let result = RandomValueGenerator::generate_uniform_random_key(100, 200, &mut stream);
-        assert!(result >= 100 && result <= 200);
+        assert!((100..=200).contains(&result));
     }
 
     #[test]

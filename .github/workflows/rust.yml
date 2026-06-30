@@ -17,7 +17,7 @@ jobs:
       - name: Run cargo-fmt
         run: cargo fmt --all -- --check
       - name: Run cargo-clippy
-        run: cargo clippy -- -D warnings
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
       - name: Check
         run: cargo check --verbose --workspace --all-targets
       - name: Check tpchgen-cli without default features

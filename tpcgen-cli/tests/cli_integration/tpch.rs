@@ -16,7 +16,8 @@ fn test_tpchgen_cli_tbl_scale_factor_0_001() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // Run the tpchgen-cli command
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--output-dir")
@@ -72,7 +73,8 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
     let expected_file = temp_dir.path().join("part.tbl");
 
     // First run - create the file
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
@@ -88,7 +90,8 @@ fn test_tpchgen_cli_tbl_no_overwrite() {
 
     // Run the tpchgen-cli command again with the same parameters and expect the
     // file to not be overwritten and a warning to be logged
-    let output = cargo_bin_cmd!("tpchgen-cli")
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
@@ -125,7 +128,8 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
     let expected_file = temp_dir.path().join("part.parquet");
 
     // First run - create the file
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("parquet")
         .arg("--scale-factor")
         .arg("0.001")
@@ -142,7 +146,8 @@ fn test_tpchgen_cli_parquet_no_overwrite() {
 
     // Run the tpchgen-cli command again with the same parameters and expect the
     // file to not be overwritten and a warning to be logged
-    let output = cargo_bin_cmd!("tpchgen-cli")
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("parquet")
         .arg("--scale-factor")
         .arg("0.001")
@@ -180,7 +185,8 @@ fn test_tpchgen_cli_quiet_flag() {
     let expected_file = temp_dir.path().join("part.tbl");
 
     // First run - create the file
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
@@ -196,7 +202,8 @@ fn test_tpchgen_cli_quiet_flag() {
 
     // Run the tpchgen-cli command again with --quiet flag
     // Expect the file to not be overwritten and NO warning even though warnings show by default
-    let output = cargo_bin_cmd!("tpchgen-cli")
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
@@ -238,7 +245,8 @@ fn test_tpchgen_cli_parts() {
 
     let num_parts = 4;
     let output_dir = temp_dir.path().to_path_buf();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--output-dir")
@@ -268,7 +276,8 @@ fn test_tpchgen_cli_parts_explicit() {
         threads.push(std::thread::spawn(move || {
             // Run the tpchgen-cli command for each part
             // output goes into `output_dir/orders/orders.{part}.tbl`
-            cargo_bin_cmd!("tpchgen-cli")
+            cargo_bin_cmd!("tpcgen-cli")
+                .arg("tpch")
                 .arg("--scale-factor")
                 .arg("0.001")
                 .arg("--output-dir")
@@ -297,7 +306,8 @@ fn test_tpchgen_cli_parts_all_tables() {
 
     let num_parts = 8;
     let output_dir = temp_dir.path().to_path_buf();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--output-dir")
@@ -348,7 +358,8 @@ async fn test_write_parquet_orders() {
     // Run the CLI command to generate parquet data
     let output_dir = tempdir().unwrap();
     let output_path = output_dir.path().join("orders.parquet");
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("parquet")
         .arg("--tables")
         .arg("orders")
@@ -392,7 +403,8 @@ async fn test_write_parquet_orders() {
 async fn test_write_parquet_row_group_size_default() {
     // Run the CLI command to generate parquet data with default settings
     let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("parquet")
         .arg("--scale-factor")
         .arg("1")
@@ -458,7 +470,8 @@ async fn test_write_parquet_row_group_size_default() {
 async fn test_write_parquet_row_group_size_20mb() {
     // Run the CLI command to generate parquet data with larger row group size
     let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("parquet")
         .arg("--scale-factor")
         .arg("1")
@@ -517,7 +530,8 @@ fn test_tpchgen_cli_part_no_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // CLI Error test --part and but not --parts
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--part")
@@ -534,7 +548,8 @@ fn test_tpchgen_cli_too_many_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // This should fail because --part is 42 which is more than the --parts 10
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--part")
@@ -552,7 +567,8 @@ fn test_tpchgen_cli_too_many_parts() {
 fn test_tpchgen_cli_zero_part() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--part")
@@ -569,7 +585,8 @@ fn test_tpchgen_cli_zero_part() {
 fn test_tpchgen_cli_zero_part_zero_parts() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--output-dir")
         .arg(temp_dir.path())
         .arg("--part")
@@ -587,7 +604,8 @@ fn test_tpchgen_cli_zero_part_zero_parts() {
 #[tokio::test]
 async fn test_incompatible_options_warnings() {
     let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--format")
         .arg("csv")
         .arg("--tables")
@@ -616,7 +634,8 @@ async fn test_incompatible_options_warnings() {
 #[tokio::test]
 async fn test_quiet_flag_suppresses_warnings() {
     let output_dir = tempdir().unwrap();
-    let output = cargo_bin_cmd!("tpchgen-cli")
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .env("RUST_LOG", "warn")
         .arg("--format")
         .arg("csv")
@@ -650,7 +669,8 @@ async fn test_quiet_flag_suppresses_warnings() {
 #[test]
 fn test_tpchgen_cli_no_progress_flag() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
-    let output = cargo_bin_cmd!("tpchgen-cli")
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
@@ -677,7 +697,8 @@ fn test_tpchgen_cli_no_progress_flag() {
 #[test]
 fn test_tpchgen_cli_progress_auto_disabled_on_non_tty() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
-    let output = cargo_bin_cmd!("tpchgen-cli")
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
@@ -761,7 +782,8 @@ fn expect_row_group_sizes(output_dir: &Path, expected_row_groups: Vec<RowGroups>
 #[tokio::test]
 async fn test_format_parquet_warns_about_subcommand() {
     let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--format")
         .arg("parquet")
         .arg("--tables")
@@ -780,7 +802,8 @@ async fn test_format_parquet_warns_about_subcommand() {
 fn test_format_with_subcommand_conflict() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--format")
         .arg("parquet")
         .arg("parquet")
@@ -801,7 +824,8 @@ fn test_parquet_compression_with_subcommand_conflict() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // With parquet subcommand
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--parquet-compression")
         .arg("SNAPPY")
         .arg("parquet")
@@ -816,7 +840,8 @@ fn test_parquet_compression_with_subcommand_conflict() {
         .stderr(predicates::str::contains("cannot be used with"));
 
     // With tbl subcommand
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--parquet-compression")
         .arg("SNAPPY")
         .arg("tbl")
@@ -837,7 +862,8 @@ fn test_parquet_row_group_bytes_with_subcommand_conflict() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // With parquet subcommand
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--parquet-row-group-bytes")
         .arg("1000000")
         .arg("parquet")
@@ -852,7 +878,8 @@ fn test_parquet_row_group_bytes_with_subcommand_conflict() {
         .stderr(predicates::str::contains("cannot be used with"));
 
     // With csv subcommand
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--parquet-row-group-bytes")
         .arg("1000000")
         .arg("csv")
@@ -873,7 +900,8 @@ fn test_common_args_with_subcommand_conflict() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // -s before subcommand should error
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("-s")
         .arg("0.01")
         .arg("parquet")
@@ -886,7 +914,8 @@ fn test_common_args_with_subcommand_conflict() {
         .stderr(predicates::str::contains("cannot be used with"));
 
     // -s after subcommand should work
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("parquet")
         .arg("-s")
         .arg("0.01")
@@ -903,7 +932,8 @@ fn test_common_args_with_subcommand_conflict() {
 fn test_default_format_is_tbl() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--scale-factor")
         .arg("0.001")
         .arg("--tables")
@@ -926,7 +956,8 @@ fn test_default_format_is_tbl() {
 fn test_tbl_subcommand() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("tbl")
         .arg("--scale-factor")
         .arg("0.001")
@@ -950,7 +981,8 @@ fn test_tbl_subcommand() {
 fn test_csv_subcommand() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("csv")
         .arg("--scale-factor")
         .arg("0.001")
@@ -973,7 +1005,8 @@ fn test_csv_subcommand() {
 #[tokio::test]
 async fn test_format_csv_warns_about_subcommand() {
     let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--format")
         .arg("csv")
         .arg("--tables")
@@ -998,7 +1031,8 @@ async fn test_format_csv_warns_about_subcommand() {
 #[tokio::test]
 async fn test_format_tbl_warns_about_subcommand() {
     let output_dir = tempdir().unwrap();
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--format")
         .arg("tbl")
         .arg("--tables")
@@ -1017,7 +1051,8 @@ async fn test_format_tbl_warns_about_subcommand() {
 fn test_csv_subcommand_custom_delimiter() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("csv")
         .arg("--delimiter")
         .arg("\\t")
@@ -1060,7 +1095,8 @@ fn test_csv_subcommand_custom_delimiter() {
 fn test_csv_subcommand_rejects_non_ascii_delimiter() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("csv")
         .arg("--delimiter")
         .arg("€")
@@ -1080,7 +1116,8 @@ fn test_csv_subcommand_rejects_non_ascii_delimiter() {
 fn test_tbl_subcommand_rejects_delimiter() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("tbl")
         .arg("--delimiter")
         .arg(",")
@@ -1100,7 +1137,8 @@ fn test_tbl_subcommand_rejects_delimiter() {
 async fn test_deprecated_parquet_compression_flag_works() {
     let output_dir = tempdir().unwrap();
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--format")
         .arg("parquet")
         .arg("--parquet-compression")
@@ -1130,7 +1168,8 @@ async fn test_deprecated_parquet_compression_flag_works() {
 async fn test_deprecated_parquet_row_group_bytes_flag_works() {
     let output_dir = tempdir().unwrap();
 
-    cargo_bin_cmd!("tpchgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
         .arg("--format")
         .arg("parquet")
         .arg("--parquet-row-group-bytes")
