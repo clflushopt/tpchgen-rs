@@ -21,7 +21,7 @@ path = "bin/tpcgen.rs"
 clap = { version = "4.5.32", features = ["derive"] }
 tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }
 tokio = { version = "1.44.1", features = ["full"] }
-tpchgen-cli = { path = "../tpchgen-cli", version = "2.0.2", default-features = false, features = ["indicatif-progress"] }
+tpchgen-cli = { path = "../tpchgen-cli", version = "3.0.0", default-features = false, features = ["indicatif-progress"] }
 
 [dev-dependencies]
 assert_cmd = "2.0"

@@ -16,7 +16,8 @@ use crate::config::Session;
 use crate::error::Result;
 use crate::row::{AbstractRowGenerator, DbgenVersionRow, RowGenerator, RowGeneratorResult};
 use crate::table::Table;
-use chrono::Local;
+use crate::types::Date;
+use chrono::{Datelike, Local, Timelike};
 
 /// Row generator for the DBGEN_VERSION table (DbgenVersionRowGenerator)
 pub struct DbgenVersionRowGenerator {
@@ -49,11 +50,10 @@ impl DbgenVersionRowGenerator {
         // Get current date and time
         let now = Local::now();
 
-        // Format date as "yyyy-MM-dd" (Java SimpleDateFormat equivalent)
-        let create_date = now.format("%Y-%m-%d").to_string();
+        let create_date = Date::new(now.year(), now.month() as i32, now.day() as i32);
 
-        // Format time as "HH:mm:ss" (Java SimpleDateFormat equivalent)
-        let create_time = now.format("%H:%M:%S").to_string();
+        let create_time =
+            (now.hour() as i32 * 3600) + (now.minute() as i32 * 60) + now.second() as i32;
 
         // Get command line arguments from session
         let cmdline_args = session.get_command_line_arguments();

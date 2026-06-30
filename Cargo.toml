@@ -11,7 +11,11 @@ homepage = "https://github.com/clflushopt/tpchgen-rs"
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/clflushopt/tpchgen-rs"
-version = "2.0.2"
+version = "3.0.0"
+
+[workspace.dependencies]
+arrow = { version = "59", default-features = false, features = ["prettyprint"] }
+arrow-csv = "59"
 
 [profile.release]
 codegen-units = 1
