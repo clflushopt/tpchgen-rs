@@ -17,7 +17,7 @@ use crate::error::Result;
 use crate::row::{AbstractRowGenerator, DbgenVersionRow, RowGenerator, RowGeneratorResult};
 use crate::table::Table;
 use crate::types::Date;
-use chrono::{Datelike, Local, Timelike};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Row generator for the DBGEN_VERSION table (DbgenVersionRowGenerator)
 pub struct DbgenVersionRowGenerator {
@@ -47,13 +47,7 @@ impl DbgenVersionRowGenerator {
         _row_number: i64,
         session: &Session,
     ) -> Result<DbgenVersionRow> {
-        // Get current date and time
-        let now = Local::now();
-
-        let create_date = Date::new(now.year(), now.month() as i32, now.day() as i32);
-
-        let create_time =
-            (now.hour() as i32 * 3600) + (now.minute() as i32 * 60) + now.second() as i32;
+        let (create_date, create_time) = current_utc_date_time();
 
         // Get command line arguments from session
         let cmdline_args = session.get_command_line_arguments();
@@ -66,6 +60,53 @@ impl DbgenVersionRowGenerator {
             cmdline_args,
         ))
     }
+}
+
+/// Returns the current UTC date and time of day.
+///
+/// Returns a tuple of:
+/// * `Date`: calendar date in UTC.
+/// * `i32`: seconds since midnight in UTC.
+fn current_utc_date_time() -> (Date, i32) {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs() as i64)
+        .unwrap_or(0);
+    let days = seconds.div_euclid(86_400);
+    let seconds_of_day = seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_from_days(days);
+    let hour = seconds_of_day / 3_600;
+    let minute = (seconds_of_day % 3_600) / 60;
+    let second = seconds_of_day % 60;
+
+    (
+        Date::new(year as i32, month as i32, day as i32),
+        (hour * 3_600 + minute * 60 + second) as i32,
+    )
+}
+
+/// Converts days since 1970-01-01 to a proleptic Gregorian calendar date.
+///
+/// Returns a tuple of:
+/// * `i64`: year.
+/// * `i64`: month number in the range `1..=12`.
+/// * `i64`: day of month in the range `1..=31`.
+///
+/// This is Howard Hinnant's civil_from_days algorithm:
+/// <https://howardhinnant.github.io/date_algorithms.html#civil_from_days>
+fn civil_from_days(days_since_unix_epoch: i64) -> (i64, i64, i64) {
+    let days = days_since_unix_epoch + 719_468;
+    let era = if days >= 0 { days } else { days - 146_096 } / 146_097;
+    let day_of_era = days - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    let year = year + if month <= 2 { 1 } else { 0 };
+    (year, month, day)
 }
 
 impl RowGenerator for DbgenVersionRowGenerator {
