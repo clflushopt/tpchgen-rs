@@ -29,9 +29,4 @@ indicatif-progress = ["progress", "tpcgen/indicatif-progress"]
 
 [dev-dependencies]
 assert_cmd = "2.0"
-parquet = "59"
-predicates = "3.0"
 tempfile = "3.20.0"
-flate2 = "1.1.0"
-tpchgen = { path = "../tpchgen", version = "3.0.0" }
-tpchgen-arrow = { path = "../tpchgen-arrow", version = "3.0.0" }

@@ -2,6 +2,10 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use tempfile::tempdir;
 
+// TPCH-specific CLI coverage
+#[path = "cli_integration/tpch.rs"]
+mod tpch;
+
 /// Test the TPC-H command forms for the `tpcgen` binary.
 #[test]
 fn test_tpcgen_tpch_command_forms() {
