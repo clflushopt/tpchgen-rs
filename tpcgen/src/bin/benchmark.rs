@@ -4,7 +4,7 @@
  * Usage: benchmark --scale <SCALE> --table <TABLE> [--output-dir <DIR>]
  */
 
-use std::env;
+use clap::Parser;
 use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
@@ -13,64 +13,29 @@ use tpcdsgen::config::{CompatMode, Session, Table};
 use tpcdsgen::output::Iso8859Writer;
 use tpcdsgen::row::*;
 
-#[derive(Debug)]
+#[derive(Parser, Debug)]
+#[command(name = "benchmark")]
+#[command(about = "Benchmark TPC-DS table generation")]
 struct Args {
     /// Scale factor (1, 10, 100, etc.)
+    #[arg(short, long, default_value = "1")]
     scale: f64,
 
     /// Table to generate (or "all" for all tables)
+    #[arg(short, long, default_value = "all")]
     table: String,
 
     /// Output directory (default: current directory)
+    #[arg(short, long, default_value = ".")]
     output_dir: PathBuf,
 
     /// Suppress output files (measure generation speed only)
+    #[arg(long, default_value = "false")]
     no_output: bool,
 
     /// Output results as JSON
+    #[arg(long, default_value = "false")]
     json: bool,
-}
-
-impl Args {
-    fn parse() -> Result<Self, Box<dyn std::error::Error>> {
-        let mut args = Args {
-            scale: 1.0,
-            table: "all".to_string(),
-            output_dir: PathBuf::from("."),
-            no_output: false,
-            json: false,
-        };
-
-        let mut values = env::args().skip(1);
-        while let Some(arg) = values.next() {
-            match arg.as_str() {
-                "-s" | "--scale" => {
-                    let value = values.next().ok_or("--scale requires a value")?;
-                    args.scale = value.parse()?;
-                }
-                "-t" | "--table" => {
-                    args.table = values.next().ok_or("--table requires a value")?;
-                }
-                "-o" | "--output-dir" => {
-                    args.output_dir =
-                        PathBuf::from(values.next().ok_or("--output-dir requires a value")?);
-                }
-                "--no-output" => args.no_output = true,
-                "--json" => args.json = true,
-                "-h" | "--help" => {
-                    print_benchmark_usage();
-                    std::process::exit(0);
-                }
-                _ => return Err(format!("unknown argument: {arg}").into()),
-            }
-        }
-
-        Ok(args)
-    }
-}
-
-fn print_benchmark_usage() {
-    println!("Usage: benchmark [--scale SCALE] [--table TABLE] [--output-dir DIR] [--no-output] [--json]");
 }
 
 fn create_session(scale: f64) -> Session {
@@ -717,7 +682,7 @@ fn benchmark_table(
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::parse()?;
+    let args = Args::parse();
     let session = create_session(args.scale);
 
     let tables: Vec<&str> = if args.table == "all" {
