@@ -1,6 +1,6 @@
 [package]
 name = "tpchgen-cli"
-version = "2.0.2"
+version = "3.0.0"
 authors = { workspace = true }
 description = "Blazing fast pure Rust TPC-H data generator command line tool."
 readme = "README.md"
@@ -33,5 +33,5 @@ parquet = "59"
 predicates = "3.0"
 tempfile = "3.20.0"
 flate2 = "1.1.0"
-tpchgen = { path = "../tpchgen", version = "2.0.2" }
-tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }
+tpchgen = { path = "../tpchgen", version = "3.0.0" }
+tpchgen-arrow = { path = "../tpchgen-arrow", version = "3.0.0" }

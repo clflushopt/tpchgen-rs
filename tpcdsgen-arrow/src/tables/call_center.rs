@@ -1,8 +1,9 @@
 use crate::conversions::{
-    address_columns, decimal_to_i128, is_null, opt, sk_opt, string_view_array_from_opt_iter,
+    address_columns, decimal_to_i128, is_null, julian_to_date32, opt, sk_opt,
+    string_view_array_from_opt_iter,
 };
 use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
-use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
@@ -53,10 +54,10 @@ impl Iterator for CallCenterArrow {
 
         let mut cc_sk: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut cc_id: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_rec_start: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_rec_end: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_closed_date: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut cc_open_date: Vec<Option<String>> = Vec::with_capacity(rows.len());
+        let mut cc_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut cc_closed_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
+        let mut cc_open_date: Vec<Option<i64>> = Vec::with_capacity(rows.len());
         let mut cc_name: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut cc_class: Vec<Option<String>> = Vec::with_capacity(rows.len());
         let mut cc_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -79,20 +80,18 @@ impl Iterator for CallCenterArrow {
             let nbm = r.get_null_bit_map();
             cc_sk.push(sk_opt(nbm, 0, r.get_cc_call_center_sk()));
             cc_id.push(opt(nbm, 1, r.get_cc_call_center_id().to_owned()));
-            cc_rec_start.push(opt(nbm, 2, r.get_cc_rec_start_date_id().to_owned()));
-            let rec_end = r.get_cc_rec_end_date_id();
-            cc_rec_end.push(if is_null(nbm, 3) || rec_end.is_empty() {
+            cc_rec_start.push(if is_null(nbm, 2) {
                 None
             } else {
-                Some(rec_end.to_owned())
+                julian_to_date32(r.get_cc_rec_start_date_id())
             });
-            let closed = r.get_cc_closed_date_id();
-            cc_closed_date.push(if is_null(nbm, 4) || closed.is_empty() {
+            cc_rec_end.push(if is_null(nbm, 3) {
                 None
             } else {
-                Some(closed.to_owned())
+                julian_to_date32(r.get_cc_rec_end_date_id())
             });
-            cc_open_date.push(opt(nbm, 5, r.get_cc_open_date_id().to_owned()));
+            cc_closed_date.push(sk_opt(nbm, 4, r.get_cc_closed_date_id()));
+            cc_open_date.push(sk_opt(nbm, 5, r.get_cc_open_date_id()));
             cc_name.push(opt(nbm, 6, r.get_cc_name().to_owned()));
             cc_class.push(opt(nbm, 7, r.get_cc_class().to_owned()));
             cc_employees.push(opt(nbm, 8, r.get_cc_employees()));
@@ -136,18 +135,10 @@ impl Iterator for CallCenterArrow {
                     Arc::new(string_view_array_from_opt_iter(
                         cc_id.iter().map(|s| s.as_deref()),
                     )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_rec_start.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_rec_end.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_closed_date.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_open_date.iter().map(|s| s.as_deref()),
-                    )),
+                    Arc::new(Date32Array::from(cc_rec_start)),
+                    Arc::new(Date32Array::from(cc_rec_end)),
+                    Arc::new(Int64Array::from(cc_closed_date)),
+                    Arc::new(Int64Array::from(cc_open_date)),
                     Arc::new(string_view_array_from_opt_iter(
                         cc_name.iter().map(|s| s.as_deref()),
                     )),
@@ -204,10 +195,10 @@ fn make_schema() -> SchemaRef {
     Arc::new(Schema::new(vec![
         Field::new("cc_call_center_sk", DataType::Int64, true),
         Field::new("cc_call_center_id", DataType::Utf8View, true),
-        Field::new("cc_rec_start_date", DataType::Utf8View, true),
-        Field::new("cc_rec_end_date", DataType::Utf8View, true),
-        Field::new("cc_closed_date_sk", DataType::Utf8View, true),
-        Field::new("cc_open_date_sk", DataType::Utf8View, true),
+        Field::new("cc_rec_start_date", DataType::Date32, true),
+        Field::new("cc_rec_end_date", DataType::Date32, true),
+        Field::new("cc_closed_date_sk", DataType::Int64, true),
+        Field::new("cc_open_date_sk", DataType::Int64, true),
         Field::new("cc_name", DataType::Utf8View, true),
         Field::new("cc_class", DataType::Utf8View, true),
         Field::new("cc_employees", DataType::Int32, true),

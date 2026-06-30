@@ -28,8 +28,8 @@ num_cpus = "1.0"
 parquet = "59"
 tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }
 tokio = { version = "1.44.1", features = ["full"] }
-tpchgen = { path = "../tpchgen", version = "2.0.2" }
-tpchgen-arrow = { path = "../tpchgen-arrow", version = "2.0.2" }
+tpchgen = { path = "../tpchgen", version = "3.0.0" }
+tpchgen-arrow = { path = "../tpchgen-arrow", version = "3.0.0" }
 
 [features]
 default = ["indicatif-progress"]

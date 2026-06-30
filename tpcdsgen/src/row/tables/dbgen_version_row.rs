@@ -13,14 +13,15 @@
  */
 
 use crate::row::TableRow;
+use crate::types::Date;
 
 /// DbgenVersion table row
 #[derive(Debug, Clone)]
 pub struct DbgenVersionRow {
     null_bit_map: i64,
     dv_version: String,
-    dv_create_date: String,
-    dv_create_time: String,
+    dv_create_date: Date,
+    dv_create_time: i32,
     dv_cmdline_args: String,
 }
 
@@ -28,8 +29,8 @@ impl DbgenVersionRow {
     pub fn new(
         null_bit_map: i64,
         dv_version: String,
-        dv_create_date: String,
-        dv_create_time: String,
+        dv_create_date: Date,
+        dv_create_time: i32,
         dv_cmdline_args: String,
     ) -> Self {
         DbgenVersionRow {
@@ -63,12 +64,12 @@ impl DbgenVersionRow {
         &self.dv_version
     }
 
-    pub fn get_dv_create_date(&self) -> &str {
+    pub fn get_dv_create_date(&self) -> &Date {
         &self.dv_create_date
     }
 
-    pub fn get_dv_create_time(&self) -> &str {
-        &self.dv_create_time
+    pub fn get_dv_create_time(&self) -> i32 {
+        self.dv_create_time
     }
 
     pub fn get_dv_cmdline_args(&self) -> &str {
@@ -81,9 +82,16 @@ impl TableRow for DbgenVersionRow {
         // Column positions match Java DbgenVersionGeneratorColumn (476-479)
         vec![
             self.get_string_or_null(&self.dv_version, 0),
-            self.get_string_or_null(&self.dv_create_date, 1),
-            self.get_string_or_null(&self.dv_create_time, 2),
+            self.get_string_or_null(self.dv_create_date, 1),
+            self.get_string_or_null(format_time(self.dv_create_time), 2),
             self.get_string_or_null(&self.dv_cmdline_args, 3),
         ]
     }
+}
+
+fn format_time(seconds_since_midnight: i32) -> String {
+    let hour = seconds_since_midnight / 3600;
+    let minute = (seconds_since_midnight / 60) % 60;
+    let second = seconds_since_midnight % 60;
+    format!("{hour:02}:{minute:02}:{second:02}")
 }
