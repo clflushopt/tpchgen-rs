@@ -65,8 +65,7 @@ impl<W: Write> Iso8859Writer<W> {
 
     /// Write a string as ISO-8859-1 bytes
     pub fn write_str(&mut self, s: &str) -> io::Result<()> {
-        let bytes = to_iso_8859_1(s)?;
-        self.inner.write_all(&bytes)
+        self.write_all(s.as_bytes())
     }
 
     /// Write a string followed by a newline as ISO-8859-1 bytes
@@ -88,11 +87,38 @@ impl<W: Write> Iso8859Writer<W> {
 /// Each UTF-8 character is converted to its ISO-8859-1 equivalent.
 impl<W: Write> Write for Iso8859Writer<W> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        // Interpret input as UTF-8, convert to ISO-8859-1
+        // ASCII bytes are identical in UTF-8 and ISO-8859-1, so they can be
+        // passed through untouched. TPC-DS output is almost entirely ASCII,
+        // making this the hot path.
+        if buf.is_ascii() {
+            self.inner.write_all(buf)?;
+            return Ok(buf.len());
+        }
+        // Interpret input as UTF-8, convert to ISO-8859-1 through a stack
+        // buffer to avoid heap allocations on every write.
         let s =
             std::str::from_utf8(buf).map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-        let iso_bytes = to_iso_8859_1(s)?;
-        self.inner.write_all(&iso_bytes)?;
+        let mut chunk = [0u8; 256];
+        let mut len = 0;
+        for c in s.chars() {
+            let code = c as u32;
+            if code > 255 {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    format!(
+                        "Character '{}' (U+{:04X}) is outside ISO-8859-1 range",
+                        c, code
+                    ),
+                ));
+            }
+            if len == chunk.len() {
+                self.inner.write_all(&chunk)?;
+                len = 0;
+            }
+            chunk[len] = code as u8;
+            len += 1;
+        }
+        self.inner.write_all(&chunk[..len])?;
         Ok(buf.len())
     }
 

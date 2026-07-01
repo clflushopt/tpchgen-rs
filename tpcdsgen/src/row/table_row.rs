@@ -25,14 +25,16 @@ pub trait TableRow: Send + Sync {
     /// overhead is negligible compared to I/O costs.
     fn write_to(&self, writer: &mut dyn Write, separator: char) -> io::Result<()> {
         let values = self.get_values();
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
         for (i, value) in values.iter().enumerate() {
             if i > 0 {
-                write!(writer, "{}", separator)?;
+                writer.write_all(sep)?;
             }
-            write!(writer, "{}", value)?;
+            writer.write_all(value.as_bytes())?;
         }
-        write!(writer, "{}", separator)?;
-        writeln!(writer)
+        writer.write_all(sep)?;
+        writer.write_all(b"\n")
     }
 }
 
