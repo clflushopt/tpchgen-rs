@@ -49,8 +49,10 @@ impl DbgenVersionRowGenerator {
     ) -> Result<DbgenVersionRow> {
         let (create_date, create_time) = current_utc_date_time();
 
-        // Get command line arguments from session
-        let cmdline_args = session.get_command_line_arguments();
+        let cmdline_args = session
+            .command_line_arguments()
+            .unwrap_or_default()
+            .to_string();
 
         Ok(DbgenVersionRow::new(
             0, // nullBitMap is always 0 for this table

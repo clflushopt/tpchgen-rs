@@ -160,6 +160,38 @@ fn test_tpcgen_tpcds_dat_compat_mode() {
     );
 }
 
+/// Test that TPC-DS DAT generation forwards the actual command line to dbgen_version.
+#[test]
+fn test_tpcgen_tpcds_dat_dbgen_version_command_line() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("dbgen_version")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let contents = fs::read_to_string(temp_dir.path().join("dbgen_version.dat"))
+        .expect("Failed to read DAT file");
+    let fields: Vec<_> = contents
+        .trim_end()
+        .trim_end_matches('|')
+        .split('|')
+        .collect();
+    assert_eq!(fields.len(), 4);
+    assert!(
+        fields[3].contains("tpcds dat --scale-factor 1 --tables dbgen_version --output-dir"),
+        "Expected dbgen_version command line to contain the actual TPC-DS invocation, got: {}",
+        fields[3]
+    );
+}
+
 /// Test that default DAT output options generate every main TPC-DS output file.
 ///
 /// This overrides only scale factor and output directory: scale factor 0 keeps

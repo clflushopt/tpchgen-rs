@@ -18,24 +18,26 @@ pub struct Session {
     chunk_number: i32,
     overwrite: bool,
     compat_mode: CompatMode,
+    command_line_arguments: Option<String>,
 }
 
 impl Default for Session {
     fn default() -> Self {
-        Self::new_with_chunk_number(
-            Self::DEFAULT_SCALE,
-            Self::DEFAULT_DIRECTORY.to_string(),
-            Self::DEFAULT_SUFFIX.to_string(),
-            None,
-            Self::DEFAULT_NULL_STRING.to_string(),
-            Self::DEFAULT_SEPARATOR,
-            Self::DEFAULT_DO_NOT_TERMINATE,
-            Self::DEFAULT_NO_SEXISM,
-            Self::DEFAULT_PARALLELISM,
-            1,
-            Self::DEFAULT_OVERWRITE,
-            Self::DEFAULT_COMPAT,
-        )
+        Session {
+            scaling: Scaling::new_with_compat(Self::DEFAULT_SCALE, Self::DEFAULT_COMPAT),
+            target_directory: Self::DEFAULT_DIRECTORY.to_string(),
+            suffix: Self::DEFAULT_SUFFIX.to_string(),
+            table: None,
+            null_string: Self::DEFAULT_NULL_STRING.to_string(),
+            separator: Self::DEFAULT_SEPARATOR,
+            do_not_terminate: Self::DEFAULT_DO_NOT_TERMINATE,
+            no_sexism: Self::DEFAULT_NO_SEXISM,
+            parallelism: Self::DEFAULT_PARALLELISM,
+            chunk_number: 1,
+            overwrite: Self::DEFAULT_OVERWRITE,
+            compat_mode: Self::DEFAULT_COMPAT,
+            command_line_arguments: None,
+        }
     }
 }
 
@@ -51,209 +53,22 @@ impl Session {
     pub const DEFAULT_OVERWRITE: bool = false;
     pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
 
-    /// Create a session for a single generation chunk.
-    ///
-    /// This is equivalent to calling [`Session::new_with_chunk_number`] with
-    /// `chunk_number` set to `1`.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        scale: f64,
-        target_directory: String,
-        suffix: String,
-        table: Option<Table>,
-        null_string: String,
-        separator: char,
-        do_not_terminate: bool,
-        no_sexism: bool,
-        parallelism: i32,
-        overwrite: bool,
-        compat_mode: CompatMode,
-    ) -> Self {
-        Self::new_with_chunk_number(
-            scale,
-            target_directory,
-            suffix,
-            table,
-            null_string,
-            separator,
-            do_not_terminate,
-            no_sexism,
-            parallelism,
-            1, // Default chunk number
-            overwrite,
-            compat_mode,
-        )
-    }
-
-    /// Create and validate a session for a single generation chunk.
-    #[allow(clippy::too_many_arguments)]
-    pub fn try_new(
-        scale: f64,
-        target_directory: String,
-        suffix: String,
-        table: Option<Table>,
-        null_string: String,
-        separator: char,
-        do_not_terminate: bool,
-        no_sexism: bool,
-        parallelism: i32,
-        overwrite: bool,
-        compat_mode: CompatMode,
-    ) -> Result<Self> {
-        Self::validate(scale, &target_directory, &suffix, parallelism)?;
-
-        Ok(Self::new(
-            scale,
-            target_directory,
-            suffix,
-            table,
-            null_string,
-            separator,
-            do_not_terminate,
-            no_sexism,
-            parallelism,
-            overwrite,
-            compat_mode,
-        ))
-    }
-
-    fn validate(scale: f64, target_directory: &str, suffix: &str, parallelism: i32) -> Result<()> {
-        if !(0.0..=100000.0).contains(&scale) {
-            return Err(InvalidOptionError::with_message(
-                "scale",
-                &scale.to_string(),
-                "Scale must be greater than 0 and less than 100000",
-            )
-            .into());
-        }
-
-        if target_directory.is_empty() {
-            return Err(InvalidOptionError::with_message(
-                "directory",
-                target_directory,
-                "Directory cannot be an empty string",
-            )
-            .into());
-        }
-
-        if suffix.is_empty() {
-            return Err(InvalidOptionError::with_message(
-                "suffix",
-                suffix,
-                "Suffix cannot be an empty string",
-            )
-            .into());
-        }
-
-        if parallelism < 1 {
-            return Err(InvalidOptionError::with_message(
-                "parallelism",
-                &parallelism.to_string(),
-                "Parallelism must be >= 1",
-            )
-            .into());
-        }
-
-        Ok(())
-    }
-
-    /// Create a session for a specific generation chunk.
-    ///
-    /// `parallelism` is the total number of chunks to generate, and
-    /// `chunk_number` identifies the chunk represented by this session. The
-    /// caller is responsible for passing values that have already been
-    /// validated.
-    #[allow(clippy::too_many_arguments)]
-    pub fn new_with_chunk_number(
-        scale: f64,
-        target_directory: String,
-        suffix: String,
-        table: Option<Table>,
-        null_string: String,
-        separator: char,
-        do_not_terminate: bool,
-        no_sexism: bool,
-        parallelism: i32,
-        chunk_number: i32,
-        overwrite: bool,
-        compat_mode: CompatMode,
-    ) -> Self {
-        Session {
-            scaling: Scaling::new_with_compat(scale, compat_mode),
-            target_directory,
-            suffix,
-            table,
-            null_string,
-            separator,
-            do_not_terminate,
-            no_sexism,
-            parallelism,
-            chunk_number,
-            overwrite,
-            compat_mode,
-        }
-    }
-
-    /// Return a copy of this session that only generates `table`.
-    pub fn with_table(&self, table: Table) -> Self {
-        Session {
-            table: Some(table),
-            ..self.clone()
-        }
-    }
-
-    /// Return a copy of this session with a different scale factor.
-    ///
-    /// The existing compatibility mode is preserved when rebuilding the
-    /// [`Scaling`] configuration.
-    pub fn with_scale(&self, scale: f64) -> Self {
-        Session {
-            scaling: Scaling::new_with_compat(scale, self.compat_mode),
-            ..self.clone()
-        }
-    }
-
-    /// Return a copy of this session with a different [`CompatMode`].
-    ///
-    /// The scale factor is preserved and the [`Scaling`] configuration is
-    /// rebuilt so row-count calculations use the new mode.
-    pub fn with_compat_mode(&self, compat_mode: CompatMode) -> Self {
-        Session {
-            scaling: Scaling::new_with_compat(self.scaling.get_scale(), compat_mode),
-            compat_mode,
-            ..self.clone()
-        }
-    }
-
-    /// Return a copy of this session with a different total chunk count.
-    pub fn with_parallelism(&self, parallelism: i32) -> Self {
-        Session {
-            parallelism,
-            ..self.clone()
-        }
-    }
-
-    /// Return a copy of this session for a different chunk number.
-    pub fn with_chunk_number(&self, chunk_number: i32) -> Self {
-        Session {
-            chunk_number,
-            ..self.clone()
-        }
-    }
-
-    /// Return a copy of this session with gender-neutral manager names enabled
-    /// or disabled.
-    ///
-    /// When enabled, first names are picked from the general first-name
-    /// distribution instead of the male-only distribution used by the C
-    /// reference implementation. This matches the behavior documented by the
-    /// Trino Java implementation's [`--no-sexism`] option.
-    ///
-    /// [`--no-sexism`]: https://github.com/trinodb/tpcds/blob/8a02abbba864feedc2afd078c8153d66a95bb2d4/src/main/java/io/trino/tpcds/Options.java#L55-L60
-    pub fn with_no_sexism(&self, no_sexism: bool) -> Self {
-        Session {
-            no_sexism,
-            ..self.clone()
+    /// Convert this session into a builder initialized with its current values.
+    pub fn into_builder(self) -> SessionBuilder {
+        SessionBuilder {
+            scale: self.scaling.get_scale(),
+            target_directory: self.target_directory,
+            suffix: self.suffix,
+            table: self.table,
+            null_string: self.null_string,
+            separator: self.separator,
+            do_not_terminate: self.do_not_terminate,
+            no_sexism: self.no_sexism,
+            parallelism: self.parallelism,
+            chunk_number: self.chunk_number,
+            overwrite: self.overwrite,
+            compat_mode: self.compat_mode,
+            command_line_arguments: self.command_line_arguments,
         }
     }
 
@@ -334,53 +149,217 @@ impl Session {
         self.compat_mode
     }
 
-    /// Reconstruct command line arguments that would produce this session.
-    ///
-    /// Default-valued options are omitted from the returned string.
-    pub fn get_command_line_arguments(&self) -> String {
-        let mut output = Vec::new();
+    /// Return the actual command line arguments used to create this session, if known.
+    pub fn command_line_arguments(&self) -> Option<&str> {
+        self.command_line_arguments.as_deref()
+    }
+}
 
-        if self.scaling.get_scale() != Self::DEFAULT_SCALE {
-            output.push(format!("--scale {}", self.scaling.get_scale()));
+/// Builder for validated [`Session`] construction.
+#[derive(Debug, Clone)]
+pub struct SessionBuilder {
+    scale: f64,
+    target_directory: String,
+    suffix: String,
+    table: Option<Table>,
+    null_string: String,
+    separator: char,
+    do_not_terminate: bool,
+    no_sexism: bool,
+    parallelism: i32,
+    chunk_number: i32,
+    overwrite: bool,
+    compat_mode: CompatMode,
+    command_line_arguments: Option<String>,
+}
+
+impl Default for SessionBuilder {
+    fn default() -> Self {
+        Self {
+            scale: Session::DEFAULT_SCALE,
+            target_directory: Session::DEFAULT_DIRECTORY.to_string(),
+            suffix: Session::DEFAULT_SUFFIX.to_string(),
+            table: None,
+            null_string: Session::DEFAULT_NULL_STRING.to_string(),
+            separator: Session::DEFAULT_SEPARATOR,
+            do_not_terminate: Session::DEFAULT_DO_NOT_TERMINATE,
+            no_sexism: Session::DEFAULT_NO_SEXISM,
+            parallelism: Session::DEFAULT_PARALLELISM,
+            chunk_number: 1,
+            overwrite: Session::DEFAULT_OVERWRITE,
+            compat_mode: Session::DEFAULT_COMPAT,
+            command_line_arguments: None,
         }
-        if self.target_directory != Self::DEFAULT_DIRECTORY {
-            output.push(format!("--directory {}", self.target_directory));
-        }
-        if self.suffix != Self::DEFAULT_SUFFIX {
-            output.push(format!("--suffix {}", self.suffix));
-        }
-        if let Some(table) = self.table {
-            output.push(format!("--table {}", table.get_name()));
-        }
-        if self.null_string != Self::DEFAULT_NULL_STRING {
-            output.push(format!("--null {}", self.null_string));
-        }
-        if self.separator != Self::DEFAULT_SEPARATOR {
-            output.push(format!("--separator {}", self.separator));
-        }
-        if self.do_not_terminate != Self::DEFAULT_DO_NOT_TERMINATE {
-            output.push("--do-not-terminate".to_string());
-        }
-        if self.no_sexism != Self::DEFAULT_NO_SEXISM {
-            output.push("--no-sexism".to_string());
-        }
-        if self.parallelism != Self::DEFAULT_PARALLELISM {
-            output.push(format!("--parallelism {}", self.parallelism));
-        }
-        if self.overwrite != Self::DEFAULT_OVERWRITE {
-            output.push("--overwrite".to_string());
-        }
-        if self.compat_mode != Self::DEFAULT_COMPAT {
-            output.push(format!(
-                "--compat {}",
-                match self.compat_mode {
-                    CompatMode::Trino => "trino",
-                    CompatMode::C => "c",
-                }
-            ));
+    }
+}
+
+impl SessionBuilder {
+    /// Create a builder initialized with the default session values.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the scale factor to generate.
+    pub fn with_scale_factor(mut self, scale: f64) -> Self {
+        self.scale = scale;
+        self
+    }
+
+    /// Set the directory where generated files are written.
+    pub fn with_target_directory(mut self, target_directory: impl Into<String>) -> Self {
+        self.target_directory = target_directory.into();
+        self
+    }
+
+    /// Set the suffix appended to generated data file names.
+    pub fn with_suffix(mut self, suffix: impl Into<String>) -> Self {
+        self.suffix = suffix.into();
+        self
+    }
+
+    /// Restrict generation to a single table.
+    pub fn with_table(mut self, table: Table) -> Self {
+        self.table = Some(table);
+        self
+    }
+
+    /// Clear any single-table restriction.
+    pub fn without_table(mut self) -> Self {
+        self.table = None;
+        self
+    }
+
+    /// Set the string emitted for null values.
+    pub fn with_null_string(mut self, null_string: impl Into<String>) -> Self {
+        self.null_string = null_string.into();
+        self
+    }
+
+    /// Set the column separator emitted between fields.
+    pub fn with_separator(mut self, separator: char) -> Self {
+        self.separator = separator;
+        self
+    }
+
+    /// Set whether generated rows should omit the trailing separator.
+    pub fn with_do_not_terminate(mut self, do_not_terminate: bool) -> Self {
+        self.do_not_terminate = do_not_terminate;
+        self
+    }
+
+    /// Set whether gender-neutral manager names are enabled.
+    pub fn with_no_sexism(mut self, no_sexism: bool) -> Self {
+        self.no_sexism = no_sexism;
+        self
+    }
+
+    /// Set the total number of chunks to generate.
+    pub fn with_parallelism(mut self, parallelism: i32) -> Self {
+        self.parallelism = parallelism;
+        self
+    }
+
+    /// Set the one-based chunk number represented by this session.
+    pub fn with_chunk_number(mut self, chunk_number: i32) -> Self {
+        self.chunk_number = chunk_number;
+        self
+    }
+
+    /// Set whether existing output files may be overwritten.
+    pub fn with_overwrite(mut self, overwrite: bool) -> Self {
+        self.overwrite = overwrite;
+        self
+    }
+
+    /// Set the reference implementation compatibility mode.
+    pub fn with_compat_mode(mut self, compat_mode: CompatMode) -> Self {
+        self.compat_mode = compat_mode;
+        self
+    }
+
+    /// Set the actual command line arguments used to create the session.
+    pub fn with_command_line_arguments(
+        mut self,
+        command_line_arguments: impl Into<String>,
+    ) -> Self {
+        self.command_line_arguments = Some(command_line_arguments.into());
+        self
+    }
+
+    /// Clear any command line arguments associated with the session.
+    pub fn without_command_line_arguments(mut self) -> Self {
+        self.command_line_arguments = None;
+        self
+    }
+
+    /// Build a validated [`Session`].
+    pub fn build(self) -> Result<Session> {
+        self.validate()?;
+
+        Ok(Session {
+            scaling: Scaling::new_with_compat(self.scale, self.compat_mode),
+            target_directory: self.target_directory,
+            suffix: self.suffix,
+            table: self.table,
+            null_string: self.null_string,
+            separator: self.separator,
+            do_not_terminate: self.do_not_terminate,
+            no_sexism: self.no_sexism,
+            parallelism: self.parallelism,
+            chunk_number: self.chunk_number,
+            overwrite: self.overwrite,
+            compat_mode: self.compat_mode,
+            command_line_arguments: self.command_line_arguments,
+        })
+    }
+
+    fn validate(&self) -> Result<()> {
+        if !(0.0..=100000.0).contains(&self.scale) {
+            return Err(InvalidOptionError::with_message(
+                "scale",
+                &self.scale.to_string(),
+                "Scale must be greater than 0 and less than 100000",
+            )
+            .into());
         }
 
-        output.join(" ")
+        if self.target_directory.is_empty() {
+            return Err(InvalidOptionError::with_message(
+                "directory",
+                &self.target_directory,
+                "Directory cannot be an empty string",
+            )
+            .into());
+        }
+
+        if self.suffix.is_empty() {
+            return Err(InvalidOptionError::with_message(
+                "suffix",
+                &self.suffix,
+                "Suffix cannot be an empty string",
+            )
+            .into());
+        }
+
+        if self.parallelism < 1 {
+            return Err(InvalidOptionError::with_message(
+                "parallelism",
+                &self.parallelism.to_string(),
+                "Parallelism must be >= 1",
+            )
+            .into());
+        }
+
+        if self.chunk_number < 1 {
+            return Err(InvalidOptionError::with_message(
+                "chunk_number",
+                &self.chunk_number.to_string(),
+                "Chunk number must be >= 1",
+            )
+            .into());
+        }
+
+        Ok(())
     }
 }
 
@@ -389,20 +368,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_session_creation() {
-        let session = Session::new(
-            1.0,
-            ".".to_string(),
-            ".dat".to_string(),
-            None,
-            "".to_string(),
-            '|',
-            false,
-            false,
-            1,
-            false,
-            CompatMode::Trino,
-        );
+    fn test_default_session() {
+        let session = Session::default();
 
         assert_eq!(session.get_scaling().get_scale(), 1.0);
         assert_eq!(session.get_target_directory(), ".");
@@ -415,116 +382,98 @@ mod tests {
         assert_eq!(session.get_parallelism(), 1);
         assert_eq!(session.get_chunk_number(), 1);
         assert!(!session.should_overwrite());
+        assert_eq!(session.command_line_arguments(), None);
     }
 
     #[test]
-    fn test_try_new_validation() {
-        assert!(Session::try_new(
-            10.0,
-            "/tmp".to_string(),
-            ".dat".to_string(),
-            None,
-            "".to_string(),
-            '|',
-            false,
-            false,
-            1,
-            false,
-            CompatMode::Trino,
-        )
-        .is_ok());
+    fn test_session_builder() {
+        let session = SessionBuilder::new()
+            .with_scale_factor(2.0)
+            .with_target_directory("/tmp")
+            .with_suffix(".csv")
+            .with_table(Table::CatalogSales)
+            .with_null_string("NULL")
+            .with_separator(',')
+            .with_do_not_terminate(true)
+            .with_no_sexism(true)
+            .with_parallelism(4)
+            .with_chunk_number(2)
+            .with_overwrite(true)
+            .with_compat_mode(CompatMode::C)
+            .with_command_line_arguments("tpcgen tpcds --scale-factor 2")
+            .build()
+            .unwrap();
 
-        assert!(Session::try_new(
-            -1.0,
-            ".".to_string(),
-            ".dat".to_string(),
-            None,
-            "".to_string(),
-            '|',
-            false,
-            false,
-            1,
-            false,
-            CompatMode::Trino,
-        )
-        .is_err());
-
-        assert!(Session::try_new(
-            1.0,
-            "".to_string(),
-            ".dat".to_string(),
-            None,
-            "".to_string(),
-            '|',
-            false,
-            false,
-            1,
-            false,
-            CompatMode::Trino,
-        )
-        .is_err());
-
-        assert!(Session::try_new(
-            1.0,
-            ".".to_string(),
-            "".to_string(),
-            None,
-            "".to_string(),
-            '|',
-            false,
-            false,
-            1,
-            false,
-            CompatMode::Trino,
-        )
-        .is_err());
-
-        assert!(Session::try_new(
-            1.0,
-            ".".to_string(),
-            ".dat".to_string(),
-            None,
-            "".to_string(),
-            '|',
-            false,
-            false,
-            0,
-            false,
-            CompatMode::Trino,
-        )
-        .is_err());
-    }
-
-    #[test]
-    fn test_default_session() {
-        let session = Session::default();
-        assert_eq!(session.get_scaling().get_scale(), 1.0);
-        assert_eq!(session.get_target_directory(), ".");
-        assert!(!session.generate_only_one_table());
-    }
-
-    #[test]
-    fn test_with_methods() {
-        let session = Session::default();
-
-        let session_with_table = session.with_table(Table::CatalogSales);
-        assert!(session_with_table.generate_only_one_table());
+        assert_eq!(session.get_scaling().get_scale(), 2.0);
+        assert_eq!(session.get_target_directory(), "/tmp");
+        assert_eq!(session.get_suffix(), ".csv");
+        assert_eq!(session.get_table(), Some(Table::CatalogSales));
+        assert_eq!(session.get_null_string(), "NULL");
+        assert_eq!(session.get_separator(), ',');
+        assert!(!session.terminate_rows_with_separator());
+        assert!(!session.is_sexist());
+        assert_eq!(session.get_parallelism(), 4);
+        assert_eq!(session.get_chunk_number(), 2);
+        assert!(session.should_overwrite());
+        assert_eq!(session.get_compat_mode(), CompatMode::C);
         assert_eq!(
-            session_with_table.get_only_table_to_generate(),
-            Table::CatalogSales
+            session.command_line_arguments(),
+            Some("tpcgen tpcds --scale-factor 2")
         );
+    }
 
-        let session_with_scale = session.with_scale(10.0);
-        assert_eq!(session_with_scale.get_scaling().get_scale(), 10.0);
+    #[test]
+    fn test_session_builder_validation() {
+        assert!(SessionBuilder::new()
+            .with_scale_factor(10.0)
+            .build()
+            .is_ok());
 
-        let session_with_parallelism = session.with_parallelism(4);
-        assert_eq!(session_with_parallelism.get_parallelism(), 4);
+        assert!(SessionBuilder::new()
+            .with_scale_factor(-1.0)
+            .build()
+            .is_err());
 
-        let session_with_chunk = session.with_chunk_number(2);
-        assert_eq!(session_with_chunk.get_chunk_number(), 2);
+        assert!(SessionBuilder::new()
+            .with_scale_factor(f64::NAN)
+            .build()
+            .is_err());
 
-        let session_with_no_sexism = session.with_no_sexism(true);
-        assert!(!session_with_no_sexism.is_sexist());
+        assert!(SessionBuilder::new()
+            .with_target_directory("")
+            .build()
+            .is_err());
+
+        assert!(SessionBuilder::new().with_suffix("").build().is_err());
+
+        assert!(SessionBuilder::new().with_parallelism(0).build().is_err());
+
+        assert!(SessionBuilder::new().with_chunk_number(0).build().is_err());
+    }
+
+    #[test]
+    fn test_into_builder() {
+        let session = Session::default();
+
+        let session = session
+            .into_builder()
+            .with_table(Table::CatalogSales)
+            .with_scale_factor(10.0)
+            .with_parallelism(4)
+            .with_chunk_number(2)
+            .with_no_sexism(true)
+            .with_command_line_arguments("initial")
+            .without_command_line_arguments()
+            .build()
+            .unwrap();
+
+        assert!(session.generate_only_one_table());
+        assert_eq!(session.get_only_table_to_generate(), Table::CatalogSales);
+        assert_eq!(session.get_scaling().get_scale(), 10.0);
+        assert_eq!(session.get_parallelism(), 4);
+        assert_eq!(session.get_chunk_number(), 2);
+        assert!(!session.is_sexist());
+        assert_eq!(session.command_line_arguments(), None);
     }
 
     #[test]
@@ -532,7 +481,11 @@ mod tests {
         let session = Session::default();
         assert!(!session.generate_only_one_table());
 
-        let session_with_table = session.with_table(Table::StoreSales);
+        let session_with_table = session
+            .into_builder()
+            .with_table(Table::StoreSales)
+            .build()
+            .unwrap();
         assert!(session_with_table.generate_only_one_table());
         assert_eq!(
             session_with_table.get_only_table_to_generate(),
@@ -549,57 +502,13 @@ mod tests {
 
     #[test]
     fn test_boolean_accessors() {
-        let session = Session::new(
-            1.0,
-            ".".to_string(),
-            ".dat".to_string(),
-            None,
-            "".to_string(),
-            '|',
-            true, // do_not_terminate = true
-            true, // no_sexism = true
-            1,
-            false,
-            CompatMode::Trino,
-        );
+        let session = SessionBuilder::new()
+            .with_do_not_terminate(true)
+            .with_no_sexism(true)
+            .build()
+            .unwrap();
 
         assert!(!session.terminate_rows_with_separator()); // negation of do_not_terminate
         assert!(!session.is_sexist()); // negation of no_sexism
-    }
-
-    #[test]
-    fn test_command_line_arguments() {
-        let session = Session::new(
-            2.0,
-            "/tmp".to_string(),
-            ".csv".to_string(),
-            Some(Table::CatalogSales),
-            "NULL".to_string(),
-            ',',
-            true,
-            true,
-            4,
-            true,
-            CompatMode::Trino,
-        );
-
-        let args = session.get_command_line_arguments();
-        assert!(args.contains("--scale 2"));
-        assert!(args.contains("--directory /tmp"));
-        assert!(args.contains("--suffix .csv"));
-        assert!(args.contains("--table catalog_sales"));
-        assert!(args.contains("--null NULL"));
-        assert!(args.contains("--separator ,"));
-        assert!(args.contains("--do-not-terminate"));
-        assert!(args.contains("--no-sexism"));
-        assert!(args.contains("--parallelism 4"));
-        assert!(args.contains("--overwrite"));
-    }
-
-    #[test]
-    fn test_command_line_arguments_defaults() {
-        let session = Session::default();
-        let args = session.get_command_line_arguments();
-        assert!(args.is_empty()); // All defaults, so no arguments needed
     }
 }

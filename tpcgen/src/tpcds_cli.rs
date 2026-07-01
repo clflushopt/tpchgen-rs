@@ -3,7 +3,7 @@ use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::fmt;
 use std::path::PathBuf;
-use tpcdsgen::config::{CompatMode, Session, Table};
+use tpcdsgen::config::{CompatMode, Session, SessionBuilder, Table};
 use tpcdsgen::error::InvalidOptionError;
 
 pub mod dat;
@@ -187,19 +187,20 @@ impl CommonArgs {
             })
             .transpose()?;
 
-        Ok(Session::try_new(
-            self.scale_factor,
-            self.output_dir.to_string_lossy().into_owned(),
-            Session::DEFAULT_SUFFIX.to_string(),
-            table,
-            Session::DEFAULT_NULL_STRING.to_string(),
-            Session::DEFAULT_SEPARATOR,
-            Session::DEFAULT_DO_NOT_TERMINATE,
-            Session::DEFAULT_NO_SEXISM,
-            Session::DEFAULT_PARALLELISM,
-            Session::DEFAULT_OVERWRITE,
-            self.compat,
-        )?)
+        // store the command line arguments used to create this
+        let command_line_arguments = std::env::args().collect::<Vec<_>>().join(" ");
+
+        let mut builder = SessionBuilder::new()
+            .with_scale_factor(self.scale_factor)
+            .with_target_directory(self.output_dir.to_string_lossy())
+            .with_compat_mode(self.compat)
+            .with_command_line_arguments(command_line_arguments);
+
+        if let Some(table) = table {
+            builder = builder.with_table(table);
+        }
+
+        Ok(builder.build()?)
     }
 
     fn run_not_implemented(self) -> Result<()> {
