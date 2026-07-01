@@ -118,7 +118,7 @@ impl Session {
     }
 
     fn validate(scale: f64, target_directory: &str, suffix: &str, parallelism: i32) -> Result<()> {
-        if scale < 0.0 || scale > 100000.0 {
+        if !(0.0..=100000.0).contains(&scale) {
             return Err(InvalidOptionError::with_message(
                 "scale",
                 &scale.to_string(),
