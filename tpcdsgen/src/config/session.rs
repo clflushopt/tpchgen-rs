@@ -1,9 +1,9 @@
-use crate::config::{CompatMode, Options, Scaling, Table};
+use crate::config::{CompatMode, Scaling, Table};
+use crate::error::{InvalidOptionError, Result};
 
 /// Configuration for a TPC-DS data generation run.
 ///
-/// A `Session` is built from [`Options`] and defines how TPC-DS data is
-/// generated.
+/// A `Session` defines how TPC-DS data is generated.
 #[derive(Debug, Clone)]
 pub struct Session {
     scaling: Scaling,
@@ -22,11 +22,35 @@ pub struct Session {
 
 impl Default for Session {
     fn default() -> Self {
-        Session::get_default_session()
+        Self::new_with_chunk_number(
+            Self::DEFAULT_SCALE,
+            Self::DEFAULT_DIRECTORY.to_string(),
+            Self::DEFAULT_SUFFIX.to_string(),
+            None,
+            Self::DEFAULT_NULL_STRING.to_string(),
+            Self::DEFAULT_SEPARATOR,
+            Self::DEFAULT_DO_NOT_TERMINATE,
+            Self::DEFAULT_NO_SEXISM,
+            Self::DEFAULT_PARALLELISM,
+            1,
+            Self::DEFAULT_OVERWRITE,
+            Self::DEFAULT_COMPAT,
+        )
     }
 }
 
 impl Session {
+    pub const DEFAULT_SCALE: f64 = 1.0;
+    pub const DEFAULT_DIRECTORY: &'static str = ".";
+    pub const DEFAULT_SUFFIX: &'static str = ".dat";
+    pub const DEFAULT_NULL_STRING: &'static str = "";
+    pub const DEFAULT_SEPARATOR: char = '|';
+    pub const DEFAULT_DO_NOT_TERMINATE: bool = false;
+    pub const DEFAULT_NO_SEXISM: bool = false;
+    pub const DEFAULT_PARALLELISM: i32 = 1;
+    pub const DEFAULT_OVERWRITE: bool = false;
+    pub const DEFAULT_COMPAT: CompatMode = CompatMode::Trino;
+
     /// Create a session for a single generation chunk.
     ///
     /// This is equivalent to calling [`Session::new_with_chunk_number`] with
@@ -61,12 +85,84 @@ impl Session {
         )
     }
 
+    /// Create and validate a session for a single generation chunk.
+    #[allow(clippy::too_many_arguments)]
+    pub fn try_new(
+        scale: f64,
+        target_directory: String,
+        suffix: String,
+        table: Option<Table>,
+        null_string: String,
+        separator: char,
+        do_not_terminate: bool,
+        no_sexism: bool,
+        parallelism: i32,
+        overwrite: bool,
+        compat_mode: CompatMode,
+    ) -> Result<Self> {
+        Self::validate(scale, &target_directory, &suffix, parallelism)?;
+
+        Ok(Self::new(
+            scale,
+            target_directory,
+            suffix,
+            table,
+            null_string,
+            separator,
+            do_not_terminate,
+            no_sexism,
+            parallelism,
+            overwrite,
+            compat_mode,
+        ))
+    }
+
+    fn validate(scale: f64, target_directory: &str, suffix: &str, parallelism: i32) -> Result<()> {
+        if scale < 0.0 || scale > 100000.0 {
+            return Err(InvalidOptionError::with_message(
+                "scale",
+                &scale.to_string(),
+                "Scale must be greater than 0 and less than 100000",
+            )
+            .into());
+        }
+
+        if target_directory.is_empty() {
+            return Err(InvalidOptionError::with_message(
+                "directory",
+                target_directory,
+                "Directory cannot be an empty string",
+            )
+            .into());
+        }
+
+        if suffix.is_empty() {
+            return Err(InvalidOptionError::with_message(
+                "suffix",
+                suffix,
+                "Suffix cannot be an empty string",
+            )
+            .into());
+        }
+
+        if parallelism < 1 {
+            return Err(InvalidOptionError::with_message(
+                "parallelism",
+                &parallelism.to_string(),
+                "Parallelism must be >= 1",
+            )
+            .into());
+        }
+
+        Ok(())
+    }
+
     /// Create a session for a specific generation chunk.
     ///
     /// `parallelism` is the total number of chunks to generate, and
     /// `chunk_number` identifies the chunk represented by this session. The
     /// caller is responsible for passing values that have already been
-    /// validated by [`Options::to_session`] or equivalent logic.
+    /// validated.
     #[allow(clippy::too_many_arguments)]
     pub fn new_with_chunk_number(
         scale: f64,
@@ -96,11 +192,6 @@ impl Session {
             overwrite,
             compat_mode,
         }
-    }
-
-    /// Return a session using all CLI default values.
-    pub fn get_default_session() -> Self {
-        Options::new().to_session().unwrap()
     }
 
     /// Return a copy of this session that only generates `table`.
@@ -247,25 +338,49 @@ impl Session {
     ///
     /// Default-valued options are omitted from the returned string.
     pub fn get_command_line_arguments(&self) -> String {
-        Options::from(self.clone()).to_string()
-    }
-}
+        let mut output = Vec::new();
 
-impl From<Session> for Options {
-    fn from(session: Session) -> Self {
-        Options {
-            scale: session.scaling.get_scale(),
-            directory: session.target_directory,
-            suffix: session.suffix,
-            table: session.table.map(|table| table.get_name().to_string()),
-            null_string: session.null_string,
-            separator: session.separator.to_string(),
-            do_not_terminate: session.do_not_terminate,
-            no_sexism: session.no_sexism,
-            parallelism: session.parallelism,
-            overwrite: session.overwrite,
-            compat: session.compat_mode,
+        if self.scaling.get_scale() != Self::DEFAULT_SCALE {
+            output.push(format!("--scale {}", self.scaling.get_scale()));
         }
+        if self.target_directory != Self::DEFAULT_DIRECTORY {
+            output.push(format!("--directory {}", self.target_directory));
+        }
+        if self.suffix != Self::DEFAULT_SUFFIX {
+            output.push(format!("--suffix {}", self.suffix));
+        }
+        if let Some(table) = self.table {
+            output.push(format!("--table {}", table.get_name()));
+        }
+        if self.null_string != Self::DEFAULT_NULL_STRING {
+            output.push(format!("--null {}", self.null_string));
+        }
+        if self.separator != Self::DEFAULT_SEPARATOR {
+            output.push(format!("--separator {}", self.separator));
+        }
+        if self.do_not_terminate != Self::DEFAULT_DO_NOT_TERMINATE {
+            output.push("--do-not-terminate".to_string());
+        }
+        if self.no_sexism != Self::DEFAULT_NO_SEXISM {
+            output.push("--no-sexism".to_string());
+        }
+        if self.parallelism != Self::DEFAULT_PARALLELISM {
+            output.push(format!("--parallelism {}", self.parallelism));
+        }
+        if self.overwrite != Self::DEFAULT_OVERWRITE {
+            output.push("--overwrite".to_string());
+        }
+        if self.compat_mode != Self::DEFAULT_COMPAT {
+            output.push(format!(
+                "--compat {}",
+                match self.compat_mode {
+                    CompatMode::Trino => "trino",
+                    CompatMode::C => "c",
+                }
+            ));
+        }
+
+        output.join(" ")
     }
 }
 
@@ -303,8 +418,86 @@ mod tests {
     }
 
     #[test]
+    fn test_try_new_validation() {
+        assert!(Session::try_new(
+            10.0,
+            "/tmp".to_string(),
+            ".dat".to_string(),
+            None,
+            "".to_string(),
+            '|',
+            false,
+            false,
+            1,
+            false,
+            CompatMode::Trino,
+        )
+        .is_ok());
+
+        assert!(Session::try_new(
+            -1.0,
+            ".".to_string(),
+            ".dat".to_string(),
+            None,
+            "".to_string(),
+            '|',
+            false,
+            false,
+            1,
+            false,
+            CompatMode::Trino,
+        )
+        .is_err());
+
+        assert!(Session::try_new(
+            1.0,
+            "".to_string(),
+            ".dat".to_string(),
+            None,
+            "".to_string(),
+            '|',
+            false,
+            false,
+            1,
+            false,
+            CompatMode::Trino,
+        )
+        .is_err());
+
+        assert!(Session::try_new(
+            1.0,
+            ".".to_string(),
+            "".to_string(),
+            None,
+            "".to_string(),
+            '|',
+            false,
+            false,
+            1,
+            false,
+            CompatMode::Trino,
+        )
+        .is_err());
+
+        assert!(Session::try_new(
+            1.0,
+            ".".to_string(),
+            ".dat".to_string(),
+            None,
+            "".to_string(),
+            '|',
+            false,
+            false,
+            0,
+            false,
+            CompatMode::Trino,
+        )
+        .is_err());
+    }
+
+    #[test]
     fn test_default_session() {
-        let session = Session::get_default_session();
+        let session = Session::default();
         assert_eq!(session.get_scaling().get_scale(), 1.0);
         assert_eq!(session.get_target_directory(), ".");
         assert!(!session.generate_only_one_table());
@@ -312,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_with_methods() {
-        let session = Session::get_default_session();
+        let session = Session::default();
 
         let session_with_table = session.with_table(Table::CatalogSales);
         assert!(session_with_table.generate_only_one_table());
@@ -336,7 +529,7 @@ mod tests {
 
     #[test]
     fn test_generate_only_one_table() {
-        let session = Session::get_default_session();
+        let session = Session::default();
         assert!(!session.generate_only_one_table());
 
         let session_with_table = session.with_table(Table::StoreSales);
@@ -350,7 +543,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "table not present")]
     fn test_get_only_table_when_none() {
-        let session = Session::get_default_session();
+        let session = Session::default();
         session.get_only_table_to_generate();
     }
 
@@ -405,7 +598,7 @@ mod tests {
 
     #[test]
     fn test_command_line_arguments_defaults() {
-        let session = Session::get_default_session();
+        let session = Session::default();
         let args = session.get_command_line_arguments();
         assert!(args.is_empty()); // All defaults, so no arguments needed
     }

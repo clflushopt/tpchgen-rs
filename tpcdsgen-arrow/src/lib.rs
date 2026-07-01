@@ -6,10 +6,10 @@
 //!
 //! # Example
 //! ```
-//! use tpcdsgen::config::Options;
+//! use tpcdsgen::config::Session;
 //! use tpcdsgen_arrow::{ReasonArrow, RecordBatchIterator};
 //!
-//! let session = Options::default().to_session().unwrap();
+//! let session = Session::default();
 //! let mut gen = ReasonArrow::new(session).with_batch_size(100);
 //! let batch = gen.next().unwrap();
 //! assert_eq!(batch.num_columns(), 3);
