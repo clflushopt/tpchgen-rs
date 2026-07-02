@@ -15,6 +15,7 @@
 //! Inventory row data structure
 
 use crate::generator::{GeneratorColumn, InventoryGeneratorColumn};
+use crate::output::Line;
 use crate::row::TableRow;
 
 /// Represents a single row in the inventory table.
@@ -60,6 +61,19 @@ impl InventoryRow {
         }
     }
 
+    fn push_int_field<T: crate::output::Integer>(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: T,
+        column: InventoryGeneratorColumn,
+    ) {
+        if !self.is_null_at(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
     fn is_null_at(&self, column: InventoryGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - InventoryGeneratorColumn::InvDateSk.get_global_column_number();
@@ -101,5 +115,36 @@ impl TableRow for InventoryRow {
                 InventoryGeneratorColumn::InvQuantityOnHand,
             ),
         ]
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_int_field(
+            out,
+            sep,
+            self.inv_date_sk,
+            InventoryGeneratorColumn::InvDateSk,
+        );
+        self.push_int_field(
+            out,
+            sep,
+            self.inv_item_sk,
+            InventoryGeneratorColumn::InvItemSk,
+        );
+        self.push_int_field(
+            out,
+            sep,
+            self.inv_warehouse_sk,
+            InventoryGeneratorColumn::InvWarehouseSk,
+        );
+        self.push_int_field(
+            out,
+            sep,
+            self.inv_quantity_on_hand,
+            InventoryGeneratorColumn::InvQuantityOnHand,
+        );
+        out.newline();
     }
 }

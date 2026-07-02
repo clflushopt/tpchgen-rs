@@ -15,6 +15,7 @@
 //! Web sales row definition
 
 use crate::generator::{GeneratorColumn, WebSalesGeneratorColumn};
+use crate::output::Line;
 use crate::row::TableRow;
 use crate::types::Pricing;
 
@@ -153,6 +154,39 @@ impl WebSalesRow {
         }
     }
 
+    fn push_int_field(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i64,
+        column: WebSalesGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int(&self, out: &mut Line, sep: &[u8], value: i32, column: WebSalesGeneratorColumn) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_decimal(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: &crate::types::Decimal,
+        column: WebSalesGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            value.append_dat(out);
+        }
+        out.push_bytes(sep);
+    }
+
     pub fn null_bit_map(&self) -> i64 {
         self.null_bit_map
     }
@@ -255,5 +289,112 @@ impl TableRow for WebSalesRow {
             ),
             self.get_string_or_null(self.ws_pricing.get_net_profit(), WsPricingNetProfit),
         ]
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        use WebSalesGeneratorColumn::*;
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_int_field(out, sep, self.ws_sold_date_sk, WsSoldDateSk);
+        self.push_int_field(out, sep, self.ws_sold_time_sk, WsSoldTimeSk);
+        self.push_int_field(out, sep, self.ws_ship_date_sk, WsShipDateSk);
+        self.push_int_field(out, sep, self.ws_item_sk, WsItemSk);
+        self.push_int_field(out, sep, self.ws_bill_customer_sk, WsBillCustomerSk);
+        self.push_int_field(out, sep, self.ws_bill_cdemo_sk, WsBillCdemoSk);
+        self.push_int_field(out, sep, self.ws_bill_hdemo_sk, WsBillHdemoSk);
+        self.push_int_field(out, sep, self.ws_bill_addr_sk, WsBillAddrSk);
+        self.push_int_field(out, sep, self.ws_ship_customer_sk, WsShipCustomerSk);
+        self.push_int_field(out, sep, self.ws_ship_cdemo_sk, WsShipCdemoSk);
+        self.push_int_field(out, sep, self.ws_ship_hdemo_sk, WsShipHdemoSk);
+        self.push_int_field(out, sep, self.ws_ship_addr_sk, WsShipAddrSk);
+        self.push_int_field(out, sep, self.ws_web_page_sk, WsWebPageSk);
+        self.push_int_field(out, sep, self.ws_web_site_sk, WsWebSiteSk);
+        self.push_int_field(out, sep, self.ws_ship_mode_sk, WsShipModeSk);
+        self.push_int_field(out, sep, self.ws_warehouse_sk, WsWarehouseSk);
+        self.push_int_field(out, sep, self.ws_promo_sk, WsPromoSk);
+        self.push_int_field(out, sep, self.ws_order_number, WsOrderNumber);
+        self.push_int(out, sep, self.ws_pricing.get_quantity(), WsPricingQuantity);
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_wholesale_cost(),
+            WsPricingWholesaleCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_list_price(),
+            WsPricingListPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_sales_price(),
+            WsPricingSalesPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_ext_discount_amount(),
+            WsPricingExtDiscountAmt,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_ext_sales_price(),
+            WsPricingExtSalesPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_ext_wholesale_cost(),
+            WsPricingExtWholesaleCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_ext_list_price(),
+            WsPricingExtListPrice,
+        );
+        self.push_decimal(out, sep, &self.ws_pricing.get_ext_tax(), WsPricingExtTax);
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_coupon_amount(),
+            WsPricingCouponAmt,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_ext_ship_cost(),
+            WsPricingExtShipCost,
+        );
+        self.push_decimal(out, sep, &self.ws_pricing.get_net_paid(), WsPricingNetPaid);
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_net_paid_including_tax(),
+            WsPricingNetPaidIncTax,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_net_paid_including_shipping(),
+            WsPricingNetPaidIncShip,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_net_paid_including_shipping_and_tax(),
+            WsPricingNetPaidIncShipTax,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ws_pricing.get_net_profit(),
+            WsPricingNetProfit,
+        );
+        out.newline();
     }
 }

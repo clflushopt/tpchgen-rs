@@ -15,6 +15,7 @@
 //! Catalog returns row structure
 
 use crate::generator::CatalogReturnsGeneratorColumn;
+use crate::output::Line;
 use crate::row::TableRow;
 use crate::types::Pricing;
 
@@ -118,6 +119,58 @@ impl CatalogReturnsRow {
         } else {
             value.to_string()
         }
+    }
+
+    fn push_key(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i64,
+        column: &CatalogReturnsGeneratorColumn,
+    ) {
+        if !self.is_null(column) && value >= 0 {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int_field(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i64,
+        column: &CatalogReturnsGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i32,
+        column: &CatalogReturnsGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_decimal(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: &crate::types::Decimal,
+        column: &CatalogReturnsGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            value.append_dat(out);
+        }
+        out.push_bytes(sep);
     }
 
     pub fn null_bit_map(&self) -> i64 {
@@ -236,6 +289,76 @@ impl TableRow for CatalogReturnsRow {
             self.get_string_or_null(self.cr_pricing.get_store_credit(), &CrPricingStoreCredit),
             self.get_string_or_null(self.cr_pricing.get_net_loss(), &CrPricingNetLoss),
         ]
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        use CatalogReturnsGeneratorColumn::*;
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_key(out, sep, self.cr_returned_date_sk, &CrReturnedDateSk);
+        self.push_key(out, sep, self.cr_returned_time_sk, &CrReturnedTimeSk);
+        self.push_key(out, sep, self.cr_item_sk, &CrItemSk);
+        self.push_key(
+            out,
+            sep,
+            self.cr_refunded_customer_sk,
+            &CrRefundedCustomerSk,
+        );
+        self.push_key(out, sep, self.cr_refunded_cdemo_sk, &CrRefundedCdemoSk);
+        self.push_key(out, sep, self.cr_refunded_hdemo_sk, &CrRefundedHdemoSk);
+        self.push_key(out, sep, self.cr_refunded_addr_sk, &CrRefundedAddrSk);
+        self.push_key(
+            out,
+            sep,
+            self.cr_returning_customer_sk,
+            &CrReturningCustomerSk,
+        );
+        self.push_key(out, sep, self.cr_returning_cdemo_sk, &CrReturningCdemoSk);
+        self.push_key(out, sep, self.cr_returning_hdemo_sk, &CrReturningHdemoSk);
+        self.push_key(out, sep, self.cr_returning_addr_sk, &CrReturningAddrSk);
+        self.push_key(out, sep, self.cr_call_center_sk, &CrCallCenterSk);
+        self.push_key(out, sep, self.cr_catalog_page_sk, &CrCatalogPageSk);
+        self.push_key(out, sep, self.cr_ship_mode_sk, &CrShipModeSk);
+        self.push_key(out, sep, self.cr_warehouse_sk, &CrWarehouseSk);
+        self.push_key(out, sep, self.cr_reason_sk, &CrReasonSk);
+        self.push_int_field(out, sep, self.cr_order_number, &CrOrderNumber);
+        self.push_int(out, sep, self.cr_pricing.get_quantity(), &CrPricingQuantity);
+        self.push_decimal(out, sep, &self.cr_pricing.get_net_paid(), &CrPricingNetPaid);
+        self.push_decimal(out, sep, &self.cr_pricing.get_ext_tax(), &CrPricingExtTax);
+        self.push_decimal(
+            out,
+            sep,
+            &self.cr_pricing.get_net_paid_including_tax(),
+            &CrPricingNetPaidIncTax,
+        );
+        self.push_decimal(out, sep, &self.cr_pricing.get_fee(), &CrPricingFee);
+        self.push_decimal(
+            out,
+            sep,
+            &self.cr_pricing.get_ext_ship_cost(),
+            &CrPricingExtShipCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cr_pricing.get_refunded_cash(),
+            &CrPricingRefundedCash,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cr_pricing.get_reversed_charge(),
+            &CrPricingReversedCharge,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cr_pricing.get_store_credit(),
+            &CrPricingStoreCredit,
+        );
+        self.push_decimal(out, sep, &self.cr_pricing.get_net_loss(), &CrPricingNetLoss);
+        out.newline();
     }
 }
 

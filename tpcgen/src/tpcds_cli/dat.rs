@@ -22,7 +22,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen::output::CompatWriter;
+use tpcdsgen::output::{CompatWriter, Line};
 use tpcdsgen::row::*;
 use tpcdsgen::types::Date;
 
@@ -142,11 +142,14 @@ fn generate_simple<G: RowGeneratorFactory>(table: Table, session: &Session) -> R
     print!("Generating {}... ", table.get_name());
     std::io::stdout().flush()?;
 
+    let mut line = Line::with_estimate(512);
     for row_number in 1..=row_count {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
 
         for row in result.get_rows() {
-            row.write_to(&mut writer, session.get_separator())?;
+            line.clear();
+            row.append_line(&mut line, session.get_separator());
+            writer.write_all(line.as_bytes())?;
         }
 
         generator.consume_remaining_seeds_for_row();
@@ -178,18 +181,23 @@ fn generate_store_sales(session: &Session) -> Result<()> {
     let mut sales_count = 0i64;
     let mut returns_count = 0i64;
     let mut row_number = 1i64;
+    let mut line = Line::with_estimate(256);
 
     while row_number <= num_orders {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
         let rows = result.get_rows();
 
         if !rows.is_empty() {
-            rows[0].write_to(&mut sales_writer, session.get_separator())?;
+            line.clear();
+            rows[0].append_line(&mut line, session.get_separator());
+            sales_writer.write_all(line.as_bytes())?;
             sales_count += 1;
         }
 
         if rows.len() > 1 {
-            rows[1].write_to(&mut returns_writer, session.get_separator())?;
+            line.clear();
+            rows[1].append_line(&mut line, session.get_separator());
+            returns_writer.write_all(line.as_bytes())?;
             returns_count += 1;
         }
 
@@ -233,18 +241,23 @@ fn generate_catalog_sales(session: &Session) -> Result<()> {
     let mut sales_count = 0i64;
     let mut returns_count = 0i64;
     let mut row_number = 1i64;
+    let mut line = Line::with_estimate(256);
 
     while row_number <= num_orders {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
         let rows = result.get_rows();
 
         if !rows.is_empty() {
-            rows[0].write_to(&mut sales_writer, session.get_separator())?;
+            line.clear();
+            rows[0].append_line(&mut line, session.get_separator());
+            sales_writer.write_all(line.as_bytes())?;
             sales_count += 1;
         }
 
         if rows.len() > 1 {
-            rows[1].write_to(&mut returns_writer, session.get_separator())?;
+            line.clear();
+            rows[1].append_line(&mut line, session.get_separator());
+            returns_writer.write_all(line.as_bytes())?;
             returns_count += 1;
         }
 
@@ -288,18 +301,23 @@ fn generate_web_sales(session: &Session) -> Result<()> {
     let mut sales_count = 0i64;
     let mut returns_count = 0i64;
     let mut row_number = 1i64;
+    let mut line = Line::with_estimate(256);
 
     while row_number <= num_orders {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
         let rows = result.get_rows();
 
         if !rows.is_empty() {
-            rows[0].write_to(&mut sales_writer, session.get_separator())?;
+            line.clear();
+            rows[0].append_line(&mut line, session.get_separator());
+            sales_writer.write_all(line.as_bytes())?;
             sales_count += 1;
         }
 
         if rows.len() > 1 {
-            rows[1].write_to(&mut returns_writer, session.get_separator())?;
+            line.clear();
+            rows[1].append_line(&mut line, session.get_separator());
+            returns_writer.write_all(line.as_bytes())?;
             returns_count += 1;
         }
 
@@ -343,11 +361,14 @@ fn generate_inventory(session: &Session) -> Result<()> {
     print!("Generating inventory... ");
     std::io::stdout().flush()?;
 
+    let mut line = Line::with_estimate(32);
     for row_number in 1..=num_rows {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
 
         for row in result.get_rows() {
-            row.write_to(&mut writer, session.get_separator())?;
+            line.clear();
+            row.append_line(&mut line, session.get_separator());
+            writer.write_all(line.as_bytes())?;
         }
 
         generator.consume_remaining_seeds_for_row();

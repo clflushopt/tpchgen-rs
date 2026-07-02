@@ -15,6 +15,7 @@
 //! Web returns row definition
 
 use crate::generator::{GeneratorColumn, WebReturnsGeneratorColumn};
+use crate::output::Line;
 use crate::row::TableRow;
 use crate::types::Pricing;
 
@@ -103,6 +104,39 @@ impl WebReturnsRow {
         } else {
             value.to_string()
         }
+    }
+
+    fn push_int_field(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i64,
+        column: WebReturnsGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int(&self, out: &mut Line, sep: &[u8], value: i32, column: WebReturnsGeneratorColumn) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_decimal(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: &crate::types::Decimal,
+        column: WebReturnsGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            value.append_dat(out);
+        }
+        out.push_bytes(sep);
     }
 
     pub fn null_bit_map(&self) -> i64 {
@@ -205,5 +239,67 @@ impl TableRow for WebReturnsRow {
             self.get_string_or_null(self.wr_pricing.get_store_credit(), WrPricingStoreCredit),
             self.get_string_or_null(self.wr_pricing.get_net_loss(), WrPricingNetLoss),
         ]
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        use WebReturnsGeneratorColumn::*;
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_int_field(out, sep, self.wr_returned_date_sk, WrReturnedDateSk);
+        self.push_int_field(out, sep, self.wr_returned_time_sk, WrReturnedTimeSk);
+        self.push_int_field(out, sep, self.wr_item_sk, WrItemSk);
+        self.push_int_field(out, sep, self.wr_refunded_customer_sk, WrRefundedCustomerSk);
+        self.push_int_field(out, sep, self.wr_refunded_cdemo_sk, WrRefundedCdemoSk);
+        self.push_int_field(out, sep, self.wr_refunded_hdemo_sk, WrRefundedHdemoSk);
+        self.push_int_field(out, sep, self.wr_refunded_addr_sk, WrRefundedAddrSk);
+        self.push_int_field(
+            out,
+            sep,
+            self.wr_returning_customer_sk,
+            WrReturningCustomerSk,
+        );
+        self.push_int_field(out, sep, self.wr_returning_cdemo_sk, WrReturningCdemoSk);
+        self.push_int_field(out, sep, self.wr_returning_hdemo_sk, WrReturningHdemoSk);
+        self.push_int_field(out, sep, self.wr_returning_addr_sk, WrReturningAddrSk);
+        self.push_int_field(out, sep, self.wr_web_page_sk, WrWebPageSk);
+        self.push_int_field(out, sep, self.wr_reason_sk, WrReasonSk);
+        self.push_int_field(out, sep, self.wr_order_number, WrOrderNumber);
+        self.push_int(out, sep, self.wr_pricing.get_quantity(), WrPricingQuantity);
+        self.push_decimal(out, sep, &self.wr_pricing.get_net_paid(), WrPricingNetPaid);
+        self.push_decimal(out, sep, &self.wr_pricing.get_ext_tax(), WrPricingExtTax);
+        self.push_decimal(
+            out,
+            sep,
+            &self.wr_pricing.get_net_paid_including_tax(),
+            WrPricingNetPaidIncTax,
+        );
+        self.push_decimal(out, sep, &self.wr_pricing.get_fee(), WrPricingFee);
+        self.push_decimal(
+            out,
+            sep,
+            &self.wr_pricing.get_ext_ship_cost(),
+            WrPricingExtShipCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.wr_pricing.get_refunded_cash(),
+            WrPricingRefundedCash,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.wr_pricing.get_reversed_charge(),
+            WrPricingReversedCharge,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.wr_pricing.get_store_credit(),
+            WrPricingStoreCredit,
+        );
+        self.push_decimal(out, sep, &self.wr_pricing.get_net_loss(), WrPricingNetLoss);
+        out.newline();
     }
 }

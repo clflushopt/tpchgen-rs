@@ -1,3 +1,4 @@
+use crate::output::Line;
 use std::io::{self, Write};
 
 /// TableRow trait matching the Java TableRow interface
@@ -35,6 +36,22 @@ pub trait TableRow: Send + Sync {
         }
         writer.write_all(sep)?;
         writer.write_all(b"\n")
+    }
+
+    /// Append the row's DAT line to `out`: each value followed by
+    /// `separator`, then a newline. Does not clear `out`.
+    ///
+    /// Produces the same bytes as `write_to`. The default implementation
+    /// goes through `get_values()`; hot tables override it to serialize
+    /// fields directly and skip the per-column `String` allocations.
+    fn append_line(&self, out: &mut Line, separator: char) {
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+        for value in self.get_values() {
+            out.push_str(&value);
+            out.push_bytes(sep);
+        }
+        out.newline();
     }
 }
 

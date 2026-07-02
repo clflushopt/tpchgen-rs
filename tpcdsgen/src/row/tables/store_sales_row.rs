@@ -15,6 +15,7 @@
 //! Store sales row data structure
 
 use crate::generator::{GeneratorColumn, StoreSalesGeneratorColumn};
+use crate::output::Line;
 use crate::row::TableRow;
 use crate::types::Pricing;
 
@@ -120,6 +121,33 @@ impl StoreSalesRow {
         }
     }
 
+    fn push_key(&self, out: &mut Line, sep: &[u8], key: i64, column: StoreSalesGeneratorColumn) {
+        if key != -1 && !self.is_null_at(column) {
+            out.push_int(key);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int(&self, out: &mut Line, sep: &[u8], value: i32, column: StoreSalesGeneratorColumn) {
+        if !self.is_null_at(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_decimal(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: &crate::types::Decimal,
+        column: StoreSalesGeneratorColumn,
+    ) {
+        if !self.is_null_at(column) {
+            value.append_dat(out);
+        }
+        out.push_bytes(sep);
+    }
+
     fn is_null_at(&self, column: StoreSalesGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - StoreSalesGeneratorColumn::SsSoldDateSk.get_global_column_number();
@@ -212,6 +240,88 @@ impl TableRow for StoreSalesRow {
             self.get_string_or_null_decimal(&self.ss_pricing.get_net_profit(), SsPricingNetProfit),
         ]
     }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        use StoreSalesGeneratorColumn::*;
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_key(out, sep, self.ss_sold_date_sk, SsSoldDateSk);
+        self.push_key(out, sep, self.ss_sold_time_sk, SsSoldTimeSk);
+        self.push_key(out, sep, self.ss_sold_item_sk, SsSoldItemSk);
+        self.push_key(out, sep, self.ss_sold_customer_sk, SsSoldCustomerSk);
+        self.push_key(out, sep, self.ss_sold_cdemo_sk, SsSoldCdemoSk);
+        self.push_key(out, sep, self.ss_sold_hdemo_sk, SsSoldHdemoSk);
+        self.push_key(out, sep, self.ss_sold_addr_sk, SsSoldAddrSk);
+        self.push_key(out, sep, self.ss_sold_store_sk, SsSoldStoreSk);
+        self.push_key(out, sep, self.ss_sold_promo_sk, SsSoldPromoSk);
+        self.push_key(out, sep, self.ss_ticket_number, SsTicketNumber);
+        self.push_int(out, sep, self.ss_pricing.get_quantity(), SsPricingQuantity);
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_wholesale_cost(),
+            SsPricingWholesaleCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_list_price(),
+            SsPricingListPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_sales_price(),
+            SsPricingSalesPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_coupon_amount(),
+            SsPricingCouponAmt,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_ext_sales_price(),
+            SsPricingExtSalesPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_ext_wholesale_cost(),
+            SsPricingExtWholesaleCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_ext_list_price(),
+            SsPricingExtListPrice,
+        );
+        self.push_decimal(out, sep, &self.ss_pricing.get_ext_tax(), SsPricingExtTax);
+        // Note: coupon_amount appears twice in Java (bug replicated for compatibility)
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_coupon_amount(),
+            SsPricingCouponAmt,
+        );
+        self.push_decimal(out, sep, &self.ss_pricing.get_net_paid(), SsPricingNetPaid);
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_net_paid_including_tax(),
+            SsPricingNetPaidIncTax,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.ss_pricing.get_net_profit(),
+            SsPricingNetProfit,
+        );
+        out.newline();
+    }
 }
 
 #[cfg(test)]
@@ -245,6 +355,41 @@ mod tests {
             Decimal::ZERO,                  // fee
             Decimal::ZERO,                  // net_loss
         )
+    }
+
+    /// The optimized `append_line` must produce the same bytes as the
+    /// `get_values`-based default (here reproduced via the values themselves).
+    #[test]
+    fn test_append_line_matches_get_values() {
+        // Exercise nulls (bits 1 and 11) and the -1 → empty key rule.
+        for null_bit_map in [0i64, 0b1000_0000_0010] {
+            for date_sk in [2451545i64, -1] {
+                let row = StoreSalesRow::new(
+                    null_bit_map,
+                    date_sk,
+                    36000,
+                    1,
+                    100,
+                    200,
+                    300,
+                    400,
+                    500,
+                    600,
+                    1,
+                    create_test_pricing(),
+                );
+
+                let mut expected = row.get_values().join("|");
+                expected.push_str("|\n");
+
+                let mut line = Line::new();
+                row.append_line(&mut line, '|');
+                assert_eq!(
+                    String::from_utf8(line.as_bytes().to_vec()).unwrap(),
+                    expected
+                );
+            }
+        }
     }
 
     #[test]

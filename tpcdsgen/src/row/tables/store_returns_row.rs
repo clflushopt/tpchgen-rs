@@ -15,6 +15,7 @@
 //! Store returns row data structure
 
 use crate::generator::{GeneratorColumn, StoreReturnsGeneratorColumn};
+use crate::output::Line;
 use crate::row::TableRow;
 use crate::types::Pricing;
 
@@ -93,6 +94,39 @@ impl StoreReturnsRow {
         } else {
             value.to_string()
         }
+    }
+
+    fn push_key(&self, out: &mut Line, sep: &[u8], key: i64, column: StoreReturnsGeneratorColumn) {
+        if key != -1 && !self.is_null_at(column) {
+            out.push_int(key);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i32,
+        column: StoreReturnsGeneratorColumn,
+    ) {
+        if !self.is_null_at(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_decimal(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: &crate::types::Decimal,
+        column: StoreReturnsGeneratorColumn,
+    ) {
+        if !self.is_null_at(column) {
+            value.append_dat(out);
+        }
+        out.push_bytes(sep);
     }
 
     fn is_null_at(&self, column: StoreReturnsGeneratorColumn) -> bool {
@@ -191,6 +225,59 @@ impl TableRow for StoreReturnsRow {
             ),
             self.get_string_or_null_decimal(&self.sr_pricing.get_net_loss(), SrPricingNetLoss),
         ]
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        use StoreReturnsGeneratorColumn::*;
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_key(out, sep, self.sr_returned_date_sk, SrReturnedDateSk);
+        self.push_key(out, sep, self.sr_returned_time_sk, SrReturnedTimeSk);
+        self.push_key(out, sep, self.sr_item_sk, SrItemSk);
+        self.push_key(out, sep, self.sr_customer_sk, SrCustomerSk);
+        self.push_key(out, sep, self.sr_cdemo_sk, SrCdemoSk);
+        self.push_key(out, sep, self.sr_hdemo_sk, SrHdemoSk);
+        self.push_key(out, sep, self.sr_addr_sk, SrAddrSk);
+        self.push_key(out, sep, self.sr_store_sk, SrStoreSk);
+        self.push_key(out, sep, self.sr_reason_sk, SrReasonSk);
+        self.push_key(out, sep, self.sr_ticket_number, SrTicketNumber);
+        self.push_int(out, sep, self.sr_pricing.get_quantity(), SrPricingQuantity);
+        self.push_decimal(out, sep, &self.sr_pricing.get_net_paid(), SrPricingNetPaid);
+        self.push_decimal(out, sep, &self.sr_pricing.get_ext_tax(), SrPricingExtTax);
+        self.push_decimal(
+            out,
+            sep,
+            &self.sr_pricing.get_net_paid_including_tax(),
+            SrPricingNetPaidIncTax,
+        );
+        self.push_decimal(out, sep, &self.sr_pricing.get_fee(), SrPricingFee);
+        self.push_decimal(
+            out,
+            sep,
+            &self.sr_pricing.get_ext_ship_cost(),
+            SrPricingExtShipCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.sr_pricing.get_refunded_cash(),
+            SrPricingRefundedCash,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.sr_pricing.get_reversed_charge(),
+            SrPricingReversedCharge,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.sr_pricing.get_store_credit(),
+            SrPricingStoreCredit,
+        );
+        self.push_decimal(out, sep, &self.sr_pricing.get_net_loss(), SrPricingNetLoss);
+        out.newline();
     }
 }
 

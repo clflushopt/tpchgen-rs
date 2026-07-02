@@ -144,6 +144,34 @@ impl Decimal {
     pub fn get_number(&self) -> i64 {
         self.number
     }
+
+    /// Appends the same representation as `Display` to `out` without going
+    /// through `core::fmt`, for the hot row serialization path.
+    pub fn append_dat(&self, out: &mut crate::output::Line) {
+        if self.precision <= 0 {
+            out.push_int(self.number);
+            return;
+        }
+        let divisor = 10i64.pow(self.precision as u32);
+        let int_part = self.number / divisor;
+        let frac = (self.number % divisor).unsigned_abs();
+        if self.number < 0 && int_part == 0 {
+            // integer division dropped the sign (e.g. -0.05)
+            out.push_byte(b'-');
+        }
+        out.push_int(int_part);
+        out.push_byte(b'.');
+        let mut digits = 1;
+        let mut t = frac;
+        while t >= 10 {
+            t /= 10;
+            digits += 1;
+        }
+        for _ in digits..self.precision {
+            out.push_byte(b'0');
+        }
+        out.push_int(frac);
+    }
 }
 
 impl std::fmt::Display for Decimal {
@@ -226,6 +254,32 @@ mod tests {
         // sign must survive a zero integer part
         let decimal = Decimal::new(-5, 2).unwrap();
         assert_eq!(format!("{}", decimal), "-0.05");
+    }
+
+    #[test]
+    fn test_append_dat_matches_display() {
+        let cases = [
+            (12345, 2),
+            (-12345, 2),
+            (5, 2),
+            (-5, 2),
+            (0, 2),
+            (123, 0),
+            (-123, 0),
+            (10005, 4),
+            (i64::MAX, 2),
+            (i64::MIN + 1, 2),
+        ];
+        for (number, precision) in cases {
+            let decimal = Decimal::new(number, precision).unwrap();
+            let mut buf = crate::output::Line::new();
+            decimal.append_dat(&mut buf);
+            assert_eq!(
+                String::from_utf8(buf.as_bytes().to_vec()).unwrap(),
+                decimal.to_string(),
+                "mismatch for number={number} precision={precision}"
+            );
+        }
     }
 
     #[test]

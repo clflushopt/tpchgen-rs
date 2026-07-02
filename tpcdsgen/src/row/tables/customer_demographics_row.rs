@@ -1,3 +1,4 @@
+use crate::output::Line;
 use crate::row::TableRow;
 
 /// Customer demographics table row (CustomerDemographicsRow)
@@ -96,6 +97,26 @@ impl CustomerDemographicsRow {
             value.to_string()
         }
     }
+
+    fn push_int_field<T: crate::output::Integer>(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: T,
+        column_position: i32,
+    ) {
+        if !self.should_be_null(column_position) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_str_field(&self, out: &mut Line, sep: &[u8], value: &str, column_position: i32) {
+        if !self.should_be_null(column_position) {
+            out.push_str(value);
+        }
+        out.push_bytes(sep);
+    }
 }
 
 impl TableRow for CustomerDemographicsRow {
@@ -112,5 +133,21 @@ impl TableRow for CustomerDemographicsRow {
             self.get_string_or_null(self.cd_dep_employed_count, 7),
             self.get_string_or_null(self.cd_dep_college_count, 8),
         ]
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_int_field(out, sep, self.cd_demo_sk, 0);
+        self.push_str_field(out, sep, &self.cd_gender, 1);
+        self.push_str_field(out, sep, &self.cd_marital_status, 2);
+        self.push_str_field(out, sep, &self.cd_education_status, 3);
+        self.push_int_field(out, sep, self.cd_purchase_estimate, 4);
+        self.push_str_field(out, sep, &self.cd_credit_rating, 5);
+        self.push_int_field(out, sep, self.cd_dep_count, 6);
+        self.push_int_field(out, sep, self.cd_dep_employed_count, 7);
+        self.push_int_field(out, sep, self.cd_dep_college_count, 8);
+        out.newline();
     }
 }

@@ -50,6 +50,118 @@ pub fn to_iso_8859_1(s: &str) -> io::Result<Vec<u8>> {
         .collect()
 }
 
+/// A reusable line buffer for the hot row serialization path
+/// ([`TableRow::append_line`](crate::row::TableRow::append_line)).
+///
+/// Newtype over `Vec<u8>` that exposes the field-pushing helpers row
+/// serializers need, so field bytes never go through `core::fmt` or
+/// intermediate `String`s.
+#[derive(Debug, Default)]
+pub struct Line(Vec<u8>);
+
+impl Line {
+    /// Creates an empty line buffer.
+    pub fn new() -> Self {
+        Line(Vec::new())
+    }
+
+    /// Creates a line buffer sized for `estimate` bytes, rounded up to the
+    /// next power of two.
+    pub fn with_estimate(estimate: usize) -> Self {
+        Line(Vec::with_capacity(estimate.next_power_of_two()))
+    }
+
+    /// Clears the buffer for the next row, keeping the allocation.
+    pub fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    /// The accumulated line bytes.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    /// Appends a single byte.
+    pub fn push_byte(&mut self, byte: u8) {
+        self.0.push(byte);
+    }
+
+    /// Appends raw bytes (e.g. an already-encoded separator).
+    pub fn push_bytes(&mut self, bytes: &[u8]) {
+        // Fast path for the common single-byte separator: a plain push
+        // instead of a variable-length memcpy.
+        if let [b] = bytes {
+            self.0.push(*b);
+        } else {
+            self.0.extend_from_slice(bytes);
+        }
+    }
+
+    /// Appends a string's bytes.
+    pub fn push_str(&mut self, s: &str) {
+        self.0.extend_from_slice(s.as_bytes());
+    }
+
+    /// Appends the terminating newline.
+    pub fn newline(&mut self) {
+        self.0.push(b'\n');
+    }
+
+    /// Appends the decimal representation of any supported integer, without
+    /// going through `core::fmt`. Statically dispatched per integer type.
+    pub fn push_int<T: Integer>(&mut self, v: T) {
+        let (negative, mut v) = v.sign_abs();
+        if negative {
+            self.0.push(b'-');
+        }
+        let mut buf = [0u8; 20];
+        let mut i = buf.len();
+        loop {
+            i -= 1;
+            buf[i] = b'0' + (v % 10) as u8;
+            v /= 10;
+            if v == 0 {
+                break;
+            }
+        }
+        self.0.extend_from_slice(&buf[i..]);
+    }
+}
+
+/// Integer types [`Line::push_int`] can serialize.
+///
+/// Sealed: the digit loop handles magnitudes up to `u64`, so only types
+/// that split losslessly into sign and `u64` magnitude are supported.
+pub trait Integer: sealed::Sealed + Copy {
+    #[doc(hidden)]
+    fn sign_abs(self) -> (bool, u64);
+}
+
+mod sealed {
+    pub trait Sealed {}
+    impl Sealed for i32 {}
+    impl Sealed for i64 {}
+    impl Sealed for u64 {}
+}
+
+impl Integer for i32 {
+    fn sign_abs(self) -> (bool, u64) {
+        (self < 0, self.unsigned_abs() as u64)
+    }
+}
+
+impl Integer for i64 {
+    fn sign_abs(self) -> (bool, u64) {
+        (self < 0, self.unsigned_abs())
+    }
+}
+
+impl Integer for u64 {
+    fn sign_abs(self) -> (bool, u64) {
+        (false, self)
+    }
+}
+
 /// A writer wrapper that converts UTF-8 strings to ISO-8859-1 before writing.
 ///
 /// This matches Trino's behavior in TableGenerator.java which writes output

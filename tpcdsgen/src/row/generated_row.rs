@@ -19,6 +19,7 @@
 //!
 //! See ISSUE-004 for details.
 
+use crate::output::Line;
 use crate::row::{
     CallCenterRow, CatalogPageRow, CatalogReturnsRow, CatalogSalesRow, CustomerAddressRow,
     CustomerDemographicsRow, CustomerRow, DateDimRow, DbgenVersionRow, HouseholdDemographicsRow,
@@ -119,6 +120,36 @@ impl TableRow for GeneratedRow {
             GeneratedRow::WebReturns(row) => row.write_to(writer, separator),
             GeneratedRow::WebSales(row) => row.write_to(writer, separator),
             GeneratedRow::WebSite(row) => row.write_to(writer, separator),
+        }
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        match self {
+            GeneratedRow::CallCenter(row) => row.append_line(out, separator),
+            GeneratedRow::CatalogPage(row) => row.append_line(out, separator),
+            GeneratedRow::CatalogReturns(row) => row.append_line(out, separator),
+            GeneratedRow::CatalogSales(row) => row.append_line(out, separator),
+            GeneratedRow::Customer(row) => row.append_line(out, separator),
+            GeneratedRow::CustomerAddress(row) => row.append_line(out, separator),
+            GeneratedRow::CustomerDemographics(row) => row.append_line(out, separator),
+            GeneratedRow::DateDim(row) => row.append_line(out, separator),
+            GeneratedRow::DbgenVersion(row) => row.append_line(out, separator),
+            GeneratedRow::HouseholdDemographics(row) => row.append_line(out, separator),
+            GeneratedRow::IncomeBand(row) => row.append_line(out, separator),
+            GeneratedRow::Inventory(row) => row.append_line(out, separator),
+            GeneratedRow::Item(row) => row.append_line(out, separator),
+            GeneratedRow::Promotion(row) => row.append_line(out, separator),
+            GeneratedRow::Reason(row) => row.append_line(out, separator),
+            GeneratedRow::ShipMode(row) => row.append_line(out, separator),
+            GeneratedRow::Store(row) => row.append_line(out, separator),
+            GeneratedRow::StoreReturns(row) => row.append_line(out, separator),
+            GeneratedRow::StoreSales(row) => row.append_line(out, separator),
+            GeneratedRow::TimeDim(row) => row.append_line(out, separator),
+            GeneratedRow::Warehouse(row) => row.append_line(out, separator),
+            GeneratedRow::WebPage(row) => row.append_line(out, separator),
+            GeneratedRow::WebReturns(row) => row.append_line(out, separator),
+            GeneratedRow::WebSales(row) => row.append_line(out, separator),
+            GeneratedRow::WebSite(row) => row.append_line(out, separator),
         }
     }
 }

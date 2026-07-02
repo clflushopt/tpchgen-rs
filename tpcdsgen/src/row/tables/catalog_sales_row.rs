@@ -15,6 +15,7 @@
 //! Catalog sales row structure
 
 use crate::generator::CatalogSalesGeneratorColumn;
+use crate::output::Line;
 use crate::row::TableRow;
 use crate::types::Pricing;
 
@@ -175,6 +176,58 @@ impl CatalogSalesRow {
         }
     }
 
+    fn push_key(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i64,
+        column: &CatalogSalesGeneratorColumn,
+    ) {
+        if !self.is_null(column) && value >= 0 {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int_field(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i64,
+        column: &CatalogSalesGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_int(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: i32,
+        column: &CatalogSalesGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            out.push_int(value);
+        }
+        out.push_bytes(sep);
+    }
+
+    fn push_decimal(
+        &self,
+        out: &mut Line,
+        sep: &[u8],
+        value: &crate::types::Decimal,
+        column: &CatalogSalesGeneratorColumn,
+    ) {
+        if !self.is_null(column) {
+            value.append_dat(out);
+        }
+        out.push_bytes(sep);
+    }
+
     pub fn null_bit_map(&self) -> i64 {
         self.null_bit_map
     }
@@ -265,6 +318,113 @@ impl TableRow for CatalogSalesRow {
             ),
             self.get_string_or_null(self.cs_pricing.get_net_profit(), &CsPricingNetProfit),
         ]
+    }
+
+    fn append_line(&self, out: &mut Line, separator: char) {
+        use CatalogSalesGeneratorColumn::*;
+        let mut sep_buf = [0u8; 4];
+        let sep = separator.encode_utf8(&mut sep_buf).as_bytes();
+
+        self.push_key(out, sep, self.cs_sold_date_sk, &CsSoldDateSk);
+        self.push_key(out, sep, self.cs_sold_time_sk, &CsSoldTimeSk);
+        self.push_key(out, sep, self.cs_ship_date_sk, &CsShipDateSk);
+        self.push_key(out, sep, self.cs_bill_customer_sk, &CsBillCustomerSk);
+        self.push_key(out, sep, self.cs_bill_cdemo_sk, &CsBillCdemoSk);
+        self.push_key(out, sep, self.cs_bill_hdemo_sk, &CsBillHdemoSk);
+        self.push_key(out, sep, self.cs_bill_addr_sk, &CsBillAddrSk);
+        self.push_key(out, sep, self.cs_ship_customer_sk, &CsShipCustomerSk);
+        self.push_key(out, sep, self.cs_ship_cdemo_sk, &CsShipCdemoSk);
+        self.push_key(out, sep, self.cs_ship_hdemo_sk, &CsShipHdemoSk);
+        self.push_key(out, sep, self.cs_ship_addr_sk, &CsShipAddrSk);
+        self.push_key(out, sep, self.cs_call_center_sk, &CsCallCenterSk);
+        self.push_key(out, sep, self.cs_catalog_page_sk, &CsCatalogPageSk);
+        self.push_key(out, sep, self.cs_ship_mode_sk, &CsShipModeSk);
+        self.push_int_field(out, sep, self.cs_warehouse_sk, &CsWarehouseSk);
+        self.push_key(out, sep, self.cs_sold_item_sk, &CsSoldItemSk);
+        self.push_key(out, sep, self.cs_promo_sk, &CsPromoSk);
+        self.push_int_field(out, sep, self.cs_order_number, &CsOrderNumber);
+        self.push_int(out, sep, self.cs_pricing.get_quantity(), &CsPricingQuantity);
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_wholesale_cost(),
+            &CsPricingWholesaleCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_list_price(),
+            &CsPricingListPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_sales_price(),
+            &CsPricingSalesPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_ext_discount_amount(),
+            &CsPricingExtDiscountAmount,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_ext_sales_price(),
+            &CsPricingExtSalesPrice,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_ext_wholesale_cost(),
+            &CsPricingExtWholesaleCost,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_ext_list_price(),
+            &CsPricingExtListPrice,
+        );
+        self.push_decimal(out, sep, &self.cs_pricing.get_ext_tax(), &CsPricingExtTax);
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_coupon_amount(),
+            &CsPricingCouponAmt,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_ext_ship_cost(),
+            &CsPricingExtShipCost,
+        );
+        self.push_decimal(out, sep, &self.cs_pricing.get_net_paid(), &CsPricingNetPaid);
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_net_paid_including_tax(),
+            &CsPricingNetPaidIncTax,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_net_paid_including_shipping(),
+            &CsPricingNetPaidIncShip,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_net_paid_including_shipping_and_tax(),
+            &CsPricingNetPaidIncShipTax,
+        );
+        self.push_decimal(
+            out,
+            sep,
+            &self.cs_pricing.get_net_profit(),
+            &CsPricingNetProfit,
+        );
+        out.newline();
     }
 }
 
