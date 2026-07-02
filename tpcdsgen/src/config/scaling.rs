@@ -13,10 +13,20 @@ use crate::types::Date;
 /// [1]: https://github.com/trinodb/tpcds/blob/8a02abbba864feedc2afd078c8153d66a95bb2d4/src/main/java/io/trino/tpcds/Table.java#L201
 const REASON_ROW_COUNT_C: i64 = 75;
 
+/// Number of tables with precomputed row counts: the main output tables,
+/// which are the first `CACHED_TABLE_COUNT` variants of [`Table`]
+/// (`CallCenter..=DbgenVersion`), so a table's discriminant is its index.
+const CACHED_TABLE_COUNT: usize = 25;
+
 #[derive(Debug, Clone)]
 pub struct Scaling {
     scale: f64,
     compat_mode: CompatMode,
+    /// Row counts for the main output tables, indexed by `Table`
+    /// discriminant. `get_row_count` is called for every foreign key
+    /// generated, so it must be a plain lookup rather than a repeated
+    /// ScalingInfo model computation.
+    row_counts: [i64; CACHED_TABLE_COUNT],
 }
 
 impl Scaling {
@@ -25,7 +35,20 @@ impl Scaling {
     }
 
     pub fn new_with_compat(scale: f64, compat_mode: CompatMode) -> Self {
-        Scaling { scale, compat_mode }
+        let mut scaling = Scaling {
+            scale,
+            compat_mode,
+            row_counts: [0; CACHED_TABLE_COUNT],
+        };
+        for table in Table::main_tables() {
+            // Inventory derives from the Item and Warehouse entries, so it
+            // is filled once the rest of the cache is populated.
+            if table != Table::Inventory {
+                scaling.row_counts[table as usize] = scaling.compute_row_count(table);
+            }
+        }
+        scaling.row_counts[Table::Inventory as usize] = scaling.scale_inventory();
+        scaling
     }
 
     pub fn get_scale(&self) -> f64 {
@@ -38,12 +61,23 @@ impl Scaling {
 
     /// Get row count for a table at this scale factor.
     ///
-    /// Uses the table's ScalingInfo to properly calculate row counts based on
-    /// the scaling model (Static, Linear, or Logarithmic).
+    /// Main output tables are answered from the cache built at construction;
+    /// only source tables fall through to the model computation (where they
+    /// panic, as before).
+    pub fn get_row_count(&self, table: Table) -> i64 {
+        let index = table as usize;
+        if index < CACHED_TABLE_COUNT {
+            return self.row_counts[index];
+        }
+        self.compute_row_count(table)
+    }
+
+    /// Compute a table's row count from its ScalingInfo model (Static,
+    /// Linear, or Logarithmic). Used to populate the cache.
     ///
     /// Note: Inventory is a special case - its row count is computed dynamically
     /// as item_id_count × warehouse_count × weeks (matching Java's scaleInventory()).
-    pub fn get_row_count(&self, table: Table) -> i64 {
+    fn compute_row_count(&self, table: Table) -> i64 {
         // Special case for Inventory - computed dynamically like Java's scaleInventory()
         // See: Java Scaling.java getRowCount() and scaleInventory()
         if table == Table::Inventory {
