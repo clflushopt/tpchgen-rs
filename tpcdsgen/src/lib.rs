@@ -1,7 +1,6 @@
 pub mod business_key_generator;
 pub mod column;
 pub mod config;
-pub mod dat;
 pub mod distribution;
 pub mod error;
 pub mod generator;

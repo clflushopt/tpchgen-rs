@@ -195,7 +195,7 @@ mod tests {
         use crate::config::Session;
 
         let mut generator = PromotionRowGenerator::new();
-        let session = Session::get_default_session();
+        let session = Session::default();
 
         let result = generator.generate_row_and_child_rows(1, &session, None, None);
         assert!(result.is_ok());

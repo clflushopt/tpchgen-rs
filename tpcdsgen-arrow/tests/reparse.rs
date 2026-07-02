@@ -12,7 +12,7 @@ use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;
 use std::sync::{Arc, LazyLock};
-use tpcdsgen::config::{Options, Session, Table};
+use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{
     CallCenterRowGenerator, CatalogPageRowGenerator, CatalogSalesRowGenerator,
     CustomerAddressRowGenerator, CustomerDemographicsRowGenerator, CustomerRowGenerator,
@@ -32,7 +32,7 @@ use tpcdsgen_arrow::{
 };
 
 /// Session options for tests (scale factor 1).
-static SESSION: LazyLock<Session> = LazyLock::new(|| Options::default().to_session().unwrap());
+static SESSION: LazyLock<Session> = LazyLock::new(Session::default);
 
 /// Number of rows to test for `table`.
 fn test_row_count(table: Table) -> i64 {

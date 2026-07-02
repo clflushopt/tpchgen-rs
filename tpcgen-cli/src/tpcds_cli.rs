@@ -3,8 +3,10 @@ use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::fmt;
 use std::path::PathBuf;
-use tpcdsgen::config::CompatMode;
-use tpcdsgen::config::Options as TpcdsOptions;
+use tpcdsgen::config::{CompatMode, Session, Table};
+use tpcdsgen::error::InvalidOptionError;
+
+pub mod dat;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const NOT_IMPLEMENTED: &str = "TPC-DS data generation is not yet implemented";
@@ -89,7 +91,7 @@ struct ParquetArgs {
 }
 
 #[derive(Args)]
-struct CommonArgs {
+pub struct CommonArgs {
     /// Scale factor to create
     #[arg(short, long, default_value_t = 1.)]
     scale_factor: f64,
@@ -171,18 +173,33 @@ impl CommonArgs {
     }
 
     fn run_dat_for_table(&self, table: Option<String>) -> Result<()> {
-        let options = self.to_tpcds_options(table);
-        let session = options.to_session()?;
-        tpcdsgen::dat::generate(&session)
+        let session = self.to_session(table)?;
+        dat::generate(&session)
     }
 
-    fn to_tpcds_options(&self, table: Option<String>) -> TpcdsOptions {
-        let mut options = TpcdsOptions::new();
-        options.scale = self.scale_factor;
-        options.directory = self.output_dir.to_string_lossy().into_owned();
-        options.table = table;
-        options.compat = self.compat;
-        options
+    fn to_session(&self, table: Option<String>) -> Result<Session> {
+        let table = table
+            .as_deref()
+            .map(|table| {
+                table
+                    .parse::<Table>()
+                    .map_err(|_| InvalidOptionError::new("table", table))
+            })
+            .transpose()?;
+
+        Ok(Session::try_new(
+            self.scale_factor,
+            self.output_dir.to_string_lossy().into_owned(),
+            Session::DEFAULT_SUFFIX.to_string(),
+            table,
+            Session::DEFAULT_NULL_STRING.to_string(),
+            Session::DEFAULT_SEPARATOR,
+            Session::DEFAULT_DO_NOT_TERMINATE,
+            Session::DEFAULT_NO_SEXISM,
+            Session::DEFAULT_PARALLELISM,
+            Session::DEFAULT_OVERWRITE,
+            self.compat,
+        )?)
     }
 
     fn run_not_implemented(self) -> Result<()> {

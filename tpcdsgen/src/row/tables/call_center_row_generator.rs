@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn test_generate_call_center_row() {
         let mut generator = CallCenterRowGenerator::new();
-        let session = Session::get_default_session();
+        let session = Session::default();
 
         let result = generator
             .generate_row_and_child_rows(1, &session, None, None)

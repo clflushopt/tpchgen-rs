@@ -21,10 +21,10 @@ use std::io::{BufWriter, Write};
 use std::path::Path;
 use std::time::Instant;
 
-use crate::config::{Session, Table};
-use crate::output::CompatWriter;
-use crate::row::*;
-use crate::types::Date;
+use tpcdsgen::config::{Session, Table};
+use tpcdsgen::output::CompatWriter;
+use tpcdsgen::row::*;
+use tpcdsgen::types::Date;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
