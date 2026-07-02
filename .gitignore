@@ -6,3 +6,4 @@ Cargo.lock
 .venv/
 tpcds/
 .claude/
+benchmarks/profiles/
