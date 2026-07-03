@@ -95,6 +95,10 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     fn finish(&self) {}
 }
 
+/// Default tracker used when no progress backend is installed.
+///
+/// This keeps generation on the same always-reporting path; the no-op
+/// implementation simply ignores every event.
 #[derive(Debug, Default)]
 pub(crate) struct NoOpProgressTracker;
 
