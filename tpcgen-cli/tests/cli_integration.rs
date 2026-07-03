@@ -165,7 +165,7 @@ fn test_tpcgen_cli_tpcds_dat_compat_mode() {
 fn test_tpcgen_tpcds_dat_dbgen_version_command_line() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpcgen")
+    cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
         .arg("dat")
         .arg("--scale-factor")
