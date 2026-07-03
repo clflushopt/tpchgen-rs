@@ -5,7 +5,6 @@ use crate::tpch_cli::generate::generate_in_chunks_with_progress;
 use crate::tpch_cli::generate::Source;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
 use crate::tpch_cli::parquet::generate_parquet_with_progress;
-#[cfg(feature = "progress")]
 use crate::tpch_cli::progress::ProgressTracker;
 use crate::tpch_cli::progress::RunProgress;
 use crate::tpch_cli::tbl::*;
@@ -14,7 +13,6 @@ use crate::tpch_cli::{OutputFormat, Table, WriterSink};
 use log::{debug, info};
 use std::io;
 use std::io::BufWriter;
-#[cfg(feature = "progress")]
 use std::sync::Arc;
 use tokio::task::{JoinError, JoinSet};
 use tpchgen::generators::{
@@ -53,7 +51,6 @@ impl PlanRunner {
     /// after output units are written, and calls [`ProgressTracker::finish`]
     /// once on the success path. Implementations needing cleanup on the
     /// error or panic path should use `Drop` as a fallback.
-    #[cfg(feature = "progress")]
     pub fn with_progress_tracker(mut self, tracker: Arc<dyn ProgressTracker>) -> Self {
         self.progress = RunProgress::with_tracker(tracker);
         self
@@ -463,7 +460,7 @@ define_run!(
     OrderArrow
 );
 
-#[cfg(all(test, feature = "progress"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::ProgressTracker;

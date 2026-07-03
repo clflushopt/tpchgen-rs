@@ -1,13 +1,13 @@
 //! Binary entry point for the TPC-H and TPC-DS data generator.
 
 use clap::{Parser, Subcommand};
-use tpcgen::tpcds_cli::Cli as TpcdsCli;
-use tpcgen::tpch_cli::Cli as TpchCli;
+use tpcgen_cli::tpcds_cli::Cli as TpcdsCli;
+use tpcgen_cli::tpch_cli::Cli as TpchCli;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 #[derive(Parser)]
-#[command(name = "tpcgen")]
+#[command(name = "tpcgen-cli")]
 #[command(version)]
 #[command(
     about = "TPC-H and TPC-DS data generator",
@@ -18,15 +18,15 @@ Examples
 
 # TPC-H TBL data:
 
-tpcgen tpch -s 1 --output-dir=/tmp/tpch
+tpcgen-cli tpch -s 1 --output-dir=/tmp/tpch
 
 # TPC-H CSV data:
 
-tpcgen tpch csv -s 1 --output-dir=/tmp/tpch
+tpcgen-cli tpch csv -s 1 --output-dir=/tmp/tpch
 
 # TPC-H Apache Parquet data:
 
-tpcgen tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
+tpcgen-cli tpch parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
 "#
 )]
 struct Cli {

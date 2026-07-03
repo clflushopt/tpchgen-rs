@@ -8,9 +8,6 @@ pub mod generate;
 pub mod output_plan;
 pub mod parquet;
 pub mod plan;
-#[cfg(not(feature = "progress"))]
-mod progress;
-#[cfg(feature = "progress")]
 pub mod progress;
 pub mod runner;
 pub mod statistics;

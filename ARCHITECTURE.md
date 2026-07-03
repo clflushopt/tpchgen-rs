@@ -10,7 +10,7 @@ conversion, and command-line tools:
 3. `tpcdsgen`: The core library that implements TPC-DS data generation.
 4. `tpcdsgen-arrow`: Converts TPC-DS generated rows directly into the
    [Apache Arrow] in-memory format.
-5. `tpcgen`: The shared command-line implementation crate for TPC benchmark
+5. `tpcgen-cli`: The shared command-line implementation crate for TPC benchmark
    data generation.
 6. `tpchgen-cli`: A compatibility package that provides the backwards
    compatible `tpchgen-cli` binary.
@@ -26,10 +26,10 @@ embeddable with minimal dependencies. They depend on the
 [`arrow` crate](https://docs.rs/arrow) and keep Arrow-specific conversion logic
 out of the core generator crates.
 
-The `tpcgen` crate contains CLI-oriented dependencies and features, including
+The `tpcgen-cli` crate contains CLI-oriented dependencies and features, including
 CSV/Parquet output, multi-threaded orchestration, progress reporting, logging,
 and command parsing. The `tpchgen-cli` package is intentionally thin and
-depends on `tpcgen` so existing users can continue using the old binary name.
+depends on `tpcgen-cli` so existing users can continue using the old binary name.
 
 ## Performance
 

@@ -104,7 +104,7 @@ get_generator_for_table() {
     esac
 }
 
-# Find the unified tpcgen binary
+# Find the unified tpcgen-cli binary
 find_rust_binary() {
     local target_dir
 
@@ -126,14 +126,14 @@ find_rust_binary() {
     fi
 
     # Try release build
-    local binary="$target_dir/release/tpcgen"
+    local binary="$target_dir/release/tpcgen-cli"
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0
     fi
 
     # Try debug build
-    binary="$target_dir/debug/tpcgen"
+    binary="$target_dir/debug/tpcgen-cli"
     if [[ -f "$binary" ]]; then
         echo "$binary"
         return 0
@@ -153,7 +153,7 @@ generate_rust_table() {
 
     if ! binary=$(find_rust_binary); then
         log_error "Rust binary not found"
-        log_error "Build it with: cargo build --release"
+        log_error "Build it with: cargo build --release -p tpcgen-cli"
         return 1
     fi
 
