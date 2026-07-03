@@ -10,18 +10,33 @@ inputs:
 runs:
   using: "composite"
   steps:
+    - name: Install toml-cli
+      shell: bash
+      run: cargo install toml-cli
+
     - name: Set Cargo.toml version
-      shell: python
+      shell: bash
       env:
-        ACTION_PATH: ${{ github.action_path }}
         PACKAGE: ${{ inputs.package }}
         VERSION: ${{ inputs.version }}
       run: |
-        import os
-        import runpy
-        from pathlib import Path
+        VERSION="${VERSION#v}"
 
-        runpy.run_path(
-            str(Path(os.environ["ACTION_PATH"]) / "set_cargo_version.py"),
-            run_name="__main__",
-        )
+        case "$PACKAGE" in
+          all)
+            echo "Version override requires selecting a single package." >&2
+            exit 1
+            ;;
+          tpchgen)
+            manifest="Cargo.toml"
+            key="workspace.package.version"
+            ;;
+          *)
+            manifest="$PACKAGE/Cargo.toml"
+            key="package.version"
+            ;;
+        esac
+
+        toml set "$manifest" "$key" "$VERSION" > tmp.toml
+        mv tmp.toml "$manifest"
+        toml get "$manifest" "$key"
