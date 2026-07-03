@@ -13,6 +13,11 @@ on:
         required: false
         default: all
         type: string
+      version:
+        description: "Optional Cargo.toml version override for a single package."
+        required: false
+        default: ""
+        type: string
 
 jobs:
   wheels:
@@ -78,6 +83,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@v7
+      - name: Override package version
+        if: ${{ inputs.version != '' }}
+        env:
+          PACKAGE: ${{ inputs.package }}
+          VERSION: ${{ inputs.version }}
+        run: python .github/scripts/set-cargo-version.py
       - name: Build tpchgen-cli wheel
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
         uses: PyO3/maturin-action@v1
@@ -111,6 +122,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - name: Override package version
+        if: ${{ inputs.version != '' }}
+        env:
+          PACKAGE: ${{ inputs.package }}
+          VERSION: ${{ inputs.version }}
+        run: python .github/scripts/set-cargo-version.py
       - name: Build tpchgen-cli sdist
         if: ${{ inputs.package == 'all' || inputs.package == 'tpchgen-cli' }}
         uses: PyO3/maturin-action@v1

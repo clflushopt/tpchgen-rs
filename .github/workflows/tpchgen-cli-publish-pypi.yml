@@ -4,6 +4,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Optional Cargo.toml version override. A leading v is stripped (for example, v3.0.0-alpha.2)."
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -14,6 +19,7 @@ jobs:
     with:
       upload-artifacts: true
       package: tpchgen-cli
+      version: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
 
   release:
     name: Release

@@ -5,6 +5,24 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      package:
+        description: "Package to publish. Select one package when overriding the version."
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - tpchgen
+          - tpcdsgen
+          - tpchgen-arrow
+          - tpcdsgen-arrow
+          - tpcgen-cli
+          - tpchgen-cli
+      version:
+        description: "Optional Cargo.toml version override. A leading v is stripped (for example, v0.1.0-alpha.2)."
+        required: false
+        type: string
 
 jobs:
   publish:
@@ -26,13 +44,30 @@ jobs:
           - "tpcgen-cli"
           - "tpchgen-cli"
     steps:
+      - name: Validate version override
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' && inputs.package == 'all' }}
+        run: |
+          echo "Version override requires selecting a single package." >&2
+          exit 1
+
       - uses: actions/checkout@v7
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.package == 'all' || inputs.package == matrix.package }}
+
+      - name: Override ${{ matrix.package }} version
+        if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' && inputs.package == matrix.package }}
+        env:
+          PACKAGE: ${{ matrix.package }}
+          VERSION: ${{ inputs.version }}
+        run: python .github/scripts/set-cargo-version.py
 
       - uses: rust-lang/crates-io-auth-action@v1
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.package == 'all' || inputs.package == matrix.package }}
         id: auth
 
       - name: Publish ${{ matrix.package }}
+        if: ${{ github.event_name != 'workflow_dispatch' || inputs.package == 'all' || inputs.package == matrix.package }}
         working-directory: ${{ matrix.package }}
-        run: cargo publish
+        run: cargo publish ${VERSION:+--allow-dirty}
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
+          VERSION: ${{ github.event_name == 'workflow_dispatch' && inputs.version || '' }}
