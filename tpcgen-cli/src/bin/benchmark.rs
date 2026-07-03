@@ -39,10 +39,7 @@ struct Args {
 }
 
 fn create_session(scale: f64) -> Result<Session, Box<dyn std::error::Error>> {
-    Ok(SessionBuilder::new()
-        .with_scale_factor(scale)
-        .with_overwrite(true)
-        .build()?)
+    Ok(SessionBuilder::new().with_scale_factor(scale).build()?)
 }
 
 struct BenchmarkResult {
