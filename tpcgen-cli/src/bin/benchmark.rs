@@ -9,7 +9,7 @@ use std::fs::File;
 use std::io::BufWriter;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
-use tpcdsgen::config::{CompatMode, Session, Table};
+use tpcdsgen::config::{Session, SessionBuilder, Table};
 use tpcdsgen::output::Iso8859Writer;
 use tpcdsgen::row::*;
 
@@ -38,20 +38,11 @@ struct Args {
     json: bool,
 }
 
-fn create_session(scale: f64) -> Session {
-    Session::new(
-        scale,
-        ".".to_string(),
-        ".dat".to_string(),
-        None,
-        "".to_string(),
-        '|',
-        false,
-        false,
-        1,
-        true,
-        CompatMode::Trino,
-    )
+fn create_session(scale: f64) -> Result<Session, Box<dyn std::error::Error>> {
+    Ok(SessionBuilder::new()
+        .with_scale_factor(scale)
+        .with_overwrite(true)
+        .build()?)
 }
 
 struct BenchmarkResult {
@@ -683,7 +674,7 @@ fn benchmark_table(
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let session = create_session(args.scale);
+    let session = create_session(args.scale)?;
 
     let tables: Vec<&str> = if args.table == "all" {
         vec![
