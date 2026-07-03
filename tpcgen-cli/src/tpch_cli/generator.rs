@@ -2,7 +2,7 @@ use super::generate::Sink;
 use super::output_plan::OutputPlanGenerator;
 use super::parquet::IntoSize;
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
-use super::progress::ProgressTracker;
+use super::progress::{NoOpProgressTracker, ProgressTracker};
 use super::runner::PlanRunner;
 use super::statistics::WriteStatistics;
 pub use ::parquet::basic::Compression;
@@ -224,7 +224,7 @@ impl Default for GeneratorConfig {
 /// Use the builder pattern via [`TpchGenerator::builder()`] to configure and create instances.
 pub struct TpchGenerator {
     config: GeneratorConfig,
-    progress_tracker: Option<Arc<dyn ProgressTracker>>,
+    progress_tracker: Arc<dyn ProgressTracker>,
 }
 
 impl TpchGenerator {
@@ -283,12 +283,8 @@ impl TpchGenerator {
         let elapsed = start.elapsed();
         info!("Created static distributions and text pools in {elapsed:?}");
 
-        let runner = PlanRunner::new(output_plans, config.num_threads);
-        let runner = if let Some(tracker) = progress_tracker {
-            runner.with_progress_tracker(tracker)
-        } else {
-            runner
-        };
+        let runner = PlanRunner::new(output_plans, config.num_threads)
+            .with_progress_tracker(progress_tracker);
         runner.run().await?;
         info!("Generation complete!");
         Ok(())
@@ -299,7 +295,7 @@ impl TpchGenerator {
 #[derive(Debug, Clone)]
 pub struct TpchGeneratorBuilder {
     config: GeneratorConfig,
-    progress_tracker: Option<Arc<dyn ProgressTracker>>,
+    progress_tracker: Arc<dyn ProgressTracker>,
 }
 
 impl TpchGeneratorBuilder {
@@ -307,7 +303,7 @@ impl TpchGeneratorBuilder {
     pub fn new() -> Self {
         Self {
             config: GeneratorConfig::default(),
-            progress_tracker: None,
+            progress_tracker: Arc::new(NoOpProgressTracker),
         }
     }
 
@@ -388,7 +384,7 @@ impl TpchGeneratorBuilder {
     /// Trackers that need error or panic cleanup should use `Drop` as a
     /// fallback. See [`crate::tpch_cli::progress`] for the full contract and examples.
     pub fn with_progress_tracker(mut self, tracker: Arc<dyn ProgressTracker>) -> Self {
-        self.progress_tracker = Some(tracker);
+        self.progress_tracker = tracker;
         self
     }
 

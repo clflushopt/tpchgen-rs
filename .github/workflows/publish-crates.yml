@@ -1,5 +1,5 @@
 
-name: tpchgen-publish-crates.yml
+name: publish-crates.yml
 
 on:
   release:
@@ -20,7 +20,10 @@ jobs:
         # Order here is sensitive, as it will be used to determine the order of publishing
         package:
           - "tpchgen"
+          - "tpcdsgen"
           - "tpchgen-arrow"
+          - "tpcdsgen-arrow"
+          - "tpcgen-cli"
           - "tpchgen-cli"
     steps:
       - uses: actions/checkout@v7
