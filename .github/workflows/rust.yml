@@ -21,9 +21,9 @@ jobs:
       - name: Check
         run: cargo check --verbose --workspace --all-targets
       - name: Check tpchgen-cli without default features
-        run: cargo check -p tpchgen-cli --no-default-features
-      - name: Check tpchgen-cli with custom progress feature
-        run: cargo check -p tpchgen-cli --no-default-features --features progress
+        run: cargo check -p tpchgen-cli --all-targets --no-default-features
+      - name: Check tpcgen-cli without default features
+        run: cargo check -p tpcgen-cli --all-targets --no-default-features
 
   # Tests for tpchgen
   test-tests-tpchgen:
