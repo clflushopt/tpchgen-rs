@@ -213,7 +213,7 @@ where
         .collect()
 }
 
-#[cfg(all(test, feature = "progress"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::{ProgressTracker, RunProgress};
