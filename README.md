@@ -26,6 +26,8 @@ Try with `uvx`:
 uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 ```
 
+![Running tpcgen-cli](tpcgen-cli-run.gif)
+
 Install with `pip`:
 
 ```shell
@@ -40,8 +42,6 @@ tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 
 `tpchgen-cli` is a command-line program distributed as a Python package. See the
 [`tpchgen-cli`] README for more install options and examples.
-
-![Running tpcgen-cli](tpcgen-cli-run.gif)
 
 ## Performance
 
