@@ -41,6 +41,8 @@ tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 `tpchgen-cli` is a command-line program distributed as a Python package. See the
 [`tpchgen-cli`] README for more install options and examples.
 
+![Running tpcgen-cli](tpcgen-cli-run.gif)
+
 ## Performance
 
 [`tpchgen-cli`] is more than 10x faster than the next fastest TPCH generator we
