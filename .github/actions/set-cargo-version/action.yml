@@ -1,0 +1,27 @@
+name: "Set Cargo Version"
+description: "Sets a version override in a checked-out Cargo.toml"
+inputs:
+  package:
+    description: "Package to update"
+    required: true
+  version:
+    description: "Version to set. A leading v is stripped."
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Set Cargo.toml version
+      shell: python
+      env:
+        ACTION_PATH: ${{ github.action_path }}
+        PACKAGE: ${{ inputs.package }}
+        VERSION: ${{ inputs.version }}
+      run: |
+        import os
+        import runpy
+        from pathlib import Path
+
+        runpy.run_path(
+            str(Path(os.environ["ACTION_PATH"]) / "set_cargo_version.py"),
+            run_name="__main__",
+        )

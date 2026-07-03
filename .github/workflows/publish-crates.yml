@@ -55,10 +55,10 @@ jobs:
 
       - name: Override ${{ matrix.package }} version
         if: ${{ github.event_name == 'workflow_dispatch' && inputs.version != '' && inputs.package == matrix.package }}
-        env:
-          PACKAGE: ${{ matrix.package }}
-          VERSION: ${{ inputs.version }}
-        run: python .github/scripts/set-cargo-version.py
+        uses: ./.github/actions/set-cargo-version
+        with:
+          package: ${{ matrix.package }}
+          version: ${{ inputs.version }}
 
       - uses: rust-lang/crates-io-auth-action@v1
         if: ${{ github.event_name != 'workflow_dispatch' || inputs.package == 'all' || inputs.package == matrix.package }}
