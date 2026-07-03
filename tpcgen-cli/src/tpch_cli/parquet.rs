@@ -37,38 +37,17 @@ pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
 {
-    let progress = Default::default();
-    generate_parquet_impl(
+    generate_parquet_with_progress(
         writer,
         iter_iter,
         num_threads,
         parquet_compression,
-        progress,
+        TableProgress::default(),
     )
     .await
 }
 
 pub(crate) async fn generate_parquet_with_progress<W: Write + Send + IntoSize + 'static, I>(
-    writer: W,
-    iter_iter: I,
-    num_threads: usize,
-    parquet_compression: Compression,
-    progress: TableProgress,
-) -> Result<(), io::Error>
-where
-    I: Iterator<Item: RecordBatchIterator> + 'static,
-{
-    generate_parquet_impl(
-        writer,
-        iter_iter,
-        num_threads,
-        parquet_compression,
-        progress,
-    )
-    .await
-}
-
-async fn generate_parquet_impl<W: Write + Send + IntoSize + 'static, I>(
     writer: W,
     iter_iter: I,
     num_threads: usize,
@@ -128,7 +107,6 @@ where
         Sender<Vec<ArrowColumnChunk>>,
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
-    let captured_progress = progress.clone();
     let writer_task = tokio::task::spawn_blocking(move || {
         // Create parquet writer
         let mut writer =
@@ -146,7 +124,7 @@ where
             }
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
-            captured_progress.increment_output_unit();
+            progress.increment_output_unit();
         }
         let size = writer.into_inner()?.into_size()?;
         statistics.increment_bytes(size);
@@ -213,7 +191,7 @@ where
         .collect()
 }
 
-#[cfg(all(test, feature = "progress"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::{ProgressTracker, RunProgress};

@@ -1,5 +1,5 @@
 [package]
-name = "tpcgen"
+name = "tpcgen-cli"
 version = "0.1.0"
 authors = { workspace = true }
 description = "Command line tool for TPC benchmark data generation."
@@ -10,12 +10,12 @@ license = { workspace = true }
 repository = { workspace = true }
 
 [lib]
-name = "tpcgen"
+name = "tpcgen_cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "tpcgen"
-path = "bin/tpcgen.rs"
+name = "tpcgen-cli"
+path = "bin/tpcgen_cli.rs"
 
 [dependencies]
 arrow = "59"
@@ -33,11 +33,8 @@ tpchgen-arrow = { path = "../tpchgen-arrow", version = "3.0.0" }
 
 [features]
 default = ["indicatif-progress"]
-# Enable progress callbacks for applications that want to provide their own
-# progress reporting without pulling in the default terminal progress bars.
-progress = []
 # Enable the default CLI terminal progress bars backed by `indicatif`.
-indicatif-progress = ["progress", "dep:indicatif"]
+indicatif-progress = ["dep:indicatif"]
 
 [dev-dependencies]
 assert_cmd = "2.0"

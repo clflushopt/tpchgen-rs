@@ -44,7 +44,7 @@ jobs:
 
     - name: Build Rust table generators
       run: |
-        cargo build --release -p tpcgen
+        cargo build --release -p tpcgen-cli
 
     - name: Run conformance tests (Rust vs Java)
       run: |
@@ -78,7 +78,7 @@ jobs:
 
     - name: Build Rust table generators
       run: |
-        cargo build --release -p tpcgen
+        cargo build --release -p tpcgen-cli
 
     - name: Run conformance tests (Rust --compat c vs C dsdgen)
       run: |
@@ -114,13 +114,13 @@ jobs:
 
     - name: Build release binaries
       run: |
-        cargo build --release -p tpcgen
+        cargo build --release -p tpcgen-cli
 
     - name: Run benchmarks
       run: |
         # Generate all tables and time it using the unified CLI
         mkdir -p /tmp/bench
-        time ./target/release/tpcgen tpcds dat --scale-factor 1 --output-dir /tmp/bench
+        time ./target/release/tpcgen-cli tpcds dat --scale-factor 1 --output-dir /tmp/bench
 
     - name: Upload benchmark results
       uses: actions/upload-artifact@v7

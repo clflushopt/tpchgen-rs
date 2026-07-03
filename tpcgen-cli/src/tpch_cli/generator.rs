@@ -2,7 +2,6 @@ use super::generate::Sink;
 use super::output_plan::OutputPlanGenerator;
 use super::parquet::IntoSize;
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
-#[cfg(feature = "progress")]
 use super::progress::ProgressTracker;
 use super::runner::PlanRunner;
 use super::statistics::WriteStatistics;
@@ -13,7 +12,6 @@ use std::fs::File;
 use std::io;
 use std::io::{BufWriter, Stdout, Write};
 use std::str::FromStr;
-#[cfg(feature = "progress")]
 use std::sync::Arc;
 use std::time::Instant;
 use tpchgen::distribution::Distributions;
@@ -226,7 +224,6 @@ impl Default for GeneratorConfig {
 /// Use the builder pattern via [`TpchGenerator::builder()`] to configure and create instances.
 pub struct TpchGenerator {
     config: GeneratorConfig,
-    #[cfg(feature = "progress")]
     progress_tracker: Option<Arc<dyn ProgressTracker>>,
 }
 
@@ -239,7 +236,6 @@ impl TpchGenerator {
     /// Generate TPC-H data with the configured settings.
     pub async fn generate(self) -> io::Result<()> {
         let config = self.config;
-        #[cfg(feature = "progress")]
         let progress_tracker = self.progress_tracker;
 
         // Create output directory if it doesn't exist and we are not writing to stdout
@@ -288,7 +284,6 @@ impl TpchGenerator {
         info!("Created static distributions and text pools in {elapsed:?}");
 
         let runner = PlanRunner::new(output_plans, config.num_threads);
-        #[cfg(feature = "progress")]
         let runner = if let Some(tracker) = progress_tracker {
             runner.with_progress_tracker(tracker)
         } else {
@@ -304,7 +299,6 @@ impl TpchGenerator {
 #[derive(Debug, Clone)]
 pub struct TpchGeneratorBuilder {
     config: GeneratorConfig,
-    #[cfg(feature = "progress")]
     progress_tracker: Option<Arc<dyn ProgressTracker>>,
 }
 
@@ -313,7 +307,6 @@ impl TpchGeneratorBuilder {
     pub fn new() -> Self {
         Self {
             config: GeneratorConfig::default(),
-            #[cfg(feature = "progress")]
             progress_tracker: None,
         }
     }
@@ -394,7 +387,6 @@ impl TpchGeneratorBuilder {
     /// The runner calls [`ProgressTracker::finish`] on successful completion.
     /// Trackers that need error or panic cleanup should use `Drop` as a
     /// fallback. See [`crate::tpch_cli::progress`] for the full contract and examples.
-    #[cfg(feature = "progress")]
     pub fn with_progress_tracker(mut self, tracker: Arc<dyn ProgressTracker>) -> Self {
         self.progress_tracker = Some(tracker);
         self
@@ -404,7 +396,6 @@ impl TpchGeneratorBuilder {
     pub fn build(self) -> TpchGenerator {
         TpchGenerator {
             config: self.config,
-            #[cfg(feature = "progress")]
             progress_tracker: self.progress_tracker,
         }
     }
@@ -416,7 +407,7 @@ impl Default for TpchGeneratorBuilder {
     }
 }
 
-#[cfg(all(test, feature = "progress"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::ProgressTracker;

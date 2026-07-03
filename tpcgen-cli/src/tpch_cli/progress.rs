@@ -28,18 +28,17 @@
 //! When the `indicatif-progress` feature is enabled (on by default), the
 //! crate provides an `IndicatifProgress` implementation, which renders
 //! one progress bar per table on stderr using the `indicatif` crate.
-//! Library users who do not want to pull in `indicatif` can enable the
-//! `progress` feature directly and supply their own [`ProgressTracker`]
-//! implementation.
+//! Library users who do not want to pull in `indicatif` can disable default
+//! features and still supply their own [`ProgressTracker`] implementation.
+//! Without `indicatif-progress` and without a custom tracker, progress
+//! reporting is a no-op.
 //!
 //! # Example: a custom logging tracker
 //!
 //! ```
-//! # #[cfg(feature = "progress")]
-//! # {
 //! use std::sync::atomic::{AtomicU64, Ordering};
-//! use tpcgen::tpch_cli::progress::ProgressTracker;
-//! use tpcgen::tpch_cli::Table;
+//! use tpcgen_cli::tpch_cli::progress::ProgressTracker;
+//! use tpcgen_cli::tpch_cli::Table;
 //!
 //! #[derive(Debug)]
 //! struct LoggingTracker {
@@ -57,16 +56,12 @@
 //!         eprintln!("done: {} output units", self.written.load(Ordering::Relaxed));
 //!     }
 //! }
-//! # }
 //! ```
 
 use crate::tpch_cli::output_plan::OutputPlan;
 use crate::tpch_cli::Table;
-#[cfg(feature = "progress")]
 use std::collections::BTreeMap;
-#[cfg(feature = "progress")]
 use std::fmt;
-#[cfg(feature = "progress")]
 use std::sync::Arc;
 
 /// Receives generation-progress events for one
@@ -77,7 +72,6 @@ use std::sync::Arc;
 /// [`std::sync::Arc`] and shared across concurrent generation tasks, so
 /// they must be `Send + Sync`.
 /// They must also be `Debug` so containing types can derive `Debug`.
-#[cfg(feature = "progress")]
 pub trait ProgressTracker: Send + Sync + fmt::Debug {
     /// Pre-register a table with its total expected output-unit count.
     ///
@@ -107,12 +101,10 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
 /// Owns run-level progress lifecycle: registering totals, accounting for
 /// skipped outputs, and finishing the tracker.
 #[derive(Debug, Clone, Default)]
-#[cfg(feature = "progress")]
 pub(crate) struct RunProgress {
     tracker: Option<Arc<dyn ProgressTracker>>,
 }
 
-#[cfg(feature = "progress")]
 impl RunProgress {
     pub(crate) fn with_tracker(tracker: Arc<dyn ProgressTracker>) -> Self {
         Self {
@@ -149,35 +141,15 @@ impl RunProgress {
     }
 }
 
-/// No-op run progress handle used when progress support is disabled.
-#[derive(Debug, Clone, Default)]
-#[cfg(not(feature = "progress"))]
-pub(crate) struct RunProgress;
-
-#[cfg(not(feature = "progress"))]
-impl RunProgress {
-    pub(crate) fn register_totals(&self, _plans: &[OutputPlan]) {}
-
-    pub(crate) fn increment_for_existing(&self, _plan: &OutputPlan) {}
-
-    pub(crate) fn for_table(&self, _table: Table) -> TableProgress {
-        TableProgress
-    }
-
-    pub(crate) fn finish(self) {}
-}
-
 /// Progress handle for one table output stream.
 ///
 /// Used by format writers to report each successfully written output unit
 /// without knowing whether progress tracking is enabled.
 #[derive(Clone, Default)]
-#[cfg(feature = "progress")]
 pub(crate) struct TableProgress {
     tracker: Option<(Arc<dyn ProgressTracker>, Table)>,
 }
 
-#[cfg(feature = "progress")]
 impl TableProgress {
     pub(crate) fn for_table(progress: Option<Arc<dyn ProgressTracker>>, table: Table) -> Self {
         Self {
@@ -190,16 +162,6 @@ impl TableProgress {
             progress.increment(*table, 1);
         }
     }
-}
-
-/// No-op table progress handle used when progress support is disabled.
-#[derive(Clone, Default)]
-#[cfg(not(feature = "progress"))]
-pub(crate) struct TableProgress;
-
-#[cfg(not(feature = "progress"))]
-impl TableProgress {
-    pub(crate) fn increment_output_unit(&self) {}
 }
 
 #[cfg(feature = "indicatif-progress")]
@@ -374,7 +336,7 @@ mod indicatif_impl {
     }
 }
 
-#[cfg(all(test, feature = "progress"))]
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::tpch_cli::Table;

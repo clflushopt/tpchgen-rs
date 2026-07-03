@@ -1,4 +1,4 @@
-name: tpcgen-publish-pypi
+name: tpcgen-cli-publish-pypi
 
 on:
   release:
@@ -13,7 +13,7 @@ jobs:
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: true
-      package: tpcgen
+      package: tpcgen-cli
 
   release:
     name: Release
