@@ -3,7 +3,7 @@ name: tpchgen-publish-crates.yml
 
 on:
   release:
-    types: [created]
+    types: [published]
   workflow_dispatch:
 
 jobs:
@@ -11,6 +11,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     permissions:
+      contents: read
       id-token: write     # Required for OIDC token exchange
     strategy:
       # Publish package one by one instead of flooding the registry

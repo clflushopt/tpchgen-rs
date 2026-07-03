@@ -2,7 +2,7 @@ name: tpcgen-publish-pypi
 
 on:
   release:
-    types: [created]
+    types: [published]
   workflow_dispatch:
 
 permissions:
@@ -21,6 +21,7 @@ jobs:
     environment: pypi
     needs: [build]
     permissions:
+      contents: read
       id-token: write # Use to sign the release artifacts and for pypi trusted publishing
       attestations: write # Used to generate artifact attestation
     steps:
