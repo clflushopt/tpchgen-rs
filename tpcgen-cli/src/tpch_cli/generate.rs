@@ -3,7 +3,7 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
-use crate::tpch_cli::progress::TableProgress;
+use crate::tpch_cli::progress::{NoOpProgressTracker, ProgressTracker};
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
@@ -59,14 +59,22 @@ where
     I: Iterator<Item = G>,
     S: Sink + 'static,
 {
-    generate_in_chunks_with_progress(sink, sources, num_threads, TableProgress::default()).await
+    generate_in_chunks_with_progress(
+        sink,
+        sources,
+        num_threads,
+        Arc::new(NoOpProgressTracker),
+        "",
+    )
+    .await
 }
 
 pub(crate) async fn generate_in_chunks_with_progress<G, I, S>(
     mut sink: S,
     sources: I,
     num_threads: usize,
-    progress: TableProgress,
+    progress: Arc<dyn ProgressTracker>,
+    table_name: &'static str,
 ) -> Result<(), io::Error>
 where
     G: Source + 'static,
@@ -126,7 +134,7 @@ where
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
             captured_recycler.return_buffer(buffer);
-            progress.increment_output_unit();
+            progress.increment(table_name, 1);
         }
         // No more input, flush the sink and return
         sink.flush()
@@ -186,18 +194,20 @@ impl BufferRecycler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tpch_cli::progress::{ProgressTracker, RunProgress};
-    use crate::tpch_cli::Table;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use crate::tpch_cli::progress::ProgressTracker;
+    use std::sync::Mutex;
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     struct CountingProgress {
-        increments: AtomicU64,
+        increments: Mutex<Vec<(String, u64)>>,
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, _table: Table, units: u64) {
-            self.increments.fetch_add(units, Ordering::Relaxed);
+        fn increment(&self, table: &str, units: u64) {
+            self.increments
+                .lock()
+                .unwrap()
+                .push((table.to_owned(), units));
         }
     }
 
@@ -236,11 +246,8 @@ mod tests {
     #[tokio::test]
     async fn progress_counts_generated_chunks_not_header() {
         let writes = Arc::new(Mutex::new(Vec::new()));
-        let tracker = Arc::new(CountingProgress {
-            increments: AtomicU64::new(0),
-        });
+        let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
-        let progress = RunProgress::with_tracker(progress).for_table(Table::Region);
 
         let sources = vec![
             TestSource {
@@ -260,11 +267,15 @@ mod tests {
             sources.into_iter(),
             1,
             progress,
+            "region",
         )
         .await
         .unwrap();
 
-        assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
+        assert_eq!(
+            *tracker.increments.lock().unwrap(),
+            vec![("region".to_owned(), 1), ("region".to_owned(), 1)]
+        );
         assert_eq!(
             *writes.lock().unwrap(),
             vec![

@@ -38,7 +38,6 @@
 //! ```
 //! use std::sync::atomic::{AtomicU64, Ordering};
 //! use tpcgen_cli::tpch_cli::progress::ProgressTracker;
-//! use tpcgen_cli::tpch_cli::Table;
 //!
 //! #[derive(Debug)]
 //! struct LoggingTracker {
@@ -46,10 +45,10 @@
 //! }
 //!
 //! impl ProgressTracker for LoggingTracker {
-//!     fn register(&self, table: Table, total: u64) {
-//!         eprintln!("plan: {table:?} -> {total} output units");
+//!     fn register(&self, table: &str, total: u64) {
+//!         eprintln!("plan: {table} -> {total} output units");
 //!     }
-//!     fn increment(&self, _table: Table, units: u64) {
+//!     fn increment(&self, _table: &str, units: u64) {
 //!         self.written.fetch_add(units, Ordering::Relaxed);
 //!     }
 //!     fn finish(&self) {
@@ -58,11 +57,7 @@
 //! }
 //! ```
 
-use crate::tpch_cli::output_plan::OutputPlan;
-use crate::tpch_cli::Table;
-use std::collections::BTreeMap;
 use std::fmt;
-use std::sync::Arc;
 
 /// Receives generation-progress events for one
 /// [`PlanRunner`](crate::tpch_cli::runner::PlanRunner) invocation.
@@ -79,14 +74,14 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     /// that need to know totals up front (e.g. to render a progress bar
     /// or compute an ETA) should override this; the default does
     /// nothing.
-    fn register(&self, _table: Table, _total_units: u64) {}
+    fn register(&self, _table: &str, _total_units: u64) {}
 
     /// Advance the counter for `table` by `units` output units.
     ///
     /// Called after generated output units are written. Multiple
     /// table-generation tasks may call this concurrently, so implementations
     /// should be lightweight and must never panic.
-    fn increment(&self, table: Table, units: u64);
+    fn increment(&self, table: &str, units: u64);
 
     /// Called once after the last [`Self::increment`] on the success
     /// path. Implementations should use this for normal success cleanup
@@ -103,80 +98,7 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
 pub(crate) struct NoOpProgressTracker;
 
 impl ProgressTracker for NoOpProgressTracker {
-    fn increment(&self, _table: Table, _units: u64) {}
-}
-
-/// Progress handle for one [`PlanRunner::run`](crate::tpch_cli::runner::PlanRunner::run)
-/// invocation.
-///
-/// Owns run-level progress lifecycle: registering totals, accounting for
-/// skipped outputs, and finishing the tracker.
-#[derive(Debug, Clone)]
-pub(crate) struct RunProgress {
-    tracker: Arc<dyn ProgressTracker>,
-}
-
-impl Default for RunProgress {
-    fn default() -> Self {
-        Self {
-            tracker: Arc::new(NoOpProgressTracker),
-        }
-    }
-}
-
-impl RunProgress {
-    pub(crate) fn with_tracker(tracker: Arc<dyn ProgressTracker>) -> Self {
-        Self { tracker }
-    }
-
-    pub(crate) fn register_totals(&self, plans: &[OutputPlan]) {
-        let mut totals: BTreeMap<Table, u64> = BTreeMap::new();
-        for plan in plans {
-            *totals.entry(plan.table()).or_insert(0) += plan.chunk_count() as u64;
-        }
-        for (table, total) in totals {
-            self.tracker.register(table, total);
-        }
-    }
-
-    pub(crate) fn increment_for_existing(&self, plan: &OutputPlan) {
-        self.tracker
-            .increment(plan.table(), plan.chunk_count() as u64);
-    }
-
-    pub(crate) fn for_table(&self, table: Table) -> TableProgress {
-        TableProgress::for_table(self.tracker.clone(), table)
-    }
-
-    pub(crate) fn finish(self) {
-        self.tracker.finish();
-    }
-}
-
-/// Progress handle for one table output stream.
-///
-/// Used by format writers to report each successfully written output unit
-/// without knowing whether progress tracking is enabled.
-#[derive(Clone)]
-pub(crate) struct TableProgress {
-    tracker: Arc<dyn ProgressTracker>,
-    table: Table,
-}
-
-impl Default for TableProgress {
-    fn default() -> Self {
-        Self::for_table(Arc::new(NoOpProgressTracker), Table::Region)
-    }
-}
-
-impl TableProgress {
-    pub(crate) fn for_table(tracker: Arc<dyn ProgressTracker>, table: Table) -> Self {
-        Self { tracker, table }
-    }
-
-    pub(crate) fn increment_output_unit(&self) {
-        self.tracker.increment(self.table, 1);
-    }
+    fn increment(&self, _table: &str, _units: u64) {}
 }
 
 #[cfg(feature = "indicatif-progress")]
@@ -185,7 +107,6 @@ pub use indicatif_impl::IndicatifProgress;
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
     use super::ProgressTracker;
-    use crate::tpch_cli::Table;
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
     use std::collections::BTreeMap;
     use std::io::{self, Write};
@@ -195,14 +116,14 @@ mod indicatif_impl {
     /// [`indicatif::MultiProgress`].
     ///
     /// Renders one bar per table on stderr. Bars are pre-allocated in
-    /// [`ProgressTracker::register`] and are looked up by [`Table`] on
-    /// each [`ProgressTracker::increment`] call. Lookup uses a `RwLock`
+    /// [`ProgressTracker::register`] and are looked up by table identifier
+    /// on each [`ProgressTracker::increment`] call. Lookup uses a `RwLock`
     /// read on the increment path; this is uncontended after the serial
     /// `register` phase completes.
     #[derive(Debug)]
     pub struct IndicatifProgress {
         multi: MultiProgress,
-        tables: RwLock<BTreeMap<Table, ProgressBar>>,
+        tables: RwLock<BTreeMap<String, ProgressBar>>,
     }
 
     impl IndicatifProgress {
@@ -231,21 +152,21 @@ mod indicatif_impl {
     }
 
     impl ProgressTracker for IndicatifProgress {
-        fn register(&self, table: Table, total_units: u64) {
+        fn register(&self, table: &str, total_units: u64) {
             let Ok(mut tables) = self.tables.write() else {
                 return;
             };
 
             let pb = self.multi.add(ProgressBar::new(total_units));
             pb.set_style(bar_style().clone());
-            pb.set_message(table.to_string());
+            pb.set_message(table.to_owned());
             let pb = pb.with_finish(ProgressFinish::AndLeave);
             // Write-lock is only contended during the register phase, which
             // happens serially before any worker task starts.
-            tables.insert(table, pb);
+            tables.insert(table.to_owned(), pb);
         }
 
-        fn increment(&self, table: Table, units: u64) {
+        fn increment(&self, table: &str, units: u64) {
             // Minimize the read-lock scope so concurrent `increment` callers
             // don't serialize on it. Cloning the bar is a cheap `Arc` bump,
             // and `ProgressBar::inc` is internally thread-safe.
@@ -253,7 +174,7 @@ mod indicatif_impl {
                 let Ok(tables) = self.tables.read() else {
                     return;
                 };
-                tables.get(&table).cloned()
+                tables.get(table).cloned()
             };
             if let Some(bar) = bar {
                 bar.inc(units);
@@ -310,43 +231,43 @@ mod indicatif_impl {
         #[test]
         fn registers_and_increments() {
             let t = IndicatifProgress::new();
-            t.register(Table::Lineitem, 60);
-            t.register(Table::Orders, 15);
-            t.increment(Table::Lineitem, 1);
-            t.increment(Table::Orders, 5);
+            t.register("lineitem", 60);
+            t.register("orders", 15);
+            t.increment("lineitem", 1);
+            t.increment("orders", 5);
 
             let tables = t.tables.read().unwrap();
-            assert_eq!(tables[&Table::Lineitem].position(), 1);
-            assert_eq!(tables[&Table::Orders].position(), 5);
+            assert_eq!(tables["lineitem"].position(), 1);
+            assert_eq!(tables["orders"].position(), 5);
         }
 
         #[test]
         fn reaches_total() {
             let t = IndicatifProgress::new();
-            t.register(Table::Orders, 5);
+            t.register("orders", 5);
             for _ in 0..5 {
-                t.increment(Table::Orders, 1);
+                t.increment("orders", 1);
             }
-            assert_eq!(t.tables.read().unwrap()[&Table::Orders].position(), 5);
+            assert_eq!(t.tables.read().unwrap()["orders"].position(), 5);
         }
 
         #[test]
         fn unknown_table_is_no_op() {
             // Incrementing a table not registered must not panic.
             let t = IndicatifProgress::new();
-            t.register(Table::Orders, 1);
-            t.increment(Table::Lineitem, 1);
-            assert_eq!(t.tables.read().unwrap()[&Table::Orders].position(), 0);
+            t.register("orders", 1);
+            t.increment("lineitem", 1);
+            assert_eq!(t.tables.read().unwrap()["orders"].position(), 0);
         }
 
         #[test]
         fn finish_marks_registered_bars_finished() {
             let t = IndicatifProgress::new();
-            t.register(Table::Orders, 2);
-            t.increment(Table::Orders, 2);
+            t.register("orders", 2);
+            t.increment("orders", 2);
             t.finish();
 
-            assert!(t.tables.read().unwrap()[&Table::Orders].is_finished());
+            assert!(t.tables.read().unwrap()["orders"].is_finished());
         }
     }
 }
@@ -354,7 +275,6 @@ mod indicatif_impl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tpch_cli::Table;
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,
@@ -365,16 +285,19 @@ mod tests {
     /// pulling in `indicatif`.
     #[derive(Debug, Default)]
     struct MockTracker {
-        registered: Mutex<Vec<(Table, u64)>>,
+        registered: Mutex<Vec<(String, u64)>>,
         total_increments: AtomicU64,
         finished: AtomicU64,
     }
 
     impl ProgressTracker for MockTracker {
-        fn register(&self, table: Table, total_units: u64) {
-            self.registered.lock().unwrap().push((table, total_units));
+        fn register(&self, table: &str, total_units: u64) {
+            self.registered
+                .lock()
+                .unwrap()
+                .push((table.to_owned(), total_units));
         }
-        fn increment(&self, _table: Table, units: u64) {
+        fn increment(&self, _table: &str, units: u64) {
             self.total_increments.fetch_add(units, Ordering::Relaxed);
         }
         fn finish(&self) {
@@ -386,15 +309,15 @@ mod tests {
     fn mock_tracker_works_through_arc_dyn() {
         let mock = Arc::new(MockTracker::default());
         let dynamic: Arc<dyn ProgressTracker> = mock.clone();
-        dynamic.register(Table::Lineitem, 10);
-        dynamic.register(Table::Orders, 4);
-        dynamic.increment(Table::Lineitem, 3);
-        dynamic.increment(Table::Orders, 1);
+        dynamic.register("lineitem", 10);
+        dynamic.register("orders", 4);
+        dynamic.increment("lineitem", 3);
+        dynamic.increment("orders", 1);
         dynamic.finish();
 
         assert_eq!(
             *mock.registered.lock().unwrap(),
-            vec![(Table::Lineitem, 10), (Table::Orders, 4)]
+            vec![("lineitem".to_owned(), 10), ("orders".to_owned(), 4)]
         );
         assert_eq!(mock.total_increments.load(Ordering::Relaxed), 4);
         assert_eq!(mock.finished.load(Ordering::Relaxed), 1);
@@ -406,13 +329,13 @@ mod tests {
         #[derive(Debug)]
         struct Minimal(AtomicU64);
         impl ProgressTracker for Minimal {
-            fn increment(&self, _t: Table, c: u64) {
+            fn increment(&self, _t: &str, c: u64) {
                 self.0.fetch_add(c, Ordering::Relaxed);
             }
         }
         let m = Minimal(AtomicU64::new(0));
-        m.register(Table::Region, 99); // no-op default
-        m.increment(Table::Region, 7);
+        m.register("region", 99); // no-op default
+        m.increment("region", 7);
         m.finish(); // no-op default
         assert_eq!(m.0.load(Ordering::Relaxed), 7);
     }

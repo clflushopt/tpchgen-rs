@@ -114,7 +114,7 @@ impl FromStr for Table {
 }
 
 impl Table {
-    fn name(&self) -> &'static str {
+    pub(crate) fn name(&self) -> &'static str {
         match self {
             Table::Nation => "nation",
             Table::Region => "region",
@@ -414,18 +414,24 @@ mod tests {
 
     #[derive(Debug, Default)]
     struct RecordingProgress {
-        registered: Mutex<Vec<(Table, u64)>>,
-        increments: Mutex<Vec<(Table, u64)>>,
+        registered: Mutex<Vec<(String, u64)>>,
+        increments: Mutex<Vec<(String, u64)>>,
         finishes: AtomicU64,
     }
 
     impl ProgressTracker for RecordingProgress {
-        fn register(&self, table: Table, total_units: u64) {
-            self.registered.lock().unwrap().push((table, total_units));
+        fn register(&self, table: &str, total_units: u64) {
+            self.registered
+                .lock()
+                .unwrap()
+                .push((table.to_owned(), total_units));
         }
 
-        fn increment(&self, table: Table, units: u64) {
-            self.increments.lock().unwrap().push((table, units));
+        fn increment(&self, table: &str, units: u64) {
+            self.increments
+                .lock()
+                .unwrap()
+                .push((table.to_owned(), units));
         }
 
         fn finish(&self) {
@@ -451,11 +457,11 @@ mod tests {
 
         assert_eq!(
             *tracker.registered.lock().unwrap(),
-            vec![(Table::Region, 1)]
+            vec![("region".to_owned(), 1)]
         );
         assert_eq!(
             *tracker.increments.lock().unwrap(),
-            vec![(Table::Region, 1)]
+            vec![("region".to_owned(), 1)]
         );
         assert_eq!(tracker.finishes.load(Ordering::Relaxed), 1);
     }

@@ -1,6 +1,6 @@
 //! Parquet output format
 
-use crate::tpch_cli::progress::TableProgress;
+use crate::tpch_cli::progress::{NoOpProgressTracker, ProgressTracker};
 use crate::tpch_cli::statistics::WriteStatistics;
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
@@ -42,7 +42,8 @@ where
         iter_iter,
         num_threads,
         parquet_compression,
-        TableProgress::default(),
+        Arc::new(NoOpProgressTracker),
+        "",
     )
     .await
 }
@@ -52,7 +53,8 @@ pub(crate) async fn generate_parquet_with_progress<W: Write + Send + IntoSize + 
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
-    progress: TableProgress,
+    progress: Arc<dyn ProgressTracker>,
+    table_name: &'static str,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
@@ -124,7 +126,7 @@ where
             }
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
-            progress.increment_output_unit();
+            progress.increment(table_name, 1);
         }
         let size = writer.into_inner()?.into_size()?;
         statistics.increment_bytes(size);
@@ -194,23 +196,24 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tpch_cli::progress::{ProgressTracker, RunProgress};
-    use crate::tpch_cli::Table;
+    use crate::tpch_cli::progress::ProgressTracker;
     use std::fs::File;
     use std::io::BufWriter;
-    use std::sync::atomic::{AtomicU64, Ordering};
-    use std::sync::Arc;
+    use std::sync::{Arc, Mutex};
     use tpchgen::generators::RegionGenerator;
     use tpchgen_arrow::RegionArrow;
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     struct CountingProgress {
-        increments: AtomicU64,
+        increments: Mutex<Vec<(String, u64)>>,
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, _table: Table, row_groups: u64) {
-            self.increments.fetch_add(row_groups, Ordering::Relaxed);
+        fn increment(&self, table: &str, row_groups: u64) {
+            self.increments
+                .lock()
+                .unwrap()
+                .push((table.to_owned(), row_groups));
         }
     }
 
@@ -224,11 +227,8 @@ mod tests {
         let output_path = output_dir.path().join("progress.parquet");
         let writer = BufWriter::new(File::create(&output_path).unwrap());
 
-        let tracker = Arc::new(CountingProgress {
-            increments: AtomicU64::new(0),
-        });
+        let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
-        let progress = RunProgress::with_tracker(progress).for_table(Table::Region);
 
         generate_parquet_with_progress(
             writer,
@@ -236,11 +236,15 @@ mod tests {
             1,
             Compression::UNCOMPRESSED,
             progress,
+            "region",
         )
         .await
         .unwrap();
 
-        assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
+        assert_eq!(
+            *tracker.increments.lock().unwrap(),
+            vec![("region".to_owned(), 1), ("region".to_owned(), 1)]
+        );
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
     }
 }
