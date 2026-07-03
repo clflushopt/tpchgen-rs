@@ -4,7 +4,7 @@ This directory contains a set of scripts to generate TPCH data at various scale 
 
 # IO Throughput Limitations
 
-[`tpchgen-cli`](tpchgen-cli/README.md) is the fastest TPCH generator we know of
+[`tpchgen-cli`](../tpchgen-cli/README.md) is the fastest TPCH generator we know of
 at the time of this writing. On a 2023 Mac M3 Max laptop, it easily generates
 data faster than can be written to SSD (which tops out about 1GB/s).
 

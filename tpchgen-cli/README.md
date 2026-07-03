@@ -19,16 +19,16 @@ project details
 blog](https://datafusion.apache.org/blog/2025/04/10/fastest-tpch-generator/) to learn about the project's history
 * Try it yourself by following the instructions below
 
-## Install via `pip`
+## Try with `uvx`
 
 ```shell
-pip install tpchgen-cli
+uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
 ```
 
-## Install via `uv`
+## Install with `pip`
 
 ```shell
-uv tool install tpchgen-cli 
+python -m pip install tpchgen-cli
 ```
 
 ## Install via Rust
