@@ -20,7 +20,28 @@ Blazing fast [TPCH] benchmark data generator, in pure Rust with zero dependencie
 
 ## Try it now
 
-The easiest way to use this software is via the [`tpchgen-cli`] tool.
+Try with `uvx`:
+
+```shell
+uvx tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
+```
+
+![Running tpcgen-cli](tpcgen-cli-run.gif)
+
+Install with `pip`:
+
+```shell
+python -m pip install tpchgen-cli
+```
+
+Then generate TPC-H data:
+
+```shell
+tpchgen-cli parquet -s 1 --output-dir /tmp/tpch
+```
+
+`tpchgen-cli` is a command-line program distributed as a Python package. See the
+[`tpchgen-cli`] README for more install options and examples.
 
 ## Performance
 
