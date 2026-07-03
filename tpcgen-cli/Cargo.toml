@@ -1,5 +1,5 @@
 [package]
-name = "tpcgen"
+name = "tpcgen-cli"
 version = "0.1.0"
 authors = { workspace = true }
 description = "Command line tool for TPC benchmark data generation."
@@ -10,12 +10,12 @@ license = { workspace = true }
 repository = { workspace = true }
 
 [lib]
-name = "tpcgen"
+name = "tpcgen_cli"
 path = "src/lib.rs"
 
 [[bin]]
-name = "tpcgen"
-path = "bin/tpcgen.rs"
+name = "tpcgen-cli"
+path = "bin/tpcgen_cli.rs"
 
 [dependencies]
 arrow = "59"

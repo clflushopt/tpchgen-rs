@@ -38,8 +38,8 @@
 //! # #[cfg(feature = "progress")]
 //! # {
 //! use std::sync::atomic::{AtomicU64, Ordering};
-//! use tpcgen::tpch_cli::progress::ProgressTracker;
-//! use tpcgen::tpch_cli::Table;
+//! use tpcgen_cli::tpch_cli::progress::ProgressTracker;
+//! use tpcgen_cli::tpch_cli::Table;
 //!
 //! #[derive(Debug)]
 //! struct LoggingTracker {

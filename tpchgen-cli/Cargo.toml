@@ -16,16 +16,16 @@ required-features = ["indicatif-progress"]
 
 [dependencies]
 clap = { version = "4.5.32", features = ["derive"] }
-tpcgen = { path = "../tpcgen", version = "0.1.0", default-features = false }
+tpcgen-cli = { path = "../tpcgen-cli", version = "0.1.0", default-features = false }
 tokio = { version = "1.44.1", features = ["full"] }
 
 [features]
 default = ["indicatif-progress"]
 # Enable progress callbacks for applications that want to provide their own
 # progress reporting without pulling in the default terminal progress bars.
-progress = ["tpcgen/progress"]
+progress = ["tpcgen-cli/progress"]
 # Enable the default CLI terminal progress bars backed by `indicatif`.
-indicatif-progress = ["progress", "tpcgen/indicatif-progress"]
+indicatif-progress = ["progress", "tpcgen-cli/indicatif-progress"]
 
 [dev-dependencies]
 assert_cmd = "2.0"

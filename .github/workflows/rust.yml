@@ -61,14 +61,14 @@ jobs:
       - name: All Tests (tpchgen-cli)
         run: cargo test -p tpchgen-cli
 
-  # All tests for tpcgen
-  test-all-tpcgen:
+  # All tests for tpcgen-cli
+  test-all-tpcgen-cli:
     runs-on: ubuntu-latest
     needs: lint
     steps:
       - uses: actions/checkout@v7
-      - name: All Tests (tpcgen)
-        run: cargo test -p tpcgen
+      - name: All Tests (tpcgen-cli)
+        run: cargo test -p tpcgen-cli
 
   # All tests for tpcdsgen
   test-all-tpcdsgen:

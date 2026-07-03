@@ -40,7 +40,7 @@ use tpchgen::generators::{
 ///
 /// # Example
 /// ```
-/// use tpcgen::tpch_cli::{GenerationPlan, OutputFormat, Table};
+/// use tpcgen_cli::tpch_cli::{GenerationPlan, OutputFormat, Table};
 ///
 /// let plan = GenerationPlan::try_new(
 ///   Table::Orders,
