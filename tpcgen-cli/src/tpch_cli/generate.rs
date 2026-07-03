@@ -59,25 +59,10 @@ where
     I: Iterator<Item = G>,
     S: Sink + 'static,
 {
-    let progress = Default::default();
-    generate_in_chunks_impl(sink, sources, num_threads, progress).await
+    generate_in_chunks_with_progress(sink, sources, num_threads, TableProgress::default()).await
 }
 
 pub(crate) async fn generate_in_chunks_with_progress<G, I, S>(
-    sink: S,
-    sources: I,
-    num_threads: usize,
-    progress: TableProgress,
-) -> Result<(), io::Error>
-where
-    G: Source + 'static,
-    I: Iterator<Item = G>,
-    S: Sink + 'static,
-{
-    generate_in_chunks_impl(sink, sources, num_threads, progress).await
-}
-
-async fn generate_in_chunks_impl<G, I, S>(
     mut sink: S,
     sources: I,
     num_threads: usize,
@@ -135,14 +120,13 @@ where
     // The writer task runs in a blocking thread to avoid blocking the async
     // runtime. It reads from the channel and writes to the sink (doing File IO)
     let captured_recycler = recycler.clone();
-    let captured_progress = progress.clone();
     let writer_task = tokio::task::spawn_blocking(move || {
         // The header is not an output unit; only generated chunks from the channel advance progress.
         sink.sink(&header)?;
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
             captured_recycler.return_buffer(buffer);
-            captured_progress.increment_output_unit();
+            progress.increment_output_unit();
         }
         // No more input, flush the sink and return
         sink.flush()
