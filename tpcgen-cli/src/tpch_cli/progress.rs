@@ -95,39 +95,49 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     fn finish(&self) {}
 }
 
+#[derive(Debug, Default)]
+pub(crate) struct NoOpProgressTracker;
+
+impl ProgressTracker for NoOpProgressTracker {
+    fn increment(&self, _table: Table, _units: u64) {}
+}
+
 /// Progress handle for one [`PlanRunner::run`](crate::tpch_cli::runner::PlanRunner::run)
 /// invocation.
 ///
 /// Owns run-level progress lifecycle: registering totals, accounting for
 /// skipped outputs, and finishing the tracker.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 pub(crate) struct RunProgress {
-    tracker: Option<Arc<dyn ProgressTracker>>,
+    tracker: Arc<dyn ProgressTracker>,
+}
+
+impl Default for RunProgress {
+    fn default() -> Self {
+        Self {
+            tracker: Arc::new(NoOpProgressTracker),
+        }
+    }
 }
 
 impl RunProgress {
     pub(crate) fn with_tracker(tracker: Arc<dyn ProgressTracker>) -> Self {
-        Self {
-            tracker: Some(tracker),
-        }
+        Self { tracker }
     }
 
     pub(crate) fn register_totals(&self, plans: &[OutputPlan]) {
-        if let Some(tracker) = self.tracker.as_ref() {
-            let mut totals: BTreeMap<Table, u64> = BTreeMap::new();
-            for plan in plans {
-                *totals.entry(plan.table()).or_insert(0) += plan.chunk_count() as u64;
-            }
-            for (table, total) in totals {
-                tracker.register(table, total);
-            }
+        let mut totals: BTreeMap<Table, u64> = BTreeMap::new();
+        for plan in plans {
+            *totals.entry(plan.table()).or_insert(0) += plan.chunk_count() as u64;
+        }
+        for (table, total) in totals {
+            self.tracker.register(table, total);
         }
     }
 
     pub(crate) fn increment_for_existing(&self, plan: &OutputPlan) {
-        if let Some(tracker) = self.tracker.as_ref() {
-            tracker.increment(plan.table(), plan.chunk_count() as u64);
-        }
+        self.tracker
+            .increment(plan.table(), plan.chunk_count() as u64);
     }
 
     pub(crate) fn for_table(&self, table: Table) -> TableProgress {
@@ -135,9 +145,7 @@ impl RunProgress {
     }
 
     pub(crate) fn finish(self) {
-        if let Some(tracker) = self.tracker {
-            tracker.finish();
-        }
+        self.tracker.finish();
     }
 }
 
@@ -145,22 +153,25 @@ impl RunProgress {
 ///
 /// Used by format writers to report each successfully written output unit
 /// without knowing whether progress tracking is enabled.
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct TableProgress {
-    tracker: Option<(Arc<dyn ProgressTracker>, Table)>,
+    tracker: Arc<dyn ProgressTracker>,
+    table: Table,
+}
+
+impl Default for TableProgress {
+    fn default() -> Self {
+        Self::for_table(Arc::new(NoOpProgressTracker), Table::Region)
+    }
 }
 
 impl TableProgress {
-    pub(crate) fn for_table(progress: Option<Arc<dyn ProgressTracker>>, table: Table) -> Self {
-        Self {
-            tracker: progress.map(|progress| (progress, table)),
-        }
+    pub(crate) fn for_table(tracker: Arc<dyn ProgressTracker>, table: Table) -> Self {
+        Self { tracker, table }
     }
 
     pub(crate) fn increment_output_unit(&self) {
-        if let Some((progress, table)) = self.tracker.as_ref() {
-            progress.increment(*table, 1);
-        }
+        self.tracker.increment(self.table, 1);
     }
 }
 
