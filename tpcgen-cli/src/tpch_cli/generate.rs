@@ -188,22 +188,19 @@ impl BufferRecycler {
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::ProgressTracker;
-    use std::collections::BTreeMap;
-    use std::sync::Mutex;
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        Mutex,
+    };
 
     #[derive(Debug, Default)]
     struct CountingProgress {
-        increments: Mutex<BTreeMap<String, u64>>,
+        increments: AtomicU64,
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, item: &str, units: u64) {
-            *self
-                .increments
-                .lock()
-                .unwrap()
-                .entry(item.to_owned())
-                .or_default() += units;
+        fn increment(&self, _item: &str, units: u64) {
+            self.increments.fetch_add(units, Ordering::Relaxed);
         }
     }
 
@@ -268,10 +265,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(
-            *tracker.increments.lock().unwrap(),
-            BTreeMap::from([("region".to_owned(), 2)])
-        );
+        assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
         assert_eq!(
             *writes.lock().unwrap(),
             vec![

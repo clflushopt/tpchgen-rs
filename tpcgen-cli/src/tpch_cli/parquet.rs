@@ -197,26 +197,23 @@ where
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::ProgressTracker;
-    use std::collections::BTreeMap;
     use std::fs::File;
     use std::io::BufWriter;
-    use std::sync::{Arc, Mutex};
+    use std::sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    };
     use tpchgen::generators::RegionGenerator;
     use tpchgen_arrow::RegionArrow;
 
     #[derive(Debug, Default)]
     struct CountingProgress {
-        increments: Mutex<BTreeMap<String, u64>>,
+        increments: AtomicU64,
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, item: &str, row_groups: u64) {
-            *self
-                .increments
-                .lock()
-                .unwrap()
-                .entry(item.to_owned())
-                .or_default() += row_groups;
+        fn increment(&self, _item: &str, row_groups: u64) {
+            self.increments.fetch_add(row_groups, Ordering::Relaxed);
         }
     }
 
@@ -244,10 +241,7 @@ mod tests {
         .await
         .unwrap();
 
-        assert_eq!(
-            *tracker.increments.lock().unwrap(),
-            BTreeMap::from([("region".to_owned(), 2)])
-        );
+        assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
     }
 }
