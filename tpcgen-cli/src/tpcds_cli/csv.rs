@@ -1,9 +1,11 @@
 //! TPC-DS CSV output.
 
+use arrow::array::RecordBatch;
 use arrow_csv::writer::WriterBuilder;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
@@ -69,13 +71,15 @@ where
     let temp_path = path.with_extension("inprogress");
     let file = File::create(&temp_path)
         .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-    let mut writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-    write_header(&mut writer, batches.schema().fields(), delimiter)?;
+    let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
 
     let mut writer = WriterBuilder::new()
-        .with_header(false)
+        .with_header(true)
         .with_delimiter(delimiter as u8)
         .build(writer);
+
+    // Write the header first.
+    writer.write(&RecordBatch::new_empty(Arc::clone(batches.schema())))?;
 
     for batch in &mut batches {
         writer.write(&batch)?;
@@ -91,18 +95,4 @@ where
     })?;
 
     Ok(())
-}
-
-fn write_header(
-    writer: &mut dyn Write,
-    fields: &arrow::datatypes::Fields,
-    delimiter: char,
-) -> io::Result<()> {
-    for (index, field) in fields.iter().enumerate() {
-        if index > 0 {
-            write!(writer, "{delimiter}")?;
-        }
-        write!(writer, "{}", field.name())?;
-    }
-    writeln!(writer)
 }
