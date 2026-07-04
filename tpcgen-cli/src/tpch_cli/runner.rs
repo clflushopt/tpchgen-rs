@@ -498,11 +498,11 @@ mod tests {
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, table: &str, units: u64) {
+        fn increment(&self, item: &str, units: u64) {
             self.increments
                 .lock()
                 .unwrap()
-                .push((table.to_owned(), units));
+                .push((item.to_owned(), units));
         }
     }
 

@@ -420,18 +420,18 @@ mod tests {
     }
 
     impl ProgressTracker for RecordingProgress {
-        fn register(&self, table: &str, total_units: u64) {
+        fn register(&self, item: &str, total_units: u64) {
             self.registered
                 .lock()
                 .unwrap()
-                .push((table.to_owned(), total_units));
+                .push((item.to_owned(), total_units));
         }
 
-        fn increment(&self, table: &str, units: u64) {
+        fn increment(&self, item: &str, units: u64) {
             self.increments
                 .lock()
                 .unwrap()
-                .push((table.to_owned(), units));
+                .push((item.to_owned(), units));
         }
 
         fn finish(&self) {
