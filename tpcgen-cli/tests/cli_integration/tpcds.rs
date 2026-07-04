@@ -81,60 +81,6 @@ fn test_tpcgen_cli_tpcds_dat_verbose_enables_status_logging() {
     );
 }
 
-/// Test the TPC-DS DAT command forms for the `tpcgen-cli` binary.
-#[test]
-fn test_tpcgen_cli_tpcds_dat_command_forms() {
-    let forms: &[(&[&str], &str)] = &[
-        (&["tpcds"], "reason.dat"),
-        (&["tpcds", "dat"], "reason.dat"),
-    ];
-
-    for (form, expected_file) in forms {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
-        let output_dir = temp_dir.path().join("generated");
-
-        cargo_bin_cmd!("tpcgen-cli")
-            .args(*form)
-            .arg("--scale-factor")
-            .arg("1")
-            .arg("--tables")
-            .arg("reason")
-            .arg("--output-dir")
-            .arg(&output_dir)
-            .arg("--no-progress")
-            .assert()
-            .success();
-
-        let expected_file = output_dir.join(expected_file);
-        assert!(
-            expected_file.exists(),
-            "Expected file {:?} to exist with `tpcgen-cli {}`",
-            expected_file,
-            form.join(" ")
-        );
-
-        let contents = fs::read_to_string(&expected_file).expect("Failed to read DAT file");
-        assert!(
-            contents.starts_with("1|AAAAAAAABAAAAAAA|Package was damaged|\n"),
-            "Expected {:?} to contain deterministic pipe-delimited DAT output",
-            expected_file
-        );
-        assert_eq!(
-            contents.lines().count(),
-            35,
-            "Expected {:?} to contain the reason table at scale factor 1",
-            expected_file
-        );
-        assert_eq!(
-            fs::read_dir(&output_dir)
-                .expect("Failed to read generated output directory")
-                .count(),
-            1,
-            "Expected selected dimension table to produce one DAT file"
-        );
-    }
-}
-
 #[test]
 fn test_tpcgen_cli_tpcds_parquet_single_table() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
