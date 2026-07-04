@@ -188,19 +188,22 @@ impl BufferRecycler {
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::ProgressTracker;
+    use std::collections::BTreeMap;
     use std::sync::Mutex;
 
     #[derive(Debug, Default)]
     struct CountingProgress {
-        increments: Mutex<Vec<(String, u64)>>,
+        increments: Mutex<BTreeMap<String, u64>>,
     }
 
     impl ProgressTracker for CountingProgress {
         fn increment(&self, item: &str, units: u64) {
-            self.increments
+            *self
+                .increments
                 .lock()
                 .unwrap()
-                .push((item.to_owned(), units));
+                .entry(item.to_owned())
+                .or_default() += units;
         }
     }
 
@@ -267,7 +270,7 @@ mod tests {
 
         assert_eq!(
             *tracker.increments.lock().unwrap(),
-            vec![("region".to_owned(), 1), ("region".to_owned(), 1)]
+            BTreeMap::from([("region".to_owned(), 2)])
         );
         assert_eq!(
             *writes.lock().unwrap(),

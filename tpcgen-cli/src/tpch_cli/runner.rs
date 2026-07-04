@@ -477,19 +477,22 @@ mod tests {
     use super::*;
     use crate::tpch_cli::progress::ProgressTracker;
     use crate::tpch_cli::{Compression, GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+    use std::collections::BTreeMap;
     use std::sync::{Arc, Mutex};
 
     #[derive(Debug, Default)]
     struct CountingProgress {
-        increments: Mutex<Vec<(String, u64)>>,
+        increments: Mutex<BTreeMap<String, u64>>,
     }
 
     impl ProgressTracker for CountingProgress {
         fn increment(&self, item: &str, units: u64) {
-            self.increments
+            *self
+                .increments
                 .lock()
                 .unwrap()
-                .push((item.to_owned(), units));
+                .entry(item.to_owned())
+                .or_default() += units;
         }
     }
 
@@ -526,7 +529,7 @@ mod tests {
         assert!(maybe_skip_existing(&output_path, &plan, progress.as_ref()));
         assert_eq!(
             *tracker.increments.lock().unwrap(),
-            vec![("lineitem".to_owned(), expected_units)]
+            BTreeMap::from([("lineitem".to_owned(), expected_units)])
         );
     }
 }

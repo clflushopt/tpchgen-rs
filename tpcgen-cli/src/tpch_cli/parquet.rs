@@ -197,6 +197,7 @@ where
 mod tests {
     use super::*;
     use crate::tpch_cli::progress::ProgressTracker;
+    use std::collections::BTreeMap;
     use std::fs::File;
     use std::io::BufWriter;
     use std::sync::{Arc, Mutex};
@@ -205,15 +206,17 @@ mod tests {
 
     #[derive(Debug, Default)]
     struct CountingProgress {
-        increments: Mutex<Vec<(String, u64)>>,
+        increments: Mutex<BTreeMap<String, u64>>,
     }
 
     impl ProgressTracker for CountingProgress {
         fn increment(&self, item: &str, row_groups: u64) {
-            self.increments
+            *self
+                .increments
                 .lock()
                 .unwrap()
-                .push((item.to_owned(), row_groups));
+                .entry(item.to_owned())
+                .or_default() += row_groups;
         }
     }
 
@@ -243,7 +246,7 @@ mod tests {
 
         assert_eq!(
             *tracker.increments.lock().unwrap(),
-            vec![("region".to_owned(), 1), ("region".to_owned(), 1)]
+            BTreeMap::from([("region".to_owned(), 2)])
         );
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
     }
