@@ -10,6 +10,46 @@ use tempfile::tempdir;
 use tpchgen::generators::OrderGenerator;
 use tpchgen_arrow::{OrderArrow, RecordBatchIterator};
 
+/// Test the TPC-H command forms for the `tpcgen-cli` binary.
+#[test]
+fn test_tpcgen_cli_tpch_command_forms() {
+    let forms: &[(&[&str], &[&str], &str)] = &[
+        (&["tpch"], &[], "part.tbl"),
+        (&["tpch", "tbl"], &[], "part.tbl"),
+        (&["tpch", "csv"], &["--delimiter", "|"], "part.csv"),
+        (
+            &["tpch", "parquet"],
+            &["--compression", "SNAPPY", "--row-group-bytes", "1000000"],
+            "part.parquet",
+        ),
+    ];
+
+    for (form, format_args, expected_file) in forms {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        cargo_bin_cmd!("tpcgen-cli")
+            .args(*form)
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg("part")
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .arg("--no-progress")
+            .args(*format_args)
+            .assert()
+            .success();
+
+        let expected_file = temp_dir.path().join(expected_file);
+        assert!(
+            expected_file.exists(),
+            "Expected file {:?} to exist with `tpcgen-cli {}`",
+            expected_file,
+            form.join(" ")
+        );
+    }
+}
+
 /// Test TBL output for scale factor 0.001 using tpchgen-cli
 #[test]
 fn test_tpchgen_cli_tbl_scale_factor_0_001() {
