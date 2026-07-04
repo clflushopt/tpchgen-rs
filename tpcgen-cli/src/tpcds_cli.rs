@@ -1,4 +1,5 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
+use crate::logging::configure_logging;
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::fmt;
@@ -160,7 +161,7 @@ impl ParquetArgs {
 
 impl CommonArgs {
     fn run_dat(self) -> Result<()> {
-        let _ = self.progress_bars_enabled;
+        configure_logging(self.verbose, self.quiet, None);
         std::fs::create_dir_all(&self.output_dir)?;
         let output_options = dat::OutputOptions::new(self.output_dir.clone())?;
         if let Some(tables) = &self.tables {
