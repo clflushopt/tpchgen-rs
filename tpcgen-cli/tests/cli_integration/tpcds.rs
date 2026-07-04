@@ -2,6 +2,80 @@ use assert_cmd::cargo::cargo_bin_cmd;
 use std::fs;
 use tempfile::tempdir;
 
+/// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_is_quiet_by_default() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .env_remove("RUST_LOG")
+        .assert()
+        .success();
+
+    assert!(
+        assert.get_output().stdout.is_empty(),
+        "Expected TPC-DS DAT generation to write no stdout by default, got: {}",
+        String::from_utf8_lossy(&assert.get_output().stdout)
+    );
+    assert!(
+        assert.get_output().stderr.is_empty(),
+        "Expected TPC-DS DAT generation to write no stderr by default, got: {}",
+        String::from_utf8_lossy(&assert.get_output().stderr)
+    );
+}
+
+/// Test that TPC-DS DAT verbose mode enables status logging on stderr.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_verbose_enables_status_logging() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("dat")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("-v")
+        .env("RUST_LOG", "warn")
+        .assert()
+        .success();
+
+    assert!(
+        assert.get_output().stdout.is_empty(),
+        "Expected verbose TPC-DS DAT logging to use stderr, got stdout: {}",
+        String::from_utf8_lossy(&assert.get_output().stdout)
+    );
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("Verbose output enabled (ignoring RUST_LOG environment variable)"),
+        "Expected verbose mode setup log, got stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("TPC-DS Data Generator (Rust)"),
+        "Expected TPC-DS generator status log, got stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("Generating reason..."),
+        "Expected TPC-DS table start log, got stderr: {stderr}"
+    );
+    assert!(
+        stderr.contains("Generated reason: 1 rows ->"),
+        "Expected TPC-DS table completion log, got stderr: {stderr}"
+    );
+}
+
 /// Test multiple TPC-DS table selection and the default DAT command form.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_multiple_table_selection_command_forms() {
