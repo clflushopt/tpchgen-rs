@@ -18,30 +18,100 @@
 
 use std::fs::File;
 use std::io::{BufWriter, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use tpcdsgen::config::{Session, Table};
+use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::CompatWriter;
-use tpcdsgen::row::*;
+use tpcdsgen::row::{GeneratedRow, TableRow, *};
 use tpcdsgen::types::Date;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+/// DAT output configuration owned by the CLI layer.
+#[derive(Debug, Clone)]
+pub struct OutputOptions {
+    target_directory: PathBuf,
+    suffix: String,
+    null_string: String,
+    separator: char,
+    do_not_terminate: bool,
+    parallelism: i32,
+    overwrite: bool,
+}
+
+impl OutputOptions {
+    pub const DEFAULT_SUFFIX: &'static str = ".dat";
+    pub const DEFAULT_NULL_STRING: &'static str = "";
+    pub const DEFAULT_SEPARATOR: char = '|';
+    pub const DEFAULT_DO_NOT_TERMINATE: bool = false;
+    pub const DEFAULT_PARALLELISM: i32 = 1;
+    pub const DEFAULT_OVERWRITE: bool = true;
+
+    pub fn new(target_directory: PathBuf) -> Result<Self> {
+        let options = Self {
+            target_directory,
+            suffix: Self::DEFAULT_SUFFIX.to_string(),
+            null_string: Self::DEFAULT_NULL_STRING.to_string(),
+            separator: Self::DEFAULT_SEPARATOR,
+            do_not_terminate: Self::DEFAULT_DO_NOT_TERMINATE,
+            parallelism: Self::DEFAULT_PARALLELISM,
+            overwrite: Self::DEFAULT_OVERWRITE,
+        };
+        options.validate()?;
+        Ok(options)
+    }
+
+    fn validate(&self) -> Result<()> {
+        if self.target_directory.as_os_str().is_empty() {
+            return Err(InvalidOptionError::with_message(
+                "directory",
+                "",
+                "Directory cannot be empty",
+            )
+            .into());
+        }
+
+        if self.suffix.is_empty() {
+            return Err(InvalidOptionError::with_message(
+                "suffix",
+                &self.suffix,
+                "Suffix cannot be an empty string",
+            )
+            .into());
+        }
+
+        if self.parallelism < 1 {
+            return Err(InvalidOptionError::with_message(
+                "parallelism",
+                &self.parallelism.to_string(),
+                "Parallelism must be >= 1",
+            )
+            .into());
+        }
+
+        Ok(())
+    }
+}
+
 /// Generate TPC-DS data in DAT format.
-pub fn generate(session: &Session) -> Result<()> {
+pub fn generate(session: &Session, output_options: &OutputOptions) -> Result<()> {
     println!("TPC-DS Data Generator (Rust)");
     println!("Scale factor: {}", session.get_scaling().get_scale());
-    println!("Output directory: {}", session.get_target_directory());
+    println!(
+        "Output directory: {}",
+        output_options.target_directory.display()
+    );
 
     let start = Instant::now();
 
     if session.generate_only_one_table() {
         let table = session.get_only_table_to_generate();
-        generate_table(table, session)?;
+        generate_table(table, session, output_options)?;
     } else {
         for table in Table::main_tables() {
-            generate_table(table, session)?;
+            generate_table(table, session, output_options)?;
         }
     }
 
@@ -51,42 +121,56 @@ pub fn generate(session: &Session) -> Result<()> {
     Ok(())
 }
 
-fn generate_table(table: Table, session: &Session) -> Result<()> {
+fn generate_table(table: Table, session: &Session, output_options: &OutputOptions) -> Result<()> {
     match table {
         // Simple dimension tables
-        Table::CallCenter => generate_simple::<CallCenterRowGenerator>(table, session),
-        Table::CatalogPage => generate_simple::<CatalogPageRowGenerator>(table, session),
-        Table::Customer => generate_simple::<CustomerRowGenerator>(table, session),
-        Table::CustomerAddress => generate_simple::<CustomerAddressRowGenerator>(table, session),
+        Table::CallCenter => {
+            generate_simple::<CallCenterRowGenerator>(table, session, output_options)
+        }
+        Table::CatalogPage => {
+            generate_simple::<CatalogPageRowGenerator>(table, session, output_options)
+        }
+        Table::Customer => generate_simple::<CustomerRowGenerator>(table, session, output_options),
+        Table::CustomerAddress => {
+            generate_simple::<CustomerAddressRowGenerator>(table, session, output_options)
+        }
         Table::CustomerDemographics => {
-            generate_simple::<CustomerDemographicsRowGenerator>(table, session)
+            generate_simple::<CustomerDemographicsRowGenerator>(table, session, output_options)
         }
-        Table::DateDim => generate_simple::<DateDimRowGenerator>(table, session),
-        Table::DbgenVersion => generate_simple::<DbgenVersionRowGenerator>(table, session),
+        Table::DateDim => generate_simple::<DateDimRowGenerator>(table, session, output_options),
+        Table::DbgenVersion => {
+            generate_simple::<DbgenVersionRowGenerator>(table, session, output_options)
+        }
         Table::HouseholdDemographics => {
-            generate_simple::<HouseholdDemographicsRowGenerator>(table, session)
+            generate_simple::<HouseholdDemographicsRowGenerator>(table, session, output_options)
         }
-        Table::IncomeBand => generate_simple::<IncomeBandRowGenerator>(table, session),
-        Table::Item => generate_simple::<ItemRowGenerator>(table, session),
-        Table::Promotion => generate_simple::<PromotionRowGenerator>(table, session),
-        Table::Reason => generate_simple::<ReasonRowGenerator>(table, session),
-        Table::ShipMode => generate_simple::<ShipModeRowGenerator>(table, session),
-        Table::Store => generate_simple::<StoreRowGenerator>(table, session),
-        Table::TimeDim => generate_simple::<TimeDimRowGenerator>(table, session),
-        Table::Warehouse => generate_simple::<WarehouseRowGenerator>(table, session),
-        Table::WebPage => generate_simple::<WebPageRowGenerator>(table, session),
-        Table::WebSite => generate_simple::<WebSiteRowGenerator>(table, session),
+        Table::IncomeBand => {
+            generate_simple::<IncomeBandRowGenerator>(table, session, output_options)
+        }
+        Table::Item => generate_simple::<ItemRowGenerator>(table, session, output_options),
+        Table::Promotion => {
+            generate_simple::<PromotionRowGenerator>(table, session, output_options)
+        }
+        Table::Reason => generate_simple::<ReasonRowGenerator>(table, session, output_options),
+        Table::ShipMode => generate_simple::<ShipModeRowGenerator>(table, session, output_options),
+        Table::Store => generate_simple::<StoreRowGenerator>(table, session, output_options),
+        Table::TimeDim => generate_simple::<TimeDimRowGenerator>(table, session, output_options),
+        Table::Warehouse => {
+            generate_simple::<WarehouseRowGenerator>(table, session, output_options)
+        }
+        Table::WebPage => generate_simple::<WebPageRowGenerator>(table, session, output_options),
+        Table::WebSite => generate_simple::<WebSiteRowGenerator>(table, session, output_options),
 
         // Sales + Returns pairs
-        Table::StoreSales => generate_store_sales(session),
+        Table::StoreSales => generate_store_sales(session, output_options),
         Table::StoreReturns => Ok(()), // Generated with StoreSales
-        Table::CatalogSales => generate_catalog_sales(session),
+        Table::CatalogSales => generate_catalog_sales(session, output_options),
         Table::CatalogReturns => Ok(()), // Generated with CatalogSales
-        Table::WebSales => generate_web_sales(session),
+        Table::WebSales => generate_web_sales(session, output_options),
         Table::WebReturns => Ok(()), // Generated with WebSales
 
         // Special tables
-        Table::Inventory => generate_inventory(session),
+        Table::Inventory => generate_inventory(session, output_options),
 
         // Source tables - skip
         _ => Ok(()),
@@ -131,12 +215,16 @@ impl_factory!(
 );
 
 /// Generate a simple table (one row per row_number, no child tables)
-fn generate_simple<G: RowGeneratorFactory>(table: Table, session: &Session) -> Result<()> {
+fn generate_simple<G: RowGeneratorFactory>(
+    table: Table,
+    session: &Session,
+    output_options: &OutputOptions,
+) -> Result<()> {
     let mut generator = G::create();
     let row_count = session.get_scaling().get_row_count(table);
 
-    let path = get_output_path(table, session);
-    let file = File::create(&path)?;
+    let path = get_output_path(table, output_options);
+    let file = create_output_file(&path, output_options)?;
     let mut writer = CompatWriter::new(BufWriter::new(file), session.get_compat_mode());
 
     print!("Generating {}... ", table.get_name());
@@ -146,7 +234,7 @@ fn generate_simple<G: RowGeneratorFactory>(table: Table, session: &Session) -> R
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
 
         for row in result.get_rows() {
-            row.write_to(&mut writer, session.get_separator())?;
+            write_row(row, &mut writer, output_options)?;
         }
 
         generator.consume_remaining_seeds_for_row();
@@ -159,18 +247,22 @@ fn generate_simple<G: RowGeneratorFactory>(table: Table, session: &Session) -> R
 }
 
 /// Generate store_sales and store_returns together
-fn generate_store_sales(session: &Session) -> Result<()> {
+fn generate_store_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
     let mut generator = StoreSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::StoreSales);
 
-    let sales_path = get_output_path(Table::StoreSales, session);
-    let returns_path = get_output_path(Table::StoreReturns, session);
+    let sales_path = get_output_path(Table::StoreSales, output_options);
+    let returns_path = get_output_path(Table::StoreReturns, output_options);
 
     let compat_mode = session.get_compat_mode();
-    let mut sales_writer =
-        CompatWriter::new(BufWriter::new(File::create(&sales_path)?), compat_mode);
-    let mut returns_writer =
-        CompatWriter::new(BufWriter::new(File::create(&returns_path)?), compat_mode);
+    let mut sales_writer = CompatWriter::new(
+        BufWriter::new(create_output_file(&sales_path, output_options)?),
+        compat_mode,
+    );
+    let mut returns_writer = CompatWriter::new(
+        BufWriter::new(create_output_file(&returns_path, output_options)?),
+        compat_mode,
+    );
 
     print!("Generating store_sales + store_returns... ");
     std::io::stdout().flush()?;
@@ -184,12 +276,12 @@ fn generate_store_sales(session: &Session) -> Result<()> {
         let rows = result.get_rows();
 
         if !rows.is_empty() {
-            rows[0].write_to(&mut sales_writer, session.get_separator())?;
+            write_row(&rows[0], &mut sales_writer, output_options)?;
             sales_count += 1;
         }
 
         if rows.len() > 1 {
-            rows[1].write_to(&mut returns_writer, session.get_separator())?;
+            write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
         }
 
@@ -214,18 +306,22 @@ fn generate_store_sales(session: &Session) -> Result<()> {
 }
 
 /// Generate catalog_sales and catalog_returns together
-fn generate_catalog_sales(session: &Session) -> Result<()> {
+fn generate_catalog_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
     let mut generator = CatalogSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::CatalogSales);
 
-    let sales_path = get_output_path(Table::CatalogSales, session);
-    let returns_path = get_output_path(Table::CatalogReturns, session);
+    let sales_path = get_output_path(Table::CatalogSales, output_options);
+    let returns_path = get_output_path(Table::CatalogReturns, output_options);
 
     let compat_mode = session.get_compat_mode();
-    let mut sales_writer =
-        CompatWriter::new(BufWriter::new(File::create(&sales_path)?), compat_mode);
-    let mut returns_writer =
-        CompatWriter::new(BufWriter::new(File::create(&returns_path)?), compat_mode);
+    let mut sales_writer = CompatWriter::new(
+        BufWriter::new(create_output_file(&sales_path, output_options)?),
+        compat_mode,
+    );
+    let mut returns_writer = CompatWriter::new(
+        BufWriter::new(create_output_file(&returns_path, output_options)?),
+        compat_mode,
+    );
 
     print!("Generating catalog_sales + catalog_returns... ");
     std::io::stdout().flush()?;
@@ -239,12 +335,12 @@ fn generate_catalog_sales(session: &Session) -> Result<()> {
         let rows = result.get_rows();
 
         if !rows.is_empty() {
-            rows[0].write_to(&mut sales_writer, session.get_separator())?;
+            write_row(&rows[0], &mut sales_writer, output_options)?;
             sales_count += 1;
         }
 
         if rows.len() > 1 {
-            rows[1].write_to(&mut returns_writer, session.get_separator())?;
+            write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
         }
 
@@ -269,18 +365,22 @@ fn generate_catalog_sales(session: &Session) -> Result<()> {
 }
 
 /// Generate web_sales and web_returns together
-fn generate_web_sales(session: &Session) -> Result<()> {
+fn generate_web_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
     let mut generator = WebSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::WebSales);
 
-    let sales_path = get_output_path(Table::WebSales, session);
-    let returns_path = get_output_path(Table::WebReturns, session);
+    let sales_path = get_output_path(Table::WebSales, output_options);
+    let returns_path = get_output_path(Table::WebReturns, output_options);
 
     let compat_mode = session.get_compat_mode();
-    let mut sales_writer =
-        CompatWriter::new(BufWriter::new(File::create(&sales_path)?), compat_mode);
-    let mut returns_writer =
-        CompatWriter::new(BufWriter::new(File::create(&returns_path)?), compat_mode);
+    let mut sales_writer = CompatWriter::new(
+        BufWriter::new(create_output_file(&sales_path, output_options)?),
+        compat_mode,
+    );
+    let mut returns_writer = CompatWriter::new(
+        BufWriter::new(create_output_file(&returns_path, output_options)?),
+        compat_mode,
+    );
 
     print!("Generating web_sales + web_returns... ");
     std::io::stdout().flush()?;
@@ -294,12 +394,12 @@ fn generate_web_sales(session: &Session) -> Result<()> {
         let rows = result.get_rows();
 
         if !rows.is_empty() {
-            rows[0].write_to(&mut sales_writer, session.get_separator())?;
+            write_row(&rows[0], &mut sales_writer, output_options)?;
             sales_count += 1;
         }
 
         if rows.len() > 1 {
-            rows[1].write_to(&mut returns_writer, session.get_separator())?;
+            write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
         }
 
@@ -324,7 +424,7 @@ fn generate_web_sales(session: &Session) -> Result<()> {
 }
 
 /// Generate inventory table (special row count calculation)
-fn generate_inventory(session: &Session) -> Result<()> {
+fn generate_inventory(session: &Session, output_options: &OutputOptions) -> Result<()> {
     let mut generator = InventoryRowGenerator::new();
     let scaling = session.get_scaling();
 
@@ -334,9 +434,9 @@ fn generate_inventory(session: &Session) -> Result<()> {
     let n_weeks = (n_days + 7) / 7;
     let num_rows = item_count * warehouse_count * n_weeks as i64;
 
-    let path = get_output_path(Table::Inventory, session);
+    let path = get_output_path(Table::Inventory, output_options);
     let mut writer = CompatWriter::new(
-        BufWriter::new(File::create(&path)?),
+        BufWriter::new(create_output_file(&path, output_options)?),
         session.get_compat_mode(),
     );
 
@@ -347,7 +447,7 @@ fn generate_inventory(session: &Session) -> Result<()> {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
 
         for row in result.get_rows() {
-            row.write_to(&mut writer, session.get_separator())?;
+            write_row(row, &mut writer, output_options)?;
         }
 
         generator.consume_remaining_seeds_for_row();
@@ -360,10 +460,44 @@ fn generate_inventory(session: &Session) -> Result<()> {
 }
 
 /// Get output file path for a table
-fn get_output_path(table: Table, session: &Session) -> std::path::PathBuf {
-    Path::new(session.get_target_directory()).join(format!(
+fn get_output_path(table: Table, output_options: &OutputOptions) -> std::path::PathBuf {
+    Path::new(&output_options.target_directory).join(format!(
         "{}{}",
         table.get_name(),
-        session.get_suffix()
+        output_options.suffix
     ))
+}
+
+fn create_output_file(path: &Path, output_options: &OutputOptions) -> Result<File> {
+    if !output_options.overwrite && path.exists() {
+        return Err(format!("Output file {} already exists", path.display()).into());
+    }
+    Ok(File::create(path)?)
+}
+
+fn write_row(
+    row: &GeneratedRow,
+    writer: &mut dyn Write,
+    output_options: &OutputOptions,
+) -> Result<()> {
+    if output_options.null_string.is_empty() && !output_options.do_not_terminate {
+        row.write_to(writer, output_options.separator)?;
+        return Ok(());
+    }
+
+    for (i, value) in row.get_values().iter().enumerate() {
+        if i > 0 {
+            write!(writer, "{}", output_options.separator)?;
+        }
+        if value.is_empty() {
+            write!(writer, "{}", output_options.null_string)?;
+        } else {
+            write!(writer, "{value}")?;
+        }
+    }
+    if !output_options.do_not_terminate {
+        write!(writer, "{}", output_options.separator)?;
+    }
+    writeln!(writer)?;
+    Ok(())
 }

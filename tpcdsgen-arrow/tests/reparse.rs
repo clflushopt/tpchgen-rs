@@ -33,6 +33,7 @@ use tpcdsgen_arrow::{
 
 /// Session options for tests (scale factor 1).
 static SESSION: LazyLock<Session> = LazyLock::new(Session::default);
+const DAT_SEPARATOR: char = '|';
 
 /// Number of rows to test for `table`.
 fn test_row_count(table: Table) -> i64 {
@@ -57,7 +58,7 @@ fn test_row_count(table: Table) -> i64 {
 fn parse_dat<'a>(data: &'a [u8], schema: &'a SchemaRef) -> impl Iterator<Item = RecordBatch> + 'a {
     let null_re = regex::Regex::new("^$").unwrap();
     let builder = arrow_csv::reader::ReaderBuilder::new(Arc::clone(schema))
-        .with_delimiter(SESSION.get_separator() as u8)
+        .with_delimiter(DAT_SEPARATOR as u8)
         .with_header(false)
         .with_null_regex(null_re);
     builder
@@ -82,7 +83,6 @@ where
     let schema = Arc::clone(schema);
 
     const REPARSE_BUFFER_TARGET_BYTES: usize = 256 * 1024;
-    let separator = SESSION.get_separator();
     let mut source_row = 1;
     std::iter::from_fn(move || {
         let mut data = Vec::new();
@@ -94,7 +94,7 @@ where
             // Format the rows into `data` as pipe-delimited data.
             for row in result.get_rows() {
                 if select(row) {
-                    row.write_to(&mut data, separator).unwrap();
+                    row.write_to(&mut data, DAT_SEPARATOR).unwrap();
                     data.pop();
                     // Note: .tbl lines end with '|' which the Arrow CSV parser treats as a
                     // delimiter for a new column, so replace the last '|' with a newline.

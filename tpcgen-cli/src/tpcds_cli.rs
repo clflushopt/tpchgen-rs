@@ -161,20 +161,25 @@ impl CommonArgs {
     fn run_dat(self) -> Result<()> {
         let _ = self.progress_bars_enabled;
         std::fs::create_dir_all(&self.output_dir)?;
+        let output_options = dat::OutputOptions::new(self.output_dir.clone())?;
         if let Some(tables) = &self.tables {
             for table in tables {
-                self.run_dat_for_table(Some(table.clone()))?;
+                self.run_dat_for_table(Some(table.clone()), &output_options)?;
             }
         } else {
-            self.run_dat_for_table(None)?;
+            self.run_dat_for_table(None, &output_options)?;
         }
 
         Ok(())
     }
 
-    fn run_dat_for_table(&self, table: Option<String>) -> Result<()> {
+    fn run_dat_for_table(
+        &self,
+        table: Option<String>,
+        output_options: &dat::OutputOptions,
+    ) -> Result<()> {
         let session = self.to_session(table)?;
-        dat::generate(&session)
+        dat::generate(&session, output_options)
     }
 
     fn to_session(&self, table: Option<String>) -> Result<Session> {
@@ -192,7 +197,6 @@ impl CommonArgs {
 
         let mut builder = SessionBuilder::new()
             .with_scale_factor(self.scale_factor)
-            .with_target_directory(self.output_dir.to_string_lossy())
             .with_compat_mode(self.compat)
             .with_command_line_arguments(command_line_arguments);
 
