@@ -27,6 +27,7 @@ log = "0.4.26"
 num_cpus = "1.0"
 parquet = "59"
 tpcdsgen = { path = "../tpcdsgen", version = "0.1.0" }
+tpcdsgen-arrow = { path = "../tpcdsgen-arrow", version = "0.1.0" }
 tokio = { version = "1.44.1", features = ["full"] }
 tpchgen = { path = "../tpchgen", version = "3.0.0" }
 tpchgen-arrow = { path = "../tpchgen-arrow", version = "3.0.0" }

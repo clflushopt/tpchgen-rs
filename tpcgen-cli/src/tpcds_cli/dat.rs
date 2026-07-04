@@ -21,6 +21,7 @@ use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
+use log::info;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::CompatWriter;
@@ -97,9 +98,9 @@ impl OutputOptions {
 
 /// Generate TPC-DS data in DAT format.
 pub fn generate(session: &Session, output_options: &OutputOptions) -> Result<()> {
-    println!("TPC-DS Data Generator (Rust)");
-    println!("Scale factor: {}", session.get_scaling().get_scale());
-    println!(
+    info!("TPC-DS Data Generator (Rust)");
+    info!("Scale factor: {}", session.get_scaling().get_scale());
+    info!(
         "Output directory: {}",
         output_options.target_directory.display()
     );
@@ -116,7 +117,7 @@ pub fn generate(session: &Session, output_options: &OutputOptions) -> Result<()>
     }
 
     let elapsed = start.elapsed();
-    println!("\nCompleted in {:.2}s", elapsed.as_secs_f64());
+    info!("Completed in {:.2}s", elapsed.as_secs_f64());
 
     Ok(())
 }
@@ -227,8 +228,7 @@ fn generate_simple<G: RowGeneratorFactory>(
     let file = create_output_file(&path, output_options)?;
     let mut writer = CompatWriter::new(BufWriter::new(file), session.get_compat_mode());
 
-    print!("Generating {}... ", table.get_name());
-    std::io::stdout().flush()?;
+    info!("Generating {}...", table.get_name());
 
     for row_number in 1..=row_count {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
@@ -241,7 +241,12 @@ fn generate_simple<G: RowGeneratorFactory>(
     }
 
     writer.flush()?;
-    println!("{} rows -> {}", row_count, path.display());
+    info!(
+        "Generated {}: {} rows -> {}",
+        table.get_name(),
+        row_count,
+        path.display()
+    );
 
     Ok(())
 }
@@ -264,8 +269,7 @@ fn generate_store_sales(session: &Session, output_options: &OutputOptions) -> Re
         compat_mode,
     );
 
-    print!("Generating store_sales + store_returns... ");
-    std::io::stdout().flush()?;
+    info!("Generating store_sales + store_returns...");
 
     let mut sales_count = 0i64;
     let mut returns_count = 0i64;
@@ -294,8 +298,8 @@ fn generate_store_sales(session: &Session, output_options: &OutputOptions) -> Re
     sales_writer.flush()?;
     returns_writer.flush()?;
 
-    println!(
-        "{} sales, {} returns -> {}, {}",
+    info!(
+        "Generated store_sales + store_returns: {} sales, {} returns -> {}, {}",
         sales_count,
         returns_count,
         sales_path.display(),
@@ -323,8 +327,7 @@ fn generate_catalog_sales(session: &Session, output_options: &OutputOptions) -> 
         compat_mode,
     );
 
-    print!("Generating catalog_sales + catalog_returns... ");
-    std::io::stdout().flush()?;
+    info!("Generating catalog_sales + catalog_returns...");
 
     let mut sales_count = 0i64;
     let mut returns_count = 0i64;
@@ -353,8 +356,8 @@ fn generate_catalog_sales(session: &Session, output_options: &OutputOptions) -> 
     sales_writer.flush()?;
     returns_writer.flush()?;
 
-    println!(
-        "{} sales, {} returns -> {}, {}",
+    info!(
+        "Generated catalog_sales + catalog_returns: {} sales, {} returns -> {}, {}",
         sales_count,
         returns_count,
         sales_path.display(),
@@ -382,8 +385,7 @@ fn generate_web_sales(session: &Session, output_options: &OutputOptions) -> Resu
         compat_mode,
     );
 
-    print!("Generating web_sales + web_returns... ");
-    std::io::stdout().flush()?;
+    info!("Generating web_sales + web_returns...");
 
     let mut sales_count = 0i64;
     let mut returns_count = 0i64;
@@ -412,8 +414,8 @@ fn generate_web_sales(session: &Session, output_options: &OutputOptions) -> Resu
     sales_writer.flush()?;
     returns_writer.flush()?;
 
-    println!(
-        "{} sales, {} returns -> {}, {}",
+    info!(
+        "Generated web_sales + web_returns: {} sales, {} returns -> {}, {}",
         sales_count,
         returns_count,
         sales_path.display(),
@@ -440,8 +442,7 @@ fn generate_inventory(session: &Session, output_options: &OutputOptions) -> Resu
         session.get_compat_mode(),
     );
 
-    print!("Generating inventory... ");
-    std::io::stdout().flush()?;
+    info!("Generating inventory...");
 
     for row_number in 1..=num_rows {
         let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
@@ -454,7 +455,11 @@ fn generate_inventory(session: &Session, output_options: &OutputOptions) -> Resu
     }
 
     writer.flush()?;
-    println!("{} rows -> {}", num_rows, path.display());
+    info!(
+        "Generated inventory: {} rows -> {}",
+        num_rows,
+        path.display()
+    );
 
     Ok(())
 }

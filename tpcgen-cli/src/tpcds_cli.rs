@@ -1,12 +1,14 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
+use crate::logging::configure_logging;
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::fmt;
 use std::path::PathBuf;
 use tpcdsgen::config::{CompatMode, Session, SessionBuilder, Table};
-use tpcdsgen::error::InvalidOptionError;
+use tpcdsgen::error::TpcdsError;
 
 pub mod dat;
+pub mod parquet;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 const NOT_IMPLEMENTED: &str = "TPC-DS data generation is not yet implemented";
@@ -152,14 +154,14 @@ impl CsvArgs {
 
 impl ParquetArgs {
     fn run(self) -> Result<()> {
-        let _ = (self.compression, self.row_group_bytes);
-        self.common.run_not_implemented()
+        let _ = self.row_group_bytes;
+        self.common.run_parquet(self.compression)
     }
 }
 
 impl CommonArgs {
     fn run_dat(self) -> Result<()> {
-        let _ = self.progress_bars_enabled;
+        configure_logging(self.verbose, self.quiet, None);
         std::fs::create_dir_all(&self.output_dir)?;
         let output_options = dat::OutputOptions::new(self.output_dir.clone())?;
         if let Some(tables) = &self.tables {
@@ -173,6 +175,27 @@ impl CommonArgs {
         Ok(())
     }
 
+    fn run_parquet(self, compression: Compression) -> Result<()> {
+        let _ = self.progress_bars_enabled;
+        std::fs::create_dir_all(&self.output_dir)?;
+
+        for table in self.tables()? {
+            let session = self.to_session(Some(table.get_name().to_string()))?;
+            parquet::generate_table(table, session, self.output_dir.clone(), compression)?;
+        }
+
+        Ok(())
+    }
+
+    /// Return the tables that should be generated.
+    fn tables(&self) -> Result<Vec<Table>> {
+        if let Some(tables) = &self.tables {
+            tables.iter().map(|table| parse_table(table)).collect()
+        } else {
+            Ok(Table::main_tables())
+        }
+    }
+
     fn run_dat_for_table(
         &self,
         table: Option<String>,
@@ -183,14 +206,7 @@ impl CommonArgs {
     }
 
     fn to_session(&self, table: Option<String>) -> Result<Session> {
-        let table = table
-            .as_deref()
-            .map(|table| {
-                table
-                    .parse::<Table>()
-                    .map_err(|_| InvalidOptionError::new("table", table))
-            })
-            .transpose()?;
+        let table = table.as_deref().map(parse_table).transpose()?;
 
         // store the command line arguments used to create this
         let command_line_arguments = std::env::args().collect::<Vec<_>>().join(" ");
@@ -211,6 +227,33 @@ impl CommonArgs {
         let _ = self;
         Err(Box::new(NotImplemented))
     }
+}
+
+fn parse_table(table: &str) -> Result<Table> {
+    let parsed = table.parse::<Table>().map_err(|_| {
+        TpcdsError::new(&format!(
+            "unknown table '{table}'. Expected one of: {}",
+            expected_table_names()
+        ))
+    })?;
+
+    if parsed.is_main_table() {
+        Ok(parsed)
+    } else {
+        Err(TpcdsError::new(&format!(
+            "unknown table '{table}'. Expected one of: {}",
+            expected_table_names()
+        ))
+        .into())
+    }
+}
+
+fn expected_table_names() -> String {
+    Table::main_tables()
+        .iter()
+        .map(Table::get_name)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 struct NotImplemented;
