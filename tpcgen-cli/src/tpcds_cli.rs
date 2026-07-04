@@ -186,6 +186,7 @@ impl CommonArgs {
         Ok(())
     }
 
+    /// Return the tables that should be generated.
     fn tables(&self) -> Result<Vec<Table>> {
         if let Some(tables) = &self.tables {
             tables.iter().map(|table| parse_table(table)).collect()
