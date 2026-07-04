@@ -260,7 +260,7 @@ mod tests {
             sources.into_iter(),
             1,
             progress,
-            "region",
+            "ignored",
         )
         .await
         .unwrap();

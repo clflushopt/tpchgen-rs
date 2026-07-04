@@ -236,7 +236,7 @@ mod tests {
             1,
             Compression::UNCOMPRESSED,
             progress,
-            "region",
+            "ignored",
         )
         .await
         .unwrap();
