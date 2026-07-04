@@ -1,6 +1,6 @@
 //! Parquet output format
 
-use crate::tpch_cli::progress::{NoOpProgressTracker, ProgressTracker};
+use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpch_cli::statistics::WriteStatistics;
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
@@ -42,7 +42,7 @@ where
         iter_iter,
         num_threads,
         parquet_compression,
-        Arc::new(NoOpProgressTracker),
+        no_op_progress_tracker(),
         "",
     )
     .await

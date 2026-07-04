@@ -2,7 +2,7 @@ use super::generate::Sink;
 use super::output_plan::OutputPlanGenerator;
 use super::parquet::IntoSize;
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
-use super::progress::{NoOpProgressTracker, ProgressTracker};
+use super::progress::{no_op_progress_tracker, ProgressTracker};
 use super::runner::PlanRunner;
 use super::statistics::WriteStatistics;
 pub use ::parquet::basic::Compression;
@@ -303,7 +303,7 @@ impl TpchGeneratorBuilder {
     pub fn new() -> Self {
         Self {
             config: GeneratorConfig::default(),
-            progress_tracker: Arc::new(NoOpProgressTracker),
+            progress_tracker: no_op_progress_tracker(),
         }
     }
 

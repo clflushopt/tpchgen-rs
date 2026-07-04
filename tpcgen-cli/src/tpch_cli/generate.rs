@@ -3,7 +3,7 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
-use crate::tpch_cli::progress::{NoOpProgressTracker, ProgressTracker};
+use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
@@ -59,14 +59,7 @@ where
     I: Iterator<Item = G>,
     S: Sink + 'static,
 {
-    generate_in_chunks_with_progress(
-        sink,
-        sources,
-        num_threads,
-        Arc::new(NoOpProgressTracker),
-        "",
-    )
-    .await
+    generate_in_chunks_with_progress(sink, sources, num_threads, no_op_progress_tracker(), "").await
 }
 
 pub(crate) async fn generate_in_chunks_with_progress<G, I, S>(

@@ -5,7 +5,7 @@ use crate::tpch_cli::generate::generate_in_chunks_with_progress;
 use crate::tpch_cli::generate::Source;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
 use crate::tpch_cli::parquet::generate_parquet_with_progress;
-use crate::tpch_cli::progress::NoOpProgressTracker;
+use crate::tpch_cli::progress::no_op_progress_tracker;
 use crate::tpch_cli::progress::ProgressTracker;
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
@@ -41,7 +41,7 @@ impl PlanRunner {
         Self {
             plans,
             num_threads,
-            progress: Arc::new(NoOpProgressTracker),
+            progress: no_op_progress_tracker(),
         }
     }
 

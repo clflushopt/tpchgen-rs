@@ -58,6 +58,7 @@
 //! ```
 
 use std::fmt;
+use std::sync::Arc;
 
 /// Receives generation-progress events for one
 /// [`PlanRunner`](crate::tpch_cli::runner::PlanRunner) invocation.
@@ -95,10 +96,14 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
 /// This keeps generation on the same always-reporting path; the no-op
 /// implementation simply ignores every event.
 #[derive(Debug, Default)]
-pub(crate) struct NoOpProgressTracker;
+struct NoOpProgressTracker;
 
 impl ProgressTracker for NoOpProgressTracker {
     fn increment(&self, _table: &str, _units: u64) {}
+}
+
+pub(crate) fn no_op_progress_tracker() -> Arc<dyn ProgressTracker> {
+    Arc::new(NoOpProgressTracker)
 }
 
 #[cfg(feature = "indicatif-progress")]
