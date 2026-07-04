@@ -1,6 +1,7 @@
 //! Binary entry point for the TPC-H and TPC-DS data generator.
 
 use clap::{Parser, Subcommand};
+use std::process::ExitCode;
 use tpcgen_cli::tpcds_cli::Cli as TpcdsCli;
 use tpcgen_cli::tpch_cli::Cli as TpchCli;
 
@@ -54,6 +55,12 @@ impl Cli {
 }
 
 #[tokio::main]
-async fn main() -> Result<()> {
-    Cli::parse().run().await
+async fn main() -> ExitCode {
+    match Cli::parse().run().await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(err) => {
+            eprintln!("Error: {err}");
+            ExitCode::FAILURE
+        }
+    }
 }

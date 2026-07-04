@@ -6,6 +6,10 @@ use tempfile::tempdir;
 #[path = "cli_integration/tpch.rs"]
 mod tpch;
 
+// TPC-DS-specific CLI coverage
+#[path = "cli_integration/tpcds.rs"]
+mod tpcds;
+
 /// Test the TPC-H command forms for the `tpcgen-cli` binary.
 #[test]
 fn test_tpcgen_cli_tpch_command_forms() {
@@ -222,17 +226,11 @@ fn test_tpcgen_cli_tpcds_dat_default_options_generate_all_outputs() {
     );
 }
 
-/// Test that non-DAT TPC-DS command forms still report that generation is unavailable.
+/// Test that non implemented TPC-DS command forms report generation is unavailable.
 #[test]
-fn test_tpcgen_cli_tpcds_non_dat_command_forms_are_not_implemented() {
-    let forms: &[(&[&str], &[&str], &str)] = &[
-        (&["tpcds", "csv"], &["--delimiter", "|"], "reason.csv"),
-        (
-            &["tpcds", "parquet"],
-            &["--compression", "SNAPPY", "--row-group-bytes", "1000000"],
-            "reason.parquet",
-        ),
-    ];
+fn test_tpcgen_cli_tpcds_csv_not_implemented() {
+    let forms: &[(&[&str], &[&str], &str)] =
+        &[(&["tpcds", "csv"], &["--delimiter", "|"], "reason.csv")];
 
     for (form, format_args, unexpected_file) in forms {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
