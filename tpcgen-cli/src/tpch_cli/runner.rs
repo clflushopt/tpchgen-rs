@@ -79,12 +79,12 @@ impl PlanRunner {
 
         // Pre-register per-table output-unit totals so trackers can size their
         // bars before the first `increment`.
-        let mut totals: BTreeMap<&'static str, u64> = BTreeMap::new();
+        let mut totals: BTreeMap<Table, u64> = BTreeMap::new();
         for plan in &plans {
-            *totals.entry(plan.table().name()).or_insert(0) += plan.chunk_count() as u64;
+            *totals.entry(plan.table()).or_default() += plan.chunk_count() as u64;
         }
-        for (table_name, total) in totals {
-            progress.register(table_name, total);
+        for (table, total) in totals {
+            progress.register(table.name(), total);
         }
 
         // Do the actual work in parallel, using a worker queue
