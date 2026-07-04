@@ -248,14 +248,7 @@ where
     match plan.output_location() {
         OutputLocation::Stdout => {
             let sink = WriterSink::new(io::stdout());
-            generate_in_chunks_with_progress(
-                sink,
-                sources,
-                num_threads,
-                Arc::clone(&progress),
-                table_name,
-            )
-            .await
+            generate_in_chunks_with_progress(sink, sources, num_threads, progress, table_name).await
         }
         OutputLocation::File(path) => {
             if maybe_skip_existing(path, &plan, progress.as_ref()) {
@@ -267,14 +260,8 @@ where
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let sink = WriterSink::new(file);
-            generate_in_chunks_with_progress(
-                sink,
-                sources,
-                num_threads,
-                Arc::clone(&progress),
-                table_name,
-            )
-            .await?;
+            generate_in_chunks_with_progress(sink, sources, num_threads, progress, table_name)
+                .await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
                 io::Error::other(format!(
@@ -305,7 +292,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
-                Arc::clone(&progress),
+                progress,
                 table_name,
             )
             .await
@@ -325,7 +312,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
-                Arc::clone(&progress),
+                progress,
                 table_name,
             )
             .await?;
