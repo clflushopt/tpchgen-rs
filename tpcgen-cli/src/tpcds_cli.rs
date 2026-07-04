@@ -2,16 +2,15 @@
 use crate::logging::configure_logging;
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
-use std::fmt;
 use std::path::PathBuf;
 use tpcdsgen::config::{CompatMode, Session, SessionBuilder, Table};
 use tpcdsgen::error::TpcdsError;
 
+pub mod csv;
 pub mod dat;
 pub mod parquet;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
-const NOT_IMPLEMENTED: &str = "TPC-DS data generation is not yet implemented";
 
 #[derive(Args)]
 #[command(version)]
@@ -147,8 +146,7 @@ impl DatArgs {
 
 impl CsvArgs {
     fn run(self) -> Result<()> {
-        let _ = self.delimiter;
-        self.common.run_not_implemented()
+        self.common.run_csv(self.delimiter)
     }
 }
 
@@ -182,6 +180,19 @@ impl CommonArgs {
         for table in self.tables()? {
             let session = self.to_session(Some(table.get_name().to_string()))?;
             parquet::generate_table(table, session, self.output_dir.clone(), compression)?;
+        }
+
+        Ok(())
+    }
+
+    fn run_csv(self, delimiter: char) -> Result<()> {
+        configure_logging(self.verbose, self.quiet, None);
+        let _ = self.progress_bars_enabled;
+        std::fs::create_dir_all(&self.output_dir)?;
+
+        for table in self.tables()? {
+            let session = self.to_session(Some(table.get_name().to_string()))?;
+            csv::generate_table(table, session, self.output_dir.clone(), delimiter)?;
         }
 
         Ok(())
@@ -222,11 +233,6 @@ impl CommonArgs {
 
         Ok(builder.build()?)
     }
-
-    fn run_not_implemented(self) -> Result<()> {
-        let _ = self;
-        Err(Box::new(NotImplemented))
-    }
 }
 
 fn parse_table(table: &str) -> Result<Table> {
@@ -255,22 +261,6 @@ fn expected_table_names() -> String {
         .collect::<Vec<_>>()
         .join(", ")
 }
-
-struct NotImplemented;
-
-impl fmt::Display for NotImplemented {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(NOT_IMPLEMENTED)
-    }
-}
-
-impl fmt::Debug for NotImplemented {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
-}
-
-impl std::error::Error for NotImplemented {}
 
 fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
     let parsed = match s {
