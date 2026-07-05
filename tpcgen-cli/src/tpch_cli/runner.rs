@@ -5,12 +5,13 @@ use crate::tpch_cli::generate::generate_in_chunks_with_progress;
 use crate::tpch_cli::generate::Source;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
 use crate::tpch_cli::parquet::generate_parquet_with_progress;
+use crate::tpch_cli::progress::no_op_progress_tracker;
 use crate::tpch_cli::progress::ProgressTracker;
-use crate::tpch_cli::progress::RunProgress;
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
 use crate::tpch_cli::{OutputFormat, Table, WriterSink};
 use log::{debug, info};
+use std::collections::BTreeMap;
 use std::io;
 use std::io::BufWriter;
 use std::sync::Arc;
@@ -30,7 +31,7 @@ use tpchgen_arrow::{
 pub struct PlanRunner {
     plans: Vec<OutputPlan>,
     num_threads: usize,
-    progress: RunProgress,
+    progress: Arc<dyn ProgressTracker>,
 }
 
 impl PlanRunner {
@@ -40,7 +41,7 @@ impl PlanRunner {
         Self {
             plans,
             num_threads,
-            progress: RunProgress::default(),
+            progress: no_op_progress_tracker(),
         }
     }
 
@@ -52,7 +53,7 @@ impl PlanRunner {
     /// once on the success path. Implementations needing cleanup on the
     /// error or panic path should use `Drop` as a fallback.
     pub fn with_progress_tracker(mut self, tracker: Arc<dyn ProgressTracker>) -> Self {
-        self.progress = RunProgress::with_tracker(tracker);
+        self.progress = tracker;
         self
     }
 
@@ -78,10 +79,16 @@ impl PlanRunner {
 
         // Pre-register per-table output-unit totals so trackers can size their
         // bars before the first `increment`.
-        progress.register_totals(&plans);
+        let mut totals: BTreeMap<Table, u64> = BTreeMap::new();
+        for plan in &plans {
+            *totals.entry(plan.table()).or_default() += plan.chunk_count() as u64;
+        }
+        for (table, total) in totals {
+            progress.register(table.name(), total);
+        }
 
         // Do the actual work in parallel, using a worker queue
-        let mut worker_queue = WorkerQueue::new(num_threads, progress.clone());
+        let mut worker_queue = WorkerQueue::new(num_threads, Arc::clone(&progress));
         while let Some(plan) = plans.pop() {
             worker_queue.schedule_plan(plan).await?;
         }
@@ -111,11 +118,11 @@ struct WorkerQueue {
     join_set: JoinSet<io::Result<usize>>,
     /// Current number of threads available to commit
     available_threads: usize,
-    progress: RunProgress,
+    progress: Arc<dyn ProgressTracker>,
 }
 
 impl WorkerQueue {
-    pub fn new(max_threads: usize, progress: RunProgress) -> Self {
+    pub fn new(max_threads: usize, progress: Arc<dyn ProgressTracker>) -> Self {
         assert!(max_threads > 0);
         Self {
             join_set: JoinSet::new(),
@@ -167,7 +174,7 @@ impl WorkerQueue {
             // run the plan in a separate task, which returns the number of threads it used
             debug!("Spawning plan {plan} with {num_plan_threads} threads");
 
-            let progress = self.progress.clone();
+            let progress = Arc::clone(&self.progress);
             self.join_set
                 .spawn(async move { run_plan(plan, num_plan_threads, progress).await });
             self.available_threads -= num_plan_threads;
@@ -195,7 +202,7 @@ fn task_result<T>(result: Result<io::Result<T>, JoinError>) -> io::Result<T> {
 async fn run_plan(
     plan: OutputPlan,
     num_threads: usize,
-    progress: RunProgress,
+    progress: Arc<dyn ProgressTracker>,
 ) -> io::Result<usize> {
     match plan.table() {
         Table::Nation => run_nation_plan(plan, num_threads, progress).await,
@@ -212,12 +219,16 @@ async fn run_plan(
 /// If `path` already exists, log a warning, advance progress by the full
 /// output-unit count for this plan, and return `true` so the caller can skip
 /// generation. Returns `false` otherwise.
-fn maybe_skip_existing(path: &std::path::Path, plan: &OutputPlan, progress: &RunProgress) -> bool {
+fn maybe_skip_existing(
+    path: &std::path::Path,
+    plan: &OutputPlan,
+    progress: &dyn ProgressTracker,
+) -> bool {
     if !path.exists() {
         return false;
     }
     log::warn!("{} already exists, skipping generation", path.display());
-    progress.increment_for_existing(plan);
+    progress.increment(plan.table().name(), plan.chunk_count() as u64);
     true
 }
 
@@ -226,22 +237,21 @@ async fn write_file<I>(
     plan: OutputPlan,
     num_threads: usize,
     sources: I,
-    progress: RunProgress,
+    progress: Arc<dyn ProgressTracker>,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item: Source> + 'static,
 {
-    let table = plan.table();
-    let table_progress = progress.for_table(table);
+    let table_name = plan.table().name();
     // Since generate_in_chunks already buffers, there is no need to buffer
     // again (aka don't use BufWriter here)
     match plan.output_location() {
         OutputLocation::Stdout => {
             let sink = WriterSink::new(io::stdout());
-            generate_in_chunks_with_progress(sink, sources, num_threads, table_progress).await
+            generate_in_chunks_with_progress(sink, sources, num_threads, progress, table_name).await
         }
         OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
+            if maybe_skip_existing(path, &plan, progress.as_ref()) {
                 return Ok(());
             }
             // write to a temp file and then rename to avoid partial files
@@ -250,7 +260,8 @@ where
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let sink = WriterSink::new(file);
-            generate_in_chunks_with_progress(sink, sources, num_threads, table_progress).await?;
+            generate_in_chunks_with_progress(sink, sources, num_threads, progress, table_name)
+                .await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
                 io::Error::other(format!(
@@ -267,13 +278,12 @@ async fn write_parquet<I>(
     plan: OutputPlan,
     num_threads: usize,
     sources: I,
-    progress: RunProgress,
+    progress: Arc<dyn ProgressTracker>,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item: RecordBatchIterator> + 'static,
 {
-    let table = plan.table();
-    let table_progress = progress.for_table(table);
+    let table_name = plan.table().name();
     match plan.output_location() {
         OutputLocation::Stdout => {
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
@@ -282,12 +292,13 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
-                table_progress,
+                progress,
+                table_name,
             )
             .await
         }
         OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, &progress) {
+            if maybe_skip_existing(path, &plan, progress.as_ref()) {
                 return Ok(());
             }
             // write to a temp file and then rename to avoid partial files
@@ -301,7 +312,8 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
-                table_progress,
+                progress,
+                table_name,
             )
             .await?;
             // rename the temp file to the final path
@@ -328,7 +340,7 @@ macro_rules! define_run {
         async fn $FUN_NAME(
             plan: OutputPlan,
             num_threads: usize,
-            progress: RunProgress,
+            progress: Arc<dyn ProgressTracker>,
         ) -> io::Result<usize> {
             use crate::tpch_cli::GenerationPlan;
             let scale_factor = plan.scale_factor();
@@ -470,13 +482,13 @@ mod tests {
         Arc,
     };
 
-    #[derive(Debug)]
+    #[derive(Debug, Default)]
     struct CountingProgress {
         increments: AtomicU64,
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, _table: Table, units: u64) {
+        fn increment(&self, _item: &str, units: u64) {
             self.increments.fetch_add(units, Ordering::Relaxed);
         }
     }
@@ -508,13 +520,10 @@ mod tests {
         let expected_units = plan.chunk_count() as u64;
         assert!(expected_units > 1);
 
-        let tracker = Arc::new(CountingProgress {
-            increments: AtomicU64::new(0),
-        });
+        let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
-        let progress = RunProgress::with_tracker(progress);
 
-        assert!(maybe_skip_existing(&output_path, &plan, &progress));
+        assert!(maybe_skip_existing(&output_path, &plan, progress.as_ref()));
         assert_eq!(tracker.increments.load(Ordering::Relaxed), expected_units);
     }
 }
