@@ -56,8 +56,8 @@ impl Parquet {
             .get_row_count(table)
             .try_into()
             .unwrap_or(0);
-        // Progress is row-based: register the table row count, then advance by
-        // each written batch's row count.
+        // Register the table row count, then advance by each written batch's
+        // row count.
         progress.register(table_name, rows);
 
         match table {

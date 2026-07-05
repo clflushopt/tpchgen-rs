@@ -284,8 +284,7 @@ fn generate_simple<G: RowGeneratorFactory>(
     let mut generator = G::create();
     let row_count = session.get_scaling().get_row_count(table);
     let table_name = table.get_name();
-    // Progress is row-based: register the table row count, then advance after
-    // each written row.
+    // Register the scaling row count, then advance after each written row.
     progress.register(table_name, progress_units(row_count));
 
     let path = get_output_path(table, output_options);
@@ -541,8 +540,7 @@ fn generate_inventory(
     let n_weeks = (n_days + 7) / 7;
     let num_rows = item_count * warehouse_count * n_weeks as i64;
     let table_name = Table::Inventory.get_name();
-    // Progress is row-based: register the table row count, then advance after
-    // each written row.
+    // Register the calculated row count, then advance after each written row.
     progress.register(table_name, progress_units(num_rows));
 
     let path = get_output_path(Table::Inventory, output_options);
