@@ -350,42 +350,190 @@ fn test_tpcgen_cli_tpcds_dat_default_options_generate_all_outputs() {
     );
 }
 
-/// Test that non implemented TPC-DS command forms report generation is unavailable.
+/// Test that TPC-DS CSV generation writes a headered CSV file for one table.
 #[test]
-fn test_tpcgen_cli_tpcds_csv_not_implemented() {
-    let forms: &[(&[&str], &[&str], &str)] =
-        &[(&["tpcds", "csv"], &["--delimiter", "|"], "reason.csv")];
+fn test_tpcgen_cli_tpcds_csv_single_table() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    for (form, format_args, unexpected_file) in forms {
-        let temp_dir = tempdir().expect("Failed to create temporary directory");
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
 
-        let assert = cargo_bin_cmd!("tpcgen-cli")
-            .args(*form)
-            .arg("--scale-factor")
-            .arg("1")
-            .arg("--tables")
-            .arg("reason")
-            .arg("--output-dir")
-            .arg(temp_dir.path())
-            .arg("--quiet")
-            .args(*format_args)
-            .assert()
-            .failure();
+    let csv_file = temp_dir.path().join("reason.csv");
+    assert!(csv_file.exists(), "Expected {:?} to exist", csv_file);
 
-        let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-        assert!(
-            stderr.contains("TPC-DS data generation is not yet implemented"),
-            "Expected `tpcgen-cli {}` to report that TPC-DS generation is not implemented, got stderr: {}",
-            form.join(" "),
-            stderr
-        );
+    let contents = fs::read_to_string(&csv_file).expect("Failed to read CSV file");
+    let lines: Vec<_> = contents.lines().collect();
+    assert_eq!(
+        lines.first(),
+        Some(&"r_reason_sk,r_reason_id,r_reason_description")
+    );
+    assert_eq!(
+        lines.len(),
+        36,
+        "Expected CSV header plus 35 reason rows at scale factor 1"
+    );
+    assert!(
+        lines.iter().all(|line| !line.ends_with(',')),
+        "Expected CSV rows not to end with a trailing delimiter, got:\n{contents}"
+    );
+}
 
-        let unexpected_file = temp_dir.path().join(unexpected_file);
-        assert!(
-            !unexpected_file.exists(),
-            "Expected `tpcgen-cli {}` not to create {:?}",
-            form.join(" "),
-            unexpected_file
-        );
-    }
+/// Test that TPC-DS CSV generation supports a custom delimiter.
+#[test]
+fn test_tpcgen_cli_tpcds_csv_custom_delimiter() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("\\t")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let contents =
+        fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");
+    let first_line = contents.lines().next().expect("CSV output is empty");
+    assert_eq!(first_line, "r_reason_sk\tr_reason_id\tr_reason_description");
+    assert!(
+        !first_line.contains(','),
+        "Expected custom-delimited CSV header not to use commas: {first_line}"
+    );
+    assert_eq!(
+        first_line.matches('\t').count(),
+        2,
+        "Expected exactly two tab delimiters in the reason header"
+    );
+}
+
+/// Test that TPC-DS CSV generation escapes headers containing the delimiter.
+#[test]
+fn test_tpcgen_cli_tpcds_csv_delimiter_in_header_is_escaped() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("_")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let contents =
+        fs::read_to_string(temp_dir.path().join("reason.csv")).expect("Failed to read CSV file");
+    let first_line = contents.lines().next().expect("CSV output is empty");
+    let second_line = contents.lines().nth(1).expect("CSV data row is missing");
+    assert_eq!(
+        first_line,
+        "\"r_reason_sk\"_\"r_reason_id\"_\"r_reason_description\""
+    );
+    assert_eq!(
+        second_line.split('_').count(),
+        3,
+        "Expected underscore-delimited data rows to have three fields: {second_line}"
+    );
+}
+
+/// Test that default CSV output options generate every main TPC-DS output file.
+#[test]
+fn test_tpcgen_cli_tpcds_csv_default_options_generate_all_outputs() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let expected_files: BTreeSet<_> = [
+        "call_center.csv",
+        "catalog_page.csv",
+        "catalog_returns.csv",
+        "catalog_sales.csv",
+        "customer.csv",
+        "customer_address.csv",
+        "customer_demographics.csv",
+        "date_dim.csv",
+        "dbgen_version.csv",
+        "household_demographics.csv",
+        "income_band.csv",
+        "inventory.csv",
+        "item.csv",
+        "promotion.csv",
+        "reason.csv",
+        "ship_mode.csv",
+        "store.csv",
+        "store_returns.csv",
+        "store_sales.csv",
+        "time_dim.csv",
+        "warehouse.csv",
+        "web_page.csv",
+        "web_returns.csv",
+        "web_sales.csv",
+        "web_site.csv",
+    ]
+    .into_iter()
+    .map(String::from)
+    .collect();
+    let actual_files = fs::read_dir(temp_dir.path())
+        .expect("Failed to read generated output directory")
+        .map(|entry| {
+            entry
+                .expect("Failed to read generated output directory entry")
+                .file_name()
+                .into_string()
+                .expect("Generated output file name is not valid UTF-8")
+        })
+        .collect::<BTreeSet<_>>();
+
+    assert_eq!(
+        actual_files, expected_files,
+        "Expected default TPC-DS CSV generation to produce every main table"
+    );
+}
+
+/// Test that the TPC-DS CSV subcommand rejects a non-ASCII delimiter at parse time.
+#[test]
+fn test_tpcgen_cli_tpcds_csv_rejects_non_ascii_delimiter() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("csv")
+        .arg("--delimiter")
+        .arg("€")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("ASCII"));
 }
