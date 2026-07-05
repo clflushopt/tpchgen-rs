@@ -12,6 +12,12 @@ pub mod parquet;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+enum OutputFormat {
+    Dat(dat::Dat),
+    Csv(csv::Csv),
+    Parquet(parquet::Parquet),
+}
+
 #[derive(Args)]
 #[command(version)]
 #[command(args_conflicts_with_subcommands = true)]
@@ -160,39 +166,29 @@ impl ParquetArgs {
 impl CommonArgs {
     fn run_dat(self) -> Result<()> {
         configure_logging(self.verbose, self.quiet, None);
-        std::fs::create_dir_all(&self.output_dir)?;
-        let output_options = dat::OutputOptions::new(self.output_dir.clone())?;
-        if let Some(tables) = &self.tables {
-            for table in tables {
-                self.run_dat_for_table(Some(table.clone()), &output_options)?;
-            }
-        } else {
-            self.run_dat_for_table(None, &output_options)?;
-        }
-
-        Ok(())
+        let output = dat::Dat::new(self.output_dir.clone())?;
+        self.run_output(OutputFormat::Dat(output))
     }
 
     fn run_parquet(self, compression: Compression) -> Result<()> {
         let _ = self.progress_bars_enabled;
-        std::fs::create_dir_all(&self.output_dir)?;
-
-        for table in self.tables()? {
-            let session = self.to_session(Some(table.get_name().to_string()))?;
-            parquet::generate_table(table, session, self.output_dir.clone(), compression)?;
-        }
-
-        Ok(())
+        let output = parquet::Parquet::new(self.output_dir.clone(), compression);
+        self.run_output(OutputFormat::Parquet(output))
     }
 
     fn run_csv(self, delimiter: char) -> Result<()> {
         configure_logging(self.verbose, self.quiet, None);
         let _ = self.progress_bars_enabled;
+        let output = csv::Csv::new(self.output_dir.clone(), delimiter);
+        self.run_output(OutputFormat::Csv(output))
+    }
+
+    fn run_output(self, output_format: OutputFormat) -> Result<()> {
         std::fs::create_dir_all(&self.output_dir)?;
 
         for table in self.tables()? {
             let session = self.to_session(Some(table.get_name().to_string()))?;
-            csv::generate_table(table, session, self.output_dir.clone(), delimiter)?;
+            output_format.generate_table(table, session)?;
         }
 
         Ok(())
@@ -205,15 +201,6 @@ impl CommonArgs {
         } else {
             Ok(Table::main_tables())
         }
-    }
-
-    fn run_dat_for_table(
-        &self,
-        table: Option<String>,
-        output_options: &dat::OutputOptions,
-    ) -> Result<()> {
-        let session = self.to_session(table)?;
-        dat::generate(&session, output_options)
     }
 
     fn to_session(&self, table: Option<String>) -> Result<Session> {
@@ -232,6 +219,16 @@ impl CommonArgs {
         }
 
         Ok(builder.build()?)
+    }
+}
+
+impl OutputFormat {
+    fn generate_table(&self, table: Table, session: Session) -> Result<()> {
+        match self {
+            OutputFormat::Dat(output) => output.generate_table(table, &session),
+            OutputFormat::Csv(output) => output.generate_table(table, session),
+            OutputFormat::Parquet(output) => output.generate_table(table, session),
+        }
     }
 }
 

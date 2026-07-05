@@ -68,10 +68,6 @@ fn test_tpcgen_cli_tpcds_dat_verbose_enables_status_logging() {
         "Expected verbose mode setup log, got stderr: {stderr}"
     );
     assert!(
-        stderr.contains("TPC-DS Data Generator (Rust)"),
-        "Expected TPC-DS generator status log, got stderr: {stderr}"
-    );
-    assert!(
         stderr.contains("Generating reason..."),
         "Expected TPC-DS table start log, got stderr: {stderr}"
     );

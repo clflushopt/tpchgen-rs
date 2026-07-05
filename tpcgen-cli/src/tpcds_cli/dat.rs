@@ -19,7 +19,6 @@
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
-use std::time::Instant;
 
 use log::info;
 use tpcdsgen::config::{Session, Table};
@@ -32,7 +31,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 /// DAT output configuration owned by the CLI layer.
 #[derive(Debug, Clone)]
-pub struct OutputOptions {
+struct OutputOptions {
     target_directory: PathBuf,
     suffix: String,
     null_string: String,
@@ -43,14 +42,14 @@ pub struct OutputOptions {
 }
 
 impl OutputOptions {
-    pub const DEFAULT_SUFFIX: &'static str = ".dat";
-    pub const DEFAULT_NULL_STRING: &'static str = "";
-    pub const DEFAULT_SEPARATOR: char = '|';
-    pub const DEFAULT_DO_NOT_TERMINATE: bool = false;
-    pub const DEFAULT_PARALLELISM: i32 = 1;
-    pub const DEFAULT_OVERWRITE: bool = true;
+    const DEFAULT_SUFFIX: &'static str = ".dat";
+    const DEFAULT_NULL_STRING: &'static str = "";
+    const DEFAULT_SEPARATOR: char = '|';
+    const DEFAULT_DO_NOT_TERMINATE: bool = false;
+    const DEFAULT_PARALLELISM: i32 = 1;
+    const DEFAULT_OVERWRITE: bool = true;
 
-    pub fn new(target_directory: PathBuf) -> Result<Self> {
+    fn new(target_directory: PathBuf) -> Result<Self> {
         let options = Self {
             target_directory,
             suffix: Self::DEFAULT_SUFFIX.to_string(),
@@ -96,85 +95,95 @@ impl OutputOptions {
     }
 }
 
-/// Generate TPC-DS data in DAT format.
-pub fn generate(session: &Session, output_options: &OutputOptions) -> Result<()> {
-    info!("TPC-DS Data Generator (Rust)");
-    info!("Scale factor: {}", session.get_scaling().get_scale());
-    info!(
-        "Output directory: {}",
-        output_options.target_directory.display()
-    );
-
-    let start = Instant::now();
-
-    if session.generate_only_one_table() {
-        let table = session.get_only_table_to_generate();
-        generate_table(table, session, output_options)?;
-    } else {
-        for table in Table::main_tables() {
-            generate_table(table, session, output_options)?;
-        }
-    }
-
-    let elapsed = start.elapsed();
-    info!("Completed in {:.2}s", elapsed.as_secs_f64());
-
-    Ok(())
+/// DAT output generator.
+#[derive(Debug, Clone)]
+pub(super) struct Dat {
+    output_options: OutputOptions,
 }
 
-fn generate_table(table: Table, session: &Session, output_options: &OutputOptions) -> Result<()> {
-    match table {
-        // Simple dimension tables
-        Table::CallCenter => {
-            generate_simple::<CallCenterRowGenerator>(table, session, output_options)
-        }
-        Table::CatalogPage => {
-            generate_simple::<CatalogPageRowGenerator>(table, session, output_options)
-        }
-        Table::Customer => generate_simple::<CustomerRowGenerator>(table, session, output_options),
-        Table::CustomerAddress => {
-            generate_simple::<CustomerAddressRowGenerator>(table, session, output_options)
-        }
-        Table::CustomerDemographics => {
-            generate_simple::<CustomerDemographicsRowGenerator>(table, session, output_options)
-        }
-        Table::DateDim => generate_simple::<DateDimRowGenerator>(table, session, output_options),
-        Table::DbgenVersion => {
-            generate_simple::<DbgenVersionRowGenerator>(table, session, output_options)
-        }
-        Table::HouseholdDemographics => {
-            generate_simple::<HouseholdDemographicsRowGenerator>(table, session, output_options)
-        }
-        Table::IncomeBand => {
-            generate_simple::<IncomeBandRowGenerator>(table, session, output_options)
-        }
-        Table::Item => generate_simple::<ItemRowGenerator>(table, session, output_options),
-        Table::Promotion => {
-            generate_simple::<PromotionRowGenerator>(table, session, output_options)
-        }
-        Table::Reason => generate_simple::<ReasonRowGenerator>(table, session, output_options),
-        Table::ShipMode => generate_simple::<ShipModeRowGenerator>(table, session, output_options),
-        Table::Store => generate_simple::<StoreRowGenerator>(table, session, output_options),
-        Table::TimeDim => generate_simple::<TimeDimRowGenerator>(table, session, output_options),
-        Table::Warehouse => {
-            generate_simple::<WarehouseRowGenerator>(table, session, output_options)
-        }
-        Table::WebPage => generate_simple::<WebPageRowGenerator>(table, session, output_options),
-        Table::WebSite => generate_simple::<WebSiteRowGenerator>(table, session, output_options),
+impl Dat {
+    pub(super) fn new(target_directory: PathBuf) -> Result<Self> {
+        Ok(Self {
+            output_options: OutputOptions::new(target_directory)?,
+        })
+    }
 
-        // Sales + Returns pairs
-        Table::StoreSales => generate_store_sales(session, output_options),
-        Table::StoreReturns => Ok(()), // Generated with StoreSales
-        Table::CatalogSales => generate_catalog_sales(session, output_options),
-        Table::CatalogReturns => Ok(()), // Generated with CatalogSales
-        Table::WebSales => generate_web_sales(session, output_options),
-        Table::WebReturns => Ok(()), // Generated with WebSales
+    pub(super) fn generate_table(&self, table: Table, session: &Session) -> Result<()> {
+        match table {
+            // Simple dimension tables
+            Table::CallCenter => {
+                generate_simple::<CallCenterRowGenerator>(table, session, &self.output_options)
+            }
+            Table::CatalogPage => {
+                generate_simple::<CatalogPageRowGenerator>(table, session, &self.output_options)
+            }
+            Table::Customer => {
+                generate_simple::<CustomerRowGenerator>(table, session, &self.output_options)
+            }
+            Table::CustomerAddress => {
+                generate_simple::<CustomerAddressRowGenerator>(table, session, &self.output_options)
+            }
+            Table::CustomerDemographics => generate_simple::<CustomerDemographicsRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+            ),
+            Table::DateDim => {
+                generate_simple::<DateDimRowGenerator>(table, session, &self.output_options)
+            }
+            Table::DbgenVersion => {
+                generate_simple::<DbgenVersionRowGenerator>(table, session, &self.output_options)
+            }
+            Table::HouseholdDemographics => generate_simple::<HouseholdDemographicsRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+            ),
+            Table::IncomeBand => {
+                generate_simple::<IncomeBandRowGenerator>(table, session, &self.output_options)
+            }
+            Table::Item => {
+                generate_simple::<ItemRowGenerator>(table, session, &self.output_options)
+            }
+            Table::Promotion => {
+                generate_simple::<PromotionRowGenerator>(table, session, &self.output_options)
+            }
+            Table::Reason => {
+                generate_simple::<ReasonRowGenerator>(table, session, &self.output_options)
+            }
+            Table::ShipMode => {
+                generate_simple::<ShipModeRowGenerator>(table, session, &self.output_options)
+            }
+            Table::Store => {
+                generate_simple::<StoreRowGenerator>(table, session, &self.output_options)
+            }
+            Table::TimeDim => {
+                generate_simple::<TimeDimRowGenerator>(table, session, &self.output_options)
+            }
+            Table::Warehouse => {
+                generate_simple::<WarehouseRowGenerator>(table, session, &self.output_options)
+            }
+            Table::WebPage => {
+                generate_simple::<WebPageRowGenerator>(table, session, &self.output_options)
+            }
+            Table::WebSite => {
+                generate_simple::<WebSiteRowGenerator>(table, session, &self.output_options)
+            }
 
-        // Special tables
-        Table::Inventory => generate_inventory(session, output_options),
+            // Sales + Returns pairs
+            Table::StoreSales => generate_store_sales(session, &self.output_options),
+            Table::StoreReturns => Ok(()), // Generated with StoreSales
+            Table::CatalogSales => generate_catalog_sales(session, &self.output_options),
+            Table::CatalogReturns => Ok(()), // Generated with CatalogSales
+            Table::WebSales => generate_web_sales(session, &self.output_options),
+            Table::WebReturns => Ok(()), // Generated with WebSales
 
-        // Source tables - skip
-        _ => Ok(()),
+            // Special tables
+            Table::Inventory => generate_inventory(session, &self.output_options),
+
+            // Source tables - skip
+            _ => Ok(()),
+        }
     }
 }
 
