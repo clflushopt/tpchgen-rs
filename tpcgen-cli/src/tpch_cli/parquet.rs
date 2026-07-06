@@ -1,6 +1,5 @@
 //! TPCH Parquet output format.
 
-use crate::parquet::TpchRecordBatchIterator;
 use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
 use parquet::basic::Compression;
 use std::io;
@@ -49,9 +48,15 @@ where
     W: Write + Send + IntoSize + 'static,
     I: Iterator<Item: RecordBatchIterator> + 'static,
 {
-    let iter_iter = iter_iter.map(TpchRecordBatchIterator::new);
-    crate::parquet::generate_parquet_with_progress(
+    let mut iter_iter = iter_iter.peekable();
+    let Some(first_iter) = iter_iter.peek() else {
+        return Ok(());
+    };
+    let schema = Arc::clone(first_iter.schema());
+
+    crate::parquet::generate_parquet(
         writer,
+        schema,
         iter_iter,
         num_threads,
         parquet_compression,

@@ -1,7 +1,7 @@
 //! Shared Parquet output helpers.
 
-use arrow::array::RecordBatch;
 use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatch;
 use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
@@ -23,48 +23,15 @@ pub trait IntoSize {
     fn into_size(self) -> Result<usize, io::Error>;
 }
 
-/// An iterator of Arrow [`RecordBatch`]es that also exposes its schema.
-pub trait RecordBatchIterator: Iterator<Item = RecordBatch> + Send {
-    fn schema(&self) -> &SchemaRef;
-}
-
-/// Adapter for TPCH Arrow record batch iterators.
-pub struct TpchRecordBatchIterator<I>(I);
-
-impl<I> TpchRecordBatchIterator<I> {
-    pub fn new(inner: I) -> Self {
-        Self(inner)
-    }
-}
-
-impl<I> Iterator for TpchRecordBatchIterator<I>
-where
-    I: tpchgen_arrow::RecordBatchIterator,
-{
-    type Item = RecordBatch;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.next()
-    }
-}
-
-impl<I> RecordBatchIterator for TpchRecordBatchIterator<I>
-where
-    I: tpchgen_arrow::RecordBatchIterator,
-{
-    fn schema(&self) -> &SchemaRef {
-        self.0.schema()
-    }
-}
-
 /// Converts a set of RecordBatchIterators into a Parquet file.
 ///
 /// Uses num_threads to generate the data in parallel.
 ///
-/// Note the input is an iterator of [`RecordBatchIterator`]; the batches
+/// Note the input is an iterator of [`RecordBatch`] iterators; the batches
 /// produced by each iterator are encoded as their own row group.
-pub async fn generate_parquet_with_progress<W, I>(
+pub async fn generate_parquet<W, I>(
     writer: W,
+    schema: SchemaRef,
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
@@ -73,7 +40,7 @@ pub async fn generate_parquet_with_progress<W, I>(
 ) -> Result<(), io::Error>
 where
     W: Write + Send + IntoSize + 'static,
-    I: Iterator<Item: RecordBatchIterator> + 'static,
+    I: Iterator<Item: Iterator<Item = RecordBatch> + Send> + 'static,
 {
     debug!(
         "Generating Parquet with {num_threads} threads, using {parquet_compression} compression"
@@ -81,11 +48,9 @@ where
     // Based on example in https://docs.rs/parquet/latest/parquet/arrow/arrow_writer/struct.ArrowColumnWriter.html
     let mut iter_iter = iter_iter.peekable();
 
-    // get schema from the first iterator
-    let Some(first_iter) = iter_iter.peek() else {
+    if iter_iter.peek().is_none() {
         return Ok(()); // no data
-    };
-    let schema = Arc::clone(first_iter.schema());
+    }
 
     // Compute the parquet schema
     let writer_properties = WriterProperties::builder()
@@ -179,7 +144,7 @@ fn encode_row_group<I>(
     iter: I,
 ) -> Vec<ArrowColumnChunk>
 where
-    I: RecordBatchIterator,
+    I: Iterator<Item = RecordBatch>,
 {
     // Create writers for each of the leaf columns
     #[allow(deprecated)]
@@ -220,6 +185,7 @@ mod tests {
         Arc,
     };
     use tpchgen::generators::RegionGenerator;
+    use tpchgen_arrow::RecordBatchIterator;
     use tpchgen_arrow::RegionArrow;
 
     #[derive(Debug, Default)]
@@ -233,10 +199,8 @@ mod tests {
         }
     }
 
-    fn region_source() -> TpchRecordBatchIterator<RegionArrow> {
-        TpchRecordBatchIterator::new(
-            RegionArrow::new(RegionGenerator::default()).with_batch_size(5),
-        )
+    fn region_source() -> RegionArrow {
+        RegionArrow::new(RegionGenerator::default()).with_batch_size(5)
     }
 
     #[tokio::test]
@@ -248,8 +212,9 @@ mod tests {
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
 
-        generate_parquet_with_progress(
+        generate_parquet(
             writer,
+            Arc::clone(region_source().schema()),
             vec![region_source(), region_source()].into_iter(),
             1,
             Compression::UNCOMPRESSED,
