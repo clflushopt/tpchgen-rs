@@ -185,6 +185,7 @@ impl CommonArgs {
     }
 
     fn run_parquet(self, compression: Compression, row_group_bytes: usize) -> Result<()> {
+        configure_logging(self.verbose, self.quiet, None);
         let _ = self.progress_bars_enabled;
         let output = parquet::Parquet::new(self.output_dir.clone(), compression, row_group_bytes);
         self.run_output(OutputFormat::Parquet(output))

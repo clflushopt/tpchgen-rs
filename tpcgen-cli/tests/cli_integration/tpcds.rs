@@ -111,6 +111,37 @@ fn test_tpcgen_cli_tpcds_parquet_single_table() {
 }
 
 #[test]
+fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("-v")
+        .env("RUST_LOG", "warn")
+        .assert()
+        .success();
+
+    assert!(
+        assert.get_output().stdout.is_empty(),
+        "Expected verbose TPC-DS Parquet logging to use stderr, got stdout: {}",
+        String::from_utf8_lossy(&assert.get_output().stdout)
+    );
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("Verbose output enabled (ignoring RUST_LOG environment variable)"),
+        "Expected verbose mode setup log, got stderr: {stderr}"
+    );
+}
+
+#[test]
 fn test_tpcgen_cli_tpcds_parquet_default_options_generate_all_outputs() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
