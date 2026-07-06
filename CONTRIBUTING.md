@@ -34,6 +34,26 @@ Prefer following standard Rust guidelines with regards to formatting as for codi
 style, [Effective Rust](https://www.lurklurk.org/effective-rust/title-page.html) is
 a good resource for idiomatic code.
 
+## Benchmarking
+Benchmarking is an important part of this project. We typically evaluate performance
+using [hyperfine](https://github.com/sharkdp/hyperfine).
+
+For example to benchmark the performance of generating TPC-H data using
+`tpchgen` we use a command such as
+
+```shell
+hyperfine --runs 5 \
+--prepare "rm -rf /tmp/output" \
+"target/release/tpcgen-cli tpch parquet --scale-factor=100 --tables=lineitem --parts=10 --output-dir /tmp/output" \
+```
+
+To benchmark the performance of generating TPC-DS data using `tpcgen` we use a command such as
+```shell
+hyperfine --runs 5 \
+--prepare "rm -rf /tmp/output" \
+"target/release/tpcgen-cli tpcds parquet --scale-factor=100 --tables=store_sales --output-dir /tmp/output"
+```
+
 ## License
 
 By contributing to tpchgen-rs, you agree that your contributions will be licensed
