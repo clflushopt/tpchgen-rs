@@ -158,8 +158,22 @@ impl CsvArgs {
 
 impl ParquetArgs {
     fn run(self) -> Result<()> {
-        let _ = self.row_group_bytes;
-        self.common.run_parquet(self.compression)
+        if self.row_group_bytes <= 0 {
+            return Err(TpcdsError::new(&format!(
+                "--row-group-bytes must be greater than zero, got {}",
+                self.row_group_bytes
+            ))
+            .into());
+        }
+
+        let row_group_bytes = usize::try_from(self.row_group_bytes).map_err(|_| {
+            TpcdsError::new(&format!(
+                "--row-group-bytes is too large, got {}",
+                self.row_group_bytes
+            ))
+        })?;
+
+        self.common.run_parquet(self.compression, row_group_bytes)
     }
 }
 
@@ -170,9 +184,9 @@ impl CommonArgs {
         self.run_output(OutputFormat::Dat(output))
     }
 
-    fn run_parquet(self, compression: Compression) -> Result<()> {
+    fn run_parquet(self, compression: Compression, row_group_bytes: usize) -> Result<()> {
         let _ = self.progress_bars_enabled;
-        let output = parquet::Parquet::new(self.output_dir.clone(), compression);
+        let output = parquet::Parquet::new(self.output_dir.clone(), compression, row_group_bytes);
         self.run_output(OutputFormat::Parquet(output))
     }
 
