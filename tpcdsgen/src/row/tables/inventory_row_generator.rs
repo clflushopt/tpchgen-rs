@@ -115,7 +115,8 @@ impl RowGenerator for InventoryRowGenerator {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
 
-    fn skip_rows_until_starting_row_number(&mut self, _starting_row_number: i64) {
-        // Inventory doesn't need special skip logic as it's not order-based
+    fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
     }
 }
