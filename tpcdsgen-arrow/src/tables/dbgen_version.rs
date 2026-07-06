@@ -1,7 +1,9 @@
 use crate::conversions::{date_to_date32, opt, string_view_array_from_opt_iter};
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, RecordBatch, Time32SecondArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{DbgenVersionRowGenerator, GeneratedRow};
@@ -26,16 +28,16 @@ impl DbgenVersionArrow {
     }
 }
 
-impl RecordBatchIterator for DbgenVersionArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for DbgenVersionArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for DbgenVersionArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -62,22 +64,20 @@ impl Iterator for DbgenVersionArrow {
             cmdline.push(opt(nbm, 3, r.get_dv_cmdline_args().to_owned()));
         }
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(string_view_array_from_opt_iter(
-                        version.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Date32Array::from(create_date)),
-                    Arc::new(Time32SecondArray::from(create_time)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cmdline.iter().map(|s| s.as_deref()),
-                    )),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(string_view_array_from_opt_iter(
+                    version.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Date32Array::from(create_date)),
+                Arc::new(Time32SecondArray::from(create_time)),
+                Arc::new(string_view_array_from_opt_iter(
+                    cmdline.iter().map(|s| s.as_deref()),
+                )),
+            ],
+        );
+        Some(batch)
     }
 }
 

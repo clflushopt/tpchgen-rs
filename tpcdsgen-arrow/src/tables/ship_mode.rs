@@ -1,7 +1,9 @@
 use crate::conversions::{opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{GeneratedRow, ShipModeRowGenerator};
@@ -26,16 +28,16 @@ impl ShipModeArrow {
     }
 }
 
-impl RecordBatchIterator for ShipModeArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for ShipModeArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for ShipModeArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -66,30 +68,28 @@ impl Iterator for ShipModeArrow {
             sm_contract.push(opt(nbm, 5, r.get_sm_contract().to_owned()));
         }
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(sm_sk)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        sm_id.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        sm_type.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        sm_code.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        sm_carrier.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        sm_contract.iter().map(|s| s.as_deref()),
-                    )),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(sm_sk)),
+                Arc::new(string_view_array_from_opt_iter(
+                    sm_id.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    sm_type.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    sm_code.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    sm_carrier.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    sm_contract.iter().map(|s| s.as_deref()),
+                )),
+            ],
+        );
+        Some(batch)
     }
 }
 

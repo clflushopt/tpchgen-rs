@@ -1,19 +1,18 @@
 //! TPC-DS CSV output.
 
 use arrow::array::RecordBatch;
+use arrow::record_batch::RecordBatchReader;
 use arrow_csv::writer::WriterBuilder;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
-use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
     CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
     DbgenVersionArrow, HouseholdDemographicsArrow, IncomeBandArrow, InventoryArrow, ItemArrow,
-    PromotionArrow, ReasonArrow, RecordBatchIterator, ShipModeArrow, StoreArrow, StoreReturnsArrow,
-    StoreSalesArrow, TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow,
-    WebSiteArrow,
+    PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
+    TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -74,7 +73,7 @@ impl Csv {
     /// Write the record batches to a CSV file at the specified path.
     fn write_batches<I>(&self, path: PathBuf, mut batches: I) -> Result<()>
     where
-        I: RecordBatchIterator,
+        I: RecordBatchReader,
     {
         let temp_path = path.with_extension("inprogress");
         let file = File::create(&temp_path)
@@ -87,9 +86,10 @@ impl Csv {
             .build(writer);
 
         // Write the header first.
-        writer.write(&RecordBatch::new_empty(Arc::clone(batches.schema())))?;
+        writer.write(&RecordBatch::new_empty(batches.schema()))?;
 
         for batch in &mut batches {
+            let batch = batch?;
             writer.write(&batch)?;
         }
 

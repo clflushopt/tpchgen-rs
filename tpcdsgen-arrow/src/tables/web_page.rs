@@ -1,9 +1,11 @@
 use crate::conversions::{
     bool_to_yn, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
 };
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{GeneratedRow, WebPageRowGenerator};
@@ -28,16 +30,16 @@ impl WebPageArrow {
     }
 }
 
-impl RecordBatchIterator for WebPageArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for WebPageArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for WebPageArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -84,34 +86,32 @@ impl Iterator for WebPageArrow {
             wp_max_ad_count.push(opt(nbm, 13, r.get_wp_max_ad_count()));
         }
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(wp_sk)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        wp_id.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Date32Array::from(wp_rec_start)),
-                    Arc::new(Date32Array::from(wp_rec_end)),
-                    Arc::new(Int64Array::from(wp_creation_date)),
-                    Arc::new(Int64Array::from(wp_access_date)),
-                    Arc::new(string_view_array_from_opt_iter(wp_autogen.iter().copied())),
-                    Arc::new(Int64Array::from(wp_customer)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        wp_url.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        wp_type.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(wp_char_count)),
-                    Arc::new(Int32Array::from(wp_link_count)),
-                    Arc::new(Int32Array::from(wp_image_count)),
-                    Arc::new(Int32Array::from(wp_max_ad_count)),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(wp_sk)),
+                Arc::new(string_view_array_from_opt_iter(
+                    wp_id.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Date32Array::from(wp_rec_start)),
+                Arc::new(Date32Array::from(wp_rec_end)),
+                Arc::new(Int64Array::from(wp_creation_date)),
+                Arc::new(Int64Array::from(wp_access_date)),
+                Arc::new(string_view_array_from_opt_iter(wp_autogen.iter().copied())),
+                Arc::new(Int64Array::from(wp_customer)),
+                Arc::new(string_view_array_from_opt_iter(
+                    wp_url.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    wp_type.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(wp_char_count)),
+                Arc::new(Int32Array::from(wp_link_count)),
+                Arc::new(Int32Array::from(wp_image_count)),
+                Arc::new(Int32Array::from(wp_max_ad_count)),
+            ],
+        );
+        Some(batch)
     }
 }
 

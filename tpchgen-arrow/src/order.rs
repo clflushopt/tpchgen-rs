@@ -1,9 +1,11 @@
+use crate::DEFAULT_BATCH_SIZE;
 use crate::conversions::{
     decimal128_array_from_iter, string_view_array_from_display_iter, to_arrow_date32,
 };
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{OrderGenerator, OrderGeneratorIterator};
 
@@ -21,7 +23,7 @@ use tpchgen::generators::{OrderGenerator, OrderGeneratorIterator};
 /// let mut arrow_generator = OrderArrow::new(generator)
 ///   .with_batch_size(10);
 /// // Read the first 10 batches
-/// let batch = arrow_generator.next().unwrap();
+/// let batch = arrow_generator.next().unwrap().unwrap();
 /// // compare the output by pretty printing it
 /// let formatted_batches = arrow::util::pretty::pretty_format_batches(&[batch])
 ///   .unwrap()
@@ -64,14 +66,14 @@ impl OrderArrow {
     }
 }
 
-impl RecordBatchIterator for OrderArrow {
-    fn schema(&self) -> &SchemaRef {
-        &ORDER_SCHEMA
+impl RecordBatchReader for OrderArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&ORDER_SCHEMA)
     }
 }
 
 impl Iterator for OrderArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Get next rows to convert
@@ -94,7 +96,7 @@ impl Iterator for OrderArrow {
         let o_comment = StringViewArray::from_iter_values(rows.iter().map(|r| r.o_comment));
 
         let batch = RecordBatch::try_new(
-            Arc::clone(self.schema()),
+            self.schema(),
             vec![
                 Arc::new(o_orderkey),
                 Arc::new(o_custkey),
@@ -106,8 +108,7 @@ impl Iterator for OrderArrow {
                 Arc::new(o_shippriority),
                 Arc::new(o_comment),
             ],
-        )
-        .unwrap();
+        );
         Some(batch)
     }
 }

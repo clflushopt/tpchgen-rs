@@ -10,6 +10,7 @@ use crate::tpch_cli::progress::ProgressTracker;
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
 use crate::tpch_cli::{OutputFormat, Table, WriterSink};
+use arrow::record_batch::RecordBatchReader;
 use log::{debug, info};
 use std::collections::BTreeMap;
 use std::io;
@@ -21,8 +22,8 @@ use tpchgen::generators::{
     PartSuppGenerator, RegionGenerator, SupplierGenerator,
 };
 use tpchgen_arrow::{
-    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow,
-    RecordBatchIterator, RegionArrow, SupplierArrow,
+    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow, RegionArrow,
+    SupplierArrow,
 };
 
 /// Runs multiple [`OutputPlan`]s in parallel, managing the number of threads
@@ -281,7 +282,8 @@ async fn write_parquet<I>(
     progress: Arc<dyn ProgressTracker>,
 ) -> Result<(), io::Error>
 where
-    I: Iterator<Item: RecordBatchIterator> + 'static,
+    I: Iterator + 'static,
+    I::Item: RecordBatchReader + Send,
 {
     let table_name = plan.table().name();
     match plan.output_location() {
@@ -334,7 +336,7 @@ where
 /// $GENERATOR: The generator type to use
 /// $TBL_SOURCE: The [`Source`] type to use for TBL format
 /// $CSV_SOURCE: The [`Source`] type to use for CSV format
-/// $PARQUET_SOURCE: The [`RecordBatchIterator`] type to use for Parquet format
+/// $PARQUET_SOURCE: The [`RecordBatchReader`] type to use for Parquet format
 macro_rules! define_run {
     ($FUN_NAME:ident, $GENERATOR:ident, $TBL_SOURCE:ty, $CSV_SOURCE:ty, $PARQUET_SOURCE:ty) => {
         async fn $FUN_NAME(
@@ -380,7 +382,7 @@ macro_rules! define_run {
             fn parquet_sources(
                 generation_plan: &GenerationPlan,
                 scale_factor: f64,
-            ) -> impl Iterator<Item: RecordBatchIterator> + 'static {
+            ) -> impl Iterator<Item: RecordBatchReader + Send> + 'static {
                 generation_plan
                     .clone()
                     .into_iter()

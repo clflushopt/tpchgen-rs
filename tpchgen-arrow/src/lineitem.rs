@@ -1,9 +1,11 @@
+use crate::DEFAULT_BATCH_SIZE;
 use crate::conversions::{decimal128_array_from_iter, to_arrow_date32};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{
     Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch, StringViewArray,
 };
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{LineItemGenerator, LineItemGeneratorIterator};
 
@@ -21,7 +23,7 @@ use tpchgen::generators::{LineItemGenerator, LineItemGeneratorIterator};
 /// let mut arrow_generator = LineItemArrow::new(generator)
 ///   .with_batch_size(10);
 /// // Read the first 10 batches
-/// let batch = arrow_generator.next().unwrap();
+/// let batch = arrow_generator.next().unwrap().unwrap();
 /// // compare the output by pretty printing it
 /// let formatted_batches = arrow::util::pretty::pretty_format_batches(&[batch])
 ///   .unwrap()
@@ -69,14 +71,14 @@ impl LineItemArrow {
     }
 }
 
-impl RecordBatchIterator for LineItemArrow {
-    fn schema(&self) -> &SchemaRef {
-        &LINEITEM_SCHEMA
+impl RecordBatchReader for LineItemArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&LINEITEM_SCHEMA)
     }
 }
 
 impl Iterator for LineItemArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
     /// Generate the next batch of data, if there is one
     fn next(&mut self) -> Option<Self::Item> {
@@ -123,7 +125,7 @@ impl Iterator for LineItemArrow {
         let l_comment = StringViewArray::from_iter_values(rows.iter().map(|row| row.l_comment));
 
         let batch = RecordBatch::try_new(
-            Arc::clone(self.schema()),
+            self.schema(),
             vec![
                 Arc::new(l_orderkey),
                 Arc::new(l_partkey),
@@ -142,9 +144,7 @@ impl Iterator for LineItemArrow {
                 Arc::new(l_shipmode),
                 Arc::new(l_comment),
             ],
-        )
-        .unwrap();
-
+        );
         Some(batch)
     }
 }

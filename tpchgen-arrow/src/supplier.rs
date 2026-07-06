@@ -1,7 +1,9 @@
+use crate::DEFAULT_BATCH_SIZE;
 use crate::conversions::{decimal128_array_from_iter, string_view_array_from_display_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{SupplierGenerator, SupplierGeneratorIterator};
 
@@ -19,7 +21,7 @@ use tpchgen::generators::{SupplierGenerator, SupplierGeneratorIterator};
 /// let mut arrow_generator = SupplierArrow::new(generator)
 ///   .with_batch_size(10);
 /// // Read the first 10 batches
-/// let batch = arrow_generator.next().unwrap();
+/// let batch = arrow_generator.next().unwrap().unwrap();
 /// // compare the output by pretty printing it
 /// let formatted_batches = arrow::util::pretty::pretty_format_batches(&[batch])
 ///   .unwrap()
@@ -49,14 +51,14 @@ impl SupplierArrow {
     }
 }
 
-impl RecordBatchIterator for SupplierArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SUPPLIER_SCHEMA
+impl RecordBatchReader for SupplierArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SUPPLIER_SCHEMA)
     }
 }
 
 impl Iterator for SupplierArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Get next rows to convert
@@ -74,7 +76,7 @@ impl Iterator for SupplierArrow {
         let s_comment = string_view_array_from_display_iter(rows.iter().map(|r| &r.s_comment));
 
         let batch = RecordBatch::try_new(
-            Arc::clone(self.schema()),
+            self.schema(),
             vec![
                 Arc::new(s_suppkey),
                 Arc::new(s_name),
@@ -84,8 +86,7 @@ impl Iterator for SupplierArrow {
                 Arc::new(s_acctbal),
                 Arc::new(s_comment),
             ],
-        )
-        .unwrap();
+        );
         Some(batch)
     }
 }

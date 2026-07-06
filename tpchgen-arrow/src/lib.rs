@@ -1,7 +1,7 @@
 //! Generate TPCH data as Arrow RecordBatches
 //!
 //! This crate provides generators for TPCH tables that directly produces
-//! Arrow [`RecordBatch`]es. This is significantly faster than generating TBL or CSV
+//! Arrow [`RecordBatch`](arrow::array::RecordBatch)es. This is significantly faster than generating TBL or CSV
 //! files and then parsing them into Arrow.
 //!
 //! # Example
@@ -14,7 +14,7 @@
 //! let mut arrow_generator = LineItemArrow::new(generator)
 //!   .with_batch_size(10);
 //! // The generator is a Rust iterator, producing RecordBatch
-//! let batch = arrow_generator.next().unwrap();
+//! let batch = arrow_generator.next().unwrap().unwrap();
 //! // compare the output by pretty printing it
 //! let formatted_batches = pretty_format_batches(&[batch]).unwrap().to_string();
 //! assert_eq!(formatted_batches.lines().collect::<Vec<_>>(), vec![
@@ -44,8 +44,6 @@ mod partsupp;
 mod region;
 mod supplier;
 
-use arrow::array::RecordBatch;
-use arrow::datatypes::SchemaRef;
 pub use customer::CustomerArrow;
 pub use lineitem::LineItemArrow;
 pub use nation::NationArrow;
@@ -54,11 +52,6 @@ pub use part::PartArrow;
 pub use partsupp::PartSuppArrow;
 pub use region::RegionArrow;
 pub use supplier::SupplierArrow;
-
-/// Iterator of Arrow [`RecordBatch`] that also knows its schema
-pub trait RecordBatchIterator: Iterator<Item = RecordBatch> + Send {
-    fn schema(&self) -> &SchemaRef;
-}
 
 /// The default number of rows in each Batch
 pub const DEFAULT_BATCH_SIZE: usize = 8 * 1000;

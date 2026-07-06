@@ -1,20 +1,19 @@
 //! TPC-DS Parquet output.
 
+use arrow::record_batch::RecordBatchReader;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use std::fs::File;
 use std::io::{self, BufWriter};
 use std::path::PathBuf;
-use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
     CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
     DbgenVersionArrow, HouseholdDemographicsArrow, IncomeBandArrow, InventoryArrow, ItemArrow,
-    PromotionArrow, ReasonArrow, RecordBatchIterator, ShipModeArrow, StoreArrow, StoreReturnsArrow,
-    StoreSalesArrow, TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow,
-    WebSiteArrow,
+    PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
+    TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -77,7 +76,7 @@ impl Parquet {
     /// Write the record batches to a Parquet file at the specified path.
     fn write_batches<I>(&self, path: PathBuf, mut batches: I) -> Result<()>
     where
-        I: RecordBatchIterator,
+        I: RecordBatchReader,
     {
         let temp_path = path.with_extension("inprogress");
         let file = File::create(&temp_path)
@@ -86,13 +85,10 @@ impl Parquet {
         let writer_properties = WriterProperties::builder()
             .set_compression(self.compression)
             .build();
-        let mut writer = ArrowWriter::try_new(
-            writer,
-            Arc::clone(batches.schema()),
-            Some(writer_properties),
-        )?;
+        let mut writer = ArrowWriter::try_new(writer, batches.schema(), Some(writer_properties))?;
 
         for batch in &mut batches {
+            let batch = batch?;
             writer.write(&batch)?;
         }
 

@@ -1,4 +1,4 @@
-//! Generate TPC-DS data as Apache Arrow [`RecordBatch`]es.
+//! Generate TPC-DS data as Apache Arrow [`RecordBatch`](arrow::array::RecordBatch)es.
 //!
 //! This crate wraps the [`tpcdsgen`] row generators and produces typed Arrow
 //! arrays directly — bypassing the intermediate string formatting step —
@@ -7,11 +7,11 @@
 //! # Example
 //! ```
 //! use tpcdsgen::config::Session;
-//! use tpcdsgen_arrow::{ReasonArrow, RecordBatchIterator};
+//! use tpcdsgen_arrow::ReasonArrow;
 //!
 //! let session = Session::default();
 //! let mut gen = ReasonArrow::new(session).with_batch_size(100);
-//! let batch = gen.next().unwrap();
+//! let batch = gen.next().unwrap().unwrap();
 //! assert_eq!(batch.num_columns(), 3);
 //! ```
 
@@ -20,8 +20,6 @@ mod tables;
 
 use std::collections::VecDeque;
 
-use arrow::array::RecordBatch;
-use arrow::datatypes::SchemaRef;
 use tpcdsgen::config::Session;
 use tpcdsgen::row::{GeneratedRow, RowGenerator};
 
@@ -33,12 +31,7 @@ pub use tables::{
     TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
-/// An iterator of Arrow [`RecordBatch`]es that also exposes its schema.
-pub trait RecordBatchIterator: Iterator<Item = RecordBatch> + Send {
-    fn schema(&self) -> &SchemaRef;
-}
-
-/// Default number of rows per [`RecordBatch`].
+/// Default number of rows per [`RecordBatch`](arrow::array::RecordBatch).
 pub const DEFAULT_BATCH_SIZE: usize = 8_000;
 
 /// Adapts a [`RowGenerator`] into a streaming [`Iterator`] of [`GeneratedRow`]s.

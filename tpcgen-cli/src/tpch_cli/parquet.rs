@@ -3,6 +3,7 @@
 use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpch_cli::statistics::WriteStatistics;
 use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatchReader;
 use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
@@ -15,18 +16,17 @@ use std::io;
 use std::io::Write;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
-use tpchgen_arrow::RecordBatchIterator;
 
 pub trait IntoSize {
     /// Convert the object into a size
     fn into_size(self) -> Result<usize, io::Error>;
 }
 
-/// Converts a set of RecordBatchIterators into a Parquet file
+/// Converts a set of RecordBatchReaders into a Parquet file
 ///
 /// Uses num_threads to generate the data in parallel
 ///
-/// Note the input is an iterator of [`RecordBatchIterator`]; The batches
+/// Note the input is an iterator of [`RecordBatchReader`]; The batches
 /// produced by each iterator is encoded as its own row group.
 pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
     writer: W,
@@ -35,7 +35,8 @@ pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
     parquet_compression: Compression,
 ) -> Result<(), io::Error>
 where
-    I: Iterator<Item: RecordBatchIterator> + 'static,
+    I: Iterator + 'static,
+    I::Item: RecordBatchReader + Send,
 {
     generate_parquet_with_progress(
         writer,
@@ -57,7 +58,8 @@ pub(crate) async fn generate_parquet_with_progress<W: Write + Send + IntoSize + 
     table_name: &'static str,
 ) -> Result<(), io::Error>
 where
-    I: Iterator<Item: RecordBatchIterator> + 'static,
+    I: Iterator + 'static,
+    I::Item: RecordBatchReader + Send,
 {
     debug!(
         "Generating Parquet with {num_threads} threads, using {parquet_compression} compression"
@@ -69,7 +71,7 @@ where
     let Some(first_iter) = iter_iter.peek() else {
         return Ok(()); // no data shrug
     };
-    let schema = Arc::clone(first_iter.schema());
+    let schema = first_iter.schema();
 
     // Compute the parquet schema
     let writer_properties = WriterProperties::builder()
@@ -163,7 +165,7 @@ fn encode_row_group<I>(
     iter: I,
 ) -> Vec<ArrowColumnChunk>
 where
-    I: RecordBatchIterator,
+    I: RecordBatchReader,
 {
     // Create writers for each of the leaf columns
     #[allow(deprecated)]
@@ -176,6 +178,7 @@ where
 
     // generate the data and send it to the tasks (via the sender channels)
     for batch in iter {
+        let batch = batch.unwrap();
         let columns = batch.columns().iter();
         let col_writers = col_writers.iter_mut();
         let fields = schema.fields().iter();

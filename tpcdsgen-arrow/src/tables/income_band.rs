@@ -1,7 +1,9 @@
 use crate::conversions::opt;
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int32Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{GeneratedRow, IncomeBandRowGenerator};
@@ -26,16 +28,16 @@ impl IncomeBandArrow {
     }
 }
 
-impl RecordBatchIterator for IncomeBandArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for IncomeBandArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for IncomeBandArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -60,17 +62,15 @@ impl Iterator for IncomeBandArrow {
             upper.push(opt(nbm, 2, r.get_ib_upper_bound()));
         }
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int32Array::from(band_id)),
-                    Arc::new(Int32Array::from(lower)),
-                    Arc::new(Int32Array::from(upper)),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int32Array::from(band_id)),
+                Arc::new(Int32Array::from(lower)),
+                Arc::new(Int32Array::from(upper)),
+            ],
+        );
+        Some(batch)
     }
 }
 

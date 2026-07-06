@@ -1,7 +1,9 @@
+use crate::DEFAULT_BATCH_SIZE;
 use crate::conversions::{decimal128_array_from_iter, string_view_array_from_display_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{PartSuppGenerator, PartSuppGeneratorIterator};
 
@@ -19,7 +21,7 @@ use tpchgen::generators::{PartSuppGenerator, PartSuppGeneratorIterator};
 /// let mut arrow_generator = PartSuppArrow::new(generator)
 ///   .with_batch_size(10);
 /// // Read the first 10 batches
-/// let batch = arrow_generator.next().unwrap();
+/// let batch = arrow_generator.next().unwrap().unwrap();
 /// // compare the output by pretty printing it
 /// let formatted_batches = arrow::util::pretty::pretty_format_batches(&[batch])
 ///   .unwrap()
@@ -62,14 +64,14 @@ impl PartSuppArrow {
     }
 }
 
-impl RecordBatchIterator for PartSuppArrow {
-    fn schema(&self) -> &SchemaRef {
-        &PARTSUPP_SCHEMA
+impl RecordBatchReader for PartSuppArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&PARTSUPP_SCHEMA)
     }
 }
 
 impl Iterator for PartSuppArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Get next rows to convert
@@ -85,7 +87,7 @@ impl Iterator for PartSuppArrow {
         let ps_comment = string_view_array_from_display_iter(rows.iter().map(|r| r.ps_comment));
 
         let batch = RecordBatch::try_new(
-            Arc::clone(self.schema()),
+            self.schema(),
             vec![
                 Arc::new(ps_partkey),
                 Arc::new(ps_suppkey),
@@ -93,8 +95,7 @@ impl Iterator for PartSuppArrow {
                 Arc::new(ps_supplycost),
                 Arc::new(ps_comment),
             ],
-        )
-        .unwrap();
+        );
         Some(batch)
     }
 }

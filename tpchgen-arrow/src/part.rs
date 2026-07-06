@@ -1,7 +1,9 @@
+use crate::DEFAULT_BATCH_SIZE;
 use crate::conversions::{decimal128_array_from_iter, string_view_array_from_display_iter};
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
 use arrow::array::{Int32Array, Int64Array, RecordBatch, StringViewArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{PartGenerator, PartGeneratorIterator};
 
@@ -19,7 +21,7 @@ use tpchgen::generators::{PartGenerator, PartGeneratorIterator};
 /// let mut arrow_generator = PartArrow::new(generator)
 ///   .with_batch_size(10);
 /// // Read the first 10 batches
-/// let batch = arrow_generator.next().unwrap();
+/// let batch = arrow_generator.next().unwrap().unwrap();
 /// // compare the output by pretty printing it
 /// let formatted_batches = arrow::util::pretty::pretty_format_batches(&[batch])
 ///   .unwrap()
@@ -62,14 +64,14 @@ impl PartArrow {
     }
 }
 
-impl RecordBatchIterator for PartArrow {
-    fn schema(&self) -> &SchemaRef {
-        &PART_SCHEMA
+impl RecordBatchReader for PartArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&PART_SCHEMA)
     }
 }
 
 impl Iterator for PartArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Get next rows to convert
@@ -89,7 +91,7 @@ impl Iterator for PartArrow {
         let p_comment = StringViewArray::from_iter_values(rows.iter().map(|r| r.p_comment));
 
         let batch = RecordBatch::try_new(
-            Arc::clone(self.schema()),
+            self.schema(),
             vec![
                 Arc::new(p_partkey),
                 Arc::new(p_name),
@@ -101,8 +103,7 @@ impl Iterator for PartArrow {
                 Arc::new(p_retailprice),
                 Arc::new(p_comment),
             ],
-        )
-        .unwrap();
+        );
         Some(batch)
     }
 }

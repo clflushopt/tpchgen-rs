@@ -1,7 +1,9 @@
 use crate::conversions::{address_columns, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{GeneratedRow, WarehouseRowGenerator};
@@ -26,16 +28,16 @@ impl WarehouseArrow {
     }
 }
 
-impl RecordBatchIterator for WarehouseArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for WarehouseArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for WarehouseArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -78,32 +80,30 @@ impl Iterator for WarehouseArrow {
             gmt_offset,
         ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(w_sk)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        w_id.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        w_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(w_sq_ft)),
-                    Arc::new(street_number),
-                    Arc::new(street_name),
-                    Arc::new(street_type),
-                    Arc::new(suite_number),
-                    Arc::new(city),
-                    Arc::new(county),
-                    Arc::new(state),
-                    Arc::new(zip),
-                    Arc::new(country),
-                    Arc::new(gmt_offset),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(w_sk)),
+                Arc::new(string_view_array_from_opt_iter(
+                    w_id.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    w_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(w_sq_ft)),
+                Arc::new(street_number),
+                Arc::new(street_name),
+                Arc::new(street_type),
+                Arc::new(suite_number),
+                Arc::new(city),
+                Arc::new(county),
+                Arc::new(state),
+                Arc::new(zip),
+                Arc::new(country),
+                Arc::new(gmt_offset),
+            ],
+        );
+        Some(batch)
     }
 }
 

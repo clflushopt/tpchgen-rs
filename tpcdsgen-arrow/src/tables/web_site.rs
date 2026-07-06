@@ -2,9 +2,11 @@ use crate::conversions::{
     address_columns, decimal_to_i128, julian_to_date32, opt, sk_opt,
     string_view_array_from_opt_iter,
 };
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{GeneratedRow, WebSiteRowGenerator};
@@ -29,16 +31,16 @@ impl WebSiteArrow {
     }
 }
 
-impl RecordBatchIterator for WebSiteArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for WebSiteArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for WebSiteArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -109,56 +111,54 @@ impl Iterator for WebSiteArrow {
             .with_precision_and_scale(38, 2)
             .unwrap();
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(web_sk)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_id.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Date32Array::from(web_rec_start)),
-                    Arc::new(Date32Array::from(web_rec_end)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int64Array::from(web_open_date)),
-                    Arc::new(Int64Array::from(web_close_date)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_class.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_manager.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(web_market_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_market_class.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_market_desc.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_market_manager.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(web_company_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        web_company_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(street_number),
-                    Arc::new(street_name),
-                    Arc::new(street_type),
-                    Arc::new(suite_number),
-                    Arc::new(city),
-                    Arc::new(county),
-                    Arc::new(state),
-                    Arc::new(zip),
-                    Arc::new(country),
-                    Arc::new(gmt_offset),
-                    Arc::new(tax_arr),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(web_sk)),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_id.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Date32Array::from(web_rec_start)),
+                Arc::new(Date32Array::from(web_rec_end)),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int64Array::from(web_open_date)),
+                Arc::new(Int64Array::from(web_close_date)),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_class.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_manager.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(web_market_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_market_class.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_market_desc.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_market_manager.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(web_company_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    web_company_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(street_number),
+                Arc::new(street_name),
+                Arc::new(street_type),
+                Arc::new(suite_number),
+                Arc::new(city),
+                Arc::new(county),
+                Arc::new(state),
+                Arc::new(zip),
+                Arc::new(country),
+                Arc::new(gmt_offset),
+                Arc::new(tax_arr),
+            ],
+        );
+        Some(batch)
     }
 }
 

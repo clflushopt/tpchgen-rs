@@ -1,7 +1,9 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{GeneratedRow, StoreSalesRowGenerator};
@@ -26,16 +28,16 @@ impl StoreReturnsArrow {
     }
 }
 
-impl RecordBatchIterator for StoreReturnsArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for StoreReturnsArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for StoreReturnsArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -107,34 +109,32 @@ impl Iterator for StoreReturnsArrow {
                 .with_precision_and_scale(38, 2)
                 .unwrap()
         };
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(sr_returned_date)),
-                    Arc::new(Int64Array::from(sr_returned_time)),
-                    Arc::new(Int64Array::from(sr_item)),
-                    Arc::new(Int64Array::from(sr_customer)),
-                    Arc::new(Int64Array::from(sr_cdemo)),
-                    Arc::new(Int64Array::from(sr_hdemo)),
-                    Arc::new(Int64Array::from(sr_addr)),
-                    Arc::new(Int64Array::from(sr_store)),
-                    Arc::new(Int64Array::from(sr_reason)),
-                    Arc::new(Int64Array::from(sr_ticket)),
-                    Arc::new(Int32Array::from(sr_quantity)),
-                    Arc::new(dec(sr_return_amt)),
-                    Arc::new(dec(sr_return_tax)),
-                    Arc::new(dec(sr_return_amt_inc_tax)),
-                    Arc::new(dec(sr_fee)),
-                    Arc::new(dec(sr_return_ship_cost)),
-                    Arc::new(dec(sr_refunded_cash)),
-                    Arc::new(dec(sr_reversed_charge)),
-                    Arc::new(dec(sr_store_credit)),
-                    Arc::new(dec(sr_net_loss)),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(sr_returned_date)),
+                Arc::new(Int64Array::from(sr_returned_time)),
+                Arc::new(Int64Array::from(sr_item)),
+                Arc::new(Int64Array::from(sr_customer)),
+                Arc::new(Int64Array::from(sr_cdemo)),
+                Arc::new(Int64Array::from(sr_hdemo)),
+                Arc::new(Int64Array::from(sr_addr)),
+                Arc::new(Int64Array::from(sr_store)),
+                Arc::new(Int64Array::from(sr_reason)),
+                Arc::new(Int64Array::from(sr_ticket)),
+                Arc::new(Int32Array::from(sr_quantity)),
+                Arc::new(dec(sr_return_amt)),
+                Arc::new(dec(sr_return_tax)),
+                Arc::new(dec(sr_return_amt_inc_tax)),
+                Arc::new(dec(sr_fee)),
+                Arc::new(dec(sr_return_ship_cost)),
+                Arc::new(dec(sr_refunded_cash)),
+                Arc::new(dec(sr_reversed_charge)),
+                Arc::new(dec(sr_store_credit)),
+                Arc::new(dec(sr_net_loss)),
+            ],
+        );
+        Some(batch)
     }
 }
 

@@ -1,3 +1,4 @@
+use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
 use parquet::file::metadata::ParquetMetaDataReader;
@@ -5,10 +6,9 @@ use std::fs;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
-use std::sync::Arc;
 use tempfile::tempdir;
 use tpchgen::generators::OrderGenerator;
-use tpchgen_arrow::{OrderArrow, RecordBatchIterator};
+use tpchgen_arrow::OrderArrow;
 
 /// Test the TPC-H command forms for the `tpcgen-cli` binary.
 #[test]
@@ -418,7 +418,7 @@ async fn test_write_parquet_orders() {
 
     // Read the generated parquet file
     let file = File::open(&output_path).expect("Failed to open parquet file");
-    let options = ArrowReaderOptions::new().with_schema(Arc::clone(arrow_generator.schema()));
+    let options = ArrowReaderOptions::new().with_schema(arrow_generator.schema());
 
     let reader = ParquetRecordBatchReaderBuilder::try_new_with_options(file, options)
         .expect("Failed to create ParquetRecordBatchReaderBuilder")
@@ -432,6 +432,7 @@ async fn test_write_parquet_orders() {
         let arrow_batch = arrow_generator
             .next()
             .expect("Failed to generate record batch from OrderArrow");
+        let arrow_batch = arrow_batch.expect("Arrow generation should not fail");
         assert_eq!(
             parquet_batch, arrow_batch,
             "Mismatch between parquet and arrow record batches"

@@ -1,9 +1,11 @@
 use crate::conversions::{
     decimal_to_i128, is_null, julian_to_date32, opt, sk_opt, string_view_array_from_opt_iter,
 };
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Decimal128Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{GeneratedRow, ItemRowGenerator};
@@ -28,16 +30,16 @@ impl ItemArrow {
     }
 }
 
-impl RecordBatchIterator for ItemArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for ItemArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for ItemArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -113,60 +115,58 @@ impl Iterator for ItemArrow {
             .with_precision_and_scale(38, 2)
             .unwrap();
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(i_sk)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_id.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Date32Array::from(i_rec_start)),
-                    Arc::new(Date32Array::from(i_rec_end)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_desc.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(price_arr),
-                    Arc::new(wholesale_arr),
-                    Arc::new(Int64Array::from(i_brand_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_brand.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int64Array::from(i_class_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_class.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int64Array::from(i_category_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_category.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int64Array::from(i_manufact_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_manufact.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_size.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_formulation.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_color.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_units.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_container.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int64Array::from(i_manager_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        i_product_name.iter().map(|s| s.as_deref()),
-                    )),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(i_sk)),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_id.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Date32Array::from(i_rec_start)),
+                Arc::new(Date32Array::from(i_rec_end)),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_desc.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(price_arr),
+                Arc::new(wholesale_arr),
+                Arc::new(Int64Array::from(i_brand_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_brand.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int64Array::from(i_class_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_class.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int64Array::from(i_category_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_category.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int64Array::from(i_manufact_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_manufact.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_size.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_formulation.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_color.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_units.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_container.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int64Array::from(i_manager_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    i_product_name.iter().map(|s| s.as_deref()),
+                )),
+            ],
+        );
+        Some(batch)
     }
 }
 

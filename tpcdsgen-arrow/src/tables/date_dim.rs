@@ -1,7 +1,9 @@
 use crate::conversions::{bool_to_yn, date_to_date32, sk_opt, string_view_array_from_opt_iter};
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Int32Array, Int64Array, RecordBatch, StringViewBuilder};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{DateDimRowGenerator, GeneratedRow};
@@ -26,16 +28,16 @@ impl DateDimArrow {
     }
 }
 
-impl RecordBatchIterator for DateDimArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for DateDimArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for DateDimArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -123,58 +125,56 @@ impl Iterator for DateDimArrow {
             quarter_name_b.append_value(s);
         }
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(d_date_sk)),
-                    Arc::new(id_b.finish()),
-                    Arc::new(Date32Array::from_iter_values(d_date)),
-                    Arc::new(Int32Array::from_iter_values(d_month_seq)),
-                    Arc::new(Int32Array::from_iter_values(d_week_seq)),
-                    Arc::new(Int32Array::from_iter_values(d_quarter_seq)),
-                    Arc::new(Int32Array::from_iter_values(d_year)),
-                    Arc::new(Int32Array::from_iter_values(d_dow)),
-                    Arc::new(Int32Array::from_iter_values(d_moy)),
-                    Arc::new(Int32Array::from_iter_values(d_dom)),
-                    Arc::new(Int32Array::from_iter_values(d_qoy)),
-                    Arc::new(Int32Array::from_iter_values(d_fy_year)),
-                    Arc::new(Int32Array::from_iter_values(d_fy_quarter_seq)),
-                    Arc::new(Int32Array::from_iter_values(d_fy_week_seq)),
-                    Arc::new(day_name_b.finish()),
-                    Arc::new(quarter_name_b.finish()),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_holiday.iter().map(|s| Some(*s)),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_weekend.iter().map(|s| Some(*s)),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_following_holiday.iter().map(|s| Some(*s)),
-                    )),
-                    Arc::new(Int32Array::from_iter_values(d_first_dom)),
-                    Arc::new(Int32Array::from_iter_values(d_last_dom)),
-                    Arc::new(Int32Array::from_iter_values(d_same_day_ly)),
-                    Arc::new(Int32Array::from_iter_values(d_same_day_lq)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_current_day.iter().map(|s| Some(*s)),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_current_week.iter().map(|s| Some(*s)),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_current_month.iter().map(|s| Some(*s)),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_current_quarter.iter().map(|s| Some(*s)),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        d_current_year.iter().map(|s| Some(*s)),
-                    )),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(d_date_sk)),
+                Arc::new(id_b.finish()),
+                Arc::new(Date32Array::from_iter_values(d_date)),
+                Arc::new(Int32Array::from_iter_values(d_month_seq)),
+                Arc::new(Int32Array::from_iter_values(d_week_seq)),
+                Arc::new(Int32Array::from_iter_values(d_quarter_seq)),
+                Arc::new(Int32Array::from_iter_values(d_year)),
+                Arc::new(Int32Array::from_iter_values(d_dow)),
+                Arc::new(Int32Array::from_iter_values(d_moy)),
+                Arc::new(Int32Array::from_iter_values(d_dom)),
+                Arc::new(Int32Array::from_iter_values(d_qoy)),
+                Arc::new(Int32Array::from_iter_values(d_fy_year)),
+                Arc::new(Int32Array::from_iter_values(d_fy_quarter_seq)),
+                Arc::new(Int32Array::from_iter_values(d_fy_week_seq)),
+                Arc::new(day_name_b.finish()),
+                Arc::new(quarter_name_b.finish()),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_holiday.iter().map(|s| Some(*s)),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_weekend.iter().map(|s| Some(*s)),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_following_holiday.iter().map(|s| Some(*s)),
+                )),
+                Arc::new(Int32Array::from_iter_values(d_first_dom)),
+                Arc::new(Int32Array::from_iter_values(d_last_dom)),
+                Arc::new(Int32Array::from_iter_values(d_same_day_ly)),
+                Arc::new(Int32Array::from_iter_values(d_same_day_lq)),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_current_day.iter().map(|s| Some(*s)),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_current_week.iter().map(|s| Some(*s)),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_current_month.iter().map(|s| Some(*s)),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_current_quarter.iter().map(|s| Some(*s)),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    d_current_year.iter().map(|s| Some(*s)),
+                )),
+            ],
+        );
+        Some(batch)
     }
 }
 

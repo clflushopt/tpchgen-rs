@@ -1,7 +1,9 @@
 use crate::conversions::{bool_to_yn, opt, sk_opt, string_view_array_from_opt_iter};
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CustomerRowGenerator, GeneratedRow};
@@ -26,16 +28,16 @@ impl CustomerArrow {
     }
 }
 
-impl RecordBatchIterator for CustomerArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for CustomerArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for CustomerArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -94,48 +96,46 @@ impl Iterator for CustomerArrow {
             c_last_review.push(opt(nbm, 17, r.get_c_last_review_date()));
         }
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(c_sk)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_id.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int64Array::from(c_cdemo_sk)),
-                    Arc::new(Int64Array::from(c_hdemo_sk)),
-                    Arc::new(Int64Array::from(c_addr_sk)),
-                    Arc::new(Int32Array::from(c_shipto_date)),
-                    Arc::new(Int32Array::from(c_sales_date)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_salutation.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_first_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_last_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_pref_flag.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(c_birth_day)),
-                    Arc::new(Int32Array::from(c_birth_month)),
-                    Arc::new(Int32Array::from(c_birth_year)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_birth_country.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_login.iter().map(|_| None::<&str>),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        c_email.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(c_last_review)),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(c_sk)),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_id.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int64Array::from(c_cdemo_sk)),
+                Arc::new(Int64Array::from(c_hdemo_sk)),
+                Arc::new(Int64Array::from(c_addr_sk)),
+                Arc::new(Int32Array::from(c_shipto_date)),
+                Arc::new(Int32Array::from(c_sales_date)),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_salutation.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_first_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_last_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_pref_flag.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(c_birth_day)),
+                Arc::new(Int32Array::from(c_birth_month)),
+                Arc::new(Int32Array::from(c_birth_year)),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_birth_country.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_login.iter().map(|_| None::<&str>),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    c_email.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(c_last_review)),
+            ],
+        );
+        Some(batch)
     }
 }
 

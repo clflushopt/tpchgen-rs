@@ -1,7 +1,9 @@
 use crate::conversions::{decimal_to_i128, opt, sk_opt};
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CatalogSalesRowGenerator, GeneratedRow};
@@ -26,16 +28,16 @@ impl CatalogSalesArrow {
     }
 }
 
-impl RecordBatchIterator for CatalogSalesArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for CatalogSalesArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for CatalogSalesArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -143,48 +145,46 @@ impl Iterator for CatalogSalesArrow {
                 .with_precision_and_scale(38, 2)
                 .unwrap()
         };
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(cs_sold_date)),
-                    Arc::new(Int64Array::from(cs_sold_time)),
-                    Arc::new(Int64Array::from(cs_ship_date)),
-                    Arc::new(Int64Array::from(cs_bill_customer)),
-                    Arc::new(Int64Array::from(cs_bill_cdemo)),
-                    Arc::new(Int64Array::from(cs_bill_hdemo)),
-                    Arc::new(Int64Array::from(cs_bill_addr)),
-                    Arc::new(Int64Array::from(cs_ship_customer)),
-                    Arc::new(Int64Array::from(cs_ship_cdemo)),
-                    Arc::new(Int64Array::from(cs_ship_hdemo)),
-                    Arc::new(Int64Array::from(cs_ship_addr)),
-                    Arc::new(Int64Array::from(cs_call_center)),
-                    Arc::new(Int64Array::from(cs_catalog_page)),
-                    Arc::new(Int64Array::from(cs_ship_mode)),
-                    Arc::new(Int64Array::from(cs_warehouse)),
-                    Arc::new(Int64Array::from(cs_item)),
-                    Arc::new(Int64Array::from(cs_promo)),
-                    Arc::new(Int64Array::from(cs_order_number)),
-                    Arc::new(Int32Array::from(cs_quantity)),
-                    Arc::new(dec(cs_wholesale_cost)),
-                    Arc::new(dec(cs_list_price)),
-                    Arc::new(dec(cs_sales_price)),
-                    Arc::new(dec(cs_ext_discount_amt)),
-                    Arc::new(dec(cs_ext_sales_price)),
-                    Arc::new(dec(cs_ext_wholesale_cost)),
-                    Arc::new(dec(cs_ext_list_price)),
-                    Arc::new(dec(cs_ext_tax)),
-                    Arc::new(dec(cs_coupon_amt)),
-                    Arc::new(dec(cs_ext_ship_cost)),
-                    Arc::new(dec(cs_net_paid)),
-                    Arc::new(dec(cs_net_paid_inc_tax)),
-                    Arc::new(dec(cs_net_paid_inc_ship)),
-                    Arc::new(dec(cs_net_paid_inc_ship_tax)),
-                    Arc::new(dec(cs_net_profit)),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(cs_sold_date)),
+                Arc::new(Int64Array::from(cs_sold_time)),
+                Arc::new(Int64Array::from(cs_ship_date)),
+                Arc::new(Int64Array::from(cs_bill_customer)),
+                Arc::new(Int64Array::from(cs_bill_cdemo)),
+                Arc::new(Int64Array::from(cs_bill_hdemo)),
+                Arc::new(Int64Array::from(cs_bill_addr)),
+                Arc::new(Int64Array::from(cs_ship_customer)),
+                Arc::new(Int64Array::from(cs_ship_cdemo)),
+                Arc::new(Int64Array::from(cs_ship_hdemo)),
+                Arc::new(Int64Array::from(cs_ship_addr)),
+                Arc::new(Int64Array::from(cs_call_center)),
+                Arc::new(Int64Array::from(cs_catalog_page)),
+                Arc::new(Int64Array::from(cs_ship_mode)),
+                Arc::new(Int64Array::from(cs_warehouse)),
+                Arc::new(Int64Array::from(cs_item)),
+                Arc::new(Int64Array::from(cs_promo)),
+                Arc::new(Int64Array::from(cs_order_number)),
+                Arc::new(Int32Array::from(cs_quantity)),
+                Arc::new(dec(cs_wholesale_cost)),
+                Arc::new(dec(cs_list_price)),
+                Arc::new(dec(cs_sales_price)),
+                Arc::new(dec(cs_ext_discount_amt)),
+                Arc::new(dec(cs_ext_sales_price)),
+                Arc::new(dec(cs_ext_wholesale_cost)),
+                Arc::new(dec(cs_ext_list_price)),
+                Arc::new(dec(cs_ext_tax)),
+                Arc::new(dec(cs_coupon_amt)),
+                Arc::new(dec(cs_ext_ship_cost)),
+                Arc::new(dec(cs_net_paid)),
+                Arc::new(dec(cs_net_paid_inc_tax)),
+                Arc::new(dec(cs_net_paid_inc_ship)),
+                Arc::new(dec(cs_net_paid_inc_ship_tax)),
+                Arc::new(dec(cs_net_profit)),
+            ],
+        );
+        Some(batch)
     }
 }
 

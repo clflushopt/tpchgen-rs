@@ -2,9 +2,11 @@ use crate::conversions::{
     address_columns, decimal_to_i128, is_null, julian_to_date32, opt, sk_opt,
     string_view_array_from_opt_iter,
 };
-use crate::{RecordBatchIterator, RowIter, DEFAULT_BATCH_SIZE};
+use crate::{RowIter, DEFAULT_BATCH_SIZE};
 use arrow::array::{Date32Array, Decimal128Array, Int32Array, Int64Array, RecordBatch};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CallCenterRowGenerator, GeneratedRow};
@@ -29,16 +31,16 @@ impl CallCenterArrow {
     }
 }
 
-impl RecordBatchIterator for CallCenterArrow {
-    fn schema(&self) -> &SchemaRef {
-        &SCHEMA
+impl RecordBatchReader for CallCenterArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&SCHEMA)
     }
 }
 
 impl Iterator for CallCenterArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
-    fn next(&mut self) -> Option<RecordBatch> {
+    fn next(&mut self) -> Option<Self::Item> {
         let rows: Vec<_> = self
             .inner
             .by_ref()
@@ -127,65 +129,63 @@ impl Iterator for CallCenterArrow {
             .with_precision_and_scale(38, 2)
             .unwrap();
 
-        Some(
-            RecordBatch::try_new(
-                Arc::clone(self.schema()),
-                vec![
-                    Arc::new(Int64Array::from(cc_sk)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_id.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Date32Array::from(cc_rec_start)),
-                    Arc::new(Date32Array::from(cc_rec_end)),
-                    Arc::new(Int64Array::from(cc_closed_date)),
-                    Arc::new(Int64Array::from(cc_open_date)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_class.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(cc_employees)),
-                    Arc::new(Int32Array::from(cc_sq_ft)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_hours.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_manager.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(cc_market_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_market_class.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_market_desc.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_market_manager.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(cc_division_id)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_division_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(Int32Array::from(cc_company)),
-                    Arc::new(string_view_array_from_opt_iter(
-                        cc_company_name.iter().map(|s| s.as_deref()),
-                    )),
-                    Arc::new(street_number),
-                    Arc::new(street_name),
-                    Arc::new(street_type),
-                    Arc::new(suite_number),
-                    Arc::new(city),
-                    Arc::new(county),
-                    Arc::new(state),
-                    Arc::new(zip),
-                    Arc::new(country),
-                    Arc::new(gmt_offset),
-                    Arc::new(tax_arr),
-                ],
-            )
-            .unwrap(),
-        )
+        let batch = RecordBatch::try_new(
+            self.schema(),
+            vec![
+                Arc::new(Int64Array::from(cc_sk)),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_id.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Date32Array::from(cc_rec_start)),
+                Arc::new(Date32Array::from(cc_rec_end)),
+                Arc::new(Int64Array::from(cc_closed_date)),
+                Arc::new(Int64Array::from(cc_open_date)),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_class.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(cc_employees)),
+                Arc::new(Int32Array::from(cc_sq_ft)),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_hours.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_manager.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(cc_market_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_market_class.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_market_desc.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_market_manager.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(cc_division_id)),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_division_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(Int32Array::from(cc_company)),
+                Arc::new(string_view_array_from_opt_iter(
+                    cc_company_name.iter().map(|s| s.as_deref()),
+                )),
+                Arc::new(street_number),
+                Arc::new(street_name),
+                Arc::new(street_type),
+                Arc::new(suite_number),
+                Arc::new(city),
+                Arc::new(county),
+                Arc::new(state),
+                Arc::new(zip),
+                Arc::new(country),
+                Arc::new(gmt_offset),
+                Arc::new(tax_arr),
+            ],
+        );
+        Some(batch)
     }
 }
 

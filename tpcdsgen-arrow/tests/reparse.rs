@@ -11,6 +11,7 @@
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{
@@ -26,9 +27,8 @@ use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
     CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
     HouseholdDemographicsArrow, IncomeBandArrow, InventoryArrow, ItemArrow, PromotionArrow,
-    ReasonArrow, RecordBatchIterator, ShipModeArrow, StoreArrow, StoreReturnsArrow,
-    StoreSalesArrow, TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow,
-    WebSiteArrow,
+    ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow, TimeDimArrow,
+    WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
 
 /// Session options for tests (scale factor 1).
@@ -128,21 +128,22 @@ where
 /// * `gen`: the [`RowGenerator`] for the table(s)
 /// * `source_row_count`: the number of source rows to generate
 /// * `row_limit`: the maximum number of selected output rows to compare
-/// * `arrow_gen`: the [`RecordBatchIterator`] for the table
+/// * `arrow_gen`: the [`RecordBatchReader`] for the table
 /// * `select`: a predicate to select which rows to include in the reparsed data
 fn run_test<G, A, F>(gen: G, source_row_count: i64, row_limit: usize, arrow_gen: A, select: F)
 where
     G: RowGenerator,
-    A: RecordBatchIterator,
+    A: RecordBatchReader,
     F: Fn(&GeneratedRow) -> bool,
 {
-    let schema = Arc::clone(arrow_gen.schema());
+    let schema = arrow_gen.schema();
 
     // Stream of batches from reparsing `.tbl` output.
     let reparsed = reparsed_batches(gen, &schema, select, source_row_count);
 
     // Use FixedSizeBatches to align batch boundaries for comparison.
     let mut reparsed = FixedSizeBatches::new(reparsed, row_limit);
+    let arrow_gen = arrow_gen.map(|batch| batch.expect("arrow generation should not fail"));
     let mut arrow = FixedSizeBatches::new(arrow_gen, row_limit);
 
     // Compare the two streams, batch by batch.

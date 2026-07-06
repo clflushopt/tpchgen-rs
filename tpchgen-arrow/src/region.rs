@@ -1,6 +1,8 @@
-use crate::{DEFAULT_BATCH_SIZE, RecordBatchIterator};
+use crate::DEFAULT_BATCH_SIZE;
 use arrow::array::{Int64Array, RecordBatch, StringViewArray};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::error::ArrowError;
+use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpchgen::generators::{RegionGenerator, RegionGeneratorIterator};
 
@@ -18,7 +20,7 @@ use tpchgen::generators::{RegionGenerator, RegionGeneratorIterator};
 /// let mut arrow_generator = RegionArrow::new(generator)
 ///   .with_batch_size(10);
 /// // Read the first 10 batches
-/// let batch = arrow_generator.next().unwrap();
+/// let batch = arrow_generator.next().unwrap().unwrap();
 /// // compare the output by pretty printing it
 /// let formatted_batches = arrow::util::pretty::pretty_format_batches(&[batch])
 ///   .unwrap()
@@ -56,14 +58,14 @@ impl RegionArrow {
     }
 }
 
-impl RecordBatchIterator for RegionArrow {
-    fn schema(&self) -> &SchemaRef {
-        &REGION_SCHEMA
+impl RecordBatchReader for RegionArrow {
+    fn schema(&self) -> SchemaRef {
+        Arc::clone(&REGION_SCHEMA)
     }
 }
 
 impl Iterator for RegionArrow {
-    type Item = RecordBatch;
+    type Item = Result<RecordBatch, ArrowError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         // Get next rows to convert
@@ -77,10 +79,9 @@ impl Iterator for RegionArrow {
         let r_comment = StringViewArray::from_iter_values(rows.iter().map(|r| r.r_comment));
 
         let batch = RecordBatch::try_new(
-            Arc::clone(self.schema()),
+            self.schema(),
             vec![Arc::new(r_regionkey), Arc::new(r_name), Arc::new(r_comment)],
-        )
-        .unwrap();
+        );
         Some(batch)
     }
 }
