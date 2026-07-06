@@ -1,5 +1,6 @@
 use assert_cmd::cargo::cargo_bin_cmd;
 
+#[path = "cli_integration/test_helpers.rs"]
 mod test_helpers;
 
 // TPCH-specific CLI coverage
