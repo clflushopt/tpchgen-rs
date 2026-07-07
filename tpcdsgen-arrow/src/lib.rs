@@ -57,6 +57,13 @@ impl<G: RowGenerator> RowIter<G> {
             pending: VecDeque::new(),
         }
     }
+
+    pub(crate) fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+        self.generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+        self.current_row = starting_row_number;
+        self.pending.clear();
+    }
 }
 
 impl<G: RowGenerator> Iterator for RowIter<G> {

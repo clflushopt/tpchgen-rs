@@ -4,7 +4,7 @@ use crate::tpch_cli::csv::*;
 use crate::tpch_cli::generate::generate_in_chunks_with_progress;
 use crate::tpch_cli::generate::Source;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
-use crate::tpch_cli::parquet::generate_parquet_with_progress;
+use crate::tpch_cli::parquet::generate_parquet;
 use crate::tpch_cli::progress::no_op_progress_tracker;
 use crate::tpch_cli::progress::ProgressTracker;
 use crate::tpch_cli::tbl::*;
@@ -289,7 +289,7 @@ where
     match plan.output_location() {
         OutputLocation::Stdout => {
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
-            generate_parquet_with_progress(
+            generate_parquet(
                 writer,
                 sources,
                 num_threads,
@@ -309,7 +309,7 @@ where
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, file); // 32MB buffer
-            generate_parquet_with_progress(
+            generate_parquet(
                 writer,
                 sources,
                 num_threads,

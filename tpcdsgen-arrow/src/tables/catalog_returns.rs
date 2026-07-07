@@ -21,6 +21,10 @@ impl CatalogReturnsArrow {
             batch_size: DEFAULT_BATCH_SIZE,
         }
     }
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+        self.inner
+            .skip_rows_until_starting_row_number(starting_row_number);
+    }
 
     pub fn with_batch_size(mut self, batch_size: usize) -> Self {
         self.batch_size = batch_size;

@@ -68,12 +68,15 @@ fn parse_dat<'a>(data: &'a [u8], schema: &'a SchemaRef) -> impl Iterator<Item = 
         .map(|batch| batch.expect("parse .tbl data into RecordBatch"))
 }
 
-/// Yields RecordBatches re-parsed from pipe-delimited output for the specified
-/// table generator `gen`, selecting only rows for which `select` returns true.
+/// Yields Arrow RecordBatches by creating pipe-delimited output for the
+/// specified table generator `gen`, and parsing the result to Arrow.
+///
+/// Returns only rows for which `select` returns true.
 fn reparsed_batches<G, F>(
     mut gen: G,
     schema: &SchemaRef,
     select: F,
+    starting_row_number: i64,
     source_row_count: i64,
 ) -> impl Iterator<Item = RecordBatch>
 where
@@ -83,7 +86,7 @@ where
     let schema = Arc::clone(schema);
 
     const REPARSE_BUFFER_TARGET_BYTES: usize = 256 * 1024;
-    let mut source_row = 1;
+    let mut source_row = starting_row_number;
     std::iter::from_fn(move || {
         let mut data = Vec::new();
 
@@ -117,53 +120,57 @@ where
     })
 }
 
-/// Compares the output of an Arrow generator `arrow_gen` and an underlying table
-/// generator `gen` by generating and then re-parsing `.tbl` output produced by
-/// the table generator.
+/// Asserts that two streams of Arrow RecordBatches are logically equal up to a
+/// specified row limit.
 ///
-/// The `select` predicate is used to select which rows to include in the
-/// reparsed data.
-///
-/// Arguments:
-/// * `gen`: the [`RowGenerator`] for the table(s)
-/// * `source_row_count`: the number of source rows to generate
-/// * `row_limit`: the maximum number of selected output rows to compare
-/// * `arrow_gen`: the [`RecordBatchReader`] for the table
-/// * `select`: a predicate to select which rows to include in the reparsed data
-fn run_test<G, A, F>(gen: G, source_row_count: i64, row_limit: usize, arrow_gen: A, select: F)
+/// It ignores any differences in how the rows are distributed across batches
+/// by realigning the batches before comparison.
+fn assert_record_batch_streams<L, R>(left: L, right: R, row_limit: usize)
 where
-    G: RowGenerator,
-    A: RecordBatchReader,
-    F: Fn(&GeneratedRow) -> bool,
+    L: RecordBatchReader,
+    R: Iterator<Item = RecordBatch>,
 {
-    let schema = arrow_gen.schema();
-
-    // Stream of batches from reparsing `.tbl` output.
-    let reparsed = reparsed_batches(gen, &schema, select, source_row_count);
-
     // Use FixedSizeBatches to align batch boundaries for comparison.
-    let mut reparsed = FixedSizeBatches::new(reparsed, row_limit);
-    let arrow_gen = arrow_gen.map(|batch| batch.expect("arrow generation should not fail"));
-    let mut arrow = FixedSizeBatches::new(arrow_gen, row_limit);
+    let left = left.map(|batch| batch.expect("arrow generation should not fail"));
+    let mut left = FixedSizeBatches::new(left, row_limit);
+    let mut right = FixedSizeBatches::new(right, row_limit);
 
     // Compare the two streams, batch by batch.
     let mut compared_rows = 0;
-    arrow
-        .by_ref()
-        .zip(reparsed.by_ref())
-        .for_each(|(arrow_batch, reparsed_batch)| {
-            compared_rows += arrow_batch.num_rows();
-            assert_eq!(arrow_batch, reparsed_batch);
+    left.by_ref()
+        .zip(right.by_ref())
+        .for_each(|(left_batch, right_batch)| {
+            compared_rows += left_batch.num_rows();
+            assert_eq!(left_batch, right_batch);
         });
     assert_eq!(compared_rows, row_limit);
+    assert!(left.next().is_none(), "left stream produced extra batches");
     assert!(
-        arrow.next().is_none(),
-        "direct Arrow iterator produced extra batches"
+        right.next().is_none(),
+        "right stream produced extra batches"
     );
-    assert!(
-        reparsed.next().is_none(),
-        "reparsed Arrow iterator produced extra batches"
-    );
+}
+
+/// Returns the source row to start skip tests from for the specified table.
+///
+/// Defaults to source row 100 and has special handling for slowly changing
+/// dimension (SCD) tables.
+fn skip_starting_row(table: Table, source_row_count: i64) -> i64 {
+    let max_skip_row = source_row_count.min(100);
+    if !matches!(
+        table,
+        Table::CallCenter | Table::Store | Table::WebPage | Table::WebSite | Table::Item
+    ) {
+        return max_skip_row;
+    }
+
+    // SCD tables reuse values from the previous source row for continuation
+    // records. Pick a new business-key row so a skipped generator does not need
+    // previous-row state initialized before the first generated row.
+    (1..=max_skip_row)
+        .rev()
+        .find(|row| row % 6 == 1)
+        .unwrap_or(1)
 }
 
 // ---------------------------------------------------------------------------
@@ -171,21 +178,63 @@ where
 // ---------------------------------------------------------------------------
 
 macro_rules! table_test {
-    ($name:ident, $gen:expr, $arrow:expr, $table:expr, $variant:ident) => {
-        #[test]
-        fn $name() {
-            let source_row_count = SESSION.get_scaling().get_row_count($table);
-            let row_limit = test_row_count($table) as usize;
-            run_test(
-                $gen,
-                source_row_count,
-                row_limit,
-                $arrow(SESSION.clone()),
-                |g| match g {
-                    GeneratedRow::$variant(_) => true,
-                    _ => false,
-                },
-            );
+    // $name: module name
+    // $gen: TPC-DS row generator used to produce canonical `.dat` rows.
+    // $arrow_gen: constructor for the matching Arrow RecordBatch generator.
+    // $table: TPC-DS table enum value used for row counts and skip planning.
+    // $variant: GeneratedRow enum variant to select rows for this table.
+    ($name:ident, $gen:expr, $arrow_gen:expr, $table:expr, $variant:ident) => {
+        mod $name {
+            use super::*;
+
+            #[test]
+            fn from_start() {
+                let source_row_count = SESSION.get_scaling().get_row_count($table);
+                let row_limit = test_row_count($table) as usize;
+                let arrow_gen = $arrow_gen(SESSION.clone());
+                let schema = arrow_gen.schema();
+                let reparsed = reparsed_batches(
+                    $gen,
+                    &schema,
+                    |g| match g {
+                        GeneratedRow::$variant(_) => true,
+                        _ => false,
+                    },
+                    1,
+                    source_row_count,
+                );
+
+                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
+            }
+
+            #[test]
+            fn skip() {
+                let source_row_count = SESSION.get_scaling().get_row_count($table);
+                let starting_row_number = skip_starting_row($table, source_row_count);
+                let remaining_source_rows = source_row_count - starting_row_number + 1;
+                let row_limit =
+                    test_row_count($table).min(remaining_source_rows).min(1024) as usize;
+
+                let mut gen = $gen;
+                gen.skip_rows_until_starting_row_number(starting_row_number);
+
+                let mut arrow_gen = $arrow_gen(SESSION.clone());
+                arrow_gen.skip_rows_until_starting_row_number(starting_row_number);
+
+                let schema = arrow_gen.schema();
+                let reparsed = reparsed_batches(
+                    gen,
+                    &schema,
+                    |g| match g {
+                        GeneratedRow::$variant(_) => true,
+                        _ => false,
+                    },
+                    starting_row_number,
+                    source_row_count,
+                );
+
+                assert_record_batch_streams(arrow_gen, reparsed, row_limit);
+            }
         }
     };
 }
