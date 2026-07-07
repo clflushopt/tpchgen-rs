@@ -76,7 +76,7 @@ where
                 encode_row_group(parquet_schema, writer_properties, schema, iter)
             })
             .await
-            .expect("Inner task panicked")
+            .map_err(|e| io::Error::other(format!("Inner task panicked: {e}")))?
         })
         .buffered(num_threads); // generate row groups in parallel
 
@@ -117,6 +117,7 @@ where
 
     // now, drive the input stream and send results to the writer task
     while let Some(column_chunks) = row_group_stream.next().await {
+        let column_chunks = column_chunks?;
         // send the chunks to the writer task
         if let Err(e) = tx.send(column_chunks).await {
             debug!("Error sending row group to writer: {e}");
@@ -143,7 +144,7 @@ fn encode_row_group<I>(
     writer_properties: Arc<WriterProperties>,
     schema: SchemaRef,
     iter: I,
-) -> Vec<ArrowColumnChunk>
+) -> Result<Vec<ArrowColumnChunk>, io::Error>
 where
     I: RecordBatchReader,
 {
@@ -154,26 +155,28 @@ where
         &writer_properties,
         &schema,
     )
-    .unwrap();
+    .map_err(io::Error::other)?;
 
     // generate the data and send it to the tasks (via the sender channels)
     for batch in iter {
-        let batch = batch.unwrap();
+        let batch = batch.map_err(io::Error::other)?;
         let columns = batch.columns().iter();
         let col_writers = col_writers.iter_mut();
         let fields = schema.fields().iter();
 
         for ((col_writer, field), arr) in col_writers.zip(fields).zip(columns) {
-            for leaves in compute_leaves(field.as_ref(), arr).unwrap() {
-                col_writer.write(&leaves).unwrap();
+            for leaves in compute_leaves(field.as_ref(), arr).map_err(io::Error::other)? {
+                col_writer.write(&leaves).map_err(io::Error::other)?;
             }
         }
     }
     // finish the writers and create the column chunks
-    col_writers
+    let column_chunks = col_writers
         .into_iter()
-        .map(|col_writer| col_writer.close().unwrap())
-        .collect()
+        .map(|col_writer| col_writer.close().map_err(io::Error::other))
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(column_chunks)
 }
 
 #[cfg(test)]
