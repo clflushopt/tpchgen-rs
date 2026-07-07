@@ -1,6 +1,6 @@
 //! TPCH Parquet output format.
 
-use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
+use crate::tpch_cli::progress::ProgressTracker;
 use parquet::basic::Compression;
 use std::io;
 use std::io::Write;
