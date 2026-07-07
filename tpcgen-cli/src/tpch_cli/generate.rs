@@ -3,7 +3,7 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
-use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
+use crate::tpch_cli::progress::ProgressTracker;
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
@@ -45,24 +45,12 @@ pub trait Sink: Send {
 /// This function will run the [`Source`]es in parallel up to num_threads.
 /// Data is written to the [`Sink`] in the order of the [`Source`]es in
 /// the input iterator.
+/// Progress is advanced once for each generated chunk after it is written.
 ///
 /// G: Generator
 /// I: Iterator<Item = G>
 /// S: Sink that writes buffers somewhere
 pub async fn generate_in_chunks<G, I, S>(
-    sink: S,
-    sources: I,
-    num_threads: usize,
-) -> Result<(), io::Error>
-where
-    G: Source + 'static,
-    I: Iterator<Item = G>,
-    S: Sink + 'static,
-{
-    generate_in_chunks_with_progress(sink, sources, num_threads, no_op_progress_tracker(), "").await
-}
-
-pub(crate) async fn generate_in_chunks_with_progress<G, I, S>(
     mut sink: S,
     sources: I,
     num_threads: usize,
@@ -253,7 +241,7 @@ mod tests {
             },
         ];
 
-        generate_in_chunks_with_progress(
+        generate_in_chunks(
             CapturingSink {
                 writes: Arc::clone(&writes),
             },
