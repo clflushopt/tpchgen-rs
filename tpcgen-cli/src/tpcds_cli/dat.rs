@@ -285,7 +285,7 @@ fn generate_simple<G: RowGeneratorFactory>(
     let row_count = session.get_scaling().get_row_count(table);
     let table_name = table.get_name();
     // Register the scaling row count, then advance after each written row.
-    progress.register(table_name, progress_units(row_count));
+    progress.register(table_name, row_count.try_into().unwrap_or(0));
 
     let path = get_output_path(table, output_options);
     let file = create_output_file(&path, output_options)?;
@@ -323,12 +323,12 @@ fn generate_store_sales(
 ) -> Result<()> {
     let mut generator = StoreSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::StoreSales);
+    let return_rows = session.get_scaling().get_row_count(Table::StoreReturns);
     let sales_name = Table::StoreSales.get_name();
     let returns_name = Table::StoreReturns.get_name();
-    // Return rows are produced by the sales generator; the return bar completes
-    // after the paired files are written.
-    progress.register(sales_name, progress_units(num_orders));
-    progress.register(returns_name, 1);
+    // Register the scaling row counts, then advance after each written row.
+    progress.register(sales_name, num_orders.try_into().unwrap_or(0));
+    progress.register(returns_name, return_rows.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(Table::StoreSales, output_options);
     let returns_path = get_output_path(Table::StoreReturns, output_options);
@@ -361,6 +361,7 @@ fn generate_store_sales(
         if rows.len() > 1 {
             write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
+            progress.increment(returns_name, 1);
         }
 
         if result.should_end_row() {
@@ -372,7 +373,6 @@ fn generate_store_sales(
 
     sales_writer.flush()?;
     returns_writer.flush()?;
-    progress.increment(returns_name, 1);
 
     info!(
         "Generated store_sales + store_returns: {} sales, {} returns -> {}, {}",
@@ -393,12 +393,12 @@ fn generate_catalog_sales(
 ) -> Result<()> {
     let mut generator = CatalogSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::CatalogSales);
+    let return_rows = session.get_scaling().get_row_count(Table::CatalogReturns);
     let sales_name = Table::CatalogSales.get_name();
     let returns_name = Table::CatalogReturns.get_name();
-    // Return rows are produced by the sales generator; the return bar completes
-    // after the paired files are written.
-    progress.register(sales_name, progress_units(num_orders));
-    progress.register(returns_name, 1);
+    // Register the scaling row counts, then advance after each written row.
+    progress.register(sales_name, num_orders.try_into().unwrap_or(0));
+    progress.register(returns_name, return_rows.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(Table::CatalogSales, output_options);
     let returns_path = get_output_path(Table::CatalogReturns, output_options);
@@ -431,6 +431,7 @@ fn generate_catalog_sales(
         if rows.len() > 1 {
             write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
+            progress.increment(returns_name, 1);
         }
 
         if result.should_end_row() {
@@ -442,7 +443,6 @@ fn generate_catalog_sales(
 
     sales_writer.flush()?;
     returns_writer.flush()?;
-    progress.increment(returns_name, 1);
 
     info!(
         "Generated catalog_sales + catalog_returns: {} sales, {} returns -> {}, {}",
@@ -463,12 +463,12 @@ fn generate_web_sales(
 ) -> Result<()> {
     let mut generator = WebSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::WebSales);
+    let return_rows = session.get_scaling().get_row_count(Table::WebReturns);
     let sales_name = Table::WebSales.get_name();
     let returns_name = Table::WebReturns.get_name();
-    // Return rows are produced by the sales generator; the return bar completes
-    // after the paired files are written.
-    progress.register(sales_name, progress_units(num_orders));
-    progress.register(returns_name, 1);
+    // Register the scaling row counts, then advance after each written row.
+    progress.register(sales_name, num_orders.try_into().unwrap_or(0));
+    progress.register(returns_name, return_rows.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(Table::WebSales, output_options);
     let returns_path = get_output_path(Table::WebReturns, output_options);
@@ -501,6 +501,7 @@ fn generate_web_sales(
         if rows.len() > 1 {
             write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
+            progress.increment(returns_name, 1);
         }
 
         if result.should_end_row() {
@@ -512,7 +513,6 @@ fn generate_web_sales(
 
     sales_writer.flush()?;
     returns_writer.flush()?;
-    progress.increment(returns_name, 1);
 
     info!(
         "Generated web_sales + web_returns: {} sales, {} returns -> {}, {}",
@@ -541,7 +541,7 @@ fn generate_inventory(
     let num_rows = item_count * warehouse_count * n_weeks as i64;
     let table_name = Table::Inventory.get_name();
     // Register the calculated row count, then advance after each written row.
-    progress.register(table_name, progress_units(num_rows));
+    progress.register(table_name, num_rows.try_into().unwrap_or(0));
 
     let path = get_output_path(Table::Inventory, output_options);
     let mut writer = CompatWriter::new(
@@ -570,10 +570,6 @@ fn generate_inventory(
     );
 
     Ok(())
-}
-
-fn progress_units(count: i64) -> u64 {
-    count.try_into().unwrap_or(0)
 }
 
 /// Get output file path for a table
