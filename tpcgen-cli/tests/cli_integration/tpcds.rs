@@ -264,6 +264,31 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
 }
 
 #[test]
+fn test_tpcgen_cli_tpcds_parquet_rejects_zero_row_group_bytes() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--row-group-bytes")
+        .arg("0")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert_eq!(
+        stderr,
+        "error: invalid value '0' for '--row-group-bytes <ROW_GROUP_BYTES>': must be greater than zero\n\nFor more information, try '--help'.\n"
+    );
+}
+
+#[test]
 fn test_tpcgen_cli_tpcds_parquet_unknown_table_error_lists_valid_tables() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 

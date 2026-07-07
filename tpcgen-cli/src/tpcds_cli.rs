@@ -12,6 +12,8 @@ pub mod parquet;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
+const DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES: usize = DEFAULT_PARQUET_ROW_GROUP_BYTES as usize;
+
 enum OutputFormat {
     Dat(dat::Dat),
     Csv(csv::Csv),
@@ -93,8 +95,12 @@ struct ParquetArgs {
     /// groups under this limit.
     ///
     /// Typical values range from 10MB to 100MB.
-    #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
-    row_group_bytes: i64,
+    #[arg(
+        long,
+        default_value_t = DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES,
+        value_parser = parse_row_group_bytes
+    )]
+    row_group_bytes: usize,
 }
 
 #[derive(Args)]
@@ -158,22 +164,8 @@ impl CsvArgs {
 
 impl ParquetArgs {
     fn run(self) -> Result<()> {
-        if self.row_group_bytes <= 0 {
-            return Err(TpcdsError::new(&format!(
-                "--row-group-bytes must be greater than zero, got {}",
-                self.row_group_bytes
-            ))
-            .into());
-        }
-
-        let row_group_bytes = usize::try_from(self.row_group_bytes).map_err(|_| {
-            TpcdsError::new(&format!(
-                "--row-group-bytes is too large, got {}",
-                self.row_group_bytes
-            ))
-        })?;
-
-        self.common.run_parquet(self.compression, row_group_bytes)
+        self.common
+            .run_parquet(self.compression, self.row_group_bytes)
     }
 }
 
@@ -298,4 +290,13 @@ fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
         ));
     }
     Ok(parsed)
+}
+
+fn parse_row_group_bytes(s: &str) -> std::result::Result<usize, String> {
+    let parsed = s.parse::<usize>().map_err(|e| e.to_string())?;
+    if parsed == 0 {
+        Err("must be greater than zero".to_string())
+    } else {
+        Ok(parsed)
+    }
 }
