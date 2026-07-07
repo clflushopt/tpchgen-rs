@@ -1,6 +1,6 @@
 //! Parquet output format
 
-use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
+use crate::tpch_cli::progress::ProgressTracker;
 use crate::tpch_cli::statistics::WriteStatistics;
 use arrow::datatypes::SchemaRef;
 use futures::StreamExt;
@@ -29,26 +29,6 @@ pub trait IntoSize {
 /// Note the input is an iterator of [`RecordBatchIterator`]; The batches
 /// produced by each iterator is encoded as its own row group.
 pub async fn generate_parquet<W: Write + Send + IntoSize + 'static, I>(
-    writer: W,
-    iter_iter: I,
-    num_threads: usize,
-    parquet_compression: Compression,
-) -> Result<(), io::Error>
-where
-    I: Iterator<Item: RecordBatchIterator> + 'static,
-{
-    generate_parquet_with_progress(
-        writer,
-        iter_iter,
-        num_threads,
-        parquet_compression,
-        no_op_progress_tracker(),
-        "",
-    )
-    .await
-}
-
-pub(crate) async fn generate_parquet_with_progress<W: Write + Send + IntoSize + 'static, I>(
     writer: W,
     iter_iter: I,
     num_threads: usize,
@@ -230,7 +210,7 @@ mod tests {
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
 
-        generate_parquet_with_progress(
+        generate_parquet(
             writer,
             vec![region_source(), region_source()].into_iter(),
             1,
