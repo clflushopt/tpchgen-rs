@@ -1,3 +1,4 @@
+use super::test_helpers::{expect_row_group_sizes, RowGroups};
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::basic::Compression;
@@ -110,6 +111,37 @@ fn test_tpcgen_cli_tpcds_parquet_single_table() {
 }
 
 #[test]
+fn test_tpcgen_cli_tpcds_parquet_verbose_enables_logging() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("-v")
+        .env("RUST_LOG", "warn")
+        .assert()
+        .success();
+
+    assert!(
+        assert.get_output().stdout.is_empty(),
+        "Expected verbose TPC-DS Parquet logging to use stderr, got stdout: {}",
+        String::from_utf8_lossy(&assert.get_output().stdout)
+    );
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("Verbose output enabled (ignoring RUST_LOG environment variable)"),
+        "Expected verbose mode setup log, got stderr: {stderr}"
+    );
+}
+
+#[test]
 fn test_tpcgen_cli_tpcds_parquet_default_options_generate_all_outputs() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
@@ -199,6 +231,36 @@ fn test_tpcgen_cli_tpcds_parquet_compression() {
             assert_eq!(column.compression(), Compression::UNCOMPRESSED);
         }
     }
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("customer")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--row-group-bytes")
+        .arg("1000000")
+        .assert()
+        .success();
+
+    expect_row_group_sizes(
+        temp_dir.path(),
+        vec![RowGroups {
+            table: "customer",
+            row_group_bytes: vec![
+                993810, 994593, 994898, 994188, 994197, 993716, 995067, 994680, 994676, 994498,
+                861562,
+            ],
+        }],
+    );
 }
 
 #[test]

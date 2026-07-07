@@ -24,13 +24,19 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 pub(super) struct Parquet {
     output_dir: PathBuf,
     compression: Compression,
+    row_group_bytes: usize,
 }
 
 impl Parquet {
-    pub(super) fn new(output_dir: PathBuf, compression: Compression) -> Self {
+    pub(super) fn new(
+        output_dir: PathBuf,
+        compression: Compression,
+        row_group_bytes: usize,
+    ) -> Self {
         Self {
             output_dir,
             compression,
+            row_group_bytes,
         }
     }
 
@@ -85,6 +91,7 @@ impl Parquet {
         let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
         let writer_properties = WriterProperties::builder()
             .set_compression(self.compression)
+            .set_max_row_group_bytes(Some(self.row_group_bytes))
             .build();
         let mut writer = ArrowWriter::try_new(
             writer,

@@ -190,6 +190,11 @@ impl WebReturnsRowGenerator {
     pub fn consume_remaining_seeds_for_row(&mut self) {
         self.abstract_generator.consume_remaining_seeds_for_row();
     }
+
+    pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
+        self.abstract_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
+    }
 }
 
 impl Default for WebReturnsRowGenerator {

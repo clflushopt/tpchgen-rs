@@ -437,5 +437,7 @@ impl RowGenerator for WebSalesRowGenerator {
     fn skip_rows_until_starting_row_number(&mut self, starting_row_number: i64) {
         self.abstract_generator
             .skip_rows_until_starting_row_number(starting_row_number);
+        self.web_returns_generator
+            .skip_rows_until_starting_row_number(starting_row_number);
     }
 }

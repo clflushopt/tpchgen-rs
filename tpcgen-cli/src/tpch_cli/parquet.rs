@@ -20,27 +20,6 @@ pub async fn generate_parquet<W, I>(
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
-) -> Result<(), io::Error>
-where
-    W: Write + Send + IntoSize + 'static,
-    I: Iterator<Item: RecordBatchIterator> + 'static,
-{
-    generate_parquet_with_progress(
-        writer,
-        iter_iter,
-        num_threads,
-        parquet_compression,
-        no_op_progress_tracker(),
-        "",
-    )
-    .await
-}
-
-pub(crate) async fn generate_parquet_with_progress<W, I>(
-    writer: W,
-    iter_iter: I,
-    num_threads: usize,
-    parquet_compression: Compression,
     progress: Arc<dyn ProgressTracker>,
     table_name: &'static str,
 ) -> Result<(), io::Error>
