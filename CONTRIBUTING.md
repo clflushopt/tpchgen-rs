@@ -39,7 +39,7 @@ Benchmarking is an important part of this project. We typically evaluate perform
 using [hyperfine](https://github.com/sharkdp/hyperfine).
 
 For example to benchmark the performance of generating TPC-H data using
-`tpchgen` we use a command such as
+`tpcgen-cli` we use a command such as
 
 ```shell
 hyperfine --runs 5 \
