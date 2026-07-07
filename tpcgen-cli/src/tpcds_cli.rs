@@ -1,8 +1,8 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
 use crate::logging::configure_logging;
 #[cfg(feature = "indicatif-progress")]
-use crate::tpch_cli::progress::IndicatifProgress;
-use crate::tpch_cli::progress::{no_op_progress_tracker, ProgressTracker};
+use crate::progress::IndicatifProgress;
+use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::io;

@@ -1,6 +1,6 @@
 //! TPC-DS CSV output.
 
-use crate::tpch_cli::progress::ProgressTracker;
+use crate::progress::ProgressTracker;
 use arrow::array::RecordBatch;
 use arrow::record_batch::RecordBatchReader;
 use arrow_csv::writer::WriterBuilder;

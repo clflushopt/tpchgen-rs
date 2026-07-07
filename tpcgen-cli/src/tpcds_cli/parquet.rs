@@ -1,6 +1,6 @@
 //! TPC-DS Parquet output.
 
-use crate::tpch_cli::progress::ProgressTracker;
+use crate::progress::ProgressTracker;
 use arrow::record_batch::RecordBatchReader;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;

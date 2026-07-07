@@ -16,7 +16,7 @@
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
-use crate::tpch_cli::progress::ProgressTracker;
+use crate::progress::ProgressTracker;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};

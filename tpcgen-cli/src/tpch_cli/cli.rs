@@ -1,10 +1,10 @@
-#[cfg(feature = "indicatif-progress")]
-use super::progress::IndicatifProgress;
 use super::{
     Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
 use crate::logging::configure_logging;
+#[cfg(feature = "indicatif-progress")]
+use crate::progress::IndicatifProgress;
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
 use std::io;
