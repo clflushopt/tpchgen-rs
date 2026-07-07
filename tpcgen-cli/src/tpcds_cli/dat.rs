@@ -168,6 +168,9 @@ impl Dat {
             Table::WebSite => {
                 generate_simple::<WebSiteRowGenerator>(table, session, &self.output_options)
             }
+            Table::Inventory => {
+                generate_simple::<InventoryRowGenerator>(table, session, &self.output_options)
+            }
 
             // Sales + Returns pairs
             Table::StoreSales => generate_store_sales(session, &self.output_options),
@@ -176,10 +179,6 @@ impl Dat {
             Table::CatalogReturns => Ok(()), // Generated with CatalogSales
             Table::WebSales => generate_web_sales(session, &self.output_options),
             Table::WebReturns => Ok(()), // Generated with WebSales
-
-            Table::Inventory => {
-                generate_simple::<InventoryRowGenerator>(table, session, &self.output_options)
-            }
 
             // Source tables - skip
             _ => Ok(()),
