@@ -16,6 +16,7 @@
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
+use crate::progress::ProgressTracker;
 use std::fs::File;
 use std::io::{BufWriter, Write};
 use std::path::{Path, PathBuf};
@@ -25,7 +26,6 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::CompatWriter;
 use tpcdsgen::row::{GeneratedRow, TableRow, *};
-use tpcdsgen::types::Date;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -108,78 +108,130 @@ impl Dat {
         })
     }
 
-    pub(super) fn generate_table(&self, table: Table, session: &Session) -> Result<()> {
+    pub(super) fn generate_table(
+        &self,
+        table: Table,
+        session: &Session,
+        progress: &dyn ProgressTracker,
+    ) -> Result<()> {
         match table {
             // Simple dimension tables
-            Table::CallCenter => {
-                generate_simple::<CallCenterRowGenerator>(table, session, &self.output_options)
-            }
-            Table::CatalogPage => {
-                generate_simple::<CatalogPageRowGenerator>(table, session, &self.output_options)
-            }
-            Table::Customer => {
-                generate_simple::<CustomerRowGenerator>(table, session, &self.output_options)
-            }
-            Table::CustomerAddress => {
-                generate_simple::<CustomerAddressRowGenerator>(table, session, &self.output_options)
-            }
+            Table::CallCenter => generate_simple::<CallCenterRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::CatalogPage => generate_simple::<CatalogPageRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::Customer => generate_simple::<CustomerRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::CustomerAddress => generate_simple::<CustomerAddressRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
             Table::CustomerDemographics => generate_simple::<CustomerDemographicsRowGenerator>(
                 table,
                 session,
                 &self.output_options,
+                progress,
             ),
-            Table::DateDim => {
-                generate_simple::<DateDimRowGenerator>(table, session, &self.output_options)
-            }
-            Table::DbgenVersion => {
-                generate_simple::<DbgenVersionRowGenerator>(table, session, &self.output_options)
-            }
+            Table::DateDim => generate_simple::<DateDimRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::DbgenVersion => generate_simple::<DbgenVersionRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
             Table::HouseholdDemographics => generate_simple::<HouseholdDemographicsRowGenerator>(
                 table,
                 session,
                 &self.output_options,
+                progress,
             ),
-            Table::IncomeBand => {
-                generate_simple::<IncomeBandRowGenerator>(table, session, &self.output_options)
-            }
+            Table::IncomeBand => generate_simple::<IncomeBandRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
             Table::Item => {
-                generate_simple::<ItemRowGenerator>(table, session, &self.output_options)
+                generate_simple::<ItemRowGenerator>(table, session, &self.output_options, progress)
             }
-            Table::Promotion => {
-                generate_simple::<PromotionRowGenerator>(table, session, &self.output_options)
-            }
-            Table::Reason => {
-                generate_simple::<ReasonRowGenerator>(table, session, &self.output_options)
-            }
-            Table::ShipMode => {
-                generate_simple::<ShipModeRowGenerator>(table, session, &self.output_options)
-            }
+            Table::Promotion => generate_simple::<PromotionRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::Reason => generate_simple::<ReasonRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::ShipMode => generate_simple::<ShipModeRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
             Table::Store => {
-                generate_simple::<StoreRowGenerator>(table, session, &self.output_options)
+                generate_simple::<StoreRowGenerator>(table, session, &self.output_options, progress)
             }
-            Table::TimeDim => {
-                generate_simple::<TimeDimRowGenerator>(table, session, &self.output_options)
-            }
-            Table::Warehouse => {
-                generate_simple::<WarehouseRowGenerator>(table, session, &self.output_options)
-            }
-            Table::WebPage => {
-                generate_simple::<WebPageRowGenerator>(table, session, &self.output_options)
-            }
-            Table::WebSite => {
-                generate_simple::<WebSiteRowGenerator>(table, session, &self.output_options)
-            }
+            Table::TimeDim => generate_simple::<TimeDimRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::Warehouse => generate_simple::<WarehouseRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::WebPage => generate_simple::<WebPageRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::WebSite => generate_simple::<WebSiteRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
+            Table::Inventory => generate_simple::<InventoryRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
 
-            // Sales + Returns pairs
-            Table::StoreSales => generate_store_sales(session, &self.output_options),
+            // Sales generators write their return tables at the same time.
+            Table::StoreSales => generate_store_sales(session, &self.output_options, progress),
             Table::StoreReturns => Ok(()), // Generated with StoreSales
-            Table::CatalogSales => generate_catalog_sales(session, &self.output_options),
+            Table::CatalogSales => generate_catalog_sales(session, &self.output_options, progress),
             Table::CatalogReturns => Ok(()), // Generated with CatalogSales
-            Table::WebSales => generate_web_sales(session, &self.output_options),
+            Table::WebSales => generate_web_sales(session, &self.output_options, progress),
             Table::WebReturns => Ok(()), // Generated with WebSales
-
-            // Special tables
-            Table::Inventory => generate_inventory(session, &self.output_options),
 
             // Source tables - skip
             _ => Ok(()),
@@ -213,6 +265,7 @@ impl_factory!(
     DbgenVersionRowGenerator,
     HouseholdDemographicsRowGenerator,
     IncomeBandRowGenerator,
+    InventoryRowGenerator,
     ItemRowGenerator,
     PromotionRowGenerator,
     ReasonRowGenerator,
@@ -224,14 +277,18 @@ impl_factory!(
     WebSiteRowGenerator
 );
 
-/// Generate a simple table (one row per row_number, no child tables)
+/// Generate a simple table (one row per row_number, no paired return output)
 fn generate_simple<G: RowGeneratorFactory>(
     table: Table,
     session: &Session,
     output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
 ) -> Result<()> {
     let mut generator = G::create();
     let row_count = session.get_scaling().get_row_count(table);
+    let table_name = table.get_name();
+    // Register the scaling row count, then advance after each written row.
+    progress.register(table_name, row_count.try_into().unwrap_or(0));
 
     let path = get_output_path(table, output_options);
     let file = create_output_file(&path, output_options)?;
@@ -247,6 +304,7 @@ fn generate_simple<G: RowGeneratorFactory>(
         }
 
         generator.consume_remaining_seeds_for_row();
+        progress.increment(table_name, 1);
     }
 
     writer.flush()?;
@@ -261,9 +319,19 @@ fn generate_simple<G: RowGeneratorFactory>(
 }
 
 /// Generate store_sales and store_returns together
-fn generate_store_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
+fn generate_store_sales(
+    session: &Session,
+    output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
+) -> Result<()> {
     let mut generator = StoreSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::StoreSales);
+    let return_rows = session.get_scaling().get_row_count(Table::StoreReturns);
+    let sales_name = Table::StoreSales.get_name();
+    let returns_name = Table::StoreReturns.get_name();
+    // Register the scaling row counts, then advance after each written row.
+    progress.register(sales_name, num_orders.try_into().unwrap_or(0));
+    progress.register(returns_name, return_rows.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(Table::StoreSales, output_options);
     let returns_path = get_output_path(Table::StoreReturns, output_options);
@@ -296,11 +364,13 @@ fn generate_store_sales(session: &Session, output_options: &OutputOptions) -> Re
         if rows.len() > 1 {
             write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
+            progress.increment(returns_name, 1);
         }
 
         if result.should_end_row() {
             generator.consume_remaining_seeds_for_row();
             row_number += 1;
+            progress.increment(sales_name, 1);
         }
     }
 
@@ -319,9 +389,19 @@ fn generate_store_sales(session: &Session, output_options: &OutputOptions) -> Re
 }
 
 /// Generate catalog_sales and catalog_returns together
-fn generate_catalog_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
+fn generate_catalog_sales(
+    session: &Session,
+    output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
+) -> Result<()> {
     let mut generator = CatalogSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::CatalogSales);
+    let return_rows = session.get_scaling().get_row_count(Table::CatalogReturns);
+    let sales_name = Table::CatalogSales.get_name();
+    let returns_name = Table::CatalogReturns.get_name();
+    // Register the scaling row counts, then advance after each written row.
+    progress.register(sales_name, num_orders.try_into().unwrap_or(0));
+    progress.register(returns_name, return_rows.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(Table::CatalogSales, output_options);
     let returns_path = get_output_path(Table::CatalogReturns, output_options);
@@ -354,11 +434,13 @@ fn generate_catalog_sales(session: &Session, output_options: &OutputOptions) -> 
         if rows.len() > 1 {
             write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
+            progress.increment(returns_name, 1);
         }
 
         if result.should_end_row() {
             generator.consume_remaining_seeds_for_row();
             row_number += 1;
+            progress.increment(sales_name, 1);
         }
     }
 
@@ -377,9 +459,19 @@ fn generate_catalog_sales(session: &Session, output_options: &OutputOptions) -> 
 }
 
 /// Generate web_sales and web_returns together
-fn generate_web_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
+fn generate_web_sales(
+    session: &Session,
+    output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
+) -> Result<()> {
     let mut generator = WebSalesRowGenerator::new();
     let num_orders = session.get_scaling().get_row_count(Table::WebSales);
+    let return_rows = session.get_scaling().get_row_count(Table::WebReturns);
+    let sales_name = Table::WebSales.get_name();
+    let returns_name = Table::WebReturns.get_name();
+    // Register the scaling row counts, then advance after each written row.
+    progress.register(sales_name, num_orders.try_into().unwrap_or(0));
+    progress.register(returns_name, return_rows.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(Table::WebSales, output_options);
     let returns_path = get_output_path(Table::WebReturns, output_options);
@@ -412,11 +504,13 @@ fn generate_web_sales(session: &Session, output_options: &OutputOptions) -> Resu
         if rows.len() > 1 {
             write_row(&rows[1], &mut returns_writer, output_options)?;
             returns_count += 1;
+            progress.increment(returns_name, 1);
         }
 
         if result.should_end_row() {
             generator.consume_remaining_seeds_for_row();
             row_number += 1;
+            progress.increment(sales_name, 1);
         }
     }
 
@@ -429,45 +523,6 @@ fn generate_web_sales(session: &Session, output_options: &OutputOptions) -> Resu
         returns_count,
         sales_path.display(),
         returns_path.display()
-    );
-
-    Ok(())
-}
-
-/// Generate inventory table (special row count calculation)
-fn generate_inventory(session: &Session, output_options: &OutputOptions) -> Result<()> {
-    let mut generator = InventoryRowGenerator::new();
-    let scaling = session.get_scaling();
-
-    let item_count = scaling.get_id_count(Table::Item);
-    let warehouse_count = scaling.get_row_count(Table::Warehouse);
-    let n_days = Date::JULIAN_DATE_MAXIMUM - Date::JULIAN_DATE_MINIMUM;
-    let n_weeks = (n_days + 7) / 7;
-    let num_rows = item_count * warehouse_count * n_weeks as i64;
-
-    let path = get_output_path(Table::Inventory, output_options);
-    let mut writer = CompatWriter::new(
-        BufWriter::new(create_output_file(&path, output_options)?),
-        session.get_compat_mode(),
-    );
-
-    info!("Generating inventory...");
-
-    for row_number in 1..=num_rows {
-        let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
-
-        for row in result.get_rows() {
-            write_row(row, &mut writer, output_options)?;
-        }
-
-        generator.consume_remaining_seeds_for_row();
-    }
-
-    writer.flush()?;
-    info!(
-        "Generated inventory: {} rows -> {}",
-        num_rows,
-        path.display()
     );
 
     Ok(())

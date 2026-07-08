@@ -2,9 +2,9 @@ use super::generate::Sink;
 use super::output_plan::OutputPlanGenerator;
 use super::parquet::IntoSize;
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
-use super::progress::{no_op_progress_tracker, ProgressTracker};
 use super::runner::PlanRunner;
 use super::statistics::WriteStatistics;
+use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::Compression;
 use log::info;
 use std::fmt::Display;
@@ -382,7 +382,7 @@ impl TpchGeneratorBuilder {
     ///
     /// The runner calls [`ProgressTracker::finish`] on successful completion.
     /// Trackers that need error or panic cleanup should use `Drop` as a
-    /// fallback. See [`crate::tpch_cli::progress`] for the full contract and examples.
+    /// fallback. See [`crate::progress`] for the full contract and examples.
     pub fn with_progress_tracker(mut self, tracker: Arc<dyn ProgressTracker>) -> Self {
         self.progress_tracker = tracker;
         self
@@ -406,7 +406,7 @@ impl Default for TpchGeneratorBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tpch_cli::progress::ProgressTracker;
+    use crate::progress::ProgressTracker;
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,

@@ -37,7 +37,7 @@
 //!
 //! ```
 //! use std::sync::atomic::{AtomicU64, Ordering};
-//! use tpcgen_cli::tpch_cli::progress::ProgressTracker;
+//! use tpcgen_cli::progress::ProgressTracker;
 //!
 //! #[derive(Debug)]
 //! struct LoggingTracker {
