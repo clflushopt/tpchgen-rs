@@ -232,11 +232,31 @@ impl CommonArgs {
 
         std::fs::create_dir_all(&self.output_dir)?;
 
-        for table in tables {
-            let session = self.to_session(Some(table.get_name().to_string()))?;
-            output_format
-                .generate_table(table, session, &progress)
-                .await?;
+        match output_format {
+            // Parquet generates all tables in one call so that multiple
+            // tables can be generated concurrently
+            OutputFormat::Parquet(output) => {
+                let mut table_sessions = Vec::with_capacity(tables.len());
+                for table in tables {
+                    let session = self.to_session(Some(table.get_name().to_string()))?;
+                    table_sessions.push((table, session));
+                }
+                output
+                    .generate_tables(table_sessions, Arc::clone(&progress))
+                    .await?;
+            }
+            OutputFormat::Dat(output) => {
+                for table in tables {
+                    let session = self.to_session(Some(table.get_name().to_string()))?;
+                    output.generate_table(table, &session, progress.as_ref())?;
+                }
+            }
+            OutputFormat::Csv(output) => {
+                for table in tables {
+                    let session = self.to_session(Some(table.get_name().to_string()))?;
+                    output.generate_table(table, session, progress.as_ref())?;
+                }
+            }
         }
 
         progress.finish();
@@ -302,25 +322,6 @@ impl CommonArgs {
         }
 
         Ok(builder.build()?)
-    }
-}
-
-impl OutputFormat {
-    async fn generate_table(
-        &self,
-        table: Table,
-        session: Session,
-        progress: &Arc<dyn ProgressTracker>,
-    ) -> Result<()> {
-        match self {
-            OutputFormat::Dat(output) => output.generate_table(table, &session, progress.as_ref()),
-            OutputFormat::Csv(output) => output.generate_table(table, session, progress.as_ref()),
-            OutputFormat::Parquet(output) => {
-                output
-                    .generate_table(table, session, Arc::clone(progress))
-                    .await
-            }
-        }
     }
 }
 
