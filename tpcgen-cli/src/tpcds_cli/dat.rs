@@ -483,6 +483,8 @@ fn write_row(
             GeneratedRow::StoreReturns(row) => writer.write_display_row(row)?,
             GeneratedRow::CatalogSales(row) => writer.write_display_row(row)?,
             GeneratedRow::CatalogReturns(row) => writer.write_display_row(row)?,
+            GeneratedRow::WebSales(row) => writer.write_display_row(row)?,
+            GeneratedRow::WebReturns(row) => writer.write_display_row(row)?,
             row => writer.write_table_row(row, output_options.separator)?,
         }
         return Ok(());
