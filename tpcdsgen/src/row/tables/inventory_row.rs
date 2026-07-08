@@ -15,7 +15,9 @@
 //! Inventory row data structure
 
 use crate::generator::{GeneratorColumn, InventoryGeneratorColumn};
+use crate::row::table_row::dat_field;
 use crate::row::TableRow;
+use std::fmt;
 
 /// Represents a single row in the inventory table.
 #[derive(Clone)]
@@ -87,6 +89,27 @@ impl InventoryRow {
     }
 }
 
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for InventoryRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use InventoryGeneratorColumn::*;
+
+        write!(
+            f,
+            "{}|{}|{}|{}|",
+            dat_field(self.inv_date_sk, self.is_null_at(InvDateSk)),
+            dat_field(self.inv_item_sk, self.is_null_at(InvItemSk)),
+            dat_field(self.inv_warehouse_sk, self.is_null_at(InvWarehouseSk)),
+            dat_field(
+                self.inv_quantity_on_hand,
+                self.is_null_at(InvQuantityOnHand)
+            ),
+        )
+    }
+}
+
 impl TableRow for InventoryRow {
     fn get_values(&self) -> Vec<String> {
         vec![
@@ -101,5 +124,17 @@ impl TableRow for InventoryRow {
                 InventoryGeneratorColumn::InvQuantityOnHand,
             ),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = InventoryRow::new(0b10, 2451545, 17, 3, 250);
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

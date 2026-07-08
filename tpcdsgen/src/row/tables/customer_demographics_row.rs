@@ -1,4 +1,6 @@
+use crate::row::table_row::{dat_field, DatField};
 use crate::row::TableRow;
+use std::fmt;
 
 /// Customer demographics table row (CustomerDemographicsRow)
 #[derive(Debug, Clone)]
@@ -98,6 +100,34 @@ impl CustomerDemographicsRow {
     }
 }
 
+/// DAT field helper mirroring `get_string_or_null`.
+impl CustomerDemographicsRow {
+    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+        dat_field(value, self.should_be_null(column_position))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for CustomerDemographicsRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.field(self.cd_demo_sk, 0),
+            self.field(&self.cd_gender, 1),
+            self.field(&self.cd_marital_status, 2),
+            self.field(&self.cd_education_status, 3),
+            self.field(self.cd_purchase_estimate, 4),
+            self.field(&self.cd_credit_rating, 5),
+            self.field(self.cd_dep_count, 6),
+            self.field(self.cd_dep_employed_count, 7),
+            self.field(self.cd_dep_college_count, 8),
+        )
+    }
+}
+
 impl TableRow for CustomerDemographicsRow {
     fn get_values(&self) -> Vec<String> {
         // Column positions match Java CustomerDemographicsGeneratorColumn (0-8)
@@ -112,5 +142,28 @@ impl TableRow for CustomerDemographicsRow {
             self.get_string_or_null(self.cd_dep_employed_count, 7),
             self.get_string_or_null(self.cd_dep_college_count, 8),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = CustomerDemographicsRow::new(
+            0b10,
+            1,
+            "M".to_string(),
+            "S".to_string(),
+            "College".to_string(),
+            500,
+            "Good".to_string(),
+            2,
+            1,
+            0,
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }
