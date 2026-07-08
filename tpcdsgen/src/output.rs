@@ -294,7 +294,7 @@ mod tests {
         let mut writer = DatWriter::new(&mut out, CompatMode::Trino);
         writer.write_display_row(&TestRow).unwrap();
         // Small rows stay buffered until an explicit flush.
-        assert!(writer.buffer().len() > 0);
+        assert!(!writer.buffer.is_empty());
         writer.flush().unwrap();
         // Ô (U+00D4) must come out as the single ISO-8859-1 byte 0xD4.
         assert_eq!(out, b"1|C\xD4TE|2.50|\n");
