@@ -26,7 +26,6 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::CompatWriter;
 use tpcdsgen::row::{GeneratedRow, TableRow, *};
-use tpcdsgen::types::Date;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -219,6 +218,9 @@ impl Dat {
                 &self.output_options,
                 progress,
             ),
+            Table::Inventory => {
+                generate_simple::<InventoryRowGenerator>(table, session, &self.output_options, progress)
+            }
 
             // Sales generators write their return tables at the same time.
             Table::StoreSales => generate_store_sales(session, &self.output_options, progress),
@@ -227,9 +229,6 @@ impl Dat {
             Table::CatalogReturns => Ok(()), // Generated with CatalogSales
             Table::WebSales => generate_web_sales(session, &self.output_options, progress),
             Table::WebReturns => Ok(()), // Generated with WebSales
-
-            // Special tables
-            Table::Inventory => generate_inventory(session, &self.output_options, progress),
 
             // Source tables - skip
             _ => Ok(()),
@@ -263,6 +262,7 @@ impl_factory!(
     DbgenVersionRowGenerator,
     HouseholdDemographicsRowGenerator,
     IncomeBandRowGenerator,
+    InventoryRowGenerator,
     ItemRowGenerator,
     PromotionRowGenerator,
     ReasonRowGenerator,
@@ -520,53 +520,6 @@ fn generate_web_sales(
         returns_count,
         sales_path.display(),
         returns_path.display()
-    );
-
-    Ok(())
-}
-
-/// Generate inventory table (special row count calculation)
-fn generate_inventory(
-    session: &Session,
-    output_options: &OutputOptions,
-    progress: &dyn ProgressTracker,
-) -> Result<()> {
-    let mut generator = InventoryRowGenerator::new();
-    let scaling = session.get_scaling();
-
-    let item_count = scaling.get_id_count(Table::Item);
-    let warehouse_count = scaling.get_row_count(Table::Warehouse);
-    let n_days = Date::JULIAN_DATE_MAXIMUM - Date::JULIAN_DATE_MINIMUM;
-    let n_weeks = (n_days + 7) / 7;
-    let num_rows = item_count * warehouse_count * n_weeks as i64;
-    let table_name = Table::Inventory.get_name();
-    // Register the calculated row count, then advance after each written row.
-    progress.register(table_name, num_rows.try_into().unwrap_or(0));
-
-    let path = get_output_path(Table::Inventory, output_options);
-    let mut writer = CompatWriter::new(
-        BufWriter::new(create_output_file(&path, output_options)?),
-        session.get_compat_mode(),
-    );
-
-    info!("Generating inventory...");
-
-    for row_number in 1..=num_rows {
-        let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
-
-        for row in result.get_rows() {
-            write_row(row, &mut writer, output_options)?;
-        }
-
-        generator.consume_remaining_seeds_for_row();
-        progress.increment(table_name, 1);
-    }
-
-    writer.flush()?;
-    info!(
-        "Generated inventory: {} rows -> {}",
-        num_rows,
-        path.display()
     );
 
     Ok(())
