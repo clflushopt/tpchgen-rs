@@ -481,6 +481,8 @@ fn write_row(
         match row {
             GeneratedRow::StoreSales(row) => writer.write_display_row(row)?,
             GeneratedRow::StoreReturns(row) => writer.write_display_row(row)?,
+            GeneratedRow::CatalogSales(row) => writer.write_display_row(row)?,
+            GeneratedRow::CatalogReturns(row) => writer.write_display_row(row)?,
             row => writer.write_table_row(row, output_options.separator)?,
         }
         return Ok(());
