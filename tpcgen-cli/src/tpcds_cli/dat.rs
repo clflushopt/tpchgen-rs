@@ -218,9 +218,12 @@ impl Dat {
                 &self.output_options,
                 progress,
             ),
-            Table::Inventory => {
-                generate_simple::<InventoryRowGenerator>(table, session, &self.output_options, progress)
-            }
+            Table::Inventory => generate_simple::<InventoryRowGenerator>(
+                table,
+                session,
+                &self.output_options,
+                progress,
+            ),
 
             // Sales generators write their return tables at the same time.
             Table::StoreSales => generate_store_sales(session, &self.output_options, progress),
