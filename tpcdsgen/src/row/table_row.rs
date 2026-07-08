@@ -28,6 +28,31 @@ pub(crate) fn dat_key(key: i64, is_null: bool) -> DatField<i64> {
     DatField((!is_null && key != -1).then_some(key))
 }
 
+/// DAT field from an already-computed optional value, for callers whose
+/// value is only constructible when non-NULL.
+pub(crate) fn dat_opt<T>(value: Option<T>) -> DatField<T> {
+    DatField(value)
+}
+
+/// DAT field for a boolean, formatted as `Y`/`N`.
+pub(crate) fn dat_bool(value: bool, is_null: bool) -> DatField<&'static str> {
+    dat_field(if value { "Y" } else { "N" }, is_null)
+}
+
+/// Zero-padded five-digit zip code (`{:05}`).
+pub(crate) struct Zip5(i32);
+
+impl fmt::Display for Zip5 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:05}", self.0)
+    }
+}
+
+/// DAT field for a zip code, zero-padded to five digits.
+pub(crate) fn dat_zip(zip: i32, is_null: bool) -> DatField<Zip5> {
+    dat_field(Zip5(zip), is_null)
+}
+
 /// TableRow trait matching the Java TableRow interface
 /// Represents a single row of data from any TPC-DS table
 pub trait TableRow: Send + Sync {

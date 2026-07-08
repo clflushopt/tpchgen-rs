@@ -15,7 +15,9 @@
 //! Catalog page row structure and formatting
 
 use crate::generator::{CatalogPageGeneratorColumn, GeneratorColumn};
+use crate::row::table_row::{dat_field, DatField};
 use crate::row::TableRow;
+use std::fmt;
 
 /// Catalog page row
 #[derive(Clone)]
@@ -135,6 +137,42 @@ impl CatalogPageRow {
     }
 }
 
+impl CatalogPageRow {
+    /// DAT field for a surrogate key: NULL when the null bit is set or the
+    /// key is negative (mirrors `get_string_or_null_for_key`).
+    fn key_field(&self, value: i64, column: &CatalogPageGeneratorColumn) -> DatField<i64> {
+        dat_field(value, self.is_null(column) || value < 0)
+    }
+
+    /// DAT field for a regular value: NULL when the null bit is set.
+    fn field<T>(&self, value: T, column: &CatalogPageGeneratorColumn) -> DatField<T> {
+        dat_field(value, self.is_null(column))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for CatalogPageRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use CatalogPageGeneratorColumn::*;
+
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.key_field(self.cp_catalog_page_sk, &CpCatalogPageSk),
+            self.field(&self.cp_catalog_page_id, &CpCatalogPageId),
+            self.key_field(self.cp_start_date_id, &CpStartDateId),
+            self.key_field(self.cp_end_date_id, &CpEndDateId),
+            self.field(&self.cp_department, &CpDepartment),
+            self.field(self.cp_catalog_number, &CpCatalogNumber),
+            self.field(self.cp_catalog_page_number, &CpCatalogPageNumber),
+            self.field(&self.cp_description, &CpDescription),
+            self.field(&self.cp_type, &CpType),
+        )
+    }
+}
+
 impl TableRow for CatalogPageRow {
     fn get_values(&self) -> Vec<String> {
         use CatalogPageGeneratorColumn::*;
@@ -149,5 +187,30 @@ impl TableRow for CatalogPageRow {
             self.get_string_or_null(&self.cp_description, &CpDescription),
             self.get_string_or_null(&self.cp_type, &CpType),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        // Null bit on cp_catalog_page_id plus a negative cp_end_date_id
+        // exercise both NULL paths.
+        let row = CatalogPageRow::new(
+            0b10,
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            2450815,
+            -1,
+            "DEPARTMENT".to_string(),
+            1,
+            27,
+            "A description".to_string(),
+            "bi-annual".to_string(),
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

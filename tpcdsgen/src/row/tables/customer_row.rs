@@ -15,7 +15,9 @@
 //! Customer row definition (CustomerRow)
 
 use crate::generator::CustomerGeneratorColumn;
+use crate::row::table_row::{dat_bool, dat_field, DatField};
 use crate::row::TableRow;
+use std::fmt;
 
 /// Customer row (CustomerRow)
 #[derive(Debug, Clone)]
@@ -212,6 +214,53 @@ impl CustomerRow {
     }
 }
 
+impl CustomerRow {
+    /// DAT field for a surrogate key: NULL when the null bit is set or the
+    /// key is negative (mirrors `get_string_or_null_for_key`).
+    fn key_field(&self, value: i64, column: CustomerGeneratorColumn) -> DatField<i64> {
+        dat_field(value, self.is_null(column) || value < 0)
+    }
+
+    /// DAT field for a regular value: NULL when the null bit is set
+    /// (mirrors the remaining `get_string_or_null*` helpers).
+    fn field<T>(&self, value: T, column: CustomerGeneratorColumn) -> DatField<T> {
+        dat_field(value, self.is_null(column))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for CustomerRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use CustomerGeneratorColumn::*;
+
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.key_field(self.c_customer_sk, CCustomerSk),
+            self.field(&self.c_customer_id, CCustomerId),
+            self.key_field(self.c_current_cdemo_sk, CCurrentCdemoSk),
+            self.key_field(self.c_current_hdemo_sk, CCurrentHdemoSk),
+            self.key_field(self.c_current_addr_sk, CCurrentAddrSk),
+            self.field(self.c_first_shipto_date_id, CFirstShiptoDateId),
+            self.field(self.c_first_sales_date_id, CFirstSalesDateId),
+            self.field(&self.c_salutation, CSalutation),
+            self.field(&self.c_first_name, CFirstName),
+            self.field(&self.c_last_name, CLastName),
+            dat_bool(self.c_preferred_cust_flag, self.is_null(CPreferredCustFlag)),
+            self.field(self.c_birth_day, CBirthDay),
+            self.field(self.c_birth_month, CBirthMonth),
+            self.field(self.c_birth_year, CBirthYear),
+            self.field(&self.c_birth_country, CBirthCountry),
+            // c_login is emitted without a null check, like get_values()
+            self.c_login.as_deref().unwrap_or_default(),
+            self.field(&self.c_email_address, CEmailAddress),
+            self.field(self.c_last_review_date, CLastReviewDate),
+        )
+    }
+}
+
 impl TableRow for CustomerRow {
     fn get_values(&self) -> Vec<String> {
         use CustomerGeneratorColumn::*;
@@ -240,3 +289,36 @@ impl TableRow for CustomerRow {
 }
 
 use crate::generator::GeneratorColumn;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        // Null bit on c_customer_id (position 1) plus a negative key
+        // (c_current_hdemo_sk) exercise both NULL paths.
+        let row = CustomerRow::new(
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            100,
+            -1,
+            400,
+            2450815,
+            2450820,
+            "Sir".to_string(),
+            "John".to_string(),
+            "Doe".to_string(),
+            true,
+            14,
+            7,
+            1970,
+            "CHILE".to_string(),
+            "John.Doe@example.com".to_string(),
+            2452293,
+            0b10,
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
+    }
+}

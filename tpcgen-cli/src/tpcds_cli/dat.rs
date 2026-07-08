@@ -489,6 +489,11 @@ fn write_row(
             GeneratedRow::CustomerDemographics(row) => writer.write_display_row(row)?,
             GeneratedRow::DateDim(row) => writer.write_display_row(row)?,
             GeneratedRow::TimeDim(row) => writer.write_display_row(row)?,
+            GeneratedRow::Customer(row) => writer.write_display_row(row)?,
+            GeneratedRow::CustomerAddress(row) => writer.write_display_row(row)?,
+            GeneratedRow::Item(row) => writer.write_display_row(row)?,
+            GeneratedRow::CatalogPage(row) => writer.write_display_row(row)?,
+            GeneratedRow::Promotion(row) => writer.write_display_row(row)?,
             row => writer.write_table_row(row, output_options.separator)?,
         }
         return Ok(());
