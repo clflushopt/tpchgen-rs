@@ -20,9 +20,11 @@
 //!
 //! [`CompatWriter`] selects the right behavior based on [`CompatMode`].
 
+use std::fmt;
 use std::io::{self, Write};
 
 use crate::config::CompatMode;
+use crate::row::TableRow;
 
 /// Converts a UTF-8 string to ISO-8859-1 bytes.
 ///
@@ -136,6 +138,90 @@ impl<W: Write> Write for CompatWriter<W> {
     }
 }
 
+/// Buffered DAT row writer.
+///
+/// Rows are formatted into an in-memory UTF-8 buffer which is encoded and
+/// flushed to the inner writer one large chunk at a time. Encoding per chunk
+/// instead of per field keeps the hot path to plain byte appends: the common
+/// all-ASCII chunk is written through unchanged in both compat modes (ASCII
+/// bytes are identical in UTF-8 and ISO-8859-1), and only chunks that
+/// actually contain non-ASCII characters pay for ISO-8859-1 conversion in
+/// Trino mode.
+pub struct DatWriter<W: Write> {
+    inner: W,
+    compat_mode: CompatMode,
+    /// Pending formatted rows (UTF-8).
+    buffer: Vec<u8>,
+}
+
+impl<W: Write> DatWriter<W> {
+    /// Flush the pending buffer once it grows past this size: large enough to
+    /// amortize the encoding scan and write call, small enough to stay in L2.
+    const FLUSH_THRESHOLD: usize = 64 * 1024;
+
+    pub fn new(inner: W, compat_mode: CompatMode) -> Self {
+        Self {
+            inner,
+            compat_mode,
+            buffer: Vec::with_capacity(Self::FLUSH_THRESHOLD + 1024),
+        }
+    }
+
+    /// Write one row whose `Display` impl emits the DAT line (fields joined
+    /// by the separator, with a trailing separator); appends the newline.
+    pub fn write_display_row(&mut self, row: &impl fmt::Display) -> io::Result<()> {
+        writeln!(self.buffer, "{row}")?;
+        self.maybe_flush()
+    }
+
+    /// Write one row through the legacy [`TableRow`] interface, for row types
+    /// without a `Display` impl yet.
+    pub fn write_table_row(&mut self, row: &dyn TableRow, separator: char) -> io::Result<()> {
+        row.write_to(&mut self.buffer, separator)?;
+        self.maybe_flush()
+    }
+
+    /// The pending in-memory buffer. Callers with custom formatting needs may
+    /// append UTF-8 rows directly, followed by [`Self::maybe_flush`].
+    pub fn buffer(&mut self) -> &mut Vec<u8> {
+        &mut self.buffer
+    }
+
+    /// Encode and flush the pending buffer if it has grown past the threshold.
+    pub fn maybe_flush(&mut self) -> io::Result<()> {
+        if self.buffer.len() >= Self::FLUSH_THRESHOLD {
+            self.flush_buffer()?;
+        }
+        Ok(())
+    }
+
+    fn flush_buffer(&mut self) -> io::Result<()> {
+        if self.buffer.is_empty() {
+            return Ok(());
+        }
+        match self.compat_mode {
+            CompatMode::C => self.inner.write_all(&self.buffer)?,
+            CompatMode::Trino => {
+                if self.buffer.is_ascii() {
+                    self.inner.write_all(&self.buffer)?;
+                } else {
+                    let s = std::str::from_utf8(&self.buffer)
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                    self.inner.write_all(&to_iso_8859_1(s)?)?;
+                }
+            }
+        }
+        self.buffer.clear();
+        Ok(())
+    }
+
+    /// Flush all pending rows and the inner writer.
+    pub fn flush(&mut self) -> io::Result<()> {
+        self.flush_buffer()?;
+        self.inner.flush()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,6 +272,72 @@ mod tests {
         // Trino/Java emits a single 0xD4 byte for Ô.
         assert_eq!(buffer[1], 0xD4);
         assert_eq!(buffer.len(), 13);
+    }
+
+    struct TestRow;
+
+    impl std::fmt::Display for TestRow {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            write!(f, "1|CÔTE|2.50|")
+        }
+    }
+
+    impl TableRow for TestRow {
+        fn get_values(&self) -> Vec<String> {
+            vec!["1".to_string(), "CÔTE".to_string(), "2.50".to_string()]
+        }
+    }
+
+    #[test]
+    fn test_dat_writer_buffers_until_flush() {
+        let mut out = Vec::new();
+        let mut writer = DatWriter::new(&mut out, CompatMode::Trino);
+        writer.write_display_row(&TestRow).unwrap();
+        // Small rows stay buffered until an explicit flush.
+        assert!(writer.buffer().len() > 0);
+        writer.flush().unwrap();
+        // Ô (U+00D4) must come out as the single ISO-8859-1 byte 0xD4.
+        assert_eq!(out, b"1|C\xD4TE|2.50|\n");
+    }
+
+    #[test]
+    fn test_dat_writer_utf8_mode_passes_through() {
+        let mut out = Vec::new();
+        let mut writer = DatWriter::new(&mut out, CompatMode::C);
+        writer.write_display_row(&TestRow).unwrap();
+        writer.flush().unwrap();
+        assert_eq!(out, "1|CÔTE|2.50|\n".as_bytes());
+    }
+
+    #[test]
+    fn test_dat_writer_table_row_matches_display_row() {
+        let mut display_out = Vec::new();
+        let mut writer = DatWriter::new(&mut display_out, CompatMode::Trino);
+        writer.write_display_row(&TestRow).unwrap();
+        writer.flush().unwrap();
+
+        let mut table_out = Vec::new();
+        let mut writer = DatWriter::new(&mut table_out, CompatMode::Trino);
+        writer.write_table_row(&TestRow, '|').unwrap();
+        writer.flush().unwrap();
+
+        assert_eq!(display_out, table_out);
+    }
+
+    #[test]
+    fn test_dat_writer_rejects_non_latin1_in_trino_mode() {
+        struct EuroRow;
+        impl std::fmt::Display for EuroRow {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                write!(f, "€100|")
+            }
+        }
+
+        let mut out = Vec::new();
+        let mut writer = DatWriter::new(&mut out, CompatMode::Trino);
+        writer.write_display_row(&EuroRow).unwrap();
+        let err = writer.flush().unwrap_err();
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 
     #[test]
