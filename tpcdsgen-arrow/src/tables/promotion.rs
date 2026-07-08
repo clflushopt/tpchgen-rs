@@ -28,6 +28,19 @@ impl PromotionArrow {
             .skip_rows_until_starting_row_number(starting_row_number);
     }
 
+    /// Generate only source rows `starting_row_number..=ending_row_number`
+    /// (1-based, inclusive). The ending row number is clamped to the table's
+    /// row count.
+    pub fn with_source_row_range(
+        mut self,
+        starting_row_number: i64,
+        ending_row_number: i64,
+    ) -> Self {
+        self.inner
+            .set_source_row_range(starting_row_number, ending_row_number);
+        self
+    }
+
     pub fn with_batch_size(mut self, batch_size: usize) -> Self {
         self.batch_size = batch_size;
         self

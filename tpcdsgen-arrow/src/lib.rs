@@ -64,6 +64,19 @@ impl<G: RowGenerator> RowIter<G> {
         self.current_row = starting_row_number;
         self.pending.clear();
     }
+
+    /// Restrict generation to source rows
+    /// `starting_row_number..=ending_row_number` (1-based, inclusive).
+    ///
+    /// The ending row number is clamped to the table's row count.
+    pub(crate) fn set_source_row_range(
+        &mut self,
+        starting_row_number: i64,
+        ending_row_number: i64,
+    ) {
+        self.skip_rows_until_starting_row_number(starting_row_number);
+        self.row_count = self.row_count.min(ending_row_number);
+    }
 }
 
 impl<G: RowGenerator> Iterator for RowIter<G> {

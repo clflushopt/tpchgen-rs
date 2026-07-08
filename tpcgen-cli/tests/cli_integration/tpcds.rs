@@ -1,4 +1,8 @@
 use super::test_helpers::{expect_row_group_sizes, RowGroups};
+use arrow::array::RecordBatch;
+use arrow::compute::concat_batches;
+use arrow::datatypes::{DataType, TimeUnit};
+use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 use parquet::basic::Compression;
@@ -6,8 +10,10 @@ use parquet::file::metadata::ParquetMetaDataReader;
 use std::collections::BTreeSet;
 use std::fs;
 use std::fs::File;
+use std::path::Path;
 use tempfile::tempdir;
-use tpcdsgen::config::Table;
+use tpcdsgen::config::{Session, SessionBuilder, Table};
+use tpcdsgen_arrow::{StoreReturnsArrow, StoreSalesArrow};
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
@@ -257,8 +263,8 @@ fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
         vec![RowGroups {
             table: "customer",
             row_group_bytes: vec![
-                993810, 994593, 994898, 994188, 994197, 993716, 995067, 994680, 994676, 994498,
-                861562,
+                1074775, 1073988, 1073405, 1071992, 1073785, 1072613, 1072227, 1073264, 1073338,
+                1072748,
             ],
         }],
     );
@@ -648,4 +654,156 @@ fn test_tpcgen_cli_tpcds_csv_rejects_non_ascii_delimiter() {
         .assert()
         .failure()
         .stderr(predicates::str::contains("ASCII"));
+}
+
+/// Session matching the CLI defaults for the given scale factor.
+fn test_session(scale_factor: f64) -> Session {
+    SessionBuilder::new()
+        .with_scale_factor(scale_factor)
+        .build()
+        .expect("valid session")
+}
+
+/// Read a parquet file into a single [`RecordBatch`], also returning the
+/// number of row groups in the file.
+fn read_concatenated_parquet(path: &Path) -> (RecordBatch, usize) {
+    let file = File::open(path).expect("Failed to open Parquet file");
+    let builder =
+        ParquetRecordBatchReaderBuilder::try_new(file).expect("Failed to read Parquet metadata");
+    let num_row_groups = builder.metadata().num_row_groups();
+    let schema = builder.schema().clone();
+    let batches: Vec<RecordBatch> = builder
+        .build()
+        .expect("Failed to build Parquet reader")
+        .map(|batch| batch.expect("Failed to read Parquet batch"))
+        .collect();
+    let batch = concat_batches(&schema, &batches).expect("Failed to concatenate batches");
+    (batch, num_row_groups)
+}
+
+/// Drain a [`RecordBatchReader`] into a single [`RecordBatch`].
+fn read_concatenated_reference<R: RecordBatchReader>(mut reader: R) -> RecordBatch {
+    let schema = reader.schema();
+    let batches: Vec<RecordBatch> = reader
+        .by_ref()
+        .map(|batch| batch.expect("Failed to generate reference batch"))
+        .collect();
+    concat_batches(&schema, &batches).expect("Failed to concatenate reference batches")
+}
+
+/// Parquet files are generated using multiple source row ranges. Each
+/// Row Group comes from a particular row range, potentially encoded in parallel.
+///
+/// This test ensures that the result of this row range generation is the same
+/// as generating the data in a single chunk.
+///
+/// store_returns is generated from the store_sales generator, so this also
+/// verifies that ranging over the *sales* source rows loses or duplicates no
+/// return rows at range boundaries.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // write parquet data using CLI
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("store_sales,store_returns")
+        // small row groups to force several source row ranges
+        .arg("--row-group-bytes")
+        .arg("1000000")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    // Parquet data
+    let (store_sales, num_row_groups) =
+        read_concatenated_parquet(&temp_dir.path().join("store_sales.parquet"));
+    assert_eq!(num_row_groups, 24);
+    let expected = read_concatenated_reference(StoreSalesArrow::new(test_session(0.001)));
+    assert_eq!(store_sales, expected);
+
+    // regenerate same data directly from arrow generator
+    let (store_returns, num_row_groups) =
+        read_concatenated_parquet(&temp_dir.path().join("store_returns.parquet"));
+    assert_eq!(num_row_groups, 3);
+    let expected = read_concatenated_reference(StoreReturnsArrow::new(test_session(0.001)));
+    assert_eq!(store_returns, expected);
+}
+
+/// Test that the number of threads does not change the generated files.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_num_threads_equivalence() {
+    let mut outputs = vec![];
+    for num_threads in ["1", "4"] {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        cargo_bin_cmd!("tpcgen-cli")
+            .arg("tpcds")
+            .arg("parquet")
+            .arg("--scale-factor")
+            .arg("0.001")
+            .arg("--tables")
+            .arg("store_sales")
+            // small row groups so multiple row groups are encoded in parallel
+            .arg("--row-group-bytes")
+            .arg("1000000")
+            .arg("--num-threads")
+            .arg(num_threads)
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .assert()
+            .success();
+
+        let path = temp_dir.path().join("store_sales.parquet");
+
+        // verify multiple row groups were actually created, so the encoding
+        // really ran in parallel with --num-threads=4
+        let file = File::open(&path).expect("Failed to open Parquet file");
+        let mut metadata_reader = ParquetMetaDataReader::new();
+        metadata_reader.try_parse(&file).unwrap();
+        let num_row_groups = metadata_reader.finish().unwrap().num_row_groups();
+        assert_eq!(num_row_groups, 24);
+
+        outputs.push(fs::read(&path).expect("Failed to read Parquet file"));
+    }
+
+    assert_eq!(
+        outputs[0], outputs[1],
+        "Expected --num-threads=1 and --num-threads=4 to produce identical files"
+    );
+}
+
+/// Test that the Arrow schema is embedded in the Parquet metadata: the
+/// dbgen_version dv_create_time column is Time32(Second), which has no exact
+/// Parquet equivalent and only survives via the embedded Arrow schema.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("1")
+        .arg("--tables")
+        .arg("dbgen_version")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let file = File::open(temp_dir.path().join("dbgen_version.parquet"))
+        .expect("Failed to open Parquet file");
+    let builder =
+        ParquetRecordBatchReaderBuilder::try_new(file).expect("Failed to read Parquet metadata");
+    let field = builder
+        .schema()
+        .field_with_name("dv_create_time")
+        .expect("dv_create_time field");
+    assert_eq!(field.data_type(), &DataType::Time32(TimeUnit::Second));
 }

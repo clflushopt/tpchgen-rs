@@ -147,6 +147,25 @@ impl Table {
         )
     }
 
+    /// Return the table whose source rows drive generation of this table.
+    ///
+    /// The returns tables are generated row by row from their corresponding
+    /// sales generators, so anything that partitions generation by source row
+    /// (for example parallel Parquet generation) must use the sales table's
+    /// row counts; the returns tables' own scaling row counts would miss or
+    /// duplicate return rows. Every other table generates from its own rows.
+    ///
+    /// Note this is unrelated to the `S*` source schema tables (see
+    /// [`Self::is_main_table`]).
+    pub fn source_table(&self) -> Table {
+        match self {
+            Table::StoreReturns => Table::StoreSales,
+            Table::CatalogReturns => Table::CatalogSales,
+            Table::WebReturns => Table::WebSales,
+            other => *other,
+        }
+    }
+
     /// Basic properties for now - will be expanded later
     pub fn is_small(&self) -> bool {
         // Simplified - these tables have small row counts
@@ -273,6 +292,15 @@ mod tests {
 
         assert!(Table::StoreSales.is_main_table());
         assert!(!Table::SBrand.is_main_table());
+    }
+
+    #[test]
+    fn test_source_table() {
+        assert_eq!(Table::StoreReturns.source_table(), Table::StoreSales);
+        assert_eq!(Table::CatalogReturns.source_table(), Table::CatalogSales);
+        assert_eq!(Table::WebReturns.source_table(), Table::WebSales);
+        assert_eq!(Table::StoreSales.source_table(), Table::StoreSales);
+        assert_eq!(Table::Reason.source_table(), Table::Reason);
     }
 
     #[test]
