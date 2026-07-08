@@ -1,12 +1,12 @@
 //! [`PlanRunner`] for running [`OutputPlan`]s.
 
+use crate::parquet::generate_parquet;
 use crate::progress::no_op_progress_tracker;
 use crate::progress::ProgressTracker;
 use crate::tpch_cli::csv::*;
 use crate::tpch_cli::generate::generate_in_chunks;
 use crate::tpch_cli::generate::Source;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
-use crate::tpch_cli::parquet::generate_parquet;
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
 use crate::tpch_cli::{OutputFormat, Table, WriterSink};

@@ -31,7 +31,6 @@ pub trait IntoSize {
 /// produced by each iterator are encoded as their own row group.
 pub async fn generate_parquet<W, I>(
     writer: W,
-    schema: SchemaRef,
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
@@ -48,10 +47,10 @@ where
     );
     // Based on example in https://docs.rs/parquet/latest/parquet/arrow/arrow_writer/struct.ArrowColumnWriter.html
     let mut iter_iter = iter_iter.peekable();
-
-    if iter_iter.peek().is_none() {
+    let Some(first_iter) = iter_iter.peek() else {
         return Ok(()); // no data
-    }
+    };
+    let schema = first_iter.schema();
 
     // Compute the parquet schema
     let writer_properties = WriterProperties::builder()
@@ -218,7 +217,6 @@ mod tests {
 
         generate_parquet(
             writer,
-            region_source().schema(),
             vec![region_source(), region_source()].into_iter(),
             1,
             Compression::UNCOMPRESSED,

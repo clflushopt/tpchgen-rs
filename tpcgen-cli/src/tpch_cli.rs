@@ -6,7 +6,6 @@ mod generator;
 pub mod csv;
 pub mod generate;
 pub mod output_plan;
-pub mod parquet;
 pub mod plan;
 pub mod runner;
 pub mod statistics;
