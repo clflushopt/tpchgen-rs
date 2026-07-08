@@ -7,6 +7,7 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::fs::File;
 use tempfile::tempdir;
+use tpcdsgen::config::Table;
 
 /// Test that TPC-DS DAT generation is quiet unless logging is explicitly enabled.
 #[test]
@@ -339,6 +340,34 @@ fn test_tpcgen_cli_tpcds_dat_multiple_table_selection_command_forms() {
             2,
             "Expected `tpcgen-cli {}` to produce the selected table output set",
             form.join(" ")
+        );
+    }
+}
+
+/// Test each TPC-DS DAT table can be selected individually and creates output.
+#[test]
+fn test_tpcgen_cli_tpcds_dat_individual_table_selection_outputs_requested_table() {
+    // The CLI accepts only main tables; source/internal tables are rejected by parse_table.
+    for table in Table::main_tables() {
+        let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+        cargo_bin_cmd!("tpcgen-cli")
+            .arg("tpcds")
+            .arg("dat")
+            .arg("--scale-factor")
+            .arg("0")
+            .arg("--tables")
+            .arg(table.get_name())
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .assert()
+            .success();
+
+        let expected_file = temp_dir.path().join(format!("{}.dat", table.get_name()));
+        assert!(
+            expected_file.exists(),
+            "Expected selecting {table} to create {:?}",
+            expected_file
         );
     }
 }

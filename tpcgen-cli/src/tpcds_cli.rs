@@ -179,7 +179,10 @@ impl ParquetArgs {
 impl CommonArgs {
     fn run_dat(self) -> Result<()> {
         let output = dat::Dat::new(self.output_dir.clone())?;
-        self.run_output(OutputFormat::Dat(output))
+        let tables = self.dat_tables()?;
+        // DAT return tables are emitted as side effects of their sales table generator.
+        // CSV and Parquet have direct return-table generators and do not need expansion.
+        self.run_output_with_tables(OutputFormat::Dat(output), tables)
     }
 
     fn run_parquet(self, compression: Compression, row_group_bytes: usize) -> Result<()> {
@@ -193,12 +196,17 @@ impl CommonArgs {
     }
 
     fn run_output(self, output_format: OutputFormat) -> Result<()> {
+        let tables = self.tables()?;
+        self.run_output_with_tables(output_format, tables)
+    }
+
+    fn run_output_with_tables(self, output_format: OutputFormat, tables: Vec<Table>) -> Result<()> {
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
 
         std::fs::create_dir_all(&self.output_dir)?;
 
-        for table in self.tables()? {
+        for table in tables {
             let session = self.to_session(Some(table.get_name().to_string()))?;
             output_format.generate_table(table, session, progress.as_ref())?;
         }
@@ -230,6 +238,24 @@ impl CommonArgs {
         } else {
             Ok(Table::main_tables())
         }
+    }
+
+    /// Return the DAT tables to generate, mapping return-only selections to
+    /// their sales table generators because DAT emits return files as side effects.
+    fn dat_tables(&self) -> Result<Vec<Table>> {
+        let mut tables = Vec::new();
+        for table in self.tables()? {
+            let table = match table {
+                Table::CatalogReturns => Table::CatalogSales,
+                Table::StoreReturns => Table::StoreSales,
+                Table::WebReturns => Table::WebSales,
+                table => table,
+            };
+            if !tables.contains(&table) {
+                tables.push(table);
+            }
+        }
+        Ok(tables)
     }
 
     fn to_session(&self, table: Option<String>) -> Result<Session> {
