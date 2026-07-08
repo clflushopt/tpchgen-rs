@@ -314,6 +314,25 @@ mod tests {
     }
 
     #[test]
+    fn test_cached_row_counts_match_direct_computation() {
+        for scale in [0.1, 1.0, 10.0] {
+            let scaling = Scaling::new(scale);
+            for table in Table::main_tables() {
+                let expected = if table == Table::Inventory {
+                    scaling.scale_inventory()
+                } else {
+                    scaling.compute_row_count(table)
+                };
+                assert_eq!(
+                    scaling.get_row_count(table),
+                    expected,
+                    "cached row count diverges from model for {table:?} at scale {scale}"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn test_inventory_scaling() {
         // Inventory is computed as: item_id_count × warehouse_count × weeks
         // weeks = (JULIAN_DATE_MAXIMUM - JULIAN_DATE_MINIMUM + 7) / 7
