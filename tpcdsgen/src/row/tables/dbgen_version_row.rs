@@ -12,8 +12,10 @@
  * limitations under the License.
  */
 
+use crate::row::table_row::{dat_field, DatField};
 use crate::row::TableRow;
 use crate::types::Date;
+use std::fmt;
 
 /// DbgenVersion table row
 #[derive(Debug, Clone)]
@@ -77,6 +79,41 @@ impl DbgenVersionRow {
     }
 }
 
+/// Seconds-since-midnight rendered as `HH:MM:SS`, like `format_time`.
+struct TimeOfDay(i32);
+
+impl fmt::Display for TimeOfDay {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let hour = self.0 / 3600;
+        let minute = (self.0 / 60) % 60;
+        let second = self.0 % 60;
+        write!(f, "{hour:02}:{minute:02}:{second:02}")
+    }
+}
+
+/// DAT field helper mirroring `get_string_or_null`.
+impl DbgenVersionRow {
+    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+        dat_field(value, self.should_be_null(column_position))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for DbgenVersionRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|",
+            self.field(&self.dv_version, 0),
+            self.field(self.dv_create_date, 1),
+            self.field(TimeOfDay(self.dv_create_time), 2),
+            self.field(&self.dv_cmdline_args, 3),
+        )
+    }
+}
+
 impl TableRow for DbgenVersionRow {
     fn get_values(&self) -> Vec<String> {
         // Column positions match Java DbgenVersionGeneratorColumn (476-479)
@@ -94,4 +131,22 @@ fn format_time(seconds_since_midnight: i32) -> String {
     let minute = (seconds_since_midnight / 60) % 60;
     let second = seconds_since_midnight % 60;
     format!("{hour:02}:{minute:02}:{second:02}")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = DbgenVersionRow::new(
+            0b10,
+            "2.0.0".to_string(),
+            Date::from_julian_days(2452539),
+            37231,
+            "-SCALE 1".to_string(),
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
+    }
 }

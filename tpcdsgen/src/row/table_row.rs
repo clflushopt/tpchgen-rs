@@ -39,6 +39,25 @@ pub(crate) fn dat_bool(value: bool, is_null: bool) -> DatField<&'static str> {
     dat_field(if value { "Y" } else { "N" }, is_null)
 }
 
+/// A DAT field that prints the literal `NULL` for NULL columns instead of an
+/// empty string — a quirk of the Java call_center and household_demographics
+/// rows that we preserve for byte-for-byte compatibility.
+pub(crate) struct NullLiteralField<T>(Option<T>);
+
+impl<T: fmt::Display> fmt::Display for NullLiteralField<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(value) => value.fmt(f),
+            None => f.write_str("NULL"),
+        }
+    }
+}
+
+/// DAT field printing the literal `NULL` when the row's null bit is set.
+pub(crate) fn dat_field_null_literal<T>(value: T, is_null: bool) -> NullLiteralField<T> {
+    NullLiteralField((!is_null).then_some(value))
+}
+
 /// Zero-padded five-digit zip code (`{:05}`).
 pub(crate) struct Zip5(i32);
 

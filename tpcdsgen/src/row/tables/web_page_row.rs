@@ -1,5 +1,7 @@
+use crate::row::table_row::{dat_bool, dat_field, dat_opt, DatField};
 use crate::row::TableRow;
 use crate::types::Date;
+use std::fmt;
 
 /// Row structure for the WEB_PAGE table (WebPageRow)
 #[derive(Debug, Clone)]
@@ -178,6 +180,54 @@ impl WebPageRow {
     }
 }
 
+impl WebPageRow {
+    /// DAT field for a surrogate key: NULL when the null bit is set or the
+    /// key is -1 (mirrors `get_string_or_null_for_key`).
+    fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
+        dat_field(value, self.should_be_null(column_position) || value == -1)
+    }
+
+    /// DAT field for a regular value: NULL when the null bit is set.
+    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+        dat_field(value, self.should_be_null(column_position))
+    }
+
+    /// DAT field for an SCD date: NULL when the null bit is set or the
+    /// julian day is negative (mirrors `get_date_string_or_null_from_julian_days`).
+    fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
+        dat_opt(
+            (!(self.should_be_null(column_position) || julian_days < 0))
+                .then(|| Date::from_julian_days(julian_days as i32)),
+        )
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for WebPageRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.key_field(self.wp_page_sk, 0),
+            self.field(&self.wp_page_id, 1),
+            self.date_field(self.wp_rec_start_date_id, 2),
+            self.date_field(self.wp_rec_end_date_id, 3),
+            self.key_field(self.wp_creation_date_sk, 4),
+            self.key_field(self.wp_access_date_sk, 5),
+            dat_bool(self.wp_autogen_flag, self.should_be_null(6)),
+            self.key_field(self.wp_customer_sk, 7),
+            self.field(&self.wp_url, 8),
+            self.field(&self.wp_type, 9),
+            self.field(self.wp_char_count, 10),
+            self.field(self.wp_link_count, 11),
+            self.field(self.wp_image_count, 12),
+            self.field(self.wp_max_ad_count, 13),
+        )
+    }
+}
+
 impl TableRow for WebPageRow {
     fn get_values(&self) -> Vec<String> {
         vec![
@@ -196,5 +246,33 @@ impl TableRow for WebPageRow {
             self.get_string_or_null(Some(&self.wp_image_count.to_string()), 12),
             self.get_string_or_null(Some(&self.wp_max_ad_count.to_string()), 13),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = WebPageRow::new(
+            0b10,
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            2450815,
+            -1,
+            2450807,
+            -1,
+            true,
+            -1,
+            "http://www.foo.com".to_string(),
+            "welcome".to_string(),
+            2531,
+            8,
+            3,
+            4,
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

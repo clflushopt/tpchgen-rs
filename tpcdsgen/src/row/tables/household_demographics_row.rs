@@ -12,7 +12,9 @@
  * limitations under the License.
  */
 
+use crate::row::table_row::dat_field_null_literal;
 use crate::row::TableRow;
+use std::fmt;
 
 /// Household Demographics row data structure (HouseholdDemographicsRow)
 /// Contains all fields for the HOUSEHOLD_DEMOGRAPHICS table in TPC-DS
@@ -82,6 +84,24 @@ impl HouseholdDemographicsRow {
         } else {
             value.to_string()
         }
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator (no newline); NULL values/numerics print the literal `NULL`,
+/// like `get_values`. Produces the same bytes as joining
+/// [`TableRow::get_values`] with `|`.
+impl fmt::Display for HouseholdDemographicsRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|",
+            dat_field_null_literal(self.hd_demo_sk, self.is_null(0)),
+            dat_field_null_literal(self.hd_income_band_sk, self.is_null(1)),
+            dat_field_null_literal(&self.hd_buy_potential, self.is_null(2)),
+            dat_field_null_literal(self.hd_dep_count, self.is_null(3)),
+            dat_field_null_literal(self.hd_vehicle_count, self.is_null(4)),
+        )
     }
 }
 
@@ -161,6 +181,15 @@ impl HouseholdDemographicsRowBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = HouseholdDemographicsRow::builder()
+            .set_null_bit_map(0b10)
+            .build();
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
+    }
 
     #[test]
     fn test_household_demographics_row_builder() {

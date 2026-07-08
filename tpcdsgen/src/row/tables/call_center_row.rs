@@ -1,5 +1,9 @@
+use crate::row::table_row::{
+    dat_field, dat_field_null_literal, dat_opt, DatField, NullLiteralField,
+};
 use crate::row::TableRow;
 use crate::types::{Address, Date, Decimal};
+use std::fmt;
 
 /// Call Center row data structure (CallCenterRow)
 /// Contains all fields for the CALL_CENTER table in TPC-DS
@@ -185,6 +189,75 @@ impl CallCenterRow {
         } else {
             value.to_string()
         }
+    }
+}
+
+impl CallCenterRow {
+    /// DAT field for a DATE_DIM surrogate key: empty when the null bit is
+    /// set or the key is negative (mirrors `format_key`).
+    fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
+        dat_field(value, self.is_null(column_position) || value < 0)
+    }
+
+    /// DAT field for an SCD date: empty when the null bit is set or the
+    /// julian day is negative (mirrors `format_date`).
+    fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
+        dat_opt(
+            (!(self.is_null(column_position) || julian_days < 0))
+                .then(|| Date::from_julian_days(julian_days as i32)),
+        )
+    }
+
+    /// DAT field printing the literal `NULL` when the null bit is set
+    /// (mirrors `format_value`/`format_numeric`).
+    fn nulled<T>(&self, value: T, column_position: i32) -> NullLiteralField<T> {
+        dat_field_null_literal(value, self.is_null(column_position))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator (no newline); NULL values/numerics print the literal `NULL`,
+/// like `get_values`. Produces the same bytes as joining
+/// [`TableRow::get_values`] with `|`.
+impl fmt::Display for CallCenterRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.nulled(self.cc_call_center_sk, 0),
+            self.nulled(&self.cc_call_center_id, 1),
+            self.date_field(self.cc_rec_start_date_id, 2),
+            self.date_field(self.cc_rec_end_date_id, 3),
+            self.key_field(self.cc_closed_date_id, 4),
+            self.key_field(self.cc_open_date_id, 5),
+            self.nulled(&self.cc_name, 6),
+            self.nulled(&self.cc_class, 7),
+            self.nulled(self.cc_employees, 8),
+            self.nulled(self.cc_sq_ft, 9),
+            self.nulled(&self.cc_hours, 10),
+            self.nulled(&self.cc_manager, 11),
+            self.nulled(self.cc_market_id, 12),
+            self.nulled(&self.cc_market_class, 13),
+            self.nulled(&self.cc_market_desc, 14),
+            self.nulled(&self.cc_market_manager, 15),
+            self.nulled(self.cc_division_id, 16),
+            self.nulled(&self.cc_division_name, 17),
+            self.nulled(self.cc_company, 18),
+            self.nulled(&self.cc_company_name, 19),
+            self.nulled(self.cc_address.get_street_number(), 20),
+            self.nulled(self.cc_address.get_street_name(), 21),
+            self.nulled(self.cc_address.get_street_type(), 22),
+            self.nulled(self.cc_address.get_suite_number(), 23),
+            self.nulled(self.cc_address.get_city(), 24),
+            self.nulled(self.cc_address.get_county().unwrap_or(""), 25),
+            self.nulled(self.cc_address.get_state(), 26),
+            // Note: unlike other tables the call_center zip is not zero-padded,
+            // matching format_numeric in get_values.
+            self.nulled(self.cc_address.get_zip(), 27),
+            self.nulled(self.cc_address.get_country(), 28),
+            self.nulled(self.cc_address.get_gmt_offset(), 29),
+            self.nulled(self.cc_tax_percentage, 30),
+        )
     }
 }
 
@@ -506,5 +579,12 @@ mod tests {
         assert_eq!(row.get_cc_name(), "Chained Builder Test");
         assert_eq!(row.get_cc_employees(), 100);
         assert_eq!(row.get_cc_sq_ft(), 5000);
+    }
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = CallCenterRow::builder().build();
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

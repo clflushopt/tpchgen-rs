@@ -494,7 +494,16 @@ fn write_row(
             GeneratedRow::Item(row) => writer.write_display_row(row)?,
             GeneratedRow::CatalogPage(row) => writer.write_display_row(row)?,
             GeneratedRow::Promotion(row) => writer.write_display_row(row)?,
-            row => writer.write_table_row(row, output_options.separator)?,
+            GeneratedRow::CallCenter(row) => writer.write_display_row(row)?,
+            GeneratedRow::DbgenVersion(row) => writer.write_display_row(row)?,
+            GeneratedRow::HouseholdDemographics(row) => writer.write_display_row(row)?,
+            GeneratedRow::IncomeBand(row) => writer.write_display_row(row)?,
+            GeneratedRow::Reason(row) => writer.write_display_row(row)?,
+            GeneratedRow::ShipMode(row) => writer.write_display_row(row)?,
+            GeneratedRow::Store(row) => writer.write_display_row(row)?,
+            GeneratedRow::Warehouse(row) => writer.write_display_row(row)?,
+            GeneratedRow::WebPage(row) => writer.write_display_row(row)?,
+            GeneratedRow::WebSite(row) => writer.write_display_row(row)?,
         }
         return Ok(());
     }

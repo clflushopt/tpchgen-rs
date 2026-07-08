@@ -15,8 +15,10 @@
 //! Store row structure and formatting
 
 use crate::generator::{GeneratorColumn, StoreGeneratorColumn};
+use crate::row::table_row::{dat_field, dat_opt, dat_zip, DatField};
 use crate::row::TableRow;
 use crate::types::{Address, Date, Decimal};
+use std::fmt;
 
 /// Store row
 #[derive(Clone)]
@@ -226,6 +228,71 @@ impl StoreRow {
     }
 }
 
+impl StoreRow {
+    /// DAT field for a surrogate key: NULL when the null bit is set or the
+    /// key is negative (mirrors `get_string_or_null_for_key`).
+    fn key_field(&self, value: i64, column: &StoreGeneratorColumn) -> DatField<i64> {
+        dat_field(value, self.is_null(column) || value < 0)
+    }
+
+    /// DAT field for a regular value: NULL when the null bit is set.
+    fn field<T>(&self, value: T, column: &StoreGeneratorColumn) -> DatField<T> {
+        dat_field(value, self.is_null(column))
+    }
+
+    /// DAT field for an SCD date: NULL when the null bit is set or the
+    /// julian day is negative (mirrors `get_date_string_or_null`).
+    fn date_field(&self, julian_days: i64, column: &StoreGeneratorColumn) -> DatField<Date> {
+        dat_opt(
+            (!(self.is_null(column) || julian_days < 0))
+                .then(|| Date::from_julian_days(julian_days as i32)),
+        )
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for StoreRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use StoreGeneratorColumn::*;
+
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.key_field(self.store_sk, &WStoreSk),
+            self.field(&self.store_id, &WStoreId),
+            self.date_field(self.rec_start_date_id, &WStoreRecStartDateId),
+            self.date_field(self.rec_end_date_id, &WStoreRecEndDateId),
+            self.key_field(self.closed_date_id, &WStoreClosedDateId),
+            self.field(&self.store_name, &WStoreName),
+            self.field(self.employees, &WStoreEmployees),
+            self.field(self.floor_space, &WStoreFloorSpace),
+            self.field(&self.hours, &WStoreHours),
+            self.field(&self.store_manager, &WStoreManager),
+            self.field(self.market_id, &WStoreMarketId),
+            self.field(&self.geography_class, &WStoreGeographyClass),
+            self.field(&self.market_desc, &WStoreMarketDesc),
+            self.field(&self.market_manager, &WStoreMarketManager),
+            self.key_field(self.division_id, &WStoreDivisionId),
+            self.field(&self.division_name, &WStoreDivisionName),
+            self.key_field(self.company_id, &WStoreCompanyId),
+            self.field(&self.company_name, &WStoreCompanyName),
+            self.field(self.address.get_street_number(), &WStoreAddressStreetNum),
+            self.field(self.address.get_street_name(), &WStoreAddressStreetName1),
+            self.field(self.address.get_street_type(), &WStoreAddressStreetType),
+            self.field(self.address.get_suite_number(), &WStoreAddressSuiteNum),
+            self.field(self.address.get_city(), &WStoreAddressCity),
+            self.field(self.address.get_county().unwrap_or(""), &WStoreAddressCounty),
+            self.field(self.address.get_state(), &WStoreAddressState),
+            dat_zip(self.address.get_zip(), self.is_null(&WStoreAddressZip)),
+            self.field(self.address.get_country(), &WStoreAddressCountry),
+            self.field(self.address.get_gmt_offset(), &WStoreAddressGmtOffset),
+            self.field(self.d_tax_percentage, &WStoreTaxPercentage),
+        )
+    }
+}
+
 impl TableRow for StoreRow {
     fn get_values(&self) -> Vec<String> {
         use StoreGeneratorColumn::*;
@@ -266,5 +333,56 @@ impl TableRow for StoreRow {
             ),
             self.get_decimal_or_null(&self.d_tax_percentage, &WStoreTaxPercentage),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_address() -> Address {
+        Address::new(
+            "Suite 100".to_string(),
+            100,
+            "Main".to_string(),
+            "Street".to_string(),
+            "Blvd".to_string(),
+            "Springfield".to_string(),
+            Some("Some County".to_string()),
+            "CA".to_string(),
+            "United States".to_string(),
+            904,
+            -8,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = StoreRow::new(
+            0b10,
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            2450815,
+            -1,
+            -1,
+            "ought".to_string(),
+            245,
+            5250760,
+            "8AM-4PM".to_string(),
+            "William Ward".to_string(),
+            10,
+            Decimal::new(45, 2).unwrap(),
+            "Unknown".to_string(),
+            "Some market description".to_string(),
+            "Market Mgr".to_string(),
+            1,
+            "Unknown".to_string(),
+            1,
+            "Unknown".to_string(),
+            test_address(),
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

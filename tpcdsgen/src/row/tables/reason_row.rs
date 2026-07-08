@@ -1,4 +1,6 @@
+use crate::row::table_row::{dat_field, DatField};
 use crate::row::TableRow;
+use std::fmt;
 
 /// Reason table row (ReasonRow)
 #[derive(Debug, Clone)]
@@ -64,6 +66,29 @@ impl ReasonRow {
     }
 }
 
+/// DAT field helper mirroring `get_string_or_null`/`get_string_or_null_for_key`
+/// (reason applies no key sentinel check, only the null bit).
+impl ReasonRow {
+    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+        dat_field(value, self.should_be_null(column_position))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for ReasonRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|",
+            self.field(self.r_reason_sk, 0),
+            self.field(&self.r_reason_id, 1),
+            self.field(&self.r_reason_description, 2),
+        )
+    }
+}
+
 impl TableRow for ReasonRow {
     fn get_values(&self) -> Vec<String> {
         // Column positions match Java ReasonGeneratorColumn
@@ -73,5 +98,22 @@ impl TableRow for ReasonRow {
             self.get_string_or_null(&self.r_reason_id, 1),
             self.get_string_or_null(&self.r_reason_description, 2),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = ReasonRow::new(
+            0b10,
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            "Package was damaged".to_string(),
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

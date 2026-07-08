@@ -1,5 +1,7 @@
+use crate::row::table_row::{dat_field, dat_zip, DatField};
 use crate::row::TableRow;
 use crate::types::Address;
+use std::fmt;
 
 /// Warehouse table row (WarehouseRow)
 #[derive(Debug, Clone)]
@@ -79,6 +81,40 @@ impl WarehouseRow {
     }
 }
 
+/// DAT field helper mirroring `get_string_or_null`/`get_string_or_null_for_key`
+/// (warehouse applies no key sentinel check, only the null bit).
+impl WarehouseRow {
+    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+        dat_field(value, self.should_be_null(column_position))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for WarehouseRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.field(self.w_warehouse_sk, 0),
+            self.field(&self.w_warehouse_id, 1),
+            self.field(&self.w_warehouse_name, 2),
+            self.field(self.w_warehouse_sq_ft, 3),
+            self.field(self.w_address.get_street_number(), 4),
+            self.field(self.w_address.get_street_name(), 5),
+            self.field(self.w_address.get_street_type(), 6),
+            self.field(self.w_address.get_suite_number(), 7),
+            self.field(self.w_address.get_city(), 8),
+            self.field(self.w_address.get_county().unwrap_or(""), 9),
+            self.field(self.w_address.get_state(), 10),
+            dat_zip(self.w_address.get_zip(), self.should_be_null(11)),
+            self.field(self.w_address.get_country(), 12),
+            self.field(self.w_address.get_gmt_offset(), 13),
+        )
+    }
+}
+
 impl TableRow for WarehouseRow {
     fn get_values(&self) -> Vec<String> {
         // Column positions match Java WarehouseGeneratorColumn
@@ -99,5 +135,41 @@ impl TableRow for WarehouseRow {
             self.get_string_or_null(self.w_address.get_country(), 12),
             self.get_string_or_null(self.w_address.get_gmt_offset(), 13),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_address() -> Address {
+        Address::new(
+            "Suite 100".to_string(),
+            100,
+            "Main".to_string(),
+            "Street".to_string(),
+            "Blvd".to_string(),
+            "Springfield".to_string(),
+            Some("Some County".to_string()),
+            "CA".to_string(),
+            "United States".to_string(),
+            904,
+            -8,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = WarehouseRow::new(
+            0b10,
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            "Conventional childr".to_string(),
+            977787,
+            test_address(),
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

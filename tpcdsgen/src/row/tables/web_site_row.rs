@@ -13,8 +13,10 @@
  */
 
 use crate::generator::{GeneratorColumn, WebSiteGeneratorColumn};
+use crate::row::table_row::{dat_field, dat_opt, dat_zip, DatField};
 use crate::row::TableRow;
 use crate::types::{Address, Date, Decimal};
+use std::fmt;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct WebSiteRow {
@@ -210,6 +212,71 @@ impl WebSiteRow {
     }
 }
 
+impl WebSiteRow {
+    /// DAT field for a surrogate key: NULL when the null bit is set or the
+    /// key is -1 (mirrors `get_string_or_null_for_key`).
+    fn key_field(&self, key: i64, column: WebSiteGeneratorColumn) -> DatField<i64> {
+        dat_field(key, key == -1 || self.is_null_at(column))
+    }
+
+    /// DAT field for a regular value: NULL when the null bit is set.
+    fn field<T>(&self, value: T, column: WebSiteGeneratorColumn) -> DatField<T> {
+        dat_field(value, self.is_null_at(column))
+    }
+
+    /// DAT field for an SCD date: NULL when the null bit is set or the
+    /// julian day is negative (mirrors `get_date_string_or_null_from_julian_days`).
+    fn date_field(&self, julian_days: i64, column: WebSiteGeneratorColumn) -> DatField<Date> {
+        dat_opt(
+            (!(self.is_null_at(column) || julian_days < 0))
+                .then(|| Date::from_julian_days(julian_days as i32)),
+        )
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for WebSiteRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use WebSiteGeneratorColumn::*;
+
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.key_field(self.web_site_sk, WebSiteSk),
+            self.field(&self.web_site_id, WebSiteId),
+            self.date_field(self.web_rec_start_date_id, WebRecStartDateId),
+            self.date_field(self.web_rec_end_date_id, WebRecEndDateId),
+            self.field(&self.web_name, WebName),
+            self.key_field(self.web_open_date, WebOpenDate),
+            self.key_field(self.web_close_date, WebCloseDate),
+            self.field(&self.web_class, WebClass),
+            self.field(&self.web_manager, WebManager),
+            self.field(self.web_market_id, WebMarketId),
+            self.field(&self.web_market_class, WebMarketClass),
+            self.field(&self.web_market_desc, WebMarketDesc),
+            self.field(&self.web_market_manager, WebMarketManager),
+            self.field(self.web_company_id, WebCompanyId),
+            self.field(&self.web_company_name, WebCompanyName),
+            self.field(self.web_address.get_street_number(), WebAddressStreetNum),
+            self.field(self.web_address.get_street_name(), WebAddressStreetName1),
+            self.field(self.web_address.get_street_type(), WebAddressStreetType),
+            self.field(self.web_address.get_suite_number(), WebAddressSuiteNum),
+            self.field(self.web_address.get_city(), WebAddressCity),
+            self.field(
+                self.web_address.get_county().unwrap_or(""),
+                WebAddressCounty
+            ),
+            self.field(self.web_address.get_state(), WebAddressState),
+            dat_zip(self.web_address.get_zip(), self.is_null_at(WebAddressZip)),
+            self.field(self.web_address.get_country(), WebAddressCountry),
+            self.field(self.web_address.get_gmt_offset(), WebAddressGmtOffset),
+            self.field(self.web_tax_percentage, WebTaxPercentage),
+        )
+    }
+}
+
 impl TableRow for WebSiteRow {
     fn get_values(&self) -> Vec<String> {
         vec![
@@ -303,6 +370,49 @@ impl TableRow for WebSiteRow {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn test_address() -> Address {
+        Address::new(
+            "Suite 100".to_string(),
+            100,
+            "Main".to_string(),
+            "Street".to_string(),
+            "Blvd".to_string(),
+            "Springfield".to_string(),
+            Some("Some County".to_string()),
+            "CA".to_string(),
+            "United States".to_string(),
+            904,
+            -8,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = WebSiteRow::new(
+            0b10,
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            2450815,
+            -1,
+            "site_0".to_string(),
+            2450807,
+            -1,
+            "Unknown".to_string(),
+            "Otis Boyd".to_string(),
+            2,
+            "mkt class".to_string(),
+            "mkt desc".to_string(),
+            "Mkt Mgr".to_string(),
+            10,
+            "Company".to_string(),
+            test_address(),
+            Decimal::new(12, 2).unwrap(),
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
+    }
 
     #[test]
     fn test_web_site_row_values_count() {
