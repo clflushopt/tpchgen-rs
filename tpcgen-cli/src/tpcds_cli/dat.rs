@@ -326,32 +326,47 @@ fn generate_simple<G: RowGeneratorFactory>(
 }
 
 /// Generate store_sales and store_returns together
-fn generate_store_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
+fn generate_store_sales(
+    session: &Session,
+    output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
+) -> Result<()> {
     generate_sales_and_returns::<StoreSalesRowGenerator>(
         Table::StoreSales,
         Table::StoreReturns,
         session,
         output_options,
+        progress,
     )
 }
 
 /// Generate catalog_sales and catalog_returns together
-fn generate_catalog_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
+fn generate_catalog_sales(
+    session: &Session,
+    output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
+) -> Result<()> {
     generate_sales_and_returns::<CatalogSalesRowGenerator>(
         Table::CatalogSales,
         Table::CatalogReturns,
         session,
         output_options,
+        progress,
     )
 }
 
 /// Generate web_sales and web_returns together
-fn generate_web_sales(session: &Session, output_options: &OutputOptions) -> Result<()> {
+fn generate_web_sales(
+    session: &Session,
+    output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
+) -> Result<()> {
     generate_sales_and_returns::<WebSalesRowGenerator>(
         Table::WebSales,
         Table::WebReturns,
         session,
         output_options,
+        progress,
     )
 }
 
@@ -364,9 +379,16 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
     returns_table: Table,
     session: &Session,
     output_options: &OutputOptions,
+    progress: &dyn ProgressTracker,
 ) -> Result<()> {
     let mut generator = G::create();
     let source_row_count = session.get_scaling().get_row_count(sales_table);
+    let return_row_count = session.get_scaling().get_row_count(returns_table);
+    let sales_name = sales_table.get_name();
+    let returns_name = returns_table.get_name();
+    // Register the scaling row counts, then advance after each written row.
+    progress.register(sales_name, source_row_count.try_into().unwrap_or(0));
+    progress.register(returns_name, return_row_count.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(sales_table, output_options);
     let returns_path = get_output_path(returns_table, output_options);
