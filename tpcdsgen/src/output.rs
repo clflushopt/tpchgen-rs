@@ -24,7 +24,6 @@ use std::fmt;
 use std::io::{self, Write};
 
 use crate::config::CompatMode;
-use crate::row::TableRow;
 
 /// Converts a UTF-8 string to ISO-8859-1 bytes.
 ///
@@ -174,13 +173,6 @@ impl<W: Write> DatWriter<W> {
         self.maybe_flush()
     }
 
-    /// Write one row through the legacy [`TableRow`] interface, for row types
-    /// without a `Display` impl yet.
-    pub fn write_table_row(&mut self, row: &dyn TableRow, separator: char) -> io::Result<()> {
-        row.write_to(&mut self.buffer, separator)?;
-        self.maybe_flush()
-    }
-
     /// The pending in-memory buffer. Callers with custom formatting needs may
     /// append UTF-8 rows directly, followed by [`Self::maybe_flush`].
     pub fn buffer(&mut self) -> &mut Vec<u8> {
@@ -282,12 +274,6 @@ mod tests {
         }
     }
 
-    impl TableRow for TestRow {
-        fn get_values(&self) -> Vec<String> {
-            vec!["1".to_string(), "CÔTE".to_string(), "2.50".to_string()]
-        }
-    }
-
     #[test]
     fn test_dat_writer_buffers_until_flush() {
         let mut out = Vec::new();
@@ -307,21 +293,6 @@ mod tests {
         writer.write_display_row(&TestRow).unwrap();
         writer.flush().unwrap();
         assert_eq!(out, "1|CÔTE|2.50|\n".as_bytes());
-    }
-
-    #[test]
-    fn test_dat_writer_table_row_matches_display_row() {
-        let mut display_out = Vec::new();
-        let mut writer = DatWriter::new(&mut display_out, CompatMode::Trino);
-        writer.write_display_row(&TestRow).unwrap();
-        writer.flush().unwrap();
-
-        let mut table_out = Vec::new();
-        let mut writer = DatWriter::new(&mut table_out, CompatMode::Trino);
-        writer.write_table_row(&TestRow, '|').unwrap();
-        writer.flush().unwrap();
-
-        assert_eq!(display_out, table_out);
     }
 
     #[test]

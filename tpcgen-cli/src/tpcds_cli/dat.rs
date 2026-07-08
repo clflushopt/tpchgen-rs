@@ -476,35 +476,9 @@ fn write_row(
         && !output_options.do_not_terminate
         && output_options.separator == '|'
     {
-        // Fast path: row types with a `Display` impl format the DAT line
-        // with no per-field allocations; the rest go through `TableRow`.
-        match row {
-            GeneratedRow::StoreSales(row) => writer.write_display_row(row)?,
-            GeneratedRow::StoreReturns(row) => writer.write_display_row(row)?,
-            GeneratedRow::CatalogSales(row) => writer.write_display_row(row)?,
-            GeneratedRow::CatalogReturns(row) => writer.write_display_row(row)?,
-            GeneratedRow::WebSales(row) => writer.write_display_row(row)?,
-            GeneratedRow::WebReturns(row) => writer.write_display_row(row)?,
-            GeneratedRow::Inventory(row) => writer.write_display_row(row)?,
-            GeneratedRow::CustomerDemographics(row) => writer.write_display_row(row)?,
-            GeneratedRow::DateDim(row) => writer.write_display_row(row)?,
-            GeneratedRow::TimeDim(row) => writer.write_display_row(row)?,
-            GeneratedRow::Customer(row) => writer.write_display_row(row)?,
-            GeneratedRow::CustomerAddress(row) => writer.write_display_row(row)?,
-            GeneratedRow::Item(row) => writer.write_display_row(row)?,
-            GeneratedRow::CatalogPage(row) => writer.write_display_row(row)?,
-            GeneratedRow::Promotion(row) => writer.write_display_row(row)?,
-            GeneratedRow::CallCenter(row) => writer.write_display_row(row)?,
-            GeneratedRow::DbgenVersion(row) => writer.write_display_row(row)?,
-            GeneratedRow::HouseholdDemographics(row) => writer.write_display_row(row)?,
-            GeneratedRow::IncomeBand(row) => writer.write_display_row(row)?,
-            GeneratedRow::Reason(row) => writer.write_display_row(row)?,
-            GeneratedRow::ShipMode(row) => writer.write_display_row(row)?,
-            GeneratedRow::Store(row) => writer.write_display_row(row)?,
-            GeneratedRow::Warehouse(row) => writer.write_display_row(row)?,
-            GeneratedRow::WebPage(row) => writer.write_display_row(row)?,
-            GeneratedRow::WebSite(row) => writer.write_display_row(row)?,
-        }
+        // Fast path: every row type formats its DAT line via Display with no
+        // per-field allocations.
+        writer.write_display_row(row)?;
         return Ok(());
     }
 

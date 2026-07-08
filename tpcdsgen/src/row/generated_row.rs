@@ -26,6 +26,7 @@ use crate::row::{
     StoreRow, StoreSalesRow, TableRow, TimeDimRow, WarehouseRow, WebPageRow, WebReturnsRow,
     WebSalesRow, WebSiteRow,
 };
+use std::fmt;
 use std::io::{self, Write};
 
 /// Enum holding all possible generated row types.
@@ -59,6 +60,40 @@ pub enum GeneratedRow {
     WebReturns(WebReturnsRow),
     WebSales(WebSalesRow),
     WebSite(WebSiteRow),
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator (no newline), delegating to the variant's `Display` impl.
+impl fmt::Display for GeneratedRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GeneratedRow::CallCenter(row) => row.fmt(f),
+            GeneratedRow::CatalogPage(row) => row.fmt(f),
+            GeneratedRow::CatalogReturns(row) => row.fmt(f),
+            GeneratedRow::CatalogSales(row) => row.fmt(f),
+            GeneratedRow::Customer(row) => row.fmt(f),
+            GeneratedRow::CustomerAddress(row) => row.fmt(f),
+            GeneratedRow::CustomerDemographics(row) => row.fmt(f),
+            GeneratedRow::DateDim(row) => row.fmt(f),
+            GeneratedRow::DbgenVersion(row) => row.fmt(f),
+            GeneratedRow::HouseholdDemographics(row) => row.fmt(f),
+            GeneratedRow::IncomeBand(row) => row.fmt(f),
+            GeneratedRow::Inventory(row) => row.fmt(f),
+            GeneratedRow::Item(row) => row.fmt(f),
+            GeneratedRow::Promotion(row) => row.fmt(f),
+            GeneratedRow::Reason(row) => row.fmt(f),
+            GeneratedRow::ShipMode(row) => row.fmt(f),
+            GeneratedRow::Store(row) => row.fmt(f),
+            GeneratedRow::StoreReturns(row) => row.fmt(f),
+            GeneratedRow::StoreSales(row) => row.fmt(f),
+            GeneratedRow::TimeDim(row) => row.fmt(f),
+            GeneratedRow::Warehouse(row) => row.fmt(f),
+            GeneratedRow::WebPage(row) => row.fmt(f),
+            GeneratedRow::WebReturns(row) => row.fmt(f),
+            GeneratedRow::WebSales(row) => row.fmt(f),
+            GeneratedRow::WebSite(row) => row.fmt(f),
+        }
+    }
 }
 
 impl TableRow for GeneratedRow {
@@ -292,6 +327,18 @@ mod tests {
 
         // Values should be the same whether accessed directly or through enum
         assert_eq!(row.get_values(), generated.get_values());
+    }
+
+    #[test]
+    fn test_generated_row_display_matches_write_to() {
+        let row = CallCenterRow::builder().build();
+        let generated: GeneratedRow = row.into();
+
+        let mut legacy = Vec::new();
+        generated.write_to(&mut legacy, '|').unwrap();
+
+        // Display emits the same DAT line write_to does, minus the newline.
+        assert_eq!(format!("{generated}\n").as_bytes(), &legacy[..]);
     }
 
     #[test]
