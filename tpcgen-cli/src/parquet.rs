@@ -15,7 +15,7 @@ use std::io::Write;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::tpch_cli::progress::ProgressTracker;
+use crate::progress::ProgressTracker;
 use crate::tpch_cli::statistics::WriteStatistics;
 
 pub trait IntoSize {
@@ -182,7 +182,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tpch_cli::progress::ProgressTracker;
+    use crate::progress::ProgressTracker;
     use std::fs::File;
     use std::io::BufWriter;
     use std::sync::{

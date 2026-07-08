@@ -1,5 +1,6 @@
 //! TPC-DS Parquet output.
 
+use crate::progress::ProgressTracker;
 use arrow::record_batch::RecordBatchReader;
 use parquet::arrow::ArrowWriter;
 use parquet::basic::Compression;
@@ -40,47 +41,123 @@ impl Parquet {
     }
 
     /// Generate one TPC-DS table as a Parquet file.
-    pub(super) fn generate_table(&self, table: Table, session: Session) -> Result<()> {
+    pub(super) fn generate_table(
+        &self,
+        table: Table,
+        session: Session,
+        progress: &dyn ProgressTracker,
+    ) -> Result<()> {
         let path = self
             .output_dir
             .join(format!("{}.parquet", table.get_name()));
+        let table_name = table.get_name();
+        let rows: u64 = session
+            .get_scaling()
+            .get_row_count(table)
+            .try_into()
+            .unwrap_or(0);
+        // Register the table row count, then advance by each written batch's
+        // row count.
+        progress.register(table_name, rows);
 
         match table {
-            Table::CallCenter => self.write_batches(path, CallCenterArrow::new(session)),
-            Table::CatalogPage => self.write_batches(path, CatalogPageArrow::new(session)),
-            Table::CatalogReturns => self.write_batches(path, CatalogReturnsArrow::new(session)),
-            Table::CatalogSales => self.write_batches(path, CatalogSalesArrow::new(session)),
-            Table::Customer => self.write_batches(path, CustomerArrow::new(session)),
-            Table::CustomerAddress => self.write_batches(path, CustomerAddressArrow::new(session)),
-            Table::CustomerDemographics => {
-                self.write_batches(path, CustomerDemographicsArrow::new(session))
+            Table::CallCenter => {
+                self.write_batches(path, CallCenterArrow::new(session), progress, table_name)
             }
-            Table::DateDim => self.write_batches(path, DateDimArrow::new(session)),
-            Table::DbgenVersion => self.write_batches(path, DbgenVersionArrow::new(session)),
-            Table::HouseholdDemographics => {
-                self.write_batches(path, HouseholdDemographicsArrow::new(session))
+            Table::CatalogPage => {
+                self.write_batches(path, CatalogPageArrow::new(session), progress, table_name)
             }
-            Table::IncomeBand => self.write_batches(path, IncomeBandArrow::new(session)),
-            Table::Inventory => self.write_batches(path, InventoryArrow::new(session)),
-            Table::Item => self.write_batches(path, ItemArrow::new(session)),
-            Table::Promotion => self.write_batches(path, PromotionArrow::new(session)),
-            Table::Reason => self.write_batches(path, ReasonArrow::new(session)),
-            Table::ShipMode => self.write_batches(path, ShipModeArrow::new(session)),
-            Table::Store => self.write_batches(path, StoreArrow::new(session)),
-            Table::StoreReturns => self.write_batches(path, StoreReturnsArrow::new(session)),
-            Table::StoreSales => self.write_batches(path, StoreSalesArrow::new(session)),
-            Table::TimeDim => self.write_batches(path, TimeDimArrow::new(session)),
-            Table::Warehouse => self.write_batches(path, WarehouseArrow::new(session)),
-            Table::WebPage => self.write_batches(path, WebPageArrow::new(session)),
-            Table::WebReturns => self.write_batches(path, WebReturnsArrow::new(session)),
-            Table::WebSales => self.write_batches(path, WebSalesArrow::new(session)),
-            Table::WebSite => self.write_batches(path, WebSiteArrow::new(session)),
+            Table::CatalogReturns => self.write_batches(
+                path,
+                CatalogReturnsArrow::new(session),
+                progress,
+                table_name,
+            ),
+            Table::CatalogSales => {
+                self.write_batches(path, CatalogSalesArrow::new(session), progress, table_name)
+            }
+            Table::Customer => {
+                self.write_batches(path, CustomerArrow::new(session), progress, table_name)
+            }
+            Table::CustomerAddress => self.write_batches(
+                path,
+                CustomerAddressArrow::new(session),
+                progress,
+                table_name,
+            ),
+            Table::CustomerDemographics => self.write_batches(
+                path,
+                CustomerDemographicsArrow::new(session),
+                progress,
+                table_name,
+            ),
+            Table::DateDim => {
+                self.write_batches(path, DateDimArrow::new(session), progress, table_name)
+            }
+            Table::DbgenVersion => {
+                self.write_batches(path, DbgenVersionArrow::new(session), progress, table_name)
+            }
+            Table::HouseholdDemographics => self.write_batches(
+                path,
+                HouseholdDemographicsArrow::new(session),
+                progress,
+                table_name,
+            ),
+            Table::IncomeBand => {
+                self.write_batches(path, IncomeBandArrow::new(session), progress, table_name)
+            }
+            Table::Inventory => {
+                self.write_batches(path, InventoryArrow::new(session), progress, table_name)
+            }
+            Table::Item => self.write_batches(path, ItemArrow::new(session), progress, table_name),
+            Table::Promotion => {
+                self.write_batches(path, PromotionArrow::new(session), progress, table_name)
+            }
+            Table::Reason => {
+                self.write_batches(path, ReasonArrow::new(session), progress, table_name)
+            }
+            Table::ShipMode => {
+                self.write_batches(path, ShipModeArrow::new(session), progress, table_name)
+            }
+            Table::Store => {
+                self.write_batches(path, StoreArrow::new(session), progress, table_name)
+            }
+            Table::StoreReturns => {
+                self.write_batches(path, StoreReturnsArrow::new(session), progress, table_name)
+            }
+            Table::StoreSales => {
+                self.write_batches(path, StoreSalesArrow::new(session), progress, table_name)
+            }
+            Table::TimeDim => {
+                self.write_batches(path, TimeDimArrow::new(session), progress, table_name)
+            }
+            Table::Warehouse => {
+                self.write_batches(path, WarehouseArrow::new(session), progress, table_name)
+            }
+            Table::WebPage => {
+                self.write_batches(path, WebPageArrow::new(session), progress, table_name)
+            }
+            Table::WebReturns => {
+                self.write_batches(path, WebReturnsArrow::new(session), progress, table_name)
+            }
+            Table::WebSales => {
+                self.write_batches(path, WebSalesArrow::new(session), progress, table_name)
+            }
+            Table::WebSite => {
+                self.write_batches(path, WebSiteArrow::new(session), progress, table_name)
+            }
             _ => Ok(()),
         }
     }
 
     /// Write the record batches to a Parquet file at the specified path.
-    fn write_batches<I>(&self, path: PathBuf, mut batches: I) -> Result<()>
+    fn write_batches<I>(
+        &self,
+        path: PathBuf,
+        mut batches: I,
+        progress: &dyn ProgressTracker,
+        table_name: &'static str,
+    ) -> Result<()>
     where
         I: RecordBatchReader,
     {
@@ -97,6 +174,7 @@ impl Parquet {
         for batch in &mut batches {
             let batch = batch?;
             writer.write(&batch)?;
+            progress.increment(table_name, batch.num_rows() as u64);
         }
 
         writer.close()?;

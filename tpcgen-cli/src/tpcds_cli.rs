@@ -1,8 +1,15 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
 use crate::logging::configure_logging;
+#[cfg(feature = "indicatif-progress")]
+use crate::progress::IndicatifProgress;
+use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
+use std::io;
+#[cfg(feature = "indicatif-progress")]
+use std::io::IsTerminal;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tpcdsgen::config::{CompatMode, Session, SessionBuilder, Table};
 use tpcdsgen::error::TpcdsError;
 
@@ -171,34 +178,49 @@ impl ParquetArgs {
 
 impl CommonArgs {
     fn run_dat(self) -> Result<()> {
-        configure_logging(self.verbose, self.quiet, None);
         let output = dat::Dat::new(self.output_dir.clone())?;
         self.run_output(OutputFormat::Dat(output))
     }
 
     fn run_parquet(self, compression: Compression, row_group_bytes: usize) -> Result<()> {
-        configure_logging(self.verbose, self.quiet, None);
-        let _ = self.progress_bars_enabled;
         let output = parquet::Parquet::new(self.output_dir.clone(), compression, row_group_bytes);
         self.run_output(OutputFormat::Parquet(output))
     }
 
     fn run_csv(self, delimiter: char) -> Result<()> {
-        configure_logging(self.verbose, self.quiet, None);
-        let _ = self.progress_bars_enabled;
         let output = csv::Csv::new(self.output_dir.clone(), delimiter);
         self.run_output(OutputFormat::Csv(output))
     }
 
     fn run_output(self, output_format: OutputFormat) -> Result<()> {
+        let (progress, log_writer) = self.progress_tracker();
+        configure_logging(self.verbose, self.quiet, log_writer);
+
         std::fs::create_dir_all(&self.output_dir)?;
 
         for table in self.tables()? {
             let session = self.to_session(Some(table.get_name().to_string()))?;
-            output_format.generate_table(table, session)?;
+            output_format.generate_table(table, session, progress.as_ref())?;
         }
 
+        progress.finish();
         Ok(())
+    }
+
+    fn progress_tracker(
+        &self,
+    ) -> (
+        Arc<dyn ProgressTracker>,
+        Option<Box<dyn io::Write + Send + 'static>>,
+    ) {
+        #[cfg(feature = "indicatif-progress")]
+        if self.progress_bars_enabled && !self.quiet && io::stderr().is_terminal() {
+            let progress = Arc::new(IndicatifProgress::new());
+            let tracker: Arc<dyn ProgressTracker> = progress.clone();
+            return (tracker, Some(progress.log_writer()));
+        }
+
+        (no_op_progress_tracker(), None)
     }
 
     /// Return the tables that should be generated.
@@ -230,11 +252,16 @@ impl CommonArgs {
 }
 
 impl OutputFormat {
-    fn generate_table(&self, table: Table, session: Session) -> Result<()> {
+    fn generate_table(
+        &self,
+        table: Table,
+        session: Session,
+        progress: &dyn ProgressTracker,
+    ) -> Result<()> {
         match self {
-            OutputFormat::Dat(output) => output.generate_table(table, &session),
-            OutputFormat::Csv(output) => output.generate_table(table, session),
-            OutputFormat::Parquet(output) => output.generate_table(table, session),
+            OutputFormat::Dat(output) => output.generate_table(table, &session, progress),
+            OutputFormat::Csv(output) => output.generate_table(table, session, progress),
+            OutputFormat::Parquet(output) => output.generate_table(table, session, progress),
         }
     }
 }
