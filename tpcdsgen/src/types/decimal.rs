@@ -148,22 +148,23 @@ impl Decimal {
 
 impl std::fmt::Display for Decimal {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // This loses all of the benefit of having exact numeric types
-        // but it's what the C code does, so we have to follow it.
-        // In particular this copies the behavior of print_decimal in print.c.
-        // The C code has a different function called dectostr in decimal.c that
-        // does a proper string representation but it never gets called.
-        let mut temp = self.number as f64;
-        for _i in 0..self.precision {
-            temp /= 10.0;
+        // The C code (print_decimal in print.c) converts to double and prints
+        // with %.*f. For the magnitudes TPC-DS produces (far below 2^53) the
+        // double round-trip always recovers the exact digits of `number`, so
+        // we format the integer directly and avoid float formatting entirely.
+        if self.precision <= 0 {
+            return write!(f, "{}", self.number);
         }
-
-        write!(
-            f,
-            "{:.precision$}",
-            temp,
-            precision = self.precision as usize
-        )
+        let divisor = 10i64.pow(self.precision as u32);
+        let int_part = self.number / divisor;
+        let frac = (self.number % divisor).unsigned_abs();
+        let width = self.precision as usize;
+        if self.number < 0 && int_part == 0 {
+            // integer division dropped the sign (e.g. -0.05)
+            write!(f, "-0.{:0width$}", frac)
+        } else {
+            write!(f, "{}.{:0width$}", int_part, frac)
+        }
     }
 }
 
@@ -215,5 +216,27 @@ mod tests {
 
         let decimal = Decimal::new(123, 0).unwrap();
         assert_eq!(format!("{}", decimal), "123");
+    }
+
+    #[test]
+    fn test_display_negative() {
+        let decimal = Decimal::new(-12345, 2).unwrap();
+        assert_eq!(format!("{}", decimal), "-123.45");
+
+        // sign must survive a zero integer part
+        let decimal = Decimal::new(-5, 2).unwrap();
+        assert_eq!(format!("{}", decimal), "-0.05");
+    }
+
+    #[test]
+    fn test_display_zero_padding() {
+        let decimal = Decimal::new(5, 2).unwrap();
+        assert_eq!(format!("{}", decimal), "0.05");
+
+        let decimal = Decimal::new(10005, 4).unwrap();
+        assert_eq!(format!("{}", decimal), "1.0005");
+
+        let decimal = Decimal::new(0, 2).unwrap();
+        assert_eq!(format!("{}", decimal), "0.00");
     }
 }
