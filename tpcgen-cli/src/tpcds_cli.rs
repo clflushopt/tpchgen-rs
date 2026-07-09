@@ -111,7 +111,12 @@ struct ParquetArgs {
     row_group_bytes: usize,
 
     /// The number of threads for parallel generation, defaults to the number of CPUs
-    #[arg(short, long, default_value_t = num_cpus::get())]
+    #[arg(
+        short,
+        long,
+        default_value_t = num_cpus::get(),
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
+    )]
     num_threads: usize,
 }
 
