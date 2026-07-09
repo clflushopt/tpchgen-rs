@@ -16,6 +16,7 @@ use tpcdsgen::error::TpcdsError;
 pub mod csv;
 pub mod dat;
 pub mod parquet;
+mod plan;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -108,6 +109,15 @@ struct ParquetArgs {
         value_parser = parse_row_group_bytes
     )]
     row_group_bytes: usize,
+
+    /// The number of threads for parallel generation, defaults to the number of CPUs
+    #[arg(
+        short,
+        long,
+        default_value_t = num_cpus::get(),
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
+    )]
+    num_threads: usize,
 }
 
 #[derive(Args)]
@@ -147,60 +157,76 @@ pub struct CommonArgs {
 }
 
 impl Cli {
-    pub fn run(self) -> Result<()> {
+    pub async fn run(self) -> Result<()> {
         match self.command {
-            Some(Commands::Dat(args)) => args.run(),
-            Some(Commands::Csv(args)) => args.run(),
-            Some(Commands::Parquet(args)) => args.run(),
-            None => self.args.run(),
+            Some(Commands::Dat(args)) => args.run().await,
+            Some(Commands::Csv(args)) => args.run().await,
+            Some(Commands::Parquet(args)) => args.run().await,
+            None => self.args.run().await,
         }
     }
 }
 
 impl DatArgs {
-    fn run(self) -> Result<()> {
-        self.common.run_dat()
+    async fn run(self) -> Result<()> {
+        self.common.run_dat().await
     }
 }
 
 impl CsvArgs {
-    fn run(self) -> Result<()> {
-        self.common.run_csv(self.delimiter)
+    async fn run(self) -> Result<()> {
+        self.common.run_csv(self.delimiter).await
     }
 }
 
 impl ParquetArgs {
-    fn run(self) -> Result<()> {
+    async fn run(self) -> Result<()> {
         self.common
-            .run_parquet(self.compression, self.row_group_bytes)
+            .run_parquet(self.compression, self.row_group_bytes, self.num_threads)
+            .await
     }
 }
 
 impl CommonArgs {
-    fn run_dat(self) -> Result<()> {
+    async fn run_dat(self) -> Result<()> {
         let output = dat::Dat::new(self.output_dir.clone())?;
         let tables = self.dat_tables()?;
         // DAT return tables are emitted as side effects of their sales table generator.
         // CSV and Parquet have direct return-table generators and do not need expansion.
         self.run_output_with_tables(OutputFormat::Dat(output), tables)
+            .await
     }
 
-    fn run_parquet(self, compression: Compression, row_group_bytes: usize) -> Result<()> {
-        let output = parquet::Parquet::new(self.output_dir.clone(), compression, row_group_bytes);
-        self.run_output(OutputFormat::Parquet(output))
+    async fn run_parquet(
+        self,
+        compression: Compression,
+        row_group_bytes: usize,
+        num_threads: usize,
+    ) -> Result<()> {
+        let output = parquet::Parquet::new(
+            self.output_dir.clone(),
+            compression,
+            row_group_bytes,
+            num_threads,
+        );
+        self.run_output(OutputFormat::Parquet(output)).await
     }
 
-    fn run_csv(self, delimiter: char) -> Result<()> {
+    async fn run_csv(self, delimiter: char) -> Result<()> {
         let output = csv::Csv::new(self.output_dir.clone(), delimiter);
-        self.run_output(OutputFormat::Csv(output))
+        self.run_output(OutputFormat::Csv(output)).await
     }
 
-    fn run_output(self, output_format: OutputFormat) -> Result<()> {
+    async fn run_output(self, output_format: OutputFormat) -> Result<()> {
         let tables = self.tables()?;
-        self.run_output_with_tables(output_format, tables)
+        self.run_output_with_tables(output_format, tables).await
     }
 
-    fn run_output_with_tables(self, output_format: OutputFormat, tables: Vec<Table>) -> Result<()> {
+    async fn run_output_with_tables(
+        self,
+        output_format: OutputFormat,
+        tables: Vec<Table>,
+    ) -> Result<()> {
         let (progress, log_writer) = self.progress_tracker();
         configure_logging(self.verbose, self.quiet, log_writer);
 
@@ -208,7 +234,9 @@ impl CommonArgs {
 
         for table in tables {
             let session = self.to_session(Some(table.get_name().to_string()))?;
-            output_format.generate_table(table, session, progress.as_ref())?;
+            output_format
+                .generate_table(table, session, &progress)
+                .await?;
         }
 
         progress.finish();
@@ -278,16 +306,20 @@ impl CommonArgs {
 }
 
 impl OutputFormat {
-    fn generate_table(
+    async fn generate_table(
         &self,
         table: Table,
         session: Session,
-        progress: &dyn ProgressTracker,
+        progress: &Arc<dyn ProgressTracker>,
     ) -> Result<()> {
         match self {
-            OutputFormat::Dat(output) => output.generate_table(table, &session, progress),
-            OutputFormat::Csv(output) => output.generate_table(table, session, progress),
-            OutputFormat::Parquet(output) => output.generate_table(table, session, progress),
+            OutputFormat::Dat(output) => output.generate_table(table, &session, progress.as_ref()),
+            OutputFormat::Csv(output) => output.generate_table(table, session, progress.as_ref()),
+            OutputFormat::Parquet(output) => {
+                output
+                    .generate_table(table, session, Arc::clone(progress))
+                    .await
+            }
         }
     }
 }

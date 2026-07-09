@@ -18,13 +18,13 @@
 
 use crate::progress::ProgressTracker;
 use std::fs::File;
-use std::io::{BufWriter, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 
 use log::info;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::error::InvalidOptionError;
-use tpcdsgen::output::CompatWriter;
+use tpcdsgen::output::DatWriter;
 use tpcdsgen::row::{GeneratedRow, TableRow, *};
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
@@ -299,7 +299,7 @@ fn generate_simple<G: RowGeneratorFactory>(
 
     let path = get_output_path(table, output_options);
     let file = create_output_file(&path, output_options)?;
-    let mut writer = CompatWriter::new(BufWriter::new(file), session.get_compat_mode());
+    let mut writer = DatWriter::new(file, session.get_compat_mode());
 
     info!("Generating {}...", table.get_name());
 
@@ -394,12 +394,12 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
     let returns_path = get_output_path(returns_table, output_options);
 
     let compat_mode = session.get_compat_mode();
-    let mut sales_writer = CompatWriter::new(
-        BufWriter::new(create_output_file(&sales_path, output_options)?),
+    let mut sales_writer = DatWriter::new(
+        create_output_file(&sales_path, output_options)?,
         compat_mode,
     );
-    let mut returns_writer = CompatWriter::new(
-        BufWriter::new(create_output_file(&returns_path, output_options)?),
+    let mut returns_writer = DatWriter::new(
+        create_output_file(&returns_path, output_options)?,
         compat_mode,
     );
 
@@ -469,27 +469,38 @@ fn create_output_file(path: &Path, output_options: &OutputOptions) -> Result<Fil
 
 fn write_row(
     row: &GeneratedRow,
-    writer: &mut dyn Write,
+    writer: &mut DatWriter<File>,
     output_options: &OutputOptions,
 ) -> Result<()> {
-    if output_options.null_string.is_empty() && !output_options.do_not_terminate {
-        row.write_to(writer, output_options.separator)?;
+    if output_options.null_string.is_empty()
+        && !output_options.do_not_terminate
+        && output_options.separator == '|'
+    {
+        // Fast path: row types with a `Display` impl format the DAT line
+        // with no per-field allocations; the rest go through `TableRow`.
+        match row {
+            GeneratedRow::StoreSales(row) => writer.write_display_row(row)?,
+            GeneratedRow::StoreReturns(row) => writer.write_display_row(row)?,
+            row => writer.write_table_row(row, output_options.separator)?,
+        }
         return Ok(());
     }
 
+    let buffer = writer.buffer();
     for (i, value) in row.get_values().iter().enumerate() {
         if i > 0 {
-            write!(writer, "{}", output_options.separator)?;
+            write!(buffer, "{}", output_options.separator)?;
         }
         if value.is_empty() {
-            write!(writer, "{}", output_options.null_string)?;
+            write!(buffer, "{}", output_options.null_string)?;
         } else {
-            write!(writer, "{value}")?;
+            write!(buffer, "{value}")?;
         }
     }
     if !output_options.do_not_terminate {
-        write!(writer, "{}", output_options.separator)?;
+        write!(buffer, "{}", output_options.separator)?;
     }
-    writeln!(writer)?;
+    writeln!(buffer)?;
+    writer.maybe_flush()?;
     Ok(())
 }

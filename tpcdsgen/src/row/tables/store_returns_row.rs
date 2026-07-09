@@ -15,8 +15,10 @@
 //! Store returns row data structure
 
 use crate::generator::{GeneratorColumn, StoreReturnsGeneratorColumn};
+use crate::row::table_row::{dat_field, dat_key};
 use crate::row::TableRow;
 use crate::types::Pricing;
+use std::fmt;
 
 /// Row data structure for the store_returns table
 #[derive(Debug, Clone)]
@@ -150,6 +152,67 @@ impl StoreReturnsRow {
     }
 }
 
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for StoreReturnsRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use StoreReturnsGeneratorColumn::*;
+
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            dat_key(self.sr_returned_date_sk, self.is_null_at(SrReturnedDateSk)),
+            dat_key(self.sr_returned_time_sk, self.is_null_at(SrReturnedTimeSk)),
+            dat_key(self.sr_item_sk, self.is_null_at(SrItemSk)),
+            dat_key(self.sr_customer_sk, self.is_null_at(SrCustomerSk)),
+            dat_key(self.sr_cdemo_sk, self.is_null_at(SrCdemoSk)),
+            dat_key(self.sr_hdemo_sk, self.is_null_at(SrHdemoSk)),
+            dat_key(self.sr_addr_sk, self.is_null_at(SrAddrSk)),
+            dat_key(self.sr_store_sk, self.is_null_at(SrStoreSk)),
+            dat_key(self.sr_reason_sk, self.is_null_at(SrReasonSk)),
+            dat_key(self.sr_ticket_number, self.is_null_at(SrTicketNumber)),
+            dat_field(
+                self.sr_pricing.get_quantity(),
+                self.is_null_at(SrPricingQuantity)
+            ),
+            dat_field(
+                self.sr_pricing.get_net_paid(),
+                self.is_null_at(SrPricingNetPaid)
+            ),
+            dat_field(
+                self.sr_pricing.get_ext_tax(),
+                self.is_null_at(SrPricingExtTax)
+            ),
+            dat_field(
+                self.sr_pricing.get_net_paid_including_tax(),
+                self.is_null_at(SrPricingNetPaidIncTax)
+            ),
+            dat_field(self.sr_pricing.get_fee(), self.is_null_at(SrPricingFee)),
+            dat_field(
+                self.sr_pricing.get_ext_ship_cost(),
+                self.is_null_at(SrPricingExtShipCost)
+            ),
+            dat_field(
+                self.sr_pricing.get_refunded_cash(),
+                self.is_null_at(SrPricingRefundedCash)
+            ),
+            dat_field(
+                self.sr_pricing.get_reversed_charge(),
+                self.is_null_at(SrPricingReversedCharge)
+            ),
+            dat_field(
+                self.sr_pricing.get_store_credit(),
+                self.is_null_at(SrPricingStoreCredit)
+            ),
+            dat_field(
+                self.sr_pricing.get_net_loss(),
+                self.is_null_at(SrPricingNetLoss)
+            ),
+        )
+    }
+}
+
 impl TableRow for StoreReturnsRow {
     fn get_values(&self) -> Vec<String> {
         use StoreReturnsGeneratorColumn::*;
@@ -249,6 +312,19 @@ mod tests {
         assert_eq!(values.len(), 20);
         assert_eq!(values[0], "2451545"); // sr_returned_date_sk
         assert_eq!(values[9], "1"); // sr_ticket_number
+    }
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let pricing = create_test_pricing();
+        // A null bit (sr_returned_time_sk) plus a -1 key (sr_reason_sk)
+        // exercise both NULL paths.
+        let row = StoreReturnsRow::new(
+            0b10, 2451545, 36000, 1, 100, 200, 300, 400, 500, -1, 1, pricing,
+        );
+
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 
     #[test]

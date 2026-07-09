@@ -47,7 +47,7 @@ impl Cli {
     async fn run(self) -> Result<()> {
         match self.command {
             Command::Tpch(args) => args.run().await?,
-            Command::Tpcds(args) => args.run()?,
+            Command::Tpcds(args) => args.run().await?,
         }
 
         Ok(())
