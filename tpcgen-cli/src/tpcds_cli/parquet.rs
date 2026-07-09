@@ -1,8 +1,8 @@
 //! TPC-DS Parquet output.
 
 use super::plan::TpcdsGenerationPlan;
+use crate::parquet::generate_parquet;
 use crate::progress::ProgressTracker;
-use crate::tpch_cli::parquet::generate_parquet;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::Compression;
 use std::fs::File;
