@@ -1,4 +1,32 @@
+use std::fmt;
 use std::io::{self, Write};
+
+/// A single DAT-format field: formats the value, or nothing when the column
+/// is NULL.
+///
+/// Row types use this in their `Display` impls (which emit the DAT line) so
+/// that NULL handling stays out of the format string.
+pub(crate) struct DatField<T>(Option<T>);
+
+impl<T: fmt::Display> fmt::Display for DatField<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match &self.0 {
+            Some(value) => value.fmt(f),
+            None => Ok(()),
+        }
+    }
+}
+
+/// DAT field for a regular value: NULL when the row's null bit is set.
+pub(crate) fn dat_field<T>(value: T, is_null: bool) -> DatField<T> {
+    DatField((!is_null).then_some(value))
+}
+
+/// DAT field for a surrogate key: NULL when the row's null bit is set or the
+/// key is -1 (the generators' "no reference" sentinel).
+pub(crate) fn dat_key(key: i64, is_null: bool) -> DatField<i64> {
+    DatField((!is_null && key != -1).then_some(key))
+}
 
 /// TableRow trait matching the Java TableRow interface
 /// Represents a single row of data from any TPC-DS table
