@@ -641,6 +641,29 @@ fn test_tpchgen_cli_zero_part_zero_parts() {
         ));
 }
 
+/// Test that --num-threads=0 is rejected at argument parse time
+#[test]
+fn test_tpchgen_cli_rejects_zero_num_threads() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpch")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("region")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--num-threads")
+        .arg("0")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains(
+            "error: invalid value '0' for '--num-threads <NUM_THREADS>'",
+        ));
+}
+
 /// Test specifying parquet options even when writing tbl output
 #[tokio::test]
 async fn test_incompatible_options_warnings() {
