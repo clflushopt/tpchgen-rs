@@ -296,6 +296,31 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_zero_row_group_bytes() {
 }
 
 #[test]
+fn test_tpcgen_cli_tpcds_parquet_rejects_zero_num_threads() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--num-threads")
+        .arg("0")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("error: invalid value '0' for '--num-threads <NUM_THREADS>'"),
+        "Expected --num-threads=0 to be rejected at argument parse time, got stderr: {stderr}"
+    );
+}
+
+#[test]
 fn test_tpcgen_cli_tpcds_parquet_unknown_table_error_lists_valid_tables() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
