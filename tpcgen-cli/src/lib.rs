@@ -4,3 +4,4 @@ mod parquet;
 pub mod progress;
 pub mod tpcds_cli;
 pub mod tpch_cli;
+mod worker_queue;
