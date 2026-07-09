@@ -141,8 +141,10 @@ fn estimated_bytes_per_source_row(table: Table) -> i64 {
         Table::CustomerAddress => 46,
         Table::CustomerDemographics => 9,
         Table::DateDim => 57,
+        // Note: this value is not performance critical as this is a 1 row table
+        // and the size depends on the command line args.
         Table::DbgenVersion => 358,
-        Table::HouseholdDemographics => 11,
+        Table::HouseholdDemographics => 10,
         Table::IncomeBand => 20,
         Table::Inventory => 3,
         Table::Item => 197,
