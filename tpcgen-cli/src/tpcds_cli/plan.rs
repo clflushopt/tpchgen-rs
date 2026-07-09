@@ -80,23 +80,53 @@ impl IntoIterator for TpcdsGenerationPlan {
 ///
 /// You can verify these numbers using
 /// ```shell
-/// datafusion-cli -c "
-/// select
-///   (select sum(total_uncompressed_size) from parquet_metadata('store_sales.parquet')) as total_uncompressed_bytes,
-///   (select count(distinct ss_ticket_number) from 'store_sales.parquet') as source_rows,
-///   (select sum(total_uncompressed_size) from parquet_metadata('store_sales.parquet'))
-///     / (select count(distinct ss_ticket_number) from 'store_sales.parquet') as bytes_per_source_row
-/// "
+/// for table in call_center catalog_page catalog_returns catalog_sales customer customer_address \
+///   customer_demographics date_dim dbgen_version household_demographics income_band inventory \
+///   item promotion reason ship_mode store store_returns store_sales time_dim warehouse web_page \
+///   web_returns web_sales web_site; do
+///   case "$table" in
+///     catalog_sales|catalog_returns)
+///       source_rows="(select count(distinct cs_order_number) from 'catalog_sales.parquet')"
+///       ;;
+///     store_sales|store_returns)
+///       source_rows="(select count(distinct ss_ticket_number) from 'store_sales.parquet')"
+///       ;;
+///     web_sales|web_returns)
+///       source_rows="(select count(distinct ws_order_number) from 'web_sales.parquet')"
+///       ;;
+///     *)
+///       source_rows="(select count(*) from '$table.parquet')"
+///       ;;
+///   esac
+///
+///   datafusion-cli -q -c "
+///   select
+///     '$table' as table_name,
+///     round(
+///       cast(sum(total_uncompressed_size) as double) / cast($source_rows as double)
+///     ) as bytes_per_source_row
+///   from parquet_metadata('$table.parquet')"
+/// done
 /// ```
 ///
 /// Which results in something like
 /// ```text
-/// DataFusion CLI v54.0.0
-/// +--------------------------+-------------+----------------------+
-/// | total_uncompressed_bytes | source_rows | bytes_per_source_row |
-/// +--------------------------+-------------+----------------------+
-/// | 572780007                | 240000      | 2386                 |
-/// +--------------------------+-------------+----------------------+
+/// +-------------+----------------------+
+/// | table_name  | bytes_per_source_row |
+/// +-------------+----------------------+
+/// | call_center | 423.0                |
+/// +-------------+----------------------+
+/// ...
+/// +-----------------+----------------------+
+/// | table_name      | bytes_per_source_row |
+/// +-----------------+----------------------+
+/// | catalog_returns | 195.0                |
+/// +-----------------+----------------------+
+/// +---------------+----------------------+
+/// | table_name    | bytes_per_source_row |
+/// +---------------+----------------------+
+/// | catalog_sales | 2391.0               |
+/// +---------------+----------------------+
 /// ```
 ///
 /// Remember you have to divide by the **source** row count (which is different
