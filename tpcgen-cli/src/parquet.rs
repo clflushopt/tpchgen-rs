@@ -5,7 +5,7 @@ use arrow::record_batch::RecordBatchReader;
 use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
-use parquet::arrow::ArrowSchemaConverter;
+use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
@@ -54,9 +54,13 @@ where
     }
 
     // Compute the parquet schema
-    let writer_properties = WriterProperties::builder()
+    let mut writer_properties = WriterProperties::builder()
         .set_compression(parquet_compression)
         .build();
+    // Embed the Arrow schema in the Parquet metadata (as ArrowWriter does) so
+    // readers recover Arrow types with no exact Parquet equivalent (e.g. the
+    // Time32(seconds) column in the TPC-DS dbgen_version table)
+    add_encoded_arrow_schema_to_metadata(&schema, &mut writer_properties);
     let writer_properties = Arc::new(writer_properties);
     let parquet_schema = Arc::new(
         ArrowSchemaConverter::new()
