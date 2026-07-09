@@ -159,7 +159,7 @@ fn estimated_bytes_per_source_row(table: Table) -> i64 {
         Table::WebSales => 3119,
         Table::WebSite => 218,
         // Not a main table; never generated as Parquet output
-        _ => 100,
+        _ => unreachable!("Parquet generation plans are only defined for main TPC-DS tables"),
     }
 }
 
