@@ -86,7 +86,7 @@ impl IntoIterator for TpcdsGenerationPlan {
 ///   (select count(distinct ss_ticket_number) from 'store_sales.parquet') as source_rows,
 ///   (select sum(total_uncompressed_size) from parquet_metadata('store_sales.parquet'))
 ///     / (select count(distinct ss_ticket_number) from 'store_sales.parquet') as bytes_per_source_row
-// "
+/// "
 /// ```
 ///
 /// Which results in something like
