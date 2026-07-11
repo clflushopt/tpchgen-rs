@@ -1,0 +1,56 @@
+name: TPC-DS Benchmark
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'tpcdsgen/**'
+      - 'tpcgen-cli/**'
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  # Performance benchmarks (optional - only on main)
+  benchmarks:
+    name: Performance Benchmarks
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v7
+
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@stable
+
+    - name: Cache Rust dependencies
+      uses: actions/cache@v6
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+        key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-
+
+    - name: Build release binaries
+      run: |
+        cargo build --release -p tpcgen-cli
+
+    - name: Run benchmarks
+      run: |
+        # Generate all tables and time it using the unified CLI
+        mkdir -p /tmp/bench
+        time ./target/release/tpcgen-cli tpcds dat --scale-factor 1 --output-dir /tmp/bench
+
+    - name: Upload benchmark results
+      uses: actions/upload-artifact@v7
+      with:
+        name: benchmark-results
+        path: /tmp/bench/
+        retention-days: 30
