@@ -1,0 +1,8 @@
+2f588e0b7fa72939b498c2abecd9fbbe  nation.tbl
+c235841b00d29ad4f817771fcc851207  region.tbl
+9cce16188c241c25617ca5ed6191e37e  part.tbl
+56e0621c472064c2a998757c70b44043  supplier.tbl
+c6889c3ed0939ca02475f7fb410cbb50  partsupp.tbl
+a8aa97edad6d47b183a569759fbd3eec  customer.tbl
+c8d2008fb47f47f9e56543d4cb0f4e6a  orders.tbl
+4c6d44350a1f7974f56f5d3d7091c2be  lineitem.tbl

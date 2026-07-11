@@ -1,10 +1,27 @@
 
-This crate has extensive tests to ensure correctness. We compare the output
-of this crate with the original `dbgen` implementation as part of every checkin.
-See [conformance.sh](scripts/conformance.sh) for more details.
+This repository has extensive tests to ensure correctness. On every checkin,
+CI compares the generators' output against the original reference
+implementations (`dbgen` for TPC-H, the Trino Java port and `dsdgen` for
+TPC-DS) using MD5 checksums committed to the repo.
 
-`tpchgen-cli` generates **exactly** the same bytes as the original `dbgen`
-program. You can verify this for yourself by using `shasum`, for example:
+The conformance suites live next to the unified CLI crate:
+
+- TPC-H: [tpcgen-cli/scripts/tpch/](tpcgen-cli/scripts/tpch/) —
+  `compare-all-tables.sh` checks output against
+  `tpcgen-cli/tests/fixtures/tpch/scale-N/MD5SUMS` (generated from C `dbgen`
+  by `generate-fixtures.sh`, which requires docker or podman).
+- TPC-DS: [tpcgen-cli/scripts/tpcds/](tpcgen-cli/scripts/tpcds/) — see its
+  [README](tpcgen-cli/scripts/tpcds/README.md) for the Trino (`--compat
+  trino`) and C `dsdgen` (`--compat c`) suites.
+
+```sh
+./tpcgen-cli/scripts/tpch/compare-all-tables.sh --scale 1
+./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 1
+```
+
+`tpcgen-cli tpch` generates **exactly** the same bytes as the original
+`dbgen` program. You can verify this for yourself by using `shasum`, for
+example:
 
 ```sh
 $ shasum /tmp/sf10/lineitem.tbl tpch-dbgen/lineitem.tbl
