@@ -5,6 +5,7 @@ on:
     branches: [ main, master ]
     paths:
       - 'tpcdsgen/**'
+      - 'tpcgen-cli/**'
       - '.github/**'
   pull_request:
     branches: [ main, master ]
@@ -45,8 +46,8 @@ jobs:
 
     - name: Run conformance tests (Rust vs Java)
       run: |
-        cd tpcdsgen
-        ./scripts/compare-all-tables.sh
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh
 
   # Conformance testing against the C dsdgen reference implementation.
   conformance-tests-c:
@@ -79,8 +80,8 @@ jobs:
 
     - name: Run conformance tests (Rust --compat c vs C dsdgen)
       run: |
-        cd tpcdsgen
-        ./scripts/compare-all-tables.sh --compat c
+        cd tpcgen-cli
+        ./scripts/tpcds/compare-all-tables.sh --compat c
 
   # Performance benchmarks (optional - only on main)
   benchmarks:

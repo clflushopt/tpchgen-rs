@@ -54,7 +54,7 @@ NC='\033[0m' # No Color
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TPCDS_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
 TRINO_DIR="$TPCDS_ROOT/tpcds"
 
@@ -343,8 +343,8 @@ main() {
     log_info "Time: ${duration}s"
     log_info ""
     log_info "Next steps:"
-    log_info "  ./scripts/generate-fixtures.sh      # Generate test fixtures"
-    log_info "  ./scripts/compare-all-tables.sh     # Run conformance tests"
+    log_info "  ./scripts/tpcds/generate-fixtures.sh      # Generate test fixtures"
+    log_info "  ./scripts/tpcds/compare-all-tables.sh     # Run conformance tests"
     log_info "========================================="
 }
 

@@ -12,19 +12,19 @@ print_usage() {
 compare-table.sh — Compare a single table's Rust output to a reference.
 
 By default it compares the MD5 hash of the Rust output against the
-expected hash values in tests/fixtures/scale-N-{trino,c}/MD5SUMS.
+expected hash values in tests/fixtures/tpcds/scale-N-{trino,c}/MD5SUMS.
 
 Pass --full to instead compare byte-for-byte against the actual reference
 output (MD5 + diff). This is slower but produces a row-level diff when
 something does not match. Generate the fixture first with
-./scripts/generate-fixtures.sh.
+./scripts/tpcds/generate-fixtures.sh.
 
 Two reference implementations are supported, selected by --compat:
     --compat trino  (default)  Java / Trino reference
-                               (MD5SUMS: tests/fixtures/scale-N-trino/MD5SUMS;
+                               (MD5SUMS: tests/fixtures/tpcds/scale-N-trino/MD5SUMS;
                                 fixtures: same dir, --full only)
     --compat c                 C dsdgen reference
-                               (MD5SUMS: tests/fixtures/scale-N-c/MD5SUMS;
+                               (MD5SUMS: tests/fixtures/tpcds/scale-N-c/MD5SUMS;
                                 fixtures: same dir, --full only)
 
 Usage:
@@ -65,7 +65,7 @@ NC='\033[0m' # No Color
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Configuration (can be overridden by --scale)
 SCALE_FACTOR=${TPCDS_SCALE:-1}
@@ -218,7 +218,7 @@ compare_md5_only() {
     local expected_md5
     if ! expected_md5=$(lookup_expected_md5 "$md5sums_file" "$table"); then
         log_error "No expected MD5 for $table in $md5sums_file"
-        log_error "Run ./scripts/generate-fixtures.sh --compat $COMPAT --scale $SCALE_FACTOR to refresh it."
+        log_error "Run ./scripts/tpcds/generate-fixtures.sh --compat $COMPAT --scale $SCALE_FACTOR to refresh it."
         return 1
     fi
 
@@ -336,11 +336,11 @@ main() {
     local ref_label
     case $COMPAT in
         trino)
-            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-trino"
+            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/tpcds/scale-${SCALE_FACTOR}-trino"
             ref_label="Trino"
             ;;
         c)
-            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-c"
+            FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/tpcds/scale-${SCALE_FACTOR}-c"
             ref_label="C dsdgen"
             ;;
         *)
@@ -369,9 +369,9 @@ main() {
         if [[ ! -f "$fixture_file" ]]; then
             log_error "Fixture not found: $fixture_file"
             if [[ "$COMPAT" == "c" ]]; then
-                log_error "Download C reference data first: ./scripts/generate-fixtures.sh --compat c --scale $SCALE_FACTOR"
+                log_error "Download C reference data first: ./scripts/tpcds/generate-fixtures.sh --compat c --scale $SCALE_FACTOR"
             else
-                log_error "Generate fixtures first: ./scripts/generate-fixtures.sh $table"
+                log_error "Generate fixtures first: ./scripts/tpcds/generate-fixtures.sh $table"
             fi
             exit 1
         fi
@@ -379,7 +379,7 @@ main() {
     else
         if [[ ! -f "$md5sums_file" ]]; then
             log_error "MD5SUMS not found: $md5sums_file"
-            log_error "Refresh it with: ./scripts/generate-fixtures.sh --compat $COMPAT --scale $SCALE_FACTOR"
+            log_error "Refresh it with: ./scripts/tpcds/generate-fixtures.sh --compat $COMPAT --scale $SCALE_FACTOR"
             exit 1
         fi
         log_info "$ref_label MD5SUMS: $md5sums_file"
