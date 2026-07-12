@@ -33,6 +33,20 @@ impl Csv {
         }
     }
 
+    pub(super) fn register_table(
+        &self,
+        table: Table,
+        session: &Session,
+        progress: &dyn ProgressTracker,
+    ) {
+        let rows: u64 = session
+            .get_scaling()
+            .get_row_count(table)
+            .try_into()
+            .unwrap_or(0);
+        progress.register(table.get_name(), rows);
+    }
+
     /// Generate one TPC-DS table as a CSV file.
     pub(super) fn generate_table(
         &self,
@@ -42,14 +56,6 @@ impl Csv {
     ) -> Result<()> {
         let path = self.output_dir.join(format!("{}.csv", table.get_name()));
         let table_name = table.get_name();
-        let rows: u64 = session
-            .get_scaling()
-            .get_row_count(table)
-            .try_into()
-            .unwrap_or(0);
-        // Register the table row count, then advance by each written batch's
-        // row count.
-        progress.register(table_name, rows);
 
         match table {
             Table::CallCenter => {

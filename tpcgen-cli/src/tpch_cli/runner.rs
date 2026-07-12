@@ -87,6 +87,7 @@ impl PlanRunner {
         for (table, total) in totals {
             progress.register(table.name(), total);
         }
+        progress.start();
 
         // Do the actual work in parallel, using a worker queue
         let mut worker_queue = WorkerQueue::new(num_threads);

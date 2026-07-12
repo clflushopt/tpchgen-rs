@@ -71,6 +71,7 @@ impl Parquet {
                 (table, session, plan)
             })
             .collect();
+        progress.start();
 
         // Schedule the largest tables (most row groups) first for the best
         // thread utilization (the list is popped from the back)

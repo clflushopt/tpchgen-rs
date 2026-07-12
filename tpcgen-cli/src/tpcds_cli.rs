@@ -246,14 +246,26 @@ impl CommonArgs {
                     .await?;
             }
             OutputFormat::Dat(output) => {
+                let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
+                    output.register_table(table, &session, progress.as_ref());
+                    table_sessions.push((table, session));
+                }
+                progress.start();
+                for (table, session) in table_sessions {
                     output.generate_table(table, &session, progress.as_ref())?;
                 }
             }
             OutputFormat::Csv(output) => {
+                let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
+                    output.register_table(table, &session, progress.as_ref());
+                    table_sessions.push((table, session));
+                }
+                progress.start();
+                for (table, session) in table_sessions {
                     output.generate_table(table, session, progress.as_ref())?;
                 }
             }

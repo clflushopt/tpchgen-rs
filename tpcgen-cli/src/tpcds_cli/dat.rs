@@ -108,6 +108,36 @@ impl Dat {
         })
     }
 
+    pub(super) fn register_table(
+        &self,
+        table: Table,
+        session: &Session,
+        progress: &dyn ProgressTracker,
+    ) {
+        match table {
+            Table::StoreSales => register_sales_and_returns_progress(
+                Table::StoreSales,
+                Table::StoreReturns,
+                session,
+                progress,
+            ),
+            Table::CatalogSales => register_sales_and_returns_progress(
+                Table::CatalogSales,
+                Table::CatalogReturns,
+                session,
+                progress,
+            ),
+            Table::WebSales => register_sales_and_returns_progress(
+                Table::WebSales,
+                Table::WebReturns,
+                session,
+                progress,
+            ),
+            Table::StoreReturns | Table::CatalogReturns | Table::WebReturns => {}
+            _ => register_table_progress(table, session, progress),
+        }
+    }
+
     pub(super) fn generate_table(
         &self,
         table: Table,
@@ -284,6 +314,21 @@ impl_factory!(
     WebSalesRowGenerator
 );
 
+fn register_table_progress(table: Table, session: &Session, progress: &dyn ProgressTracker) {
+    let row_count = session.get_scaling().get_row_count(table);
+    progress.register(table.get_name(), row_count.try_into().unwrap_or(0));
+}
+
+fn register_sales_and_returns_progress(
+    sales_table: Table,
+    returns_table: Table,
+    session: &Session,
+    progress: &dyn ProgressTracker,
+) {
+    register_table_progress(sales_table, session, progress);
+    register_table_progress(returns_table, session, progress);
+}
+
 /// Generate a simple table (one row per row_number, no child tables)
 fn generate_simple<G: RowGeneratorFactory>(
     table: Table,
@@ -294,8 +339,6 @@ fn generate_simple<G: RowGeneratorFactory>(
     let mut generator = G::create();
     let row_count = session.get_scaling().get_row_count(table);
     let table_name = table.get_name();
-    // Register the scaling row count, then advance after each written row.
-    progress.register(table_name, row_count.try_into().unwrap_or(0));
 
     let path = get_output_path(table, output_options);
     let file = create_output_file(&path, output_options)?;
@@ -383,12 +426,8 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
 ) -> Result<()> {
     let mut generator = G::create();
     let source_row_count = session.get_scaling().get_row_count(sales_table);
-    let return_row_count = session.get_scaling().get_row_count(returns_table);
     let sales_name = sales_table.get_name();
     let returns_name = returns_table.get_name();
-    // Register the scaling row counts, then advance after each written row.
-    progress.register(sales_name, source_row_count.try_into().unwrap_or(0));
-    progress.register(returns_name, return_row_count.try_into().unwrap_or(0));
 
     let sales_path = get_output_path(sales_table, output_options);
     let returns_path = get_output_path(returns_table, output_options);
