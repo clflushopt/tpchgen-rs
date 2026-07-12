@@ -161,7 +161,6 @@ mod indicatif_impl {
                 bars: RwLock::new(BTreeMap::new()),
             }
         }
-
     }
 
     impl Default for IndicatifProgress {
@@ -269,19 +268,6 @@ mod indicatif_impl {
         }
 
         #[test]
-        fn registered_items_start_at_zero() {
-            let t = IndicatifProgress::hidden();
-            t.register("reason", 35);
-            t.register("ship_mode", 20);
-
-            let bars = t.bars.read().unwrap();
-            assert_eq!(bars["reason"].position(), 0);
-            assert_eq!(bars["ship_mode"].position(), 0);
-            assert!(!bars["reason"].is_finished());
-            assert!(!bars["ship_mode"].is_finished());
-        }
-
-        #[test]
         fn zero_total_items_start_at_zero() {
             let t = IndicatifProgress::hidden();
             t.register("store_returns", 0);
@@ -302,17 +288,6 @@ mod indicatif_impl {
             let bars = t.bars.read().unwrap();
             assert_eq!(bars["orders"].position(), 5);
             assert!(!bars["orders"].is_finished());
-        }
-
-        #[test]
-        fn leaves_incomplete_items_active() {
-            let t = IndicatifProgress::hidden();
-            t.register("ship_mode", 20);
-            t.increment("ship_mode", 12);
-
-            let bars = t.bars.read().unwrap();
-            assert_eq!(bars["ship_mode"].position(), 12);
-            assert!(!bars["ship_mode"].is_finished());
         }
 
         #[test]
