@@ -308,7 +308,6 @@ mod indicatif_impl {
 
             assert!(t.bars.read().unwrap()["orders"].is_finished());
         }
-
     }
 }
 
