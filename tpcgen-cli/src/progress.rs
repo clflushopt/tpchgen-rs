@@ -138,12 +138,12 @@ mod indicatif_impl {
     ///
     /// Renders one compact progress bar per progress item on stderr.
     ///
-    /// Bars are added in [`ProgressTracker::register`] and looked up by item
+    /// Items are added in [`ProgressTracker::register`] and looked up by item
     /// identifier on each [`ProgressTracker::increment`] call.
     #[derive(Debug)]
     pub struct IndicatifProgress {
         multi: MultiProgress,
-        bars: RwLock<BTreeMap<String, ProgressBar>>,
+        items: RwLock<BTreeMap<String, ProgressBar>>,
     }
 
     impl IndicatifProgress {
@@ -152,7 +152,7 @@ mod indicatif_impl {
         pub fn new() -> Self {
             Self {
                 multi: MultiProgress::new(),
-                bars: RwLock::new(BTreeMap::new()),
+                items: RwLock::new(BTreeMap::new()),
             }
         }
 
@@ -168,7 +168,7 @@ mod indicatif_impl {
         fn hidden() -> Self {
             Self {
                 multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
-                bars: RwLock::new(BTreeMap::new()),
+                items: RwLock::new(BTreeMap::new()),
             }
         }
     }
@@ -180,61 +180,61 @@ mod indicatif_impl {
     }
 
     impl ProgressTracker for IndicatifProgress {
-        fn register(&self, item: &str, total_units: u64) {
-            let Ok(mut bars) = self.bars.write() else {
+        fn register(&self, item_name: &str, total_units: u64) {
+            let Ok(mut items) = self.items.write() else {
                 return;
             };
 
-            // Indicatif treats zero-length bars as complete.
+            // Indicatif treats zero-length items as complete.
             let bar_len = total_units.max(1);
-            let bar = self.multi.add(
+            let item = self.multi.add(
                 ProgressBar::new(bar_len)
                     .with_style(bar_style())
-                    .with_message(item.to_owned())
+                    .with_message(item_name.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
-            bars.insert(item.to_owned(), bar);
+            items.insert(item_name.to_owned(), item);
         }
 
         fn start(&self) {
-            let bars = {
-                let Ok(bars) = self.bars.read() else {
+            let items = {
+                let Ok(items) = self.items.read() else {
                     return;
                 };
-                bars.values().cloned().collect::<Vec<_>>()
+                items.values().cloned().collect::<Vec<_>>()
             };
 
-            // Draw each registered bar at 0% before work starts.
-            for bar in bars {
-                bar.force_draw();
+            // Draw each registered item at 0% before work starts.
+            for item in items {
+                item.force_draw();
             }
-            // Reduce flicker by moving the cursor instead of clearing lines once the bar set is stable.
+            // Reduce flicker by moving the cursor instead of clearing lines once the item set is stable.
             self.multi.set_move_cursor(true);
         }
 
-        fn increment(&self, item: &str, units: u64) {
-            let bar = {
-                let Ok(bars) = self.bars.read() else {
+        fn increment(&self, item_name: &str, units: u64) {
+            let item = {
+                let Ok(items) = self.items.read() else {
                     return;
                 };
-                bars.get(item).cloned()
+                items.get(item_name).cloned()
             };
 
-            if let Some(bar) = bar {
-                bar.inc(units);
+            if let Some(item) = item {
+                item.inc(units);
             }
         }
 
         fn finish(&self) {
-            let bars = {
-                let Ok(bars) = self.bars.read() else {
+            let items = {
+                let Ok(items) = self.items.read() else {
                     return;
                 };
-                bars.values().cloned().collect::<Vec<_>>()
+                items.values().cloned().collect::<Vec<_>>()
             };
 
-            for bar in bars {
-                bar.finish_using_style();
+            for item in items {
+                item.finish_using_style();
             }
         }
     }
@@ -286,9 +286,9 @@ mod indicatif_impl {
             t.increment("lineitem", 1);
             t.increment("orders", 5);
 
-            let bars = t.bars.read().unwrap();
-            assert_eq!(bars["lineitem"].position(), 1);
-            assert_eq!(bars["orders"].position(), 5);
+            let items = t.items.read().unwrap();
+            assert_eq!(items["lineitem"].position(), 1);
+            assert_eq!(items["orders"].position(), 5);
         }
 
         #[test]
@@ -296,10 +296,10 @@ mod indicatif_impl {
             let t = IndicatifProgress::hidden();
             t.register("store_returns", 0);
 
-            let bars = t.bars.read().unwrap();
-            assert_eq!(bars["store_returns"].position(), 0);
-            assert_eq!(bars["store_returns"].length(), Some(1));
-            assert!(!bars["store_returns"].is_finished());
+            let items = t.items.read().unwrap();
+            assert_eq!(items["store_returns"].position(), 0);
+            assert_eq!(items["store_returns"].length(), Some(1));
+            assert!(!items["store_returns"].is_finished());
         }
 
         #[test]
@@ -309,9 +309,9 @@ mod indicatif_impl {
             for _ in 0..5 {
                 t.increment("orders", 1);
             }
-            let bars = t.bars.read().unwrap();
-            assert_eq!(bars["orders"].position(), 5);
-            assert!(!bars["orders"].is_finished());
+            let items = t.items.read().unwrap();
+            assert_eq!(items["orders"].position(), 5);
+            assert!(!items["orders"].is_finished());
         }
 
         #[test]
@@ -320,17 +320,17 @@ mod indicatif_impl {
             let t = IndicatifProgress::hidden();
             t.register("orders", 1);
             t.increment("lineitem", 1);
-            assert_eq!(t.bars.read().unwrap()["orders"].position(), 0);
+            assert_eq!(t.items.read().unwrap()["orders"].position(), 0);
         }
 
         #[test]
-        fn finish_marks_registered_bars_finished() {
+        fn finish_marks_registered_items_finished() {
             let t = IndicatifProgress::hidden();
             t.register("orders", 2);
             t.increment("orders", 2);
             t.finish();
 
-            assert!(t.bars.read().unwrap()["orders"].is_finished());
+            assert!(t.items.read().unwrap()["orders"].is_finished());
         }
     }
 }
