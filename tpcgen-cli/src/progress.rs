@@ -204,9 +204,11 @@ mod indicatif_impl {
                 bars.values().cloned().collect::<Vec<_>>()
             };
 
+            // Draw each registered bar at 0% before work starts.
             for bar in bars {
                 bar.force_draw();
             }
+            // Reduce flicker by moving the cursor instead of clearing lines once the bar set is stable.
             self.multi.set_move_cursor(true);
         }
 
