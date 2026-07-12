@@ -114,27 +114,26 @@ impl Dat {
         session: &Session,
         progress: &dyn ProgressTracker,
     ) {
+        let register = |table: Table| {
+            let row_count = session.get_scaling().get_row_count(table);
+            progress.register(table.get_name(), row_count.try_into().unwrap_or(0));
+        };
+
         match table {
-            Table::StoreSales => register_sales_and_returns_progress(
-                Table::StoreSales,
-                Table::StoreReturns,
-                session,
-                progress,
-            ),
-            Table::CatalogSales => register_sales_and_returns_progress(
-                Table::CatalogSales,
-                Table::CatalogReturns,
-                session,
-                progress,
-            ),
-            Table::WebSales => register_sales_and_returns_progress(
-                Table::WebSales,
-                Table::WebReturns,
-                session,
-                progress,
-            ),
+            Table::StoreSales => {
+                register(Table::StoreSales);
+                register(Table::StoreReturns);
+            }
+            Table::CatalogSales => {
+                register(Table::CatalogSales);
+                register(Table::CatalogReturns);
+            }
+            Table::WebSales => {
+                register(Table::WebSales);
+                register(Table::WebReturns);
+            }
             Table::StoreReturns | Table::CatalogReturns | Table::WebReturns => {}
-            _ => register_table_progress(table, session, progress),
+            _ => register(table),
         }
     }
 
@@ -313,21 +312,6 @@ impl_factory!(
     StoreSalesRowGenerator,
     WebSalesRowGenerator
 );
-
-fn register_table_progress(table: Table, session: &Session, progress: &dyn ProgressTracker) {
-    let row_count = session.get_scaling().get_row_count(table);
-    progress.register(table.get_name(), row_count.try_into().unwrap_or(0));
-}
-
-fn register_sales_and_returns_progress(
-    sales_table: Table,
-    returns_table: Table,
-    session: &Session,
-    progress: &dyn ProgressTracker,
-) {
-    register_table_progress(sales_table, session, progress);
-    register_table_progress(returns_table, session, progress);
-}
 
 /// Generate a simple table (one row per row_number, no child tables)
 fn generate_simple<G: RowGeneratorFactory>(
