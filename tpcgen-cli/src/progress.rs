@@ -117,19 +117,19 @@ mod indicatif_impl {
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
     use std::collections::BTreeMap;
     use std::io::{self, Write};
-    use std::sync::RwLock;
+    use std::sync::{OnceLock, RwLock};
 
     const LABEL_WIDTH: usize = 22;
     const BAR_WIDTH: usize = 18;
+    const PROGRESS_CHARS: &str = "=>-";
 
     /// Default [`ProgressTracker`] implementation backed by
     /// [`indicatif::MultiProgress`].
     ///
-    /// Renders one bar per progress item on stderr. Bars are pre-allocated in
-    /// [`ProgressTracker::register`] and are looked up by item identifier
-    /// on each [`ProgressTracker::increment`] call. Lookup uses a `RwLock`
-    /// read on the increment path; this is uncontended after the serial
-    /// `register` phase completes.
+    /// Renders one compact progress bar per progress item on stderr.
+    ///
+    /// Bars are added in [`ProgressTracker::register`] and looked up by item
+    /// identifier on each [`ProgressTracker::increment`] call.
     #[derive(Debug)]
     pub struct IndicatifProgress {
         multi: MultiProgress,
@@ -146,14 +146,6 @@ mod indicatif_impl {
             }
         }
 
-        #[cfg(test)]
-        fn hidden() -> Self {
-            Self {
-                multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
-                bars: RwLock::new(BTreeMap::new()),
-            }
-        }
-
         /// Return a writer that coordinates stderr log writes with progress
         /// bar redraws.
         pub fn log_writer(&self) -> Box<dyn io::Write + Send + 'static> {
@@ -162,12 +154,14 @@ mod indicatif_impl {
             })
         }
 
-        fn progress_bar(&self, item: &str) -> Option<ProgressBar> {
-            let Ok(bars) = self.bars.read() else {
-                return None;
-            };
-            bars.get(item).cloned()
+        #[cfg(test)]
+        fn hidden() -> Self {
+            Self {
+                multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
+                bars: RwLock::new(BTreeMap::new()),
+            }
         }
+
     }
 
     impl Default for IndicatifProgress {
@@ -182,40 +176,59 @@ mod indicatif_impl {
                 return;
             };
 
+            // Indicatif treats zero-length bars as complete.
+            let bar_len = total_units.max(1);
             let bar = self.multi.add(
-                ProgressBar::new(total_units.max(1))
+                ProgressBar::new(bar_len)
                     .with_style(bar_style())
                     .with_message(item.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
             bars.insert(item.to_owned(), bar.clone());
+            // Draw each newly registered bar at 0% before work starts.
             bar.force_draw();
         }
 
         fn increment(&self, item: &str, units: u64) {
-            if let Some(bar) = self.progress_bar(item) {
+            let bar = {
+                let Ok(bars) = self.bars.read() else {
+                    return;
+                };
+                bars.get(item).cloned()
+            };
+
+            if let Some(bar) = bar {
                 bar.inc(units);
             }
         }
 
         fn finish(&self) {
-            let Ok(bars) = self.bars.read() else {
-                return;
+            let bars = {
+                let Ok(bars) = self.bars.read() else {
+                    return;
+                };
+                bars.values().cloned().collect::<Vec<_>>()
             };
 
-            for bar in bars.values() {
+            for bar in bars {
                 bar.finish_using_style();
             }
         }
     }
 
     fn bar_style() -> ProgressStyle {
-        let template =
-            format!("{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%)");
-        ProgressStyle::default_bar()
-            .template(&template)
-            .expect("progress bar template is valid")
-            .progress_chars("=>-")
+        static STYLE: OnceLock<ProgressStyle> = OnceLock::new();
+        STYLE
+            .get_or_init(|| {
+                let template = format!(
+                    "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%)"
+                );
+                ProgressStyle::default_bar()
+                    .template(&template)
+                    .expect("progress bar template is valid")
+                    .progress_chars(PROGRESS_CHARS)
+            })
+            .clone()
     }
 
     struct IndicatifLogWriter {
