@@ -1,0 +1,158 @@
+name: Full Conformance
+
+# Slow, from-source conformance pass that runs on every merge to main
+# (plus manual dispatch). Where the per-PR workflows only verify that
+# output matches the MD5SUMS committed to the repo, this workflow
+# re-derives the reference data from the reference implementations
+# themselves and byte-for-byte diffs against it — guarding both against
+# output drift and against the committed MD5SUMS going stale or being
+# regenerated from the wrong source.
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+concurrency:
+  group: full-conformance-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  tpch-full:
+    name: TPC-H vs fresh C dbgen (byte-for-byte)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Rust table generators
+        run: cargo build --release -p tpcgen-cli
+
+      - name: Regenerate reference fixtures from C dbgen
+        run: |
+          cd tpcgen-cli
+          for sf in 0.001 0.01 0.1 1; do
+            ./scripts/tpch/generate-fixtures.sh --scale "$sf" --force
+          done
+
+      - name: Verify committed MD5SUMS still match the reference
+        run: git diff --exit-code -- tpcgen-cli/tests/fixtures/tpch
+
+      - name: Byte-for-byte comparison against fresh reference
+        run: |
+          cd tpcgen-cli
+          for sf in 0.001 0.01 0.1 1; do
+            ./scripts/tpch/compare-all-tables.sh --scale "$sf" --full
+          done
+
+  tpcds-c-full:
+    name: TPC-DS vs C dsdgen reference (byte-for-byte)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Rust table generators
+        run: cargo build --release -p tpcgen-cli
+
+      - name: Download C dsdgen reference fixtures
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/generate-fixtures.sh --compat c --scale 1
+          ./scripts/tpcds/generate-fixtures.sh --compat c --scale 2
+
+      - name: Byte-for-byte comparison against C dsdgen
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/compare-all-tables.sh --compat c --scale 1 --full
+          ./scripts/tpcds/compare-all-tables.sh --compat c --scale 2 --full
+
+  tpcds-trino-full:
+    name: TPC-DS vs fresh Trino Java reference (byte-for-byte)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Java toolchain
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Rust table generators
+        run: cargo build --release -p tpcgen-cli
+
+      - name: Build Trino Java reference implementation
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/bootstrap-trino.sh
+
+      - name: Generate reference fixtures with the Java implementation
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/generate-fixtures.sh
+
+      - name: Byte-for-byte comparison against the Java reference
+        run: |
+          cd tpcgen-cli
+          ./scripts/tpcds/compare-all-tables.sh --scale 1 --full

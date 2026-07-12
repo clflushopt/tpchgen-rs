@@ -19,6 +19,18 @@ The conformance suites live next to the unified CLI crate:
 ./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 1
 ```
 
+Conformance runs in two tiers:
+
+- **Every PR** (`tpch-conformance.yml`, `tpcds-conformance.yml`): fast
+  MD5-only checks against the committed MD5SUMS — this proves output is
+  byte-identical to what the recorded reference hashes describe, with no
+  container runtime or reference build needed.
+- **Every merge to main** (`full-conformance.yml`): the slow pass. It
+  regenerates reference data from the reference implementations themselves
+  (C `dbgen` in docker, the C `dsdgen` published dataset, and a fresh Maven
+  build of the Trino Java port), byte-for-byte diffs our output against it,
+  and fails if the committed MD5SUMS have drifted from the living reference.
+
 `tpcgen-cli tpch` generates **exactly** the same bytes as the original
 `dbgen` program. You can verify this for yourself by using `shasum`, for
 example:
