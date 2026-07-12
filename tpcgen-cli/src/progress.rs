@@ -112,10 +112,15 @@ pub use indicatif_impl::IndicatifProgress;
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
     use super::ProgressTracker;
+    #[cfg(test)]
+    use indicatif::ProgressDrawTarget;
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
     use std::collections::BTreeMap;
     use std::io::{self, Write};
-    use std::sync::{OnceLock, RwLock};
+    use std::sync::RwLock;
+
+    const LABEL_WIDTH: usize = 22;
+    const BAR_WIDTH: usize = 18;
 
     /// Default [`ProgressTracker`] implementation backed by
     /// [`indicatif::MultiProgress`].
@@ -128,7 +133,7 @@ mod indicatif_impl {
     #[derive(Debug)]
     pub struct IndicatifProgress {
         multi: MultiProgress,
-        items: RwLock<BTreeMap<String, ProgressBar>>,
+        bars: RwLock<BTreeMap<String, ProgressBar>>,
     }
 
     impl IndicatifProgress {
@@ -137,7 +142,15 @@ mod indicatif_impl {
         pub fn new() -> Self {
             Self {
                 multi: MultiProgress::new(),
-                items: RwLock::new(BTreeMap::new()),
+                bars: RwLock::new(BTreeMap::new()),
+            }
+        }
+
+        #[cfg(test)]
+        fn hidden() -> Self {
+            Self {
+                multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
+                bars: RwLock::new(BTreeMap::new()),
             }
         }
 
@@ -147,6 +160,13 @@ mod indicatif_impl {
             Box::new(IndicatifLogWriter {
                 multi: self.multi.clone(),
             })
+        }
+
+        fn progress_bar(&self, item: &str) -> Option<ProgressBar> {
+            let Ok(bars) = self.bars.read() else {
+                return None;
+            };
+            bars.get(item).cloned()
         }
     }
 
@@ -158,55 +178,44 @@ mod indicatif_impl {
 
     impl ProgressTracker for IndicatifProgress {
         fn register(&self, item: &str, total_units: u64) {
-            let Ok(mut items) = self.items.write() else {
+            let Ok(mut bars) = self.bars.write() else {
                 return;
             };
 
-            let pb = self.multi.add(ProgressBar::new(total_units));
-            pb.set_style(bar_style().clone());
-            pb.set_message(item.to_owned());
-            let pb = pb.with_finish(ProgressFinish::AndLeave);
-            // Write-lock is only contended during the register phase, which
-            // happens serially before any worker task starts.
-            items.insert(item.to_owned(), pb);
+            let bar = self.multi.add(
+                ProgressBar::new(total_units.max(1))
+                    .with_style(bar_style())
+                    .with_message(item.to_owned())
+                    .with_finish(ProgressFinish::AndLeave),
+            );
+            bars.insert(item.to_owned(), bar.clone());
+            bar.force_draw();
         }
 
         fn increment(&self, item: &str, units: u64) {
-            // Minimize the read-lock scope so concurrent `increment` callers
-            // don't serialize on it. Cloning the bar is a cheap `Arc` bump,
-            // and `ProgressBar::inc` is internally thread-safe.
-            let bar = {
-                let Ok(items) = self.items.read() else {
-                    return;
-                };
-                items.get(item).cloned()
-            };
-            if let Some(bar) = bar {
+            if let Some(bar) = self.progress_bar(item) {
                 bar.inc(units);
             }
         }
 
         fn finish(&self) {
-            let bars = {
-                let Ok(items) = self.items.read() else {
-                    return;
-                };
-                items.values().cloned().collect::<Vec<_>>()
+            let Ok(bars) = self.bars.read() else {
+                return;
             };
-            for bar in bars {
+
+            for bar in bars.values() {
                 bar.finish_using_style();
             }
         }
     }
 
-    fn bar_style() -> &'static ProgressStyle {
-        static STYLE: OnceLock<ProgressStyle> = OnceLock::new();
-        STYLE.get_or_init(|| {
-            ProgressStyle::default_bar()
-                .template("{msg:10} [{bar:28}]   Progress: {percent:>3}%")
-                .expect("static progress bar template is valid")
-                .progress_chars("█▓░")
-        })
+    fn bar_style() -> ProgressStyle {
+        let template =
+            format!("{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%)");
+        ProgressStyle::default_bar()
+            .template(&template)
+            .expect("progress bar template is valid")
+            .progress_chars("=>-")
     }
 
     struct IndicatifLogWriter {
@@ -235,44 +244,97 @@ mod indicatif_impl {
 
         #[test]
         fn registers_and_increments() {
-            let t = IndicatifProgress::new();
+            let t = IndicatifProgress::hidden();
             t.register("lineitem", 60);
             t.register("orders", 15);
             t.increment("lineitem", 1);
             t.increment("orders", 5);
 
-            let items = t.items.read().unwrap();
-            assert_eq!(items["lineitem"].position(), 1);
-            assert_eq!(items["orders"].position(), 5);
+            let bars = t.bars.read().unwrap();
+            assert_eq!(bars["lineitem"].position(), 1);
+            assert_eq!(bars["orders"].position(), 5);
+        }
+
+        #[test]
+        fn registered_items_start_at_zero() {
+            let t = IndicatifProgress::hidden();
+            t.register("reason", 35);
+            t.register("ship_mode", 20);
+
+            let bars = t.bars.read().unwrap();
+            assert_eq!(bars["reason"].position(), 0);
+            assert_eq!(bars["ship_mode"].position(), 0);
+            assert!(!bars["reason"].is_finished());
+            assert!(!bars["ship_mode"].is_finished());
+        }
+
+        #[test]
+        fn zero_total_items_start_at_zero() {
+            let t = IndicatifProgress::hidden();
+            t.register("store_returns", 0);
+
+            let bars = t.bars.read().unwrap();
+            assert_eq!(bars["store_returns"].position(), 0);
+            assert_eq!(bars["store_returns"].length(), Some(1));
+            assert!(!bars["store_returns"].is_finished());
         }
 
         #[test]
         fn reaches_total() {
-            let t = IndicatifProgress::new();
+            let t = IndicatifProgress::hidden();
             t.register("orders", 5);
             for _ in 0..5 {
                 t.increment("orders", 1);
             }
-            assert_eq!(t.items.read().unwrap()["orders"].position(), 5);
+            let bars = t.bars.read().unwrap();
+            assert_eq!(bars["orders"].position(), 5);
+            assert!(!bars["orders"].is_finished());
+        }
+
+        #[test]
+        fn leaves_incomplete_items_active() {
+            let t = IndicatifProgress::hidden();
+            t.register("ship_mode", 20);
+            t.increment("ship_mode", 12);
+
+            let bars = t.bars.read().unwrap();
+            assert_eq!(bars["ship_mode"].position(), 12);
+            assert!(!bars["ship_mode"].is_finished());
         }
 
         #[test]
         fn unknown_item_is_no_op() {
             // Incrementing an item not registered must not panic.
-            let t = IndicatifProgress::new();
+            let t = IndicatifProgress::hidden();
             t.register("orders", 1);
             t.increment("lineitem", 1);
-            assert_eq!(t.items.read().unwrap()["orders"].position(), 0);
+            assert_eq!(t.bars.read().unwrap()["orders"].position(), 0);
         }
 
         #[test]
         fn finish_marks_registered_bars_finished() {
-            let t = IndicatifProgress::new();
+            let t = IndicatifProgress::hidden();
             t.register("orders", 2);
             t.increment("orders", 2);
             t.finish();
 
-            assert!(t.items.read().unwrap()["orders"].is_finished());
+            assert!(t.bars.read().unwrap()["orders"].is_finished());
+        }
+
+        #[test]
+        fn bar_style_hides_counts_and_metrics() {
+            let template =
+                format!("{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%)");
+
+            assert!(template.contains("{msg:!22}"));
+            assert!(template.contains("{bar:18.cyan/blue}"));
+            assert!(template.contains("{percent:>3}"));
+            assert!(!template.contains("pos"));
+            assert!(!template.contains("len"));
+            assert!(!template.contains("prefix"));
+            assert!(!template.contains("rate"));
+            assert!(!template.contains("eta"));
+            assert!(!template.contains("elapsed"));
         }
     }
 }
