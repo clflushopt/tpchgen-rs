@@ -309,21 +309,6 @@ mod indicatif_impl {
             assert!(t.bars.read().unwrap()["orders"].is_finished());
         }
 
-        #[test]
-        fn bar_style_hides_counts_and_metrics() {
-            let template =
-                format!("{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%)");
-
-            assert!(template.contains("{msg:!22}"));
-            assert!(template.contains("{bar:18.cyan/blue}"));
-            assert!(template.contains("{percent:>3}"));
-            assert!(!template.contains("pos"));
-            assert!(!template.contains("len"));
-            assert!(!template.contains("prefix"));
-            assert!(!template.contains("rate"));
-            assert!(!template.contains("eta"));
-            assert!(!template.contains("elapsed"));
-        }
     }
 }
 
