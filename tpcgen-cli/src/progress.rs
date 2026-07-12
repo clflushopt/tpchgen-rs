@@ -3,13 +3,14 @@
 //! # Overview
 //!
 //! [`ProgressTracker`] is a small, dyn-compatible trait that receives
-//! generation events. Generation code calls:
+//! generation events. Generation code emits these events as applicable:
 //!
 //! 1. [`ProgressTracker::register`] once per progress item, before work
 //!    starts, with the total number of output units the item will produce
 //!    (chunks for TBL/CSV, row groups for Parquet).
-//! 2. [`ProgressTracker::start`] once after pre-registering a stable set of
-//!    progress items, when a generation path can do that before work starts.
+//! 2. [`ProgressTracker::start`] once after all known progress items have
+//!    been registered and before work starts. This hook is optional for
+//!    paths that register items lazily.
 //! 3. [`ProgressTracker::increment`] after output units are written.
 //!    Multiple generation tasks may call it concurrently, so impls
 //!    must be `Send + Sync` and `increment` itself should be lightweight.
@@ -79,8 +80,11 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     /// nothing.
     fn register(&self, _item: &str, _total_units: u64) {}
 
-    /// Called once after pre-registering a stable set of progress items and
-    /// before the first [`Self::increment`]. The default does nothing.
+    /// Optional hook called after all known progress items have been
+    /// registered and before the first [`Self::increment`].
+    ///
+    /// Implementations can use this to finalize setup that depends on the
+    /// registered item set. The default does nothing.
     fn start(&self) {}
 
     /// Advance the counter for `item` by `units` output units.
