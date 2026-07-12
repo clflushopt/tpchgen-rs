@@ -166,13 +166,19 @@ find_java_jar() {
 ensure_java_build() {
     log_info "Checking Java implementation..."
     if ! find_java_jar >/dev/null 2>&1; then
-        log_warn "Java JAR not found. Building Java implementation..."
-        cd "$TRINO_DIR"
-        if ! mvn -q clean package -DskipTests; then
-            log_error "Failed to build Java implementation"
+        # bootstrap-trino.sh owns the whole Java setup (clone, patch,
+        # mvn package); a bare mvn build here fails on fresh checkouts
+        # where $TRINO_DIR does not exist yet.
+        log_warn "Java JAR not found. Bootstrapping the Java implementation..."
+        if ! "$SCRIPT_DIR/bootstrap-trino.sh"; then
+            log_error "Failed to bootstrap the Java implementation"
+            log_error "See $SCRIPT_DIR/bootstrap-trino.sh --help"
             exit 1
         fi
-        cd - >/dev/null
+        if ! find_java_jar >/dev/null 2>&1; then
+            log_error "Bootstrap completed but no tpcds-*-jar-with-dependencies.jar found in $TRINO_DIR/target"
+            exit 1
+        fi
         log_success "Java implementation built successfully"
     else
         log_info "Java JAR found: $(find_java_jar)"
@@ -198,7 +204,7 @@ generate_java_table() {
         >/dev/null 2>&1; then
 
         local output_file="$temp_dir/${table}.dat"
-        if [[ -f "$output_file" ]]; then
+        if [[ -f "$output_file" && -s "$output_file" ]]; then
             mv "$output_file" "$fixture_dir/"
             local file_size row_count
             file_size=$(du -h "$fixture_dir/${table}.dat" | cut -f1)
@@ -207,7 +213,10 @@ generate_java_table() {
             rm -rf "$temp_dir"
             return 0
         else
-            log_error "Expected output file not found: $output_file"
+            # An empty file means the Java generator silently produced no
+            # rows (seen with jars built from upstream HEAD on JDK 25) —
+            # never let that become a fixture.
+            log_error "Java generator produced no output for $table (missing or empty $output_file)"
             rm -rf "$temp_dir"
             return 1
         fi
@@ -448,6 +457,11 @@ main() {
                 ;;
             --help)
                 print_usage
+                ;;
+            --*)
+                log_error "Unknown flag: $1"
+                print_usage
+                exit 1
                 ;;
             *)
                 tables_to_generate+=("$1")
