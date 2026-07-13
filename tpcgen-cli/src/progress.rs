@@ -198,7 +198,7 @@ mod indicatif_impl {
         }
 
         fn start(&self) {
-            let items = {
+            let bars = {
                 let Ok(items) = self.items.read() else {
                     return;
                 };
@@ -206,8 +206,8 @@ mod indicatif_impl {
             };
 
             // Draw each registered item at 0% before work starts.
-            for item in items {
-                item.force_draw();
+            for bar in bars {
+                bar.force_draw();
             }
             // Reduce flicker by moving the cursor instead of clearing lines once the item set is stable.
             self.multi.set_move_cursor(true);
