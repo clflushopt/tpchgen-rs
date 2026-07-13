@@ -214,28 +214,28 @@ mod indicatif_impl {
         }
 
         fn increment(&self, item: &str, units: u64) {
-            let item = {
+            let bar = {
                 let Ok(items) = self.items.read() else {
                     return;
                 };
                 items.get(item).cloned()
             };
 
-            if let Some(item) = item {
-                item.inc(units);
+            if let Some(bar) = bar {
+                bar.inc(units);
             }
         }
 
         fn finish(&self) {
-            let items = {
+            let bars = {
                 let Ok(items) = self.items.read() else {
                     return;
                 };
                 items.values().cloned().collect::<Vec<_>>()
             };
 
-            for item in items {
-                item.finish_using_style();
+            for bar in bars {
+                bar.finish_using_style();
             }
         }
     }
