@@ -180,20 +180,21 @@ mod indicatif_impl {
     }
 
     impl ProgressTracker for IndicatifProgress {
-        fn register(&self, item_name: &str, total_units: u64) {
+        fn register(&self, item: &str, total_units: u64) {
             let Ok(mut items) = self.items.write() else {
                 return;
             };
 
             // Indicatif treats zero-length items as complete.
             let bar_len = total_units.max(1);
-            let item = self.multi.add(
+            let item_key = item.to_owned();
+            let pb = self.multi.add(
                 ProgressBar::new(bar_len)
                     .with_style(bar_style())
-                    .with_message(item_name.to_owned())
+                    .with_message(item_key.clone())
                     .with_finish(ProgressFinish::AndLeave),
             );
-            items.insert(item_name.to_owned(), item);
+            items.insert(item_key, pb);
         }
 
         fn start(&self) {
@@ -212,12 +213,12 @@ mod indicatif_impl {
             self.multi.set_move_cursor(true);
         }
 
-        fn increment(&self, item_name: &str, units: u64) {
+        fn increment(&self, item: &str, units: u64) {
             let item = {
                 let Ok(items) = self.items.read() else {
                     return;
                 };
-                items.get(item_name).cloned()
+                items.get(item).cloned()
             };
 
             if let Some(item) = item {
