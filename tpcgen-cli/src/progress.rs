@@ -122,7 +122,6 @@ pub use indicatif_impl::IndicatifProgress;
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
     use super::ProgressTracker;
-    #[cfg(test)]
     use indicatif::ProgressDrawTarget;
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
     use std::collections::BTreeMap;
@@ -131,6 +130,8 @@ mod indicatif_impl {
 
     const LABEL_WIDTH: usize = 22;
     const BAR_WIDTH: usize = 18;
+    // 5 Hz redraws every 200 ms, keeping multi-bar updates responsive without repainting too often.
+    const PROGRESS_REFRESH_HZ: u8 = 5;
     const PROGRESS_CHARS: &str = "=>-";
 
     /// Default [`ProgressTracker`] implementation backed by
@@ -151,7 +152,9 @@ mod indicatif_impl {
         /// [`ProgressTracker::register`].
         pub fn new() -> Self {
             Self {
-                multi: MultiProgress::new(),
+                multi: MultiProgress::with_draw_target(ProgressDrawTarget::stderr_with_hz(
+                    PROGRESS_REFRESH_HZ,
+                )),
                 items: RwLock::new(BTreeMap::new()),
             }
         }
