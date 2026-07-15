@@ -3,13 +3,14 @@
 # TPC-DS Benchmark Script
 # Measures generation time for all tables at scale factors 1, 10, and 100
 #
-# Usage: ./scripts/benchmark.sh [--no-output] [--json] [--scales "1 10 100"]
+# Usage: ./scripts/tpcds/benchmark.sh [--no-output] [--json] [--scales "1 10 100"]
 #
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
+WORKSPACE_ROOT="$(cd "$PROJECT_DIR" && cargo locate-project --workspace --message-format=plain | xargs dirname)"
 
 # Default settings
 NO_OUTPUT=""
@@ -66,10 +67,10 @@ cd "$PROJECT_DIR"
 
 # Build release binary
 echo "Building release binary..."
-cargo build --release --bin benchmark 2>&1 | grep -v "Compiling\|Finished" || true
+cargo build --release -p tpcgen-cli --bin benchmark 2>&1 | grep -v "Compiling\|Finished" || true
 echo ""
 
-BENCHMARK_BIN="$PROJECT_DIR/target/release/benchmark"
+BENCHMARK_BIN="$WORKSPACE_ROOT/target/release/benchmark"
 
 if [[ ! -x "$BENCHMARK_BIN" ]]; then
     echo "Error: benchmark binary not found at $BENCHMARK_BIN"

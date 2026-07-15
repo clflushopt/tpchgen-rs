@@ -10,15 +10,15 @@ print_usage() {
     cat << 'EOF'
 clean-fixtures.sh — Remove all generated reference fixtures.
 
-Deletes the entire tests/fixtures/ tree (Java fixtures in scale-N-trino/
+Deletes the entire tests/fixtures/tpcds/ tree (Java fixtures in scale-N-trino/
 and C dsdgen fixtures in scale-N-c/). Fixtures are git-ignored generated
 artifacts and can be re-created with
-./scripts/generate-fixtures.sh (with or without --compat c).
+./scripts/tpcds/generate-fixtures.sh (with or without --compat c).
 
 What it does:
     1. Counts existing .dat fixture files and reports total size.
     2. Asks for confirmation (unless --yes is passed).
-    3. Removes tests/fixtures/ entirely.
+    3. Removes tests/fixtures/tpcds/ entirely.
 
 Usage:
     clean-fixtures.sh [OPTIONS]
@@ -45,9 +45,9 @@ NC='\033[0m' # No Color
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures"
+FIXTURE_DIR="$PROJECT_ROOT/tests/fixtures/tpcds"
 SKIP_CONFIRM=0
 
 # Logging functions

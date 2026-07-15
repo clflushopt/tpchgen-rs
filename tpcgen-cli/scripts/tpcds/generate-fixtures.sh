@@ -15,8 +15,8 @@ Two reference implementations are supported, selected by --compat:
 
     --compat trino  (default)
         Runs the Java / Trino TPC-DS implementation (set up by
-        ./scripts/bootstrap-trino.sh) and writes the resulting *.dat files
-        into tests/fixtures/scale-N-trino/. These are the "golden reference"
+        ./scripts/tpcds/bootstrap-trino.sh) and writes the resulting *.dat files
+        into tests/fixtures/tpcds/scale-N-trino/. These are the "golden reference"
         the Rust port targets byte-for-byte.
 
     --compat c
@@ -24,7 +24,7 @@ Two reference implementations are supported, selected by --compat:
         https://github.com/alamb/tpcds-data (branch sfN; one branch per
         scale factor). The branch is cloned with --depth 1, re-assembled
         from split bzip2 tarballs, and extracted into
-        tests/fixtures/scale-N-c/. No local C toolchain needed.
+        tests/fixtures/tpcds/scale-N-c/. No local C toolchain needed.
 
 Usage:
     generate-fixtures.sh [OPTIONS] [TABLES...]
@@ -56,22 +56,22 @@ Requirements:
     --compat c    : git, tar, bzip2
 
 Output:
-    tests/fixtures/scale-N-trino/<table>.dat — pipe-delimited, trailing |.
-    tests/fixtures/scale-N-c/<table>.dat    — same format, C dsdgen origin.
+    tests/fixtures/tpcds/scale-N-trino/<table>.dat — pipe-delimited, trailing |.
+    tests/fixtures/tpcds/scale-N-c/<table>.dat    — same format, C dsdgen origin.
     Files are gitignored; regenerate as needed.
 
 Examples:
     # Java reference, all 25 tables at scale 1 (default).
-    ./scripts/generate-fixtures.sh
+    ./scripts/tpcds/generate-fixtures.sh
 
     # Java reference, scale 10, two specific tables.
-    ./scripts/generate-fixtures.sh --scale 10 call_center warehouse
+    ./scripts/tpcds/generate-fixtures.sh --scale 10 call_center warehouse
 
     # C dsdgen reference, scale 1.
-    ./scripts/generate-fixtures.sh --compat c
+    ./scripts/tpcds/generate-fixtures.sh --compat c
 
     # C dsdgen reference, scale 2, force re-download.
-    ./scripts/generate-fixtures.sh --compat c --scale 2 --rebuild
+    ./scripts/tpcds/generate-fixtures.sh --compat c --scale 2 --rebuild
 
 See scripts/README.md for the full conformance-testing workflow.
 EOF
@@ -87,7 +87,7 @@ NC='\033[0m'
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TRINO_DIR="$PROJECT_ROOT/../tpcds"
 
 # Configuration (overridable by flags / env vars)
@@ -166,13 +166,19 @@ find_java_jar() {
 ensure_java_build() {
     log_info "Checking Java implementation..."
     if ! find_java_jar >/dev/null 2>&1; then
-        log_warn "Java JAR not found. Building Java implementation..."
-        cd "$TRINO_DIR"
-        if ! mvn -q clean package -DskipTests; then
-            log_error "Failed to build Java implementation"
+        # bootstrap-trino.sh owns the whole Java setup (clone, patch,
+        # mvn package); a bare mvn build here fails on fresh checkouts
+        # where $TRINO_DIR does not exist yet.
+        log_warn "Java JAR not found. Bootstrapping the Java implementation..."
+        if ! "$SCRIPT_DIR/bootstrap-trino.sh"; then
+            log_error "Failed to bootstrap the Java implementation"
+            log_error "See $SCRIPT_DIR/bootstrap-trino.sh --help"
             exit 1
         fi
-        cd - >/dev/null
+        if ! find_java_jar >/dev/null 2>&1; then
+            log_error "Bootstrap completed but no tpcds-*-jar-with-dependencies.jar found in $TRINO_DIR/target"
+            exit 1
+        fi
         log_success "Java implementation built successfully"
     else
         log_info "Java JAR found: $(find_java_jar)"
@@ -198,7 +204,7 @@ generate_java_table() {
         >/dev/null 2>&1; then
 
         local output_file="$temp_dir/${table}.dat"
-        if [[ -f "$output_file" ]]; then
+        if [[ -f "$output_file" && -s "$output_file" ]]; then
             mv "$output_file" "$fixture_dir/"
             local file_size row_count
             file_size=$(du -h "$fixture_dir/${table}.dat" | cut -f1)
@@ -207,7 +213,10 @@ generate_java_table() {
             rm -rf "$temp_dir"
             return 0
         else
-            log_error "Expected output file not found: $output_file"
+            # An empty file means the Java generator silently produced no
+            # rows (seen with jars built from upstream HEAD on JDK 25) —
+            # never let that become a fixture.
+            log_error "Java generator produced no output for $table (missing or empty $output_file)"
             rm -rf "$temp_dir"
             return 1
         fi
@@ -449,6 +458,11 @@ main() {
             --help)
                 print_usage
                 ;;
+            --*)
+                log_error "Unknown flag: $1"
+                print_usage
+                exit 1
+                ;;
             *)
                 tables_to_generate+=("$1")
                 shift
@@ -477,14 +491,14 @@ main() {
 
     case $COMPAT in
         trino)
-            local fixture_dir="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-trino"
+            local fixture_dir="$PROJECT_ROOT/tests/fixtures/tpcds/scale-${SCALE_FACTOR}-trino"
             if [[ ${#tables_to_generate[@]} -eq 0 ]]; then
                 tables_to_generate=("${ALL_TABLES[@]}")
             fi
             generate_trino_fixtures "$fixture_dir" "${tables_to_generate[@]}"
             ;;
         c)
-            local fixture_dir="$PROJECT_ROOT/tests/fixtures/scale-${SCALE_FACTOR}-c"
+            local fixture_dir="$PROJECT_ROOT/tests/fixtures/tpcds/scale-${SCALE_FACTOR}-c"
             generate_c_fixtures "$fixture_dir"
             ;;
     esac

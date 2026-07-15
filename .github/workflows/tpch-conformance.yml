@@ -1,0 +1,56 @@
+name: TPC-H Conformance
+
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - 'tpchgen/**'
+      - 'tpcgen-cli/**'
+      - '.github/**'
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  # Conformance testing against committed MD5SUMS generated from C dbgen.
+  # See tpcgen-cli/scripts/tpch/generate-fixtures.sh for how the sums are
+  # produced.
+  conformance-tests:
+    # This job name is a required status check in the 'main' branch
+    # ruleset — rename both together, or PRs block on a phantom check.
+    name: TPC-H Conformance Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Build Rust table generators
+        run: |
+          cargo build --release -p tpcgen-cli
+
+      - name: Run conformance tests (Rust vs C dbgen MD5SUMS)
+        run: |
+          cd tpcgen-cli
+          for sf in 0.001 0.01 0.1 1; do
+            ./scripts/tpch/compare-all-tables.sh --scale "$sf"
+          done

@@ -27,6 +27,8 @@ Options:
 
 Environment variables:
     TPCDS_TRINO_REPO    Git URL for the Trino TPC-DS repo.
+    TPCDS_TRINO_REF     Git ref of the repo to build (default: the commit
+                        the Rust port was written against).
                         Default: https://github.com/trinodb/tpcds.git
 
 Requirements: Java 11+, Maven, git.
@@ -54,12 +56,16 @@ NC='\033[0m' # No Color
 
 # Script directory and project root
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 TPCDS_ROOT="$(cd "$PROJECT_ROOT/.." && pwd)"
 TRINO_DIR="$TPCDS_ROOT/tpcds"
 
 # Configuration
 TRINO_REPO_URL="${TPCDS_TRINO_REPO:-https://github.com/trinodb/tpcds.git}"
+# The commit of trinodb/tpcds the Rust port was written against (also
+# referenced from tpcdsgen source comments). Upstream HEAD no longer
+# builds on JDK <= 21 and generates different output.
+TRINO_REF="${TPCDS_TRINO_REF:-8a02abbba864feedc2afd078c8153d66a95bb2d4}"
 FORCE_REBUILD=0
 VERIFY_ONLY=0
 
@@ -119,36 +125,41 @@ find_trino_jar() {
     echo "$jar_file"
 }
 
-# Clone the Trino TPC-DS repository
+# Clone the Trino TPC-DS repository and pin it to the reference commit.
+#
+# The Rust port matches this exact commit of the Java implementation.
+# Upstream master has since moved on (it now targets JDK 25 via airbase
+# 390, and its generator output is no longer what our fixtures encode),
+# so building an unpinned HEAD produces a reference that is useless for
+# conformance testing.
 clone_trino_repo() {
     log_info "Cloning Trino TPC-DS repository..."
     log_info "Source: $TRINO_REPO_URL"
+    log_info "Ref:    $TRINO_REF"
     log_info "Target: $TRINO_DIR"
 
     if [[ -d "$TRINO_DIR" ]]; then
         log_warn "Directory already exists: $TRINO_DIR"
 
         # Check if it's a git repo
-        if [[ -d "$TRINO_DIR/.git" ]]; then
-            log_info "Existing git repository found, pulling latest changes..."
-            cd "$TRINO_DIR"
-            git pull || log_warn "Failed to pull latest changes"
-            cd - >/dev/null
-            return 0
-        else
+        if [[ ! -d "$TRINO_DIR/.git" ]]; then
             log_error "Directory exists but is not a git repository"
             log_error "Please remove $TRINO_DIR and try again"
             return 1
         fi
+    else
+        if ! git clone "$TRINO_REPO_URL" "$TRINO_DIR"; then
+            log_error "Failed to clone Trino TPC-DS repository"
+            return 1
+        fi
+        log_success "Successfully cloned Trino TPC-DS repository"
     fi
 
-    # Clone the repository
-    if ! git clone "$TRINO_REPO_URL" "$TRINO_DIR"; then
-        log_error "Failed to clone Trino TPC-DS repository"
+    if ! git -C "$TRINO_DIR" checkout --quiet "$TRINO_REF"; then
+        log_error "Failed to check out pinned ref $TRINO_REF"
         return 1
     fi
-
-    log_success "Successfully cloned Trino TPC-DS repository"
+    log_success "Checked out pinned ref $TRINO_REF"
     return 0
 }
 
@@ -343,8 +354,8 @@ main() {
     log_info "Time: ${duration}s"
     log_info ""
     log_info "Next steps:"
-    log_info "  ./scripts/generate-fixtures.sh      # Generate test fixtures"
-    log_info "  ./scripts/compare-all-tables.sh     # Run conformance tests"
+    log_info "  ./scripts/tpcds/generate-fixtures.sh      # Generate test fixtures"
+    log_info "  ./scripts/tpcds/compare-all-tables.sh     # Run conformance tests"
     log_info "========================================="
 }
 
