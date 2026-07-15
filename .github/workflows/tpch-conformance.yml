@@ -19,7 +19,9 @@ jobs:
   # See tpcgen-cli/scripts/tpch/generate-fixtures.sh for how the sums are
   # produced.
   conformance-tests:
-    name: Conformance Tests (C dbgen MD5)
+    # This job name is a required status check in the 'main' branch
+    # ruleset — rename both together, or PRs block on a phantom check.
+    name: TPC-H Conformance Tests
     runs-on: ubuntu-latest
 
     steps:
