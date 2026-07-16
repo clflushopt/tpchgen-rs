@@ -173,14 +173,8 @@ impl<W: Write> DatWriter<W> {
         self.maybe_flush()
     }
 
-    /// The pending in-memory buffer. Callers with custom formatting needs may
-    /// append UTF-8 rows directly, followed by [`Self::maybe_flush`].
-    pub fn buffer(&mut self) -> &mut Vec<u8> {
-        &mut self.buffer
-    }
-
     /// Encode and flush the pending buffer if it has grown past the threshold.
-    pub fn maybe_flush(&mut self) -> io::Result<()> {
+    fn maybe_flush(&mut self) -> io::Result<()> {
         if self.buffer.len() >= Self::FLUSH_THRESHOLD {
             self.flush_buffer()?;
         }
