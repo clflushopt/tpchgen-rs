@@ -113,9 +113,12 @@ impl Dat {
                 &self.target_directory,
                 progress,
             ),
-            Table::Item => {
-                generate_simple::<ItemRowGenerator>(table, session, &self.target_directory, progress)
-            }
+            Table::Item => generate_simple::<ItemRowGenerator>(
+                table,
+                session,
+                &self.target_directory,
+                progress,
+            ),
             Table::Promotion => generate_simple::<PromotionRowGenerator>(
                 table,
                 session,
@@ -134,9 +137,12 @@ impl Dat {
                 &self.target_directory,
                 progress,
             ),
-            Table::Store => {
-                generate_simple::<StoreRowGenerator>(table, session, &self.target_directory, progress)
-            }
+            Table::Store => generate_simple::<StoreRowGenerator>(
+                table,
+                session,
+                &self.target_directory,
+                progress,
+            ),
             Table::TimeDim => generate_simple::<TimeDimRowGenerator>(
                 table,
                 session,
@@ -171,7 +177,9 @@ impl Dat {
             // Sales generators write their return tables at the same time.
             Table::StoreSales => generate_store_sales(session, &self.target_directory, progress),
             Table::StoreReturns => Ok(()), // Generated with StoreSales
-            Table::CatalogSales => generate_catalog_sales(session, &self.target_directory, progress),
+            Table::CatalogSales => {
+                generate_catalog_sales(session, &self.target_directory, progress)
+            }
             Table::CatalogReturns => Ok(()), // Generated with CatalogSales
             Table::WebSales => generate_web_sales(session, &self.target_directory, progress),
             Table::WebReturns => Ok(()), // Generated with WebSales
