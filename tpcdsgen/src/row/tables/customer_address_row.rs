@@ -22,11 +22,11 @@ use std::fmt;
 /// Customer address table row (CustomerAddressRow)
 #[derive(Debug, Clone)]
 pub struct CustomerAddressRow {
-    null_bit_map: i64,
-    ca_addr_sk: i64,
-    ca_addr_id: String,
-    ca_address: Address,
-    ca_location_type: String,
+    pub(crate) null_bit_map: i64,
+    pub(crate) ca_addr_sk: i64,
+    pub(crate) ca_addr_id: String,
+    pub(crate) ca_address: Address,
+    pub(crate) ca_location_type: String,
 }
 
 impl CustomerAddressRow {
@@ -47,7 +47,7 @@ impl CustomerAddressRow {
     }
 
     /// Check if a column should be null based on the null bitmap (TableRowWithNulls logic)
-    fn should_be_null(&self, column_position: i32) -> bool {
+    pub(crate) fn should_be_null(&self, column_position: i32) -> bool {
         ((self.null_bit_map >> column_position) & 1) == 1
     }
 
@@ -93,7 +93,7 @@ impl CustomerAddressRow {
 /// DAT field helper mirroring `get_string_or_null`/`get_string_or_null_for_key`
 /// (customer_address applies no key sentinel check, only the null bit).
 impl CustomerAddressRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }

@@ -7,11 +7,11 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct WarehouseRow {
     null_bit_map: i64,
-    w_warehouse_sk: i64,
-    w_warehouse_id: String,
-    w_warehouse_name: String,
-    w_warehouse_sq_ft: i32,
-    w_address: Address,
+    pub(crate) w_warehouse_sk: i64,
+    pub(crate) w_warehouse_id: String,
+    pub(crate) w_warehouse_name: String,
+    pub(crate) w_warehouse_sq_ft: i32,
+    pub(crate) w_address: Address,
 }
 
 impl WarehouseRow {
@@ -34,7 +34,7 @@ impl WarehouseRow {
     }
 
     /// Check if a column should be null based on the null bitmap (TableRowWithNulls logic)
-    fn should_be_null(&self, column_position: i32) -> bool {
+    pub(crate) fn should_be_null(&self, column_position: i32) -> bool {
         ((self.null_bit_map >> column_position) & 1) == 1
     }
 
@@ -84,7 +84,7 @@ impl WarehouseRow {
 /// DAT field helper mirroring `get_string_or_null`/`get_string_or_null_for_key`
 /// (warehouse applies no key sentinel check, only the null bit).
 impl WarehouseRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }

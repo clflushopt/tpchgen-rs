@@ -6,9 +6,9 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct IncomeBandRow {
     null_bit_map: i64,
-    ib_income_band_id: i32,
-    ib_lower_bound: i32,
-    ib_upper_bound: i32,
+    pub(crate) ib_income_band_id: i32,
+    pub(crate) ib_lower_bound: i32,
+    pub(crate) ib_upper_bound: i32,
 }
 
 impl IncomeBandRow {
@@ -59,7 +59,7 @@ impl IncomeBandRow {
 
 /// DAT field helper mirroring `get_string_or_null`.
 impl IncomeBandRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }
