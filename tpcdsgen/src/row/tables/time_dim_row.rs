@@ -1,4 +1,4 @@
-use crate::row::table_row::{dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use std::fmt;
 
@@ -86,7 +86,7 @@ impl TimeDimRow {
 /// DAT field helper mirroring `get_string_or_null`.
 impl TimeDimRow {
     fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
-        dat_field(value, self.is_field_null(column_index))
+        DatField::new(value, self.is_field_null(column_index))
     }
 }
 

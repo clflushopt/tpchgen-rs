@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-use crate::row::table_row::dat_field_null_literal;
+use crate::row::table_row::NullLiteralField;
 use crate::row::TableRow;
 use std::fmt;
 
@@ -96,11 +96,11 @@ impl fmt::Display for HouseholdDemographicsRow {
         write!(
             f,
             "{}|{}|{}|{}|{}|",
-            dat_field_null_literal(self.hd_demo_sk, self.is_null(0)),
-            dat_field_null_literal(self.hd_income_band_sk, self.is_null(1)),
-            dat_field_null_literal(&self.hd_buy_potential, self.is_null(2)),
-            dat_field_null_literal(self.hd_dep_count, self.is_null(3)),
-            dat_field_null_literal(self.hd_vehicle_count, self.is_null(4)),
+            NullLiteralField::new(self.hd_demo_sk, self.is_null(0)),
+            NullLiteralField::new(self.hd_income_band_sk, self.is_null(1)),
+            NullLiteralField::new(&self.hd_buy_potential, self.is_null(2)),
+            NullLiteralField::new(self.hd_dep_count, self.is_null(3)),
+            NullLiteralField::new(self.hd_vehicle_count, self.is_null(4)),
         )
     }
 }

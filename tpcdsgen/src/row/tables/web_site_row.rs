@@ -13,7 +13,7 @@
  */
 
 use crate::generator::{GeneratorColumn, WebSiteGeneratorColumn};
-use crate::row::table_row::{dat_field, dat_opt, dat_zip, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::{Address, Date, Decimal};
 use std::fmt;
@@ -216,18 +216,18 @@ impl WebSiteRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is -1 (mirrors `get_string_or_null_for_key`).
     fn key_field(&self, key: i64, column: WebSiteGeneratorColumn) -> DatField<i64> {
-        dat_field(key, key == -1 || self.is_null_at(column))
+        DatField::new(key, key == -1 || self.is_null_at(column))
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
     fn field<T>(&self, value: T, column: WebSiteGeneratorColumn) -> DatField<T> {
-        dat_field(value, self.is_null_at(column))
+        DatField::new(value, self.is_null_at(column))
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
     /// julian day is negative (mirrors `get_date_string_or_null_from_julian_days`).
     fn date_field(&self, julian_days: i64, column: WebSiteGeneratorColumn) -> DatField<Date> {
-        dat_opt(
+        DatField::from(
             (!(self.is_null_at(column) || julian_days < 0))
                 .then(|| Date::from_julian_days(julian_days as i32)),
         )
@@ -269,7 +269,7 @@ impl fmt::Display for WebSiteRow {
                 WebAddressCounty
             ),
             self.field(self.web_address.get_state(), WebAddressState),
-            dat_zip(self.web_address.get_zip(), self.is_null_at(WebAddressZip)),
+            DatField::zip(self.web_address.get_zip(), self.is_null_at(WebAddressZip)),
             self.field(self.web_address.get_country(), WebAddressCountry),
             self.field(self.web_address.get_gmt_offset(), WebAddressGmtOffset),
             self.field(self.web_tax_percentage, WebTaxPercentage),

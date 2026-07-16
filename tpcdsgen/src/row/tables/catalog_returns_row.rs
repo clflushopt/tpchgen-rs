@@ -15,7 +15,7 @@
 //! Catalog returns row structure
 
 use crate::generator::CatalogReturnsGeneratorColumn;
-use crate::row::table_row::{dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Pricing;
 use std::fmt;
@@ -201,13 +201,13 @@ impl CatalogReturnsRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is negative (mirrors `get_string_or_null_for_key`).
     fn key_field(&self, value: i64, column: &CatalogReturnsGeneratorColumn) -> DatField<i64> {
-        dat_field(value, self.is_null(column) || value < 0)
+        DatField::new(value, self.is_null(column) || value < 0)
     }
 
     /// DAT field for a regular value: NULL when the null bit is set
     /// (mirrors `get_string_or_null`).
     fn field<T>(&self, value: T, column: &CatalogReturnsGeneratorColumn) -> DatField<T> {
-        dat_field(value, self.is_null(column))
+        DatField::new(value, self.is_null(column))
     }
 }
 
