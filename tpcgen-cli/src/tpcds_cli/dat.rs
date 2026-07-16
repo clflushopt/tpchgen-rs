@@ -35,12 +35,12 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 /// each row type's `Display` impl.
 #[derive(Debug, Clone)]
 pub(super) struct Dat {
-    target_directory: PathBuf,
+    output_dir: PathBuf,
 }
 
 impl Dat {
-    pub(super) fn new(target_directory: PathBuf) -> Result<Self> {
-        if target_directory.as_os_str().is_empty() {
+    pub(super) fn new(output_dir: PathBuf) -> Result<Self> {
+        if output_dir.as_os_str().is_empty() {
             return Err(InvalidOptionError::with_message(
                 "directory",
                 "",
@@ -48,7 +48,7 @@ impl Dat {
             )
             .into());
         }
-        Ok(Self { target_directory })
+        Ok(Self { output_dir })
     }
 
     pub(super) fn generate_table(
@@ -62,126 +62,88 @@ impl Dat {
             Table::CallCenter => generate_simple::<CallCenterRowGenerator>(
                 table,
                 session,
-                &self.target_directory,
+                &self.output_dir,
                 progress,
             ),
             Table::CatalogPage => generate_simple::<CatalogPageRowGenerator>(
                 table,
                 session,
-                &self.target_directory,
+                &self.output_dir,
                 progress,
             ),
-            Table::Customer => generate_simple::<CustomerRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
+            Table::Customer => {
+                generate_simple::<CustomerRowGenerator>(table, session, &self.output_dir, progress)
+            }
             Table::CustomerAddress => generate_simple::<CustomerAddressRowGenerator>(
                 table,
                 session,
-                &self.target_directory,
+                &self.output_dir,
                 progress,
             ),
             Table::CustomerDemographics => generate_simple::<CustomerDemographicsRowGenerator>(
                 table,
                 session,
-                &self.target_directory,
+                &self.output_dir,
                 progress,
             ),
-            Table::DateDim => generate_simple::<DateDimRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
+            Table::DateDim => {
+                generate_simple::<DateDimRowGenerator>(table, session, &self.output_dir, progress)
+            }
             Table::DbgenVersion => generate_simple::<DbgenVersionRowGenerator>(
                 table,
                 session,
-                &self.target_directory,
+                &self.output_dir,
                 progress,
             ),
             Table::HouseholdDemographics => generate_simple::<HouseholdDemographicsRowGenerator>(
                 table,
                 session,
-                &self.target_directory,
+                &self.output_dir,
                 progress,
             ),
             Table::IncomeBand => generate_simple::<IncomeBandRowGenerator>(
                 table,
                 session,
-                &self.target_directory,
+                &self.output_dir,
                 progress,
             ),
-            Table::Item => generate_simple::<ItemRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::Promotion => generate_simple::<PromotionRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::Reason => generate_simple::<ReasonRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::ShipMode => generate_simple::<ShipModeRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::Store => generate_simple::<StoreRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::TimeDim => generate_simple::<TimeDimRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::Warehouse => generate_simple::<WarehouseRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::WebPage => generate_simple::<WebPageRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::WebSite => generate_simple::<WebSiteRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
-            Table::Inventory => generate_simple::<InventoryRowGenerator>(
-                table,
-                session,
-                &self.target_directory,
-                progress,
-            ),
+            Table::Item => {
+                generate_simple::<ItemRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::Promotion => {
+                generate_simple::<PromotionRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::Reason => {
+                generate_simple::<ReasonRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::ShipMode => {
+                generate_simple::<ShipModeRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::Store => {
+                generate_simple::<StoreRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::TimeDim => {
+                generate_simple::<TimeDimRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::Warehouse => {
+                generate_simple::<WarehouseRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::WebPage => {
+                generate_simple::<WebPageRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::WebSite => {
+                generate_simple::<WebSiteRowGenerator>(table, session, &self.output_dir, progress)
+            }
+            Table::Inventory => {
+                generate_simple::<InventoryRowGenerator>(table, session, &self.output_dir, progress)
+            }
 
             // Sales generators write their return tables at the same time.
-            Table::StoreSales => generate_store_sales(session, &self.target_directory, progress),
+            Table::StoreSales => generate_store_sales(session, &self.output_dir, progress),
             Table::StoreReturns => Ok(()), // Generated with StoreSales
-            Table::CatalogSales => {
-                generate_catalog_sales(session, &self.target_directory, progress)
-            }
+            Table::CatalogSales => generate_catalog_sales(session, &self.output_dir, progress),
             Table::CatalogReturns => Ok(()), // Generated with CatalogSales
-            Table::WebSales => generate_web_sales(session, &self.target_directory, progress),
+            Table::WebSales => generate_web_sales(session, &self.output_dir, progress),
             Table::WebReturns => Ok(()), // Generated with WebSales
 
             // Source tables - skip
@@ -239,7 +201,7 @@ impl_factory!(
 fn generate_simple<G: RowGeneratorFactory>(
     table: Table,
     session: &Session,
-    target_directory: &Path,
+    output_dir: &Path,
     progress: &dyn ProgressTracker,
 ) -> Result<()> {
     let mut generator = G::create();
@@ -248,7 +210,7 @@ fn generate_simple<G: RowGeneratorFactory>(
     // Register the scaling row count, then advance after each written row.
     progress.register(table_name, row_count.try_into().unwrap_or(0));
 
-    let path = get_output_path(table, target_directory);
+    let path = get_output_path(table, output_dir);
     let file = File::create(&path)?;
     let mut writer = DatWriter::new(file, session.get_compat_mode());
 
@@ -279,14 +241,14 @@ fn generate_simple<G: RowGeneratorFactory>(
 /// Generate store_sales and store_returns together
 fn generate_store_sales(
     session: &Session,
-    target_directory: &Path,
+    output_dir: &Path,
     progress: &dyn ProgressTracker,
 ) -> Result<()> {
     generate_sales_and_returns::<StoreSalesRowGenerator>(
         Table::StoreSales,
         Table::StoreReturns,
         session,
-        target_directory,
+        output_dir,
         progress,
     )
 }
@@ -294,14 +256,14 @@ fn generate_store_sales(
 /// Generate catalog_sales and catalog_returns together
 fn generate_catalog_sales(
     session: &Session,
-    target_directory: &Path,
+    output_dir: &Path,
     progress: &dyn ProgressTracker,
 ) -> Result<()> {
     generate_sales_and_returns::<CatalogSalesRowGenerator>(
         Table::CatalogSales,
         Table::CatalogReturns,
         session,
-        target_directory,
+        output_dir,
         progress,
     )
 }
@@ -309,14 +271,14 @@ fn generate_catalog_sales(
 /// Generate web_sales and web_returns together
 fn generate_web_sales(
     session: &Session,
-    target_directory: &Path,
+    output_dir: &Path,
     progress: &dyn ProgressTracker,
 ) -> Result<()> {
     generate_sales_and_returns::<WebSalesRowGenerator>(
         Table::WebSales,
         Table::WebReturns,
         session,
-        target_directory,
+        output_dir,
         progress,
     )
 }
@@ -329,7 +291,7 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
     sales_table: Table,
     returns_table: Table,
     session: &Session,
-    target_directory: &Path,
+    output_dir: &Path,
     progress: &dyn ProgressTracker,
 ) -> Result<()> {
     let mut generator = G::create();
@@ -341,8 +303,8 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
     progress.register(sales_name, source_row_count.try_into().unwrap_or(0));
     progress.register(returns_name, return_row_count.try_into().unwrap_or(0));
 
-    let sales_path = get_output_path(sales_table, target_directory);
-    let returns_path = get_output_path(returns_table, target_directory);
+    let sales_path = get_output_path(sales_table, output_dir);
+    let returns_path = get_output_path(returns_table, output_dir);
 
     let compat_mode = session.get_compat_mode();
     let mut sales_writer = DatWriter::new(File::create(&sales_path)?, compat_mode);
@@ -397,6 +359,6 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
 }
 
 /// Get output file path for a table
-fn get_output_path(table: Table, target_directory: &Path) -> PathBuf {
-    target_directory.join(format!("{}.dat", table.get_name()))
+fn get_output_path(table: Table, output_dir: &Path) -> PathBuf {
+    output_dir.join(format!("{}.dat", table.get_name()))
 }
