@@ -1,4 +1,4 @@
-use crate::row::table_row::{dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use std::fmt;
 
@@ -91,7 +91,7 @@ impl ShipModeRow {
 /// (ship_mode applies no key sentinel check, only the null bit).
 impl ShipModeRow {
     fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
-        dat_field(value, self.should_be_null(column_position))
+        DatField::new(value, self.should_be_null(column_position))
     }
 }
 

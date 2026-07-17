@@ -15,7 +15,7 @@
 //! Customer row definition (CustomerRow)
 
 use crate::generator::CustomerGeneratorColumn;
-use crate::row::table_row::{dat_bool, dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use std::fmt;
 
@@ -218,13 +218,13 @@ impl CustomerRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is negative (mirrors `get_string_or_null_for_key`).
     fn key_field(&self, value: i64, column: CustomerGeneratorColumn) -> DatField<i64> {
-        dat_field(value, self.is_null(column) || value < 0)
+        DatField::new(value, self.is_null(column) || value < 0)
     }
 
     /// DAT field for a regular value: NULL when the null bit is set
     /// (mirrors the remaining `get_string_or_null*` helpers).
     fn field<T>(&self, value: T, column: CustomerGeneratorColumn) -> DatField<T> {
-        dat_field(value, self.is_null(column))
+        DatField::new(value, self.is_null(column))
     }
 }
 
@@ -248,7 +248,7 @@ impl fmt::Display for CustomerRow {
             self.field(&self.c_salutation, CSalutation),
             self.field(&self.c_first_name, CFirstName),
             self.field(&self.c_last_name, CLastName),
-            dat_bool(self.c_preferred_cust_flag, self.is_null(CPreferredCustFlag)),
+            DatField::yes_no(self.c_preferred_cust_flag, self.is_null(CPreferredCustFlag)),
             self.field(self.c_birth_day, CBirthDay),
             self.field(self.c_birth_month, CBirthMonth),
             self.field(self.c_birth_year, CBirthYear),

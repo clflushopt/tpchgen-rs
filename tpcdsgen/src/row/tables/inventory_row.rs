@@ -15,7 +15,7 @@
 //! Inventory row data structure
 
 use crate::generator::{GeneratorColumn, InventoryGeneratorColumn};
-use crate::row::table_row::dat_field;
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use std::fmt;
 
@@ -99,10 +99,10 @@ impl fmt::Display for InventoryRow {
         write!(
             f,
             "{}|{}|{}|{}|",
-            dat_field(self.inv_date_sk, self.is_null_at(InvDateSk)),
-            dat_field(self.inv_item_sk, self.is_null_at(InvItemSk)),
-            dat_field(self.inv_warehouse_sk, self.is_null_at(InvWarehouseSk)),
-            dat_field(
+            DatField::new(self.inv_date_sk, self.is_null_at(InvDateSk)),
+            DatField::new(self.inv_item_sk, self.is_null_at(InvItemSk)),
+            DatField::new(self.inv_warehouse_sk, self.is_null_at(InvWarehouseSk)),
+            DatField::new(
                 self.inv_quantity_on_hand,
                 self.is_null_at(InvQuantityOnHand)
             ),

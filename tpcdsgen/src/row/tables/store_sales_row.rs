@@ -15,7 +15,7 @@
 //! Store sales row data structure
 
 use crate::generator::{GeneratorColumn, StoreSalesGeneratorColumn};
-use crate::row::table_row::{dat_field, dat_key};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Pricing;
 use std::fmt;
@@ -169,65 +169,65 @@ impl fmt::Display for StoreSalesRow {
         write!(
             f,
             "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
-            dat_key(self.ss_sold_date_sk, self.is_null_at(SsSoldDateSk)),
-            dat_key(self.ss_sold_time_sk, self.is_null_at(SsSoldTimeSk)),
-            dat_key(self.ss_sold_item_sk, self.is_null_at(SsSoldItemSk)),
-            dat_key(self.ss_sold_customer_sk, self.is_null_at(SsSoldCustomerSk)),
-            dat_key(self.ss_sold_cdemo_sk, self.is_null_at(SsSoldCdemoSk)),
-            dat_key(self.ss_sold_hdemo_sk, self.is_null_at(SsSoldHdemoSk)),
-            dat_key(self.ss_sold_addr_sk, self.is_null_at(SsSoldAddrSk)),
-            dat_key(self.ss_sold_store_sk, self.is_null_at(SsSoldStoreSk)),
-            dat_key(self.ss_sold_promo_sk, self.is_null_at(SsSoldPromoSk)),
-            dat_key(self.ss_ticket_number, self.is_null_at(SsTicketNumber)),
-            dat_field(
+            DatField::key(self.ss_sold_date_sk, self.is_null_at(SsSoldDateSk)),
+            DatField::key(self.ss_sold_time_sk, self.is_null_at(SsSoldTimeSk)),
+            DatField::key(self.ss_sold_item_sk, self.is_null_at(SsSoldItemSk)),
+            DatField::key(self.ss_sold_customer_sk, self.is_null_at(SsSoldCustomerSk)),
+            DatField::key(self.ss_sold_cdemo_sk, self.is_null_at(SsSoldCdemoSk)),
+            DatField::key(self.ss_sold_hdemo_sk, self.is_null_at(SsSoldHdemoSk)),
+            DatField::key(self.ss_sold_addr_sk, self.is_null_at(SsSoldAddrSk)),
+            DatField::key(self.ss_sold_store_sk, self.is_null_at(SsSoldStoreSk)),
+            DatField::key(self.ss_sold_promo_sk, self.is_null_at(SsSoldPromoSk)),
+            DatField::key(self.ss_ticket_number, self.is_null_at(SsTicketNumber)),
+            DatField::new(
                 self.ss_pricing.get_quantity(),
                 self.is_null_at(SsPricingQuantity)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_wholesale_cost(),
                 self.is_null_at(SsPricingWholesaleCost)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_list_price(),
                 self.is_null_at(SsPricingListPrice)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_sales_price(),
                 self.is_null_at(SsPricingSalesPrice)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_coupon_amount(),
                 self.is_null_at(SsPricingCouponAmt)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_ext_sales_price(),
                 self.is_null_at(SsPricingExtSalesPrice)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_ext_wholesale_cost(),
                 self.is_null_at(SsPricingExtWholesaleCost)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_ext_list_price(),
                 self.is_null_at(SsPricingExtListPrice)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_ext_tax(),
                 self.is_null_at(SsPricingExtTax)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_coupon_amount(),
                 self.is_null_at(SsPricingCouponAmt)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_net_paid(),
                 self.is_null_at(SsPricingNetPaid)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_net_paid_including_tax(),
                 self.is_null_at(SsPricingNetPaidIncTax)
             ),
-            dat_field(
+            DatField::new(
                 self.ss_pricing.get_net_profit(),
                 self.is_null_at(SsPricingNetProfit)
             ),
