@@ -15,7 +15,7 @@
 //! Store returns row data structure
 
 use crate::generator::{GeneratorColumn, StoreReturnsGeneratorColumn};
-use crate::row::table_row::{dat_field, dat_key};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Pricing;
 use std::fmt;
@@ -162,50 +162,50 @@ impl fmt::Display for StoreReturnsRow {
         write!(
             f,
             "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
-            dat_key(self.sr_returned_date_sk, self.is_null_at(SrReturnedDateSk)),
-            dat_key(self.sr_returned_time_sk, self.is_null_at(SrReturnedTimeSk)),
-            dat_key(self.sr_item_sk, self.is_null_at(SrItemSk)),
-            dat_key(self.sr_customer_sk, self.is_null_at(SrCustomerSk)),
-            dat_key(self.sr_cdemo_sk, self.is_null_at(SrCdemoSk)),
-            dat_key(self.sr_hdemo_sk, self.is_null_at(SrHdemoSk)),
-            dat_key(self.sr_addr_sk, self.is_null_at(SrAddrSk)),
-            dat_key(self.sr_store_sk, self.is_null_at(SrStoreSk)),
-            dat_key(self.sr_reason_sk, self.is_null_at(SrReasonSk)),
-            dat_key(self.sr_ticket_number, self.is_null_at(SrTicketNumber)),
-            dat_field(
+            DatField::key(self.sr_returned_date_sk, self.is_null_at(SrReturnedDateSk)),
+            DatField::key(self.sr_returned_time_sk, self.is_null_at(SrReturnedTimeSk)),
+            DatField::key(self.sr_item_sk, self.is_null_at(SrItemSk)),
+            DatField::key(self.sr_customer_sk, self.is_null_at(SrCustomerSk)),
+            DatField::key(self.sr_cdemo_sk, self.is_null_at(SrCdemoSk)),
+            DatField::key(self.sr_hdemo_sk, self.is_null_at(SrHdemoSk)),
+            DatField::key(self.sr_addr_sk, self.is_null_at(SrAddrSk)),
+            DatField::key(self.sr_store_sk, self.is_null_at(SrStoreSk)),
+            DatField::key(self.sr_reason_sk, self.is_null_at(SrReasonSk)),
+            DatField::key(self.sr_ticket_number, self.is_null_at(SrTicketNumber)),
+            DatField::new(
                 self.sr_pricing.get_quantity(),
                 self.is_null_at(SrPricingQuantity)
             ),
-            dat_field(
+            DatField::new(
                 self.sr_pricing.get_net_paid(),
                 self.is_null_at(SrPricingNetPaid)
             ),
-            dat_field(
+            DatField::new(
                 self.sr_pricing.get_ext_tax(),
                 self.is_null_at(SrPricingExtTax)
             ),
-            dat_field(
+            DatField::new(
                 self.sr_pricing.get_net_paid_including_tax(),
                 self.is_null_at(SrPricingNetPaidIncTax)
             ),
-            dat_field(self.sr_pricing.get_fee(), self.is_null_at(SrPricingFee)),
-            dat_field(
+            DatField::new(self.sr_pricing.get_fee(), self.is_null_at(SrPricingFee)),
+            DatField::new(
                 self.sr_pricing.get_ext_ship_cost(),
                 self.is_null_at(SrPricingExtShipCost)
             ),
-            dat_field(
+            DatField::new(
                 self.sr_pricing.get_refunded_cash(),
                 self.is_null_at(SrPricingRefundedCash)
             ),
-            dat_field(
+            DatField::new(
                 self.sr_pricing.get_reversed_charge(),
                 self.is_null_at(SrPricingReversedCharge)
             ),
-            dat_field(
+            DatField::new(
                 self.sr_pricing.get_store_credit(),
                 self.is_null_at(SrPricingStoreCredit)
             ),
-            dat_field(
+            DatField::new(
                 self.sr_pricing.get_net_loss(),
                 self.is_null_at(SrPricingNetLoss)
             ),

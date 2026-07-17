@@ -26,7 +26,7 @@ use crate::row::{
     StoreRow, StoreSalesRow, TableRow, TimeDimRow, WarehouseRow, WebPageRow, WebReturnsRow,
     WebSalesRow, WebSiteRow,
 };
-use std::io::{self, Write};
+use std::fmt;
 
 /// Enum holding all possible generated row types.
 ///
@@ -61,6 +61,40 @@ pub enum GeneratedRow {
     WebSite(WebSiteRow),
 }
 
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator (no newline), delegating to the variant's `Display` impl.
+impl fmt::Display for GeneratedRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GeneratedRow::CallCenter(row) => row.fmt(f),
+            GeneratedRow::CatalogPage(row) => row.fmt(f),
+            GeneratedRow::CatalogReturns(row) => row.fmt(f),
+            GeneratedRow::CatalogSales(row) => row.fmt(f),
+            GeneratedRow::Customer(row) => row.fmt(f),
+            GeneratedRow::CustomerAddress(row) => row.fmt(f),
+            GeneratedRow::CustomerDemographics(row) => row.fmt(f),
+            GeneratedRow::DateDim(row) => row.fmt(f),
+            GeneratedRow::DbgenVersion(row) => row.fmt(f),
+            GeneratedRow::HouseholdDemographics(row) => row.fmt(f),
+            GeneratedRow::IncomeBand(row) => row.fmt(f),
+            GeneratedRow::Inventory(row) => row.fmt(f),
+            GeneratedRow::Item(row) => row.fmt(f),
+            GeneratedRow::Promotion(row) => row.fmt(f),
+            GeneratedRow::Reason(row) => row.fmt(f),
+            GeneratedRow::ShipMode(row) => row.fmt(f),
+            GeneratedRow::Store(row) => row.fmt(f),
+            GeneratedRow::StoreReturns(row) => row.fmt(f),
+            GeneratedRow::StoreSales(row) => row.fmt(f),
+            GeneratedRow::TimeDim(row) => row.fmt(f),
+            GeneratedRow::Warehouse(row) => row.fmt(f),
+            GeneratedRow::WebPage(row) => row.fmt(f),
+            GeneratedRow::WebReturns(row) => row.fmt(f),
+            GeneratedRow::WebSales(row) => row.fmt(f),
+            GeneratedRow::WebSite(row) => row.fmt(f),
+        }
+    }
+}
+
 impl TableRow for GeneratedRow {
     fn get_values(&self) -> Vec<String> {
         match self {
@@ -89,36 +123,6 @@ impl TableRow for GeneratedRow {
             GeneratedRow::WebReturns(row) => row.get_values(),
             GeneratedRow::WebSales(row) => row.get_values(),
             GeneratedRow::WebSite(row) => row.get_values(),
-        }
-    }
-
-    fn write_to(&self, writer: &mut dyn Write, separator: char) -> io::Result<()> {
-        match self {
-            GeneratedRow::CallCenter(row) => row.write_to(writer, separator),
-            GeneratedRow::CatalogPage(row) => row.write_to(writer, separator),
-            GeneratedRow::CatalogReturns(row) => row.write_to(writer, separator),
-            GeneratedRow::CatalogSales(row) => row.write_to(writer, separator),
-            GeneratedRow::Customer(row) => row.write_to(writer, separator),
-            GeneratedRow::CustomerAddress(row) => row.write_to(writer, separator),
-            GeneratedRow::CustomerDemographics(row) => row.write_to(writer, separator),
-            GeneratedRow::DateDim(row) => row.write_to(writer, separator),
-            GeneratedRow::DbgenVersion(row) => row.write_to(writer, separator),
-            GeneratedRow::HouseholdDemographics(row) => row.write_to(writer, separator),
-            GeneratedRow::IncomeBand(row) => row.write_to(writer, separator),
-            GeneratedRow::Inventory(row) => row.write_to(writer, separator),
-            GeneratedRow::Item(row) => row.write_to(writer, separator),
-            GeneratedRow::Promotion(row) => row.write_to(writer, separator),
-            GeneratedRow::Reason(row) => row.write_to(writer, separator),
-            GeneratedRow::ShipMode(row) => row.write_to(writer, separator),
-            GeneratedRow::Store(row) => row.write_to(writer, separator),
-            GeneratedRow::StoreReturns(row) => row.write_to(writer, separator),
-            GeneratedRow::StoreSales(row) => row.write_to(writer, separator),
-            GeneratedRow::TimeDim(row) => row.write_to(writer, separator),
-            GeneratedRow::Warehouse(row) => row.write_to(writer, separator),
-            GeneratedRow::WebPage(row) => row.write_to(writer, separator),
-            GeneratedRow::WebReturns(row) => row.write_to(writer, separator),
-            GeneratedRow::WebSales(row) => row.write_to(writer, separator),
-            GeneratedRow::WebSite(row) => row.write_to(writer, separator),
         }
     }
 }
@@ -295,16 +299,11 @@ mod tests {
     }
 
     #[test]
-    fn test_generated_row_write_to() {
+    fn test_generated_row_display_matches_row_display() {
         let row = CallCenterRow::builder().build();
         let generated: GeneratedRow = row.clone().into();
 
-        let mut buf1 = Vec::new();
-        let mut buf2 = Vec::new();
-
-        row.write_to(&mut buf1, '|').unwrap();
-        generated.write_to(&mut buf2, '|').unwrap();
-
-        assert_eq!(buf1, buf2);
+        // The enum's Display delegates to the variant's Display.
+        assert_eq!(row.to_string(), generated.to_string());
     }
 }

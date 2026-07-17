@@ -1,4 +1,6 @@
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
+use std::fmt;
 
 /// Ship mode table row (ShipModeRow)
 #[derive(Debug, Clone)]
@@ -85,6 +87,32 @@ impl ShipModeRow {
     }
 }
 
+/// DAT field helper mirroring `get_string_or_null`/`get_string_or_null_for_key`
+/// (ship_mode applies no key sentinel check, only the null bit).
+impl ShipModeRow {
+    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+        DatField::new(value, self.should_be_null(column_position))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for ShipModeRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|",
+            self.field(self.sm_ship_mode_sk, 0),
+            self.field(&self.sm_ship_mode_id, 1),
+            self.field(&self.sm_type, 2),
+            self.field(&self.sm_code, 3),
+            self.field(&self.sm_carrier, 4),
+            self.field(&self.sm_contract, 5),
+        )
+    }
+}
+
 impl TableRow for ShipModeRow {
     fn get_values(&self) -> Vec<String> {
         // Column positions match Java ShipModeGeneratorColumn
@@ -97,5 +125,25 @@ impl TableRow for ShipModeRow {
             self.get_string_or_null(&self.sm_carrier, 4),
             self.get_string_or_null(&self.sm_contract, 5),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = ShipModeRow::new(
+            0b10,
+            1,
+            "AAAAAAAABAAAAAAA".to_string(),
+            "EXPRESS".to_string(),
+            "AIR".to_string(),
+            "UPS".to_string(),
+            "2mM8tgcDE0aNiHg5heb".to_string(),
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }

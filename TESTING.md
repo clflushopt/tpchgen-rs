@@ -1,10 +1,39 @@
 
-This crate has extensive tests to ensure correctness. We compare the output
-of this crate with the original `dbgen` implementation as part of every checkin.
-See [conformance.sh](scripts/conformance.sh) for more details.
+This repository has extensive tests to ensure correctness. On every checkin,
+CI compares the generators' output against the original reference
+implementations (`dbgen` for TPC-H, the Trino Java port and `dsdgen` for
+TPC-DS) using MD5 checksums committed to the repo.
 
-`tpchgen-cli` generates **exactly** the same bytes as the original `dbgen`
-program. You can verify this for yourself by using `shasum`, for example:
+The conformance suites live next to the unified CLI crate:
+
+- TPC-H: [tpcgen-cli/scripts/tpch/](tpcgen-cli/scripts/tpch/) —
+  `compare-all-tables.sh` checks output against
+  `tpcgen-cli/tests/fixtures/tpch/scale-N/MD5SUMS` (generated from C `dbgen`
+  by `generate-fixtures.sh`, which requires docker or podman).
+- TPC-DS: [tpcgen-cli/scripts/tpcds/](tpcgen-cli/scripts/tpcds/) — see its
+  [README](tpcgen-cli/scripts/tpcds/README.md) for the Trino (`--compat
+  trino`) and C `dsdgen` (`--compat c`) suites.
+
+```sh
+./tpcgen-cli/scripts/tpch/compare-all-tables.sh --scale 1
+./tpcgen-cli/scripts/tpcds/compare-all-tables.sh --scale 1
+```
+
+Conformance runs in two tiers:
+
+- **Every PR** (`tpch-conformance.yml`, `tpcds-conformance.yml`): fast
+  MD5-only checks against the committed MD5SUMS — this proves output is
+  byte-identical to what the recorded reference hashes describe, with no
+  container runtime or reference build needed.
+- **Every merge to main** (`full-conformance.yml`): the slow pass. It
+  regenerates reference data from the reference implementations themselves
+  (C `dbgen` in docker, the C `dsdgen` published dataset, and a fresh Maven
+  build of the Trino Java port), byte-for-byte diffs our output against it,
+  and fails if the committed MD5SUMS have drifted from the living reference.
+
+`tpcgen-cli tpch` generates **exactly** the same bytes as the original
+`dbgen` program. You can verify this for yourself by using `shasum`, for
+example:
 
 ```sh
 $ shasum /tmp/sf10/lineitem.tbl tpch-dbgen/lineitem.tbl

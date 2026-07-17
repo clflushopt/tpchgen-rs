@@ -1,5 +1,7 @@
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Date;
+use std::fmt;
 
 /// Represents a row in the DATE_DIM table
 #[derive(Debug, Clone)]
@@ -153,6 +155,53 @@ impl DateDimRow {
     }
 }
 
+/// DAT field helper mirroring `get_string_or_null`.
+impl DateDimRow {
+    fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
+        DatField::new(value, self.is_field_null(column_index))
+    }
+}
+
+/// Formats the row as a DAT line: `|`-separated values with a trailing
+/// separator and empty fields for NULL columns (no newline). Produces the
+/// same bytes as joining [`TableRow::get_values`] with `|`.
+impl fmt::Display for DateDimRow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|",
+            self.field(self.d_date_sk, 0),
+            self.field(&self.d_date_id, 1),
+            self.field(&self.d_date, 2),
+            self.field(self.d_month_seq, 3),
+            self.field(self.d_week_seq, 4),
+            self.field(self.d_quarter_seq, 5),
+            self.field(self.d_year, 6),
+            self.field(self.d_dow, 7),
+            self.field(self.d_moy, 8),
+            self.field(self.d_dom, 9),
+            self.field(self.d_qoy, 10),
+            self.field(self.d_fy_year, 11),
+            self.field(self.d_fy_quarter_seq, 12),
+            self.field(self.d_fy_week_seq, 13),
+            self.field(&self.d_day_name, 14),
+            self.field(&self.d_quarter_name, 15),
+            self.field(Self::format_boolean(self.d_holiday), 16),
+            self.field(Self::format_boolean(self.d_weekend), 17),
+            self.field(Self::format_boolean(self.d_following_holiday), 18),
+            self.field(self.d_first_dom, 19),
+            self.field(self.d_last_dom, 20),
+            self.field(self.d_same_day_ly, 21),
+            self.field(self.d_same_day_lq, 22),
+            self.field(Self::format_boolean(self.d_current_day), 23),
+            self.field(Self::format_boolean(self.d_current_week), 24),
+            self.field(Self::format_boolean(self.d_current_month), 25),
+            self.field(Self::format_boolean(self.d_current_quarter), 26),
+            self.field(Self::format_boolean(self.d_current_year), 27),
+        )
+    }
+}
+
 impl TableRow for DateDimRow {
     fn get_values(&self) -> Vec<String> {
         vec![
@@ -185,5 +234,47 @@ impl TableRow for DateDimRow {
             self.get_string_or_null(Self::format_boolean(self.d_current_quarter), 26),
             self.get_string_or_null(Self::format_boolean(self.d_current_year), 27),
         ]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_display_matches_get_values() {
+        let row = DateDimRow::new(
+            0b10,
+            2451545,
+            "AAAAAAAAOKJNECAA".to_string(),
+            Date::from_julian_days(2451545),
+            1200,
+            5218,
+            400,
+            2000,
+            6,
+            1,
+            1,
+            1,
+            1999,
+            399,
+            5217,
+            "Saturday".to_string(),
+            "2000Q1".to_string(),
+            true,
+            true,
+            false,
+            2451545,
+            2451575,
+            2451179,
+            2451454,
+            false,
+            false,
+            false,
+            false,
+            true,
+        );
+        let expected = format!("{}|", row.get_values().join("|"));
+        assert_eq!(row.to_string(), expected);
     }
 }
