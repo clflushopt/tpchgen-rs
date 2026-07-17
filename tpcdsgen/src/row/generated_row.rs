@@ -27,7 +27,6 @@ use crate::row::{
     WebSalesRow, WebSiteRow,
 };
 use std::fmt;
-use std::io::{self, Write};
 
 /// Enum holding all possible generated row types.
 ///
@@ -124,36 +123,6 @@ impl TableRow for GeneratedRow {
             GeneratedRow::WebReturns(row) => row.get_values(),
             GeneratedRow::WebSales(row) => row.get_values(),
             GeneratedRow::WebSite(row) => row.get_values(),
-        }
-    }
-
-    fn write_to(&self, writer: &mut dyn Write, separator: char) -> io::Result<()> {
-        match self {
-            GeneratedRow::CallCenter(row) => row.write_to(writer, separator),
-            GeneratedRow::CatalogPage(row) => row.write_to(writer, separator),
-            GeneratedRow::CatalogReturns(row) => row.write_to(writer, separator),
-            GeneratedRow::CatalogSales(row) => row.write_to(writer, separator),
-            GeneratedRow::Customer(row) => row.write_to(writer, separator),
-            GeneratedRow::CustomerAddress(row) => row.write_to(writer, separator),
-            GeneratedRow::CustomerDemographics(row) => row.write_to(writer, separator),
-            GeneratedRow::DateDim(row) => row.write_to(writer, separator),
-            GeneratedRow::DbgenVersion(row) => row.write_to(writer, separator),
-            GeneratedRow::HouseholdDemographics(row) => row.write_to(writer, separator),
-            GeneratedRow::IncomeBand(row) => row.write_to(writer, separator),
-            GeneratedRow::Inventory(row) => row.write_to(writer, separator),
-            GeneratedRow::Item(row) => row.write_to(writer, separator),
-            GeneratedRow::Promotion(row) => row.write_to(writer, separator),
-            GeneratedRow::Reason(row) => row.write_to(writer, separator),
-            GeneratedRow::ShipMode(row) => row.write_to(writer, separator),
-            GeneratedRow::Store(row) => row.write_to(writer, separator),
-            GeneratedRow::StoreReturns(row) => row.write_to(writer, separator),
-            GeneratedRow::StoreSales(row) => row.write_to(writer, separator),
-            GeneratedRow::TimeDim(row) => row.write_to(writer, separator),
-            GeneratedRow::Warehouse(row) => row.write_to(writer, separator),
-            GeneratedRow::WebPage(row) => row.write_to(writer, separator),
-            GeneratedRow::WebReturns(row) => row.write_to(writer, separator),
-            GeneratedRow::WebSales(row) => row.write_to(writer, separator),
-            GeneratedRow::WebSite(row) => row.write_to(writer, separator),
         }
     }
 }
@@ -330,28 +299,11 @@ mod tests {
     }
 
     #[test]
-    fn test_generated_row_display_matches_write_to() {
-        let row = CallCenterRow::builder().build();
-        let generated: GeneratedRow = row.into();
-
-        let mut legacy = Vec::new();
-        generated.write_to(&mut legacy, '|').unwrap();
-
-        // Display emits the same DAT line write_to does, minus the newline.
-        assert_eq!(format!("{generated}\n").as_bytes(), &legacy[..]);
-    }
-
-    #[test]
-    fn test_generated_row_write_to() {
+    fn test_generated_row_display_matches_row_display() {
         let row = CallCenterRow::builder().build();
         let generated: GeneratedRow = row.clone().into();
 
-        let mut buf1 = Vec::new();
-        let mut buf2 = Vec::new();
-
-        row.write_to(&mut buf1, '|').unwrap();
-        generated.write_to(&mut buf2, '|').unwrap();
-
-        assert_eq!(buf1, buf2);
+        // The enum's Display delegates to the variant's Display.
+        assert_eq!(row.to_string(), generated.to_string());
     }
 }

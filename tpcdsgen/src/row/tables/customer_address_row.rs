@@ -14,7 +14,7 @@
 
 //! Customer address row (CustomerAddressRow)
 
-use crate::row::table_row::{dat_field, dat_zip, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Address;
 use std::fmt;
@@ -94,7 +94,7 @@ impl CustomerAddressRow {
 /// (customer_address applies no key sentinel check, only the null bit).
 impl CustomerAddressRow {
     fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
-        dat_field(value, self.should_be_null(column_position))
+        DatField::new(value, self.should_be_null(column_position))
     }
 }
 
@@ -115,7 +115,7 @@ impl fmt::Display for CustomerAddressRow {
             self.field(self.ca_address.get_city(), 6),
             self.field(self.ca_address.get_county().unwrap_or(""), 7),
             self.field(self.ca_address.get_state(), 8),
-            dat_zip(self.ca_address.get_zip(), self.should_be_null(9)),
+            DatField::zip(self.ca_address.get_zip(), self.should_be_null(9)),
             self.field(self.ca_address.get_country(), 10),
             self.field(self.ca_address.get_gmt_offset(), 11),
             self.field(&self.ca_location_type, 12),

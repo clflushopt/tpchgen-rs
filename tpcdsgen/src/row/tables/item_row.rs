@@ -15,7 +15,7 @@
 //! Item row structure and formatting
 
 use crate::generator::{GeneratorColumn, ItemGeneratorColumn};
-use crate::row::table_row::{dat_field, dat_opt, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::{Date, Decimal};
 use std::fmt;
@@ -238,14 +238,14 @@ impl ItemRow {
     /// DAT field for a regular value or key: NULL when the null bit is set
     /// (item keys have no sentinel check).
     fn field<T>(&self, value: T, column: &ItemGeneratorColumn) -> DatField<T> {
-        dat_field(value, self.is_null(column))
+        DatField::new(value, self.is_null(column))
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
     /// julian day is negative (mirrors `get_date_string_or_null`); the Date
     /// is only constructed when it will be printed.
     fn date_field(&self, julian_days: i64, column: &ItemGeneratorColumn) -> DatField<Date> {
-        dat_opt(
+        DatField::from(
             (!(self.is_null(column) || julian_days < 0))
                 .then(|| Date::from_julian_days(julian_days as i32)),
         )

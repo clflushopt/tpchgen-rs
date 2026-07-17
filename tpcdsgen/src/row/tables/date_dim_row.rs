@@ -1,4 +1,4 @@
-use crate::row::table_row::{dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Date;
 use std::fmt;
@@ -158,7 +158,7 @@ impl DateDimRow {
 /// DAT field helper mirroring `get_string_or_null`.
 impl DateDimRow {
     fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
-        dat_field(value, self.is_field_null(column_index))
+        DatField::new(value, self.is_field_null(column_index))
     }
 }
 

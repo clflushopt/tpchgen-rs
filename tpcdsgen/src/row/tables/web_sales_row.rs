@@ -15,7 +15,7 @@
 //! Web sales row definition
 
 use crate::generator::{GeneratorColumn, WebSalesGeneratorColumn};
-use crate::row::table_row::{dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Pricing;
 use std::fmt;
@@ -204,7 +204,7 @@ impl WebSalesRow {
 /// (web rows apply no key sentinel check, only the null bit).
 impl WebSalesRow {
     fn field<T>(&self, value: T, column: WebSalesGeneratorColumn) -> DatField<T> {
-        dat_field(value, self.is_null(column))
+        DatField::new(value, self.is_null(column))
     }
 }
 
