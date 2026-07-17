@@ -124,7 +124,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: maven
 
       - name: Cache Rust dependencies
         uses: actions/cache@v6
