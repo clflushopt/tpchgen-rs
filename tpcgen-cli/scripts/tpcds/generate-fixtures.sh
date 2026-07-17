@@ -75,7 +75,6 @@ Examples:
 
 See scripts/README.md for the full conformance-testing workflow.
 EOF
-    exit 0
 }
 
 # Colors
@@ -292,18 +291,18 @@ check_c_prerequisites() {
     return 0
 }
 
-# Sanity check the extracted fixtures.
-# At minimum, a handful of expected tables must be present and non-empty.
+# Verify that the extracted fixture set is complete.
 verify_c_fixtures() {
     local fixture_dir=$1
-    local required=(store_sales.dat catalog_sales.dat web_sales.dat reason.dat call_center.dat)
 
     if [[ ! -d "$fixture_dir" ]]; then
         log_error "Fixture directory does not exist: $fixture_dir"
         return 1
     fi
 
-    for f in "${required[@]}"; do
+    local table f
+    for table in "${ALL_TABLES[@]}"; do
+        f="${table}.dat"
         if [[ ! -s "$fixture_dir/$f" ]]; then
             log_error "Missing or empty fixture: $fixture_dir/$f"
             return 1
@@ -457,6 +456,7 @@ main() {
                 ;;
             --help)
                 print_usage
+                exit 0
                 ;;
             --*)
                 log_error "Unknown flag: $1"

@@ -62,7 +62,6 @@ Exit codes:
 
 See scripts/README.md for the full conformance-testing workflow.
 EOF
-    exit 0
 }
 
 # Colors for output
@@ -183,10 +182,12 @@ main() {
                 ;;
             --help)
                 print_usage
+                exit 0
                 ;;
             *)
                 log_error "Unknown option: $1"
                 print_usage
+                exit 1
                 ;;
         esac
     done
