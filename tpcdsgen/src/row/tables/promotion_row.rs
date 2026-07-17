@@ -13,7 +13,7 @@
  */
 
 use crate::generator::{GeneratorColumn, PromotionGeneratorColumn};
-use crate::row::table_row::{dat_bool, dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Decimal;
 use std::fmt;
@@ -231,12 +231,12 @@ impl PromotionRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
     /// key is -1 (mirrors `get_string_or_null_for_key`).
     fn key_field(&self, key: i64, column: PromotionGeneratorColumn) -> DatField<i64> {
-        dat_field(key, key == -1 || self.is_null_at(column))
+        DatField::new(key, key == -1 || self.is_null_at(column))
     }
 
     /// DAT field for a regular value: NULL when the null bit is set.
     fn field<T>(&self, value: T, column: PromotionGeneratorColumn) -> DatField<T> {
-        dat_field(value, self.is_null_at(column))
+        DatField::new(value, self.is_null_at(column))
     }
 }
 
@@ -258,17 +258,17 @@ impl fmt::Display for PromotionRow {
             self.field(self.p_cost, PCost),
             self.field(self.p_response_target, PResponseTarget),
             self.field(&self.p_promo_name, PPromoName),
-            dat_bool(self.p_channel_dmail, self.is_null_at(PChannelDmail)),
-            dat_bool(self.p_channel_email, self.is_null_at(PChannelEmail)),
-            dat_bool(self.p_channel_catalog, self.is_null_at(PChannelCatalog)),
-            dat_bool(self.p_channel_tv, self.is_null_at(PChannelTv)),
-            dat_bool(self.p_channel_radio, self.is_null_at(PChannelRadio)),
-            dat_bool(self.p_channel_press, self.is_null_at(PChannelPress)),
-            dat_bool(self.p_channel_event, self.is_null_at(PChannelEvent)),
-            dat_bool(self.p_channel_demo, self.is_null_at(PChannelDemo)),
+            DatField::yes_no(self.p_channel_dmail, self.is_null_at(PChannelDmail)),
+            DatField::yes_no(self.p_channel_email, self.is_null_at(PChannelEmail)),
+            DatField::yes_no(self.p_channel_catalog, self.is_null_at(PChannelCatalog)),
+            DatField::yes_no(self.p_channel_tv, self.is_null_at(PChannelTv)),
+            DatField::yes_no(self.p_channel_radio, self.is_null_at(PChannelRadio)),
+            DatField::yes_no(self.p_channel_press, self.is_null_at(PChannelPress)),
+            DatField::yes_no(self.p_channel_event, self.is_null_at(PChannelEvent)),
+            DatField::yes_no(self.p_channel_demo, self.is_null_at(PChannelDemo)),
             self.field(&self.p_channel_details, PChannelDetails),
             self.field(&self.p_purpose, PPurpose),
-            dat_bool(self.p_discount_active, self.is_null_at(PDiscountActive)),
+            DatField::yes_no(self.p_discount_active, self.is_null_at(PDiscountActive)),
         )
     }
 }

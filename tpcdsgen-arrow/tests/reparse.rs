@@ -4,7 +4,7 @@
 //!
 //! Strategy:
 //! - drive the tpcdsgen RowGenerator to produce rows for each table
-//! - write rows via `TableRow::write_to()` just like the CLI does
+//! - write rows via their `fmt::Display` impls just like the CLI does
 //! - re-parse the output with the Arrow CSV reader using the same schema
 //! - assert that the reparsed and direct Arrow RecordBatches are equal
 
@@ -12,6 +12,7 @@ use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
+use std::io::Write as _;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{
@@ -19,7 +20,7 @@ use tpcdsgen::row::{
     CustomerAddressRowGenerator, CustomerDemographicsRowGenerator, CustomerRowGenerator,
     DateDimRowGenerator, GeneratedRow, HouseholdDemographicsRowGenerator, IncomeBandRowGenerator,
     InventoryRowGenerator, ItemRowGenerator, PromotionRowGenerator, ReasonRowGenerator,
-    RowGenerator, ShipModeRowGenerator, StoreRowGenerator, StoreSalesRowGenerator, TableRow,
+    RowGenerator, ShipModeRowGenerator, StoreRowGenerator, StoreSalesRowGenerator,
     TimeDimRowGenerator, WarehouseRowGenerator, WebPageRowGenerator, WebSalesRowGenerator,
     WebSiteRowGenerator,
 };
@@ -97,10 +98,9 @@ where
             // Format the rows into `data` as pipe-delimited data.
             for row in result.get_rows() {
                 if select(row) {
-                    row.write_to(&mut data, DAT_SEPARATOR).unwrap();
-                    data.pop();
+                    write!(&mut data, "{row}").unwrap();
                     // Note: .tbl lines end with '|' which the Arrow CSV parser treats as a
-                    // delimiter for a new column, so replace the last '|' with a newline.
+                    // delimiter for a new column, so replace the trailing '|' with a newline.
                     let end_offset = data.len() - 1;
                     data[end_offset] = b'\n';
                 }

@@ -1,6 +1,4 @@
-use crate::row::table_row::{
-    dat_field, dat_field_null_literal, dat_opt, DatField, NullLiteralField,
-};
+use crate::row::table_row::{DatField, NullLiteralField};
 use crate::row::TableRow;
 use crate::types::{Address, Date, Decimal};
 use std::fmt;
@@ -196,13 +194,13 @@ impl CallCenterRow {
     /// DAT field for a DATE_DIM surrogate key: empty when the null bit is
     /// set or the key is negative (mirrors `format_key`).
     fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
-        dat_field(value, self.is_null(column_position) || value < 0)
+        DatField::new(value, self.is_null(column_position) || value < 0)
     }
 
     /// DAT field for an SCD date: empty when the null bit is set or the
     /// julian day is negative (mirrors `format_date`).
     fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
-        dat_opt(
+        DatField::from(
             (!(self.is_null(column_position) || julian_days < 0))
                 .then(|| Date::from_julian_days(julian_days as i32)),
         )
@@ -211,7 +209,7 @@ impl CallCenterRow {
     /// DAT field printing the literal `NULL` when the null bit is set
     /// (mirrors `format_value`/`format_numeric`).
     fn nulled<T>(&self, value: T, column_position: i32) -> NullLiteralField<T> {
-        dat_field_null_literal(value, self.is_null(column_position))
+        NullLiteralField::new(value, self.is_null(column_position))
     }
 }
 

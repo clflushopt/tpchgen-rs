@@ -15,7 +15,7 @@
 //! Web returns row definition
 
 use crate::generator::{GeneratorColumn, WebReturnsGeneratorColumn};
-use crate::row::table_row::{dat_field, DatField};
+use crate::row::table_row::DatField;
 use crate::row::TableRow;
 use crate::types::Pricing;
 use std::fmt;
@@ -176,7 +176,7 @@ impl WebReturnsRow {
 /// (web rows apply no key sentinel check, only the null bit).
 impl WebReturnsRow {
     fn field<T>(&self, value: T, column: WebReturnsGeneratorColumn) -> DatField<T> {
-        dat_field(value, self.is_null(column))
+        DatField::new(value, self.is_null(column))
     }
 }
 
