@@ -66,9 +66,9 @@ use std::sync::Arc;
 /// Receives generation-progress events for one generation run.
 ///
 /// See the [module-level documentation](self) for the call-order
-/// contract. Trackers are passed through generation code as an
-/// [`std::sync::Arc`] and shared across concurrent generation tasks, so
-/// they must be `Send + Sync`.
+/// contract. Trackers are held in a [`std::sync::Arc`] and shared across
+/// concurrent generation tasks through [`ProgressHandle`]s, so they must be
+/// `Send + Sync`.
 /// They must also be `Debug` so containing types can derive `Debug`.
 pub trait ProgressTracker: Send + Sync + fmt::Debug {
     /// Pre-register a progress item with its total expected output-unit count.
@@ -99,6 +99,30 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     /// and `Drop` only as an error or panic fallback. The default does
     /// nothing.
     fn finish(&self) {}
+}
+
+/// A cloneable handle for reporting progress for one registered item.
+///
+/// This binds a [`ProgressTracker`] to a stable item identifier so generation
+/// code only needs to carry one value and call [`Self::increment`]. Run-level
+/// lifecycle operations such as registration, startup, and completion remain
+/// the responsibility of the tracker owner.
+#[derive(Clone, Debug)]
+pub struct ProgressHandle {
+    tracker: Arc<dyn ProgressTracker>,
+    item: &'static str,
+}
+
+impl ProgressHandle {
+    /// Create a handle for `item` backed by `tracker`.
+    pub fn new(tracker: Arc<dyn ProgressTracker>, item: &'static str) -> Self {
+        Self { tracker, item }
+    }
+
+    /// Advance this item's counter by `units` output units.
+    pub fn increment(&self, units: u64) {
+        self.tracker.increment(self.item, units);
+    }
 }
 
 /// Default tracker used when no progress backend is installed.
@@ -353,7 +377,7 @@ mod tests {
     #[derive(Debug, Default)]
     struct MockTracker {
         registered: Mutex<Vec<(String, u64)>>,
-        total_increments: AtomicU64,
+        increments: Mutex<Vec<(String, u64)>>,
         finished: AtomicU64,
     }
 
@@ -364,8 +388,11 @@ mod tests {
                 .unwrap()
                 .push((item.to_owned(), total_units));
         }
-        fn increment(&self, _item: &str, units: u64) {
-            self.total_increments.fetch_add(units, Ordering::Relaxed);
+        fn increment(&self, item: &str, units: u64) {
+            self.increments
+                .lock()
+                .unwrap()
+                .push((item.to_owned(), units));
         }
         fn finish(&self) {
             self.finished.fetch_add(1, Ordering::Relaxed);
@@ -373,13 +400,15 @@ mod tests {
     }
 
     #[test]
-    fn mock_tracker_works_through_arc_dyn() {
+    fn mock_tracker_works_through_progress_handles() {
         let mock = Arc::new(MockTracker::default());
         let dynamic: Arc<dyn ProgressTracker> = mock.clone();
         dynamic.register("store_sales", 10);
         dynamic.register("catalog_returns", 4);
-        dynamic.increment("store_sales", 3);
-        dynamic.increment("catalog_returns", 1);
+        let store_sales = ProgressHandle::new(Arc::clone(&dynamic), "store_sales");
+        let catalog_returns = ProgressHandle::new(Arc::clone(&dynamic), "catalog_returns");
+        store_sales.increment(3);
+        catalog_returns.increment(1);
         dynamic.finish();
 
         assert_eq!(
@@ -389,7 +418,13 @@ mod tests {
                 ("catalog_returns".to_owned(), 4)
             ]
         );
-        assert_eq!(mock.total_increments.load(Ordering::Relaxed), 4);
+        assert_eq!(
+            *mock.increments.lock().unwrap(),
+            vec![
+                ("store_sales".to_owned(), 3),
+                ("catalog_returns".to_owned(), 1)
+            ]
+        );
         assert_eq!(mock.finished.load(Ordering::Relaxed), 1);
     }
 

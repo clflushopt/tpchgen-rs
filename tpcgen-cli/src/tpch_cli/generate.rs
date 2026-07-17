@@ -3,7 +3,7 @@
 //! These traits and function are used to generate data in parallel and write it to a sink
 //! in streaming fashion (chunks). This is useful for generating large datasets that don't fit in memory.
 
-use crate::progress::ProgressTracker;
+use crate::progress::ProgressHandle;
 use futures::StreamExt;
 use log::debug;
 use std::collections::VecDeque;
@@ -54,8 +54,7 @@ pub async fn generate_in_chunks<G, I, S>(
     mut sink: S,
     sources: I,
     num_threads: usize,
-    progress: Arc<dyn ProgressTracker>,
-    table_name: &'static str,
+    progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
     G: Source + 'static,
@@ -115,7 +114,7 @@ where
         while let Some(buffer) = rx.blocking_recv() {
             sink.sink(&buffer)?;
             captured_recycler.return_buffer(buffer);
-            progress.increment(table_name, 1);
+            progress.increment(1);
         }
         // No more input, flush the sink and return
         sink.flush()
@@ -175,7 +174,7 @@ impl BufferRecycler {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::progress::ProgressTracker;
+    use crate::progress::{ProgressHandle, ProgressTracker};
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Mutex,
@@ -229,6 +228,7 @@ mod tests {
         let writes = Arc::new(Mutex::new(Vec::new()));
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
+        let progress = ProgressHandle::new(progress, "ignored");
 
         let sources = vec![
             TestSource {
@@ -248,7 +248,6 @@ mod tests {
             sources.into_iter(),
             1,
             progress,
-            "ignored",
         )
         .await
         .unwrap();

@@ -2,7 +2,7 @@
 
 use crate::parquet::generate_parquet;
 use crate::progress::no_op_progress_tracker;
-use crate::progress::ProgressTracker;
+use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::tpch_cli::csv::*;
 use crate::tpch_cli::generate::generate_in_chunks;
 use crate::tpch_cli::generate::Source;
@@ -112,6 +112,7 @@ async fn run_plan(
     num_threads: usize,
     progress: Arc<dyn ProgressTracker>,
 ) -> io::Result<usize> {
+    let progress = ProgressHandle::new(progress, plan.table().name());
     match plan.table() {
         Table::Nation => run_nation_plan(plan, num_threads, progress).await,
         Table::Region => run_region_plan(plan, num_threads, progress).await,
@@ -130,13 +131,13 @@ async fn run_plan(
 fn maybe_skip_existing(
     path: &std::path::Path,
     plan: &OutputPlan,
-    progress: &dyn ProgressTracker,
+    progress: &ProgressHandle,
 ) -> bool {
     if !path.exists() {
         return false;
     }
     log::warn!("{} already exists, skipping generation", path.display());
-    progress.increment(plan.table().name(), plan.chunk_count() as u64);
+    progress.increment(plan.chunk_count() as u64);
     true
 }
 
@@ -145,21 +146,20 @@ async fn write_file<I>(
     plan: OutputPlan,
     num_threads: usize,
     sources: I,
-    progress: Arc<dyn ProgressTracker>,
+    progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
     I: Iterator<Item: Source> + 'static,
 {
-    let table_name = plan.table().name();
     // Since generate_in_chunks already buffers, there is no need to buffer
     // again (aka don't use BufWriter here)
     match plan.output_location() {
         OutputLocation::Stdout => {
             let sink = WriterSink::new(io::stdout());
-            generate_in_chunks(sink, sources, num_threads, progress, table_name).await
+            generate_in_chunks(sink, sources, num_threads, progress).await
         }
         OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, progress.as_ref()) {
+            if maybe_skip_existing(path, &plan, &progress) {
                 return Ok(());
             }
             // write to a temp file and then rename to avoid partial files
@@ -168,7 +168,7 @@ where
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
             let sink = WriterSink::new(file);
-            generate_in_chunks(sink, sources, num_threads, progress, table_name).await?;
+            generate_in_chunks(sink, sources, num_threads, progress).await?;
             // rename the temp file to the final path
             std::fs::rename(&temp_path, path).map_err(|e| {
                 io::Error::other(format!(
@@ -185,13 +185,12 @@ async fn write_parquet<I>(
     plan: OutputPlan,
     num_threads: usize,
     sources: I,
-    progress: Arc<dyn ProgressTracker>,
+    progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
     I: Iterator + 'static,
     I::Item: RecordBatchReader + Send,
 {
-    let table_name = plan.table().name();
     match plan.output_location() {
         OutputLocation::Stdout => {
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
@@ -201,12 +200,11 @@ where
                 num_threads,
                 plan.parquet_compression(),
                 progress,
-                table_name,
             )
             .await
         }
         OutputLocation::File(path) => {
-            if maybe_skip_existing(path, &plan, progress.as_ref()) {
+            if maybe_skip_existing(path, &plan, &progress) {
                 return Ok(());
             }
             // write to a temp file and then rename to avoid partial files
@@ -221,7 +219,6 @@ where
                 num_threads,
                 plan.parquet_compression(),
                 progress,
-                table_name,
             )
             .await?;
             // rename the temp file to the final path
@@ -248,7 +245,7 @@ macro_rules! define_run {
         async fn $FUN_NAME(
             plan: OutputPlan,
             num_threads: usize,
-            progress: Arc<dyn ProgressTracker>,
+            progress: ProgressHandle,
         ) -> io::Result<usize> {
             use crate::tpch_cli::GenerationPlan;
             let scale_factor = plan.scale_factor();
@@ -430,8 +427,9 @@ mod tests {
 
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
+        let progress = ProgressHandle::new(progress, plan.table().name());
 
-        assert!(maybe_skip_existing(&output_path, &plan, progress.as_ref()));
+        assert!(maybe_skip_existing(&output_path, &plan, &progress));
         assert_eq!(tracker.increments.load(Ordering::Relaxed), expected_units);
     }
 }

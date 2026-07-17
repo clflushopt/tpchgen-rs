@@ -2,7 +2,7 @@
 use crate::logging::configure_logging;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
-use crate::progress::{no_op_progress_tracker, ProgressTracker};
+use crate::progress::{no_op_progress_tracker, ProgressHandle, ProgressTracker};
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::io;
@@ -266,7 +266,8 @@ impl CommonArgs {
                 }
                 progress.start();
                 for (table, session) in table_sessions {
-                    output.generate_table(table, session, progress.as_ref())?;
+                    let handle = ProgressHandle::new(Arc::clone(&progress), table.get_name());
+                    output.generate_table(table, session, handle)?;
                 }
             }
         }

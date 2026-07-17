@@ -15,7 +15,7 @@ use std::io::Write;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
-use crate::progress::ProgressTracker;
+use crate::progress::ProgressHandle;
 use crate::tpch_cli::statistics::WriteStatistics;
 
 pub trait IntoSize {
@@ -34,8 +34,7 @@ pub async fn generate_parquet<W, I>(
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
-    progress: Arc<dyn ProgressTracker>,
-    table_name: &'static str,
+    progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
     W: Write + Send + IntoSize + 'static,
@@ -111,7 +110,7 @@ where
             }
             row_group_writer.close().unwrap();
             statistics.increment_chunks(1);
-            progress.increment(table_name, 1);
+            progress.increment(1);
         }
         let size = writer.into_inner()?.into_size()?;
         statistics.increment_bytes(size);
@@ -185,7 +184,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::progress::ProgressTracker;
+    use crate::progress::{ProgressHandle, ProgressTracker};
     use std::fs::File;
     use std::io::BufWriter;
     use std::sync::{
@@ -218,6 +217,7 @@ mod tests {
 
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
+        let progress = ProgressHandle::new(progress, "ignored");
 
         generate_parquet(
             writer,
@@ -225,7 +225,6 @@ mod tests {
             1,
             Compression::UNCOMPRESSED,
             progress,
-            "ignored",
         )
         .await
         .unwrap();

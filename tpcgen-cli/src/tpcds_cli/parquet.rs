@@ -2,7 +2,7 @@
 
 use super::plan::TpcdsGenerationPlan;
 use crate::parquet::generate_parquet;
-use crate::progress::ProgressTracker;
+use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::worker_queue::WorkerQueue;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::Compression;
@@ -80,7 +80,7 @@ impl Parquet {
         let mut queue = WorkerQueue::new(self.num_threads);
         while let Some((table, session, plan)) = work.pop() {
             let this = self.clone();
-            let progress = Arc::clone(&progress);
+            let progress = ProgressHandle::new(Arc::clone(&progress), table.get_name());
             queue
                 .schedule(plan.row_group_count(), move |num_threads| async move {
                     this.generate_table(table, session, plan, num_threads, progress)
@@ -100,7 +100,7 @@ impl Parquet {
         session: Session,
         plan: TpcdsGenerationPlan,
         num_threads: usize,
-        progress: Arc<dyn ProgressTracker>,
+        progress: ProgressHandle,
     ) -> io::Result<()> {
         match table {
             Table::CallCenter => {
@@ -445,7 +445,7 @@ impl Parquet {
         session: Session,
         plan: TpcdsGenerationPlan,
         num_threads: usize,
-        progress: Arc<dyn ProgressTracker>,
+        progress: ProgressHandle,
         make_reader: F,
     ) -> io::Result<()>
     where
@@ -463,15 +463,7 @@ impl Parquet {
         let file = File::create(&temp_path)
             .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
         let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-        generate_parquet(
-            writer,
-            sources,
-            num_threads,
-            self.compression,
-            progress,
-            table_name,
-        )
-        .await?;
+        generate_parquet(writer, sources, num_threads, self.compression, progress).await?;
         std::fs::rename(&temp_path, &path).map_err(|err| {
             io::Error::other(format!(
                 "Failed to rename {temp_path:?} to {path:?} file: {err}"
