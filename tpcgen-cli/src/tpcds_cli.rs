@@ -249,25 +249,24 @@ impl CommonArgs {
                 let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let dat_progress =
-                        output.register_table(table, &session, Arc::clone(&progress));
-                    table_sessions.push((table, session, dat_progress));
+                    let progress = output.register_table(table, &session, Arc::clone(&progress));
+                    table_sessions.push((table, session, progress));
                 }
                 progress.start();
-                for (table, session, dat_progress) in table_sessions {
-                    output.generate_table(table, &session, dat_progress)?;
+                for (table, session, progress) in table_sessions {
+                    output.generate_table(table, &session, progress)?;
                 }
             }
             OutputFormat::Csv(output) => {
                 let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let handle = output.register_table(table, &session, Arc::clone(&progress));
-                    table_sessions.push((table, session, handle));
+                    let progress = output.register_table(table, &session, Arc::clone(&progress));
+                    table_sessions.push((table, session, progress));
                 }
                 progress.start();
-                for (table, session, handle) in table_sessions {
-                    output.generate_table(table, session, handle)?;
+                for (table, session, progress) in table_sessions {
+                    output.generate_table(table, session, progress)?;
                 }
             }
         }

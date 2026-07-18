@@ -84,11 +84,11 @@ impl PlanRunner {
         for plan in &plans {
             *totals.entry(plan.table()).or_default() += plan.chunk_count() as u64;
         }
-        let progress_handles: BTreeMap<Table, ProgressHandle> = totals
+        let progress_by_table: BTreeMap<Table, ProgressHandle> = totals
             .into_iter()
             .map(|(table, total)| {
-                let handle = Arc::clone(&progress).register(table.name(), total);
-                (table, handle)
+                let progress = Arc::clone(&progress).register(table.name(), total);
+                (table, progress)
             })
             .collect();
         progress.start();
@@ -97,10 +97,10 @@ impl PlanRunner {
         let mut worker_queue = WorkerQueue::new(num_threads);
         while let Some(plan) = plans.pop() {
             debug!("scheduling plan {plan}");
-            let progress_handle = progress_handles[&plan.table()].clone();
+            let progress = progress_by_table[&plan.table()].clone();
             worker_queue
                 .schedule(plan.chunk_count(), move |num_plan_threads| {
-                    run_plan(plan, num_plan_threads, progress_handle)
+                    run_plan(plan, num_plan_threads, progress)
                 })
                 .await?;
         }
