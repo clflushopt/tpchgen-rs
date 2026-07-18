@@ -97,10 +97,10 @@ impl PlanRunner {
         let mut worker_queue = WorkerQueue::new(num_threads);
         while let Some(plan) = plans.pop() {
             debug!("scheduling plan {plan}");
-            let progress = progress_handles[&plan.table()].clone();
+            let progress_handle = progress_handles[&plan.table()].clone();
             worker_queue
                 .schedule(plan.chunk_count(), move |num_plan_threads| {
-                    run_plan(plan, num_plan_threads, progress)
+                    run_plan(plan, num_plan_threads, progress_handle)
                 })
                 .await?;
         }

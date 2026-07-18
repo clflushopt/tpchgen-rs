@@ -79,11 +79,11 @@ impl Parquet {
         work.sort_by_key(|(_, _, plan, _)| plan.row_group_count());
 
         let mut queue = WorkerQueue::new(self.num_threads);
-        while let Some((table, session, plan, progress)) = work.pop() {
+        while let Some((table, session, plan, progress_handle)) = work.pop() {
             let this = self.clone();
             queue
                 .schedule(plan.row_group_count(), move |num_threads| async move {
-                    this.generate_table(table, session, plan, num_threads, progress)
+                    this.generate_table(table, session, plan, num_threads, progress_handle)
                         .await?;
                     Ok(num_threads)
                 })

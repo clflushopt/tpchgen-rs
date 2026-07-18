@@ -249,12 +249,13 @@ impl CommonArgs {
                 let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let handles = output.register_table(table, &session, Arc::clone(&progress));
-                    table_sessions.push((table, session, handles));
+                    let dat_progress =
+                        output.register_table(table, &session, Arc::clone(&progress));
+                    table_sessions.push((table, session, dat_progress));
                 }
                 progress.start();
-                for (table, session, handles) in table_sessions {
-                    output.generate_table(table, &session, handles)?;
+                for (table, session, dat_progress) in table_sessions {
+                    output.generate_table(table, &session, dat_progress)?;
                 }
             }
             OutputFormat::Csv(output) => {
