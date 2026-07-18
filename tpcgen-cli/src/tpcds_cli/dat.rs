@@ -49,22 +49,6 @@ pub(super) enum DatProgress {
     },
 }
 
-impl DatProgress {
-    fn into_single(self) -> ProgressHandle {
-        let Self::Single(progress) = self else {
-            unreachable!("simple DAT table must have one progress handle")
-        };
-        progress
-    }
-
-    fn into_pair(self) -> (ProgressHandle, ProgressHandle) {
-        let Self::Paired { sales, returns } = self else {
-            unreachable!("sales DAT table must have sales and returns progress handles")
-        };
-        (sales, returns)
-    }
-}
-
 impl Dat {
     pub(super) fn new(output_dir: PathBuf) -> Result<Self> {
         if output_dir.as_os_str().is_empty() {
@@ -260,7 +244,9 @@ fn generate_simple<G: RowGeneratorFactory>(
     output_dir: &Path,
     progress: DatProgress,
 ) -> Result<()> {
-    let progress = progress.into_single();
+    let DatProgress::Single(progress) = progress else {
+        unreachable!("simple DAT table must have one progress handle")
+    };
     let mut generator = G::create();
     let row_count = session.get_scaling().get_row_count(table);
 
@@ -340,7 +326,13 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
     output_dir: &Path,
     progress: DatProgress,
 ) -> Result<()> {
-    let (sales_progress, returns_progress) = progress.into_pair();
+    let DatProgress::Paired {
+        sales: sales_progress,
+        returns: returns_progress,
+    } = progress
+    else {
+        unreachable!("sales DAT table must have sales and returns progress handles")
+    };
     let mut generator = G::create();
     let source_row_count = session.get_scaling().get_row_count(sales_table);
 
