@@ -298,8 +298,8 @@ mod indicatif_impl {
         #[test]
         fn registers_and_increments() {
             let t = Arc::new(IndicatifProgress::hidden());
-            let lineitem = Arc::clone(&t).register("lineitem", 60);
-            let orders = Arc::clone(&t).register("orders", 15);
+            let lineitem = t.clone().register("lineitem", 60);
+            let orders = t.clone().register("orders", 15);
             lineitem.increment(1);
             orders.increment(5);
 
@@ -311,7 +311,7 @@ mod indicatif_impl {
         #[test]
         fn zero_total_items_start_at_zero() {
             let t = Arc::new(IndicatifProgress::hidden());
-            Arc::clone(&t).register("store_returns", 0);
+            t.clone().register("store_returns", 0);
 
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 0);
@@ -322,7 +322,7 @@ mod indicatif_impl {
         #[test]
         fn reaches_total() {
             let t = Arc::new(IndicatifProgress::hidden());
-            let orders = Arc::clone(&t).register("orders", 5);
+            let orders = t.clone().register("orders", 5);
             for _ in 0..5 {
                 orders.increment(1);
             }
@@ -334,7 +334,7 @@ mod indicatif_impl {
         #[test]
         fn finish_marks_registered_items_finished() {
             let t = Arc::new(IndicatifProgress::hidden());
-            let orders = Arc::clone(&t).register("orders", 2);
+            let orders = t.clone().register("orders", 2);
             orders.increment(2);
             t.finish();
 
@@ -381,8 +381,8 @@ mod tests {
     fn mock_tracker_works_through_progress_handles() {
         let mock = Arc::new(MockTracker::default());
         let dynamic: Arc<dyn ProgressTracker> = mock.clone();
-        let store_sales = Arc::clone(&dynamic).register("store_sales", 10);
-        let catalog_returns = Arc::clone(&dynamic).register("catalog_returns", 4);
+        let store_sales = dynamic.clone().register("store_sales", 10);
+        let catalog_returns = dynamic.clone().register("catalog_returns", 4);
         store_sales.increment(3);
         catalog_returns.increment(1);
         dynamic.finish();
@@ -416,7 +416,7 @@ mod tests {
             }
         }
         let m = Arc::new(Minimal(AtomicU64::new(0)));
-        let region = Arc::clone(&m).register("region", 99);
+        let region = m.clone().register("region", 99);
         m.start(); // no-op default
         region.increment(7);
         m.finish(); // no-op default
