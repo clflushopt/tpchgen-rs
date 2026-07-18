@@ -200,8 +200,10 @@ mod tests {
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, _item: &str, row_groups: u64) {
-            self.increments.fetch_add(row_groups, Ordering::Relaxed);
+        fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
+            ProgressHandle::new(move |row_groups| {
+                self.increments.fetch_add(row_groups, Ordering::Relaxed);
+            })
         }
     }
 
@@ -217,7 +219,7 @@ mod tests {
 
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
-        let progress = ProgressHandle::new(progress, "ignored");
+        let progress = progress.register("ignored", 2);
 
         generate_parquet(
             writer,

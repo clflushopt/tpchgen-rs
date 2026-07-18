@@ -49,7 +49,7 @@ impl PlanRunner {
     /// Attach a [`ProgressTracker`].
     ///
     /// The runner pre-registers each table's output-unit total with the
-    /// tracker before scheduling, calls [`ProgressTracker::increment`]
+    /// tracker before scheduling, calls [`ProgressHandle::increment`]
     /// after output units are written, and calls [`ProgressTracker::finish`]
     /// once on the success path. Implementations needing cleanup on the
     /// error or panic path should use `Drop` as a fallback.
@@ -84,16 +84,20 @@ impl PlanRunner {
         for plan in &plans {
             *totals.entry(plan.table()).or_default() += plan.chunk_count() as u64;
         }
-        for (table, total) in totals {
-            progress.register(table.name(), total);
-        }
+        let progress_handles: BTreeMap<Table, ProgressHandle> = totals
+            .into_iter()
+            .map(|(table, total)| {
+                let handle = Arc::clone(&progress).register(table.name(), total);
+                (table, handle)
+            })
+            .collect();
         progress.start();
 
         // Do the actual work in parallel, using a worker queue
         let mut worker_queue = WorkerQueue::new(num_threads);
         while let Some(plan) = plans.pop() {
             debug!("scheduling plan {plan}");
-            let progress = Arc::clone(&progress);
+            let progress = progress_handles[&plan.table()].clone();
             worker_queue
                 .schedule(plan.chunk_count(), move |num_plan_threads| {
                     run_plan(plan, num_plan_threads, progress)
@@ -110,9 +114,8 @@ impl PlanRunner {
 async fn run_plan(
     plan: OutputPlan,
     num_threads: usize,
-    progress: Arc<dyn ProgressTracker>,
+    progress: ProgressHandle,
 ) -> io::Result<usize> {
-    let progress = ProgressHandle::new(progress, plan.table().name());
     match plan.table() {
         Table::Nation => run_nation_plan(plan, num_threads, progress).await,
         Table::Region => run_region_plan(plan, num_threads, progress).await,
@@ -393,8 +396,10 @@ mod tests {
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, _item: &str, units: u64) {
-            self.increments.fetch_add(units, Ordering::Relaxed);
+        fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
+            ProgressHandle::new(move |units| {
+                self.increments.fetch_add(units, Ordering::Relaxed);
+            })
         }
     }
 
@@ -427,7 +432,7 @@ mod tests {
 
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
-        let progress = ProgressHandle::new(progress, plan.table().name());
+        let progress = progress.register(plan.table().name(), expected_units);
 
         assert!(maybe_skip_existing(&output_path, &plan, &progress));
         assert_eq!(tracker.increments.load(Ordering::Relaxed), expected_units);

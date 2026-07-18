@@ -16,9 +16,10 @@
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
-use crate::progress::ProgressTracker;
+use crate::progress::{ProgressHandle, ProgressTracker};
 use std::fs::File;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use log::info;
 use tpcdsgen::config::{Session, Table};
@@ -38,6 +39,32 @@ pub(super) struct Dat {
     output_dir: PathBuf,
 }
 
+#[derive(Debug)]
+pub(super) enum DatProgress {
+    None,
+    Single(ProgressHandle),
+    Paired {
+        sales: ProgressHandle,
+        returns: ProgressHandle,
+    },
+}
+
+impl DatProgress {
+    fn into_single(self) -> ProgressHandle {
+        let Self::Single(progress) = self else {
+            unreachable!("simple DAT table must have one progress handle")
+        };
+        progress
+    }
+
+    fn into_pair(self) -> (ProgressHandle, ProgressHandle) {
+        let Self::Paired { sales, returns } = self else {
+            unreachable!("sales DAT table must have sales and returns progress handles")
+        };
+        (sales, returns)
+    }
+}
+
 impl Dat {
     pub(super) fn new(output_dir: PathBuf) -> Result<Self> {
         if output_dir.as_os_str().is_empty() {
@@ -55,28 +82,28 @@ impl Dat {
         &self,
         table: Table,
         session: &Session,
-        progress: &dyn ProgressTracker,
-    ) {
+        progress: Arc<dyn ProgressTracker>,
+    ) -> DatProgress {
         let register = |table: Table| {
             let row_count = session.get_scaling().get_row_count(table);
-            progress.register(table.get_name(), row_count.try_into().unwrap_or(0));
+            Arc::clone(&progress).register(table.get_name(), row_count.try_into().unwrap_or(0))
         };
 
         match table {
-            Table::StoreSales => {
-                register(Table::StoreSales);
-                register(Table::StoreReturns);
-            }
-            Table::CatalogSales => {
-                register(Table::CatalogSales);
-                register(Table::CatalogReturns);
-            }
-            Table::WebSales => {
-                register(Table::WebSales);
-                register(Table::WebReturns);
-            }
-            Table::StoreReturns | Table::CatalogReturns | Table::WebReturns => {}
-            _ => register(table),
+            Table::StoreSales => DatProgress::Paired {
+                sales: register(Table::StoreSales),
+                returns: register(Table::StoreReturns),
+            },
+            Table::CatalogSales => DatProgress::Paired {
+                sales: register(Table::CatalogSales),
+                returns: register(Table::CatalogReturns),
+            },
+            Table::WebSales => DatProgress::Paired {
+                sales: register(Table::WebSales),
+                returns: register(Table::WebReturns),
+            },
+            Table::StoreReturns | Table::CatalogReturns | Table::WebReturns => DatProgress::None,
+            _ => DatProgress::Single(register(table)),
         }
     }
 
@@ -84,7 +111,7 @@ impl Dat {
         &self,
         table: Table,
         session: &Session,
-        progress: &dyn ProgressTracker,
+        progress: DatProgress,
     ) -> Result<()> {
         match table {
             // Simple dimension tables
@@ -231,11 +258,11 @@ fn generate_simple<G: RowGeneratorFactory>(
     table: Table,
     session: &Session,
     output_dir: &Path,
-    progress: &dyn ProgressTracker,
+    progress: DatProgress,
 ) -> Result<()> {
+    let progress = progress.into_single();
     let mut generator = G::create();
     let row_count = session.get_scaling().get_row_count(table);
-    let table_name = table.get_name();
 
     let path = get_output_path(table, output_dir);
     let file = File::create(&path)?;
@@ -251,7 +278,7 @@ fn generate_simple<G: RowGeneratorFactory>(
         }
 
         generator.consume_remaining_seeds_for_row();
-        progress.increment(table_name, 1);
+        progress.increment(1);
     }
 
     writer.flush()?;
@@ -266,11 +293,7 @@ fn generate_simple<G: RowGeneratorFactory>(
 }
 
 /// Generate store_sales and store_returns together
-fn generate_store_sales(
-    session: &Session,
-    output_dir: &Path,
-    progress: &dyn ProgressTracker,
-) -> Result<()> {
+fn generate_store_sales(session: &Session, output_dir: &Path, progress: DatProgress) -> Result<()> {
     generate_sales_and_returns::<StoreSalesRowGenerator>(
         Table::StoreSales,
         Table::StoreReturns,
@@ -284,7 +307,7 @@ fn generate_store_sales(
 fn generate_catalog_sales(
     session: &Session,
     output_dir: &Path,
-    progress: &dyn ProgressTracker,
+    progress: DatProgress,
 ) -> Result<()> {
     generate_sales_and_returns::<CatalogSalesRowGenerator>(
         Table::CatalogSales,
@@ -296,11 +319,7 @@ fn generate_catalog_sales(
 }
 
 /// Generate web_sales and web_returns together
-fn generate_web_sales(
-    session: &Session,
-    output_dir: &Path,
-    progress: &dyn ProgressTracker,
-) -> Result<()> {
+fn generate_web_sales(session: &Session, output_dir: &Path, progress: DatProgress) -> Result<()> {
     generate_sales_and_returns::<WebSalesRowGenerator>(
         Table::WebSales,
         Table::WebReturns,
@@ -319,12 +338,11 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
     returns_table: Table,
     session: &Session,
     output_dir: &Path,
-    progress: &dyn ProgressTracker,
+    progress: DatProgress,
 ) -> Result<()> {
+    let (sales_progress, returns_progress) = progress.into_pair();
     let mut generator = G::create();
     let source_row_count = session.get_scaling().get_row_count(sales_table);
-    let sales_name = sales_table.get_name();
-    let returns_name = returns_table.get_name();
 
     let sales_path = get_output_path(sales_table, output_dir);
     let returns_path = get_output_path(returns_table, output_dir);
@@ -355,13 +373,13 @@ fn generate_sales_and_returns<G: RowGeneratorFactory>(
         if rows.len() > 1 {
             returns_writer.write_display_row(&rows[1])?;
             returns_count += 1;
-            progress.increment(returns_name, 1);
+            returns_progress.increment(1);
         }
 
         if result.should_end_row() {
             generator.consume_remaining_seeds_for_row();
             row_number += 1;
-            progress.increment(sales_name, 1);
+            sales_progress.increment(1);
         }
     }
 

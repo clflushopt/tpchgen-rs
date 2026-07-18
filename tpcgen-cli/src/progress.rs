@@ -2,24 +2,25 @@
 //!
 //! # Overview
 //!
-//! [`ProgressTracker`] is a small, dyn-compatible trait that receives
-//! generation events. Generation code emits these events as applicable:
+//! [`ProgressTracker`] is a small, dyn-compatible trait that owns run-level
+//! progress lifecycle. Generation code uses it as follows:
 //!
 //! 1. [`ProgressTracker::register`] once per progress item, before work
 //!    starts, with the total number of output units the item will produce
-//!    (chunks for TBL/CSV, row groups for Parquet).
+//!    (chunks for TBL/CSV, row groups for Parquet). Registration returns a
+//!    [`ProgressHandle`] bound to that item.
 //! 2. [`ProgressTracker::start`] once after all known progress items have
 //!    been registered and before work starts. This hook is optional for
 //!    paths that register items lazily.
-//! 3. [`ProgressTracker::increment`] after output units are written.
-//!    Multiple generation tasks may call it concurrently, so impls
-//!    must be `Send + Sync` and `increment` itself should be lightweight.
+//! 3. [`ProgressHandle::increment`] after output units are written.
+//!    Multiple generation tasks may call handles concurrently, so their
+//!    callbacks must be `Send + Sync` and lightweight.
 //! 4. [`ProgressTracker::finish`] once on the success path when the
 //!    generation run exits. Implementations should use `finish` for normal
 //!    success cleanup and `Drop` only as an error or panic fallback.
 //!
-//! When invoked, `register`, `start`, and `finish` are serial and may
-//! do bookkeeping or I/O; `increment` may run concurrently while output
+//! When invoked, `register`, `start`, and `finish` are serial and may do
+//! bookkeeping or I/O; handles may be incremented concurrently while output
 //! is being written.
 //!
 //! Implementations must not panic and must not propagate I/O errors —
@@ -40,7 +41,8 @@
 //!
 //! ```
 //! use std::sync::atomic::{AtomicU64, Ordering};
-//! use tpcgen_cli::progress::ProgressTracker;
+//! use std::sync::Arc;
+//! use tpcgen_cli::progress::{ProgressHandle, ProgressTracker};
 //!
 //! #[derive(Debug)]
 //! struct LoggingTracker {
@@ -48,11 +50,11 @@
 //! }
 //!
 //! impl ProgressTracker for LoggingTracker {
-//!     fn register(&self, item: &str, total: u64) {
+//!     fn register(self: Arc<Self>, item: &str, total: u64) -> ProgressHandle {
 //!         eprintln!("plan: {item} -> {total} output units");
-//!     }
-//!     fn increment(&self, _item: &str, units: u64) {
-//!         self.written.fetch_add(units, Ordering::Relaxed);
+//!         ProgressHandle::new(move |units| {
+//!             self.written.fetch_add(units, Ordering::Relaxed);
+//!         })
 //!     }
 //!     fn finish(&self) {
 //!         eprintln!("done: {} output units", self.written.load(Ordering::Relaxed));
@@ -67,34 +69,28 @@ use std::sync::Arc;
 ///
 /// See the [module-level documentation](self) for the call-order
 /// contract. Trackers are held in a [`std::sync::Arc`] and shared across
-/// concurrent generation tasks through [`ProgressHandle`]s, so they must be
-/// `Send + Sync`.
+/// concurrent generation tasks through the [`ProgressHandle`]s returned by
+/// [`Self::register`], so they must be `Send + Sync`.
 /// They must also be `Debug` so containing types can derive `Debug`.
 pub trait ProgressTracker: Send + Sync + fmt::Debug {
     /// Pre-register a progress item with its total expected output-unit count.
     ///
     /// Called once per item before work starts. The `item` is a stable
-    /// identifier, usually a table name. Implementations
-    /// that need to know totals up front (e.g. to render a progress bar
-    /// or compute an ETA) should override this; the default does
-    /// nothing.
-    fn register(&self, _item: &str, _total_units: u64) {}
+    /// identifier, usually a table name. The returned handle is the only
+    /// capability generation tasks need to advance that item.
+    ///
+    /// The [`Arc`] receiver lets implementations return a `'static` handle
+    /// that shares tracker state with concurrent generation tasks.
+    fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle;
 
     /// Optional hook called after all known progress items have been
-    /// registered and before the first [`Self::increment`].
+    /// registered and before the first [`ProgressHandle::increment`].
     ///
     /// Implementations can use this to finalize setup that depends on the
     /// registered item set. The default does nothing.
     fn start(&self) {}
 
-    /// Advance the counter for `item` by `units` output units.
-    ///
-    /// Called after generated output units are written. Multiple
-    /// generation tasks may call this concurrently, so implementations
-    /// should be lightweight and must never panic.
-    fn increment(&self, item: &str, units: u64);
-
-    /// Called once after the last [`Self::increment`] on the success
+    /// Called once after the last [`ProgressHandle::increment`] on the success
     /// path. Implementations should use this for normal success cleanup
     /// and `Drop` only as an error or panic fallback. The default does
     /// nothing.
@@ -103,25 +99,38 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
 
 /// A cloneable handle for reporting progress for one registered item.
 ///
-/// This binds a [`ProgressTracker`] to a stable item identifier so generation
-/// code only needs to carry one value and call [`Self::increment`]. Run-level
-/// lifecycle operations such as registration, startup, and completion remain
-/// the responsibility of the tracker owner.
-#[derive(Clone, Debug)]
+/// Handles are created by [`ProgressTracker::register`] and directly own the
+/// item-specific increment behavior. Run-level lifecycle operations remain the
+/// responsibility of the tracker owner.
+#[derive(Clone)]
 pub struct ProgressHandle {
-    tracker: Arc<dyn ProgressTracker>,
-    item: &'static str,
+    increment: Arc<dyn Fn(u64) + Send + Sync>,
 }
 
 impl ProgressHandle {
-    /// Create a handle for `item` backed by `tracker`.
-    pub fn new(tracker: Arc<dyn ProgressTracker>, item: &'static str) -> Self {
-        Self { tracker, item }
+    /// Create a handle backed by `increment`.
+    pub fn new<F>(increment: F) -> Self
+    where
+        F: Fn(u64) + Send + Sync + 'static,
+    {
+        Self {
+            increment: Arc::new(increment),
+        }
     }
 
     /// Advance this item's counter by `units` output units.
     pub fn increment(&self, units: u64) {
-        self.tracker.increment(self.item, units);
+        (self.increment)(units);
+    }
+
+    fn no_op() -> Self {
+        Self::new(|_| {})
+    }
+}
+
+impl fmt::Debug for ProgressHandle {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProgressHandle").finish_non_exhaustive()
     }
 }
 
@@ -133,7 +142,9 @@ impl ProgressHandle {
 struct NoOpProgressTracker;
 
 impl ProgressTracker for NoOpProgressTracker {
-    fn increment(&self, _item: &str, _units: u64) {}
+    fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
+        ProgressHandle::no_op()
+    }
 }
 
 pub(crate) fn no_op_progress_tracker() -> Arc<dyn ProgressTracker> {
@@ -145,12 +156,12 @@ pub use indicatif_impl::IndicatifProgress;
 
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
-    use super::ProgressTracker;
+    use super::{ProgressHandle, ProgressTracker};
     use indicatif::ProgressDrawTarget;
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
     use std::collections::BTreeMap;
     use std::io::{self, Write};
-    use std::sync::{OnceLock, RwLock};
+    use std::sync::{Arc, OnceLock, RwLock};
 
     const LABEL_WIDTH: usize = 22;
     const BAR_WIDTH: usize = 18;
@@ -163,8 +174,8 @@ mod indicatif_impl {
     ///
     /// Renders one compact progress bar per progress item on stderr.
     ///
-    /// Items are added in [`ProgressTracker::register`] and looked up by item
-    /// identifier on each [`ProgressTracker::increment`] call.
+    /// Items are added in [`ProgressTracker::register`], which returns a handle
+    /// that advances its progress bar directly.
     #[derive(Debug)]
     pub struct IndicatifProgress {
         multi: MultiProgress,
@@ -207,9 +218,9 @@ mod indicatif_impl {
     }
 
     impl ProgressTracker for IndicatifProgress {
-        fn register(&self, item: &str, total_units: u64) {
+        fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
             let Ok(mut items) = self.items.write() else {
-                return;
+                return ProgressHandle::no_op();
             };
 
             // Indicatif treats zero-length items as complete.
@@ -221,7 +232,8 @@ mod indicatif_impl {
                     .with_message(item_key.clone())
                     .with_finish(ProgressFinish::AndLeave),
             );
-            items.insert(item_key, pb);
+            items.insert(item_key, pb.clone());
+            ProgressHandle::new(move |units| pb.inc(units))
         }
 
         fn start(&self) {
@@ -238,19 +250,6 @@ mod indicatif_impl {
             }
             // Reduce flicker by moving the cursor instead of clearing lines once the item set is stable.
             self.multi.set_move_cursor(true);
-        }
-
-        fn increment(&self, item: &str, units: u64) {
-            let bar = {
-                let Ok(items) = self.items.read() else {
-                    return;
-                };
-                items.get(item).cloned()
-            };
-
-            if let Some(bar) = bar {
-                bar.inc(units);
-            }
         }
 
         fn finish(&self) {
@@ -308,11 +307,11 @@ mod indicatif_impl {
 
         #[test]
         fn registers_and_increments() {
-            let t = IndicatifProgress::hidden();
-            t.register("lineitem", 60);
-            t.register("orders", 15);
-            t.increment("lineitem", 1);
-            t.increment("orders", 5);
+            let t = Arc::new(IndicatifProgress::hidden());
+            let lineitem = Arc::clone(&t).register("lineitem", 60);
+            let orders = Arc::clone(&t).register("orders", 15);
+            lineitem.increment(1);
+            orders.increment(5);
 
             let items = t.items.read().unwrap();
             assert_eq!(items["lineitem"].position(), 1);
@@ -321,8 +320,8 @@ mod indicatif_impl {
 
         #[test]
         fn zero_total_items_start_at_zero() {
-            let t = IndicatifProgress::hidden();
-            t.register("store_returns", 0);
+            let t = Arc::new(IndicatifProgress::hidden());
+            Arc::clone(&t).register("store_returns", 0);
 
             let items = t.items.read().unwrap();
             assert_eq!(items["store_returns"].position(), 0);
@@ -332,10 +331,10 @@ mod indicatif_impl {
 
         #[test]
         fn reaches_total() {
-            let t = IndicatifProgress::hidden();
-            t.register("orders", 5);
+            let t = Arc::new(IndicatifProgress::hidden());
+            let orders = Arc::clone(&t).register("orders", 5);
             for _ in 0..5 {
-                t.increment("orders", 1);
+                orders.increment(1);
             }
             let items = t.items.read().unwrap();
             assert_eq!(items["orders"].position(), 5);
@@ -343,19 +342,10 @@ mod indicatif_impl {
         }
 
         #[test]
-        fn unknown_item_is_no_op() {
-            // Incrementing an item not registered must not panic.
-            let t = IndicatifProgress::hidden();
-            t.register("orders", 1);
-            t.increment("lineitem", 1);
-            assert_eq!(t.items.read().unwrap()["orders"].position(), 0);
-        }
-
-        #[test]
         fn finish_marks_registered_items_finished() {
-            let t = IndicatifProgress::hidden();
-            t.register("orders", 2);
-            t.increment("orders", 2);
+            let t = Arc::new(IndicatifProgress::hidden());
+            let orders = Arc::clone(&t).register("orders", 2);
+            orders.increment(2);
             t.finish();
 
             assert!(t.items.read().unwrap()["orders"].is_finished());
@@ -382,17 +372,15 @@ mod tests {
     }
 
     impl ProgressTracker for MockTracker {
-        fn register(&self, item: &str, total_units: u64) {
+        fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
+            let item = item.to_owned();
             self.registered
                 .lock()
                 .unwrap()
-                .push((item.to_owned(), total_units));
-        }
-        fn increment(&self, item: &str, units: u64) {
-            self.increments
-                .lock()
-                .unwrap()
-                .push((item.to_owned(), units));
+                .push((item.clone(), total_units));
+            ProgressHandle::new(move |units| {
+                self.increments.lock().unwrap().push((item.clone(), units));
+            })
         }
         fn finish(&self) {
             self.finished.fetch_add(1, Ordering::Relaxed);
@@ -403,10 +391,8 @@ mod tests {
     fn mock_tracker_works_through_progress_handles() {
         let mock = Arc::new(MockTracker::default());
         let dynamic: Arc<dyn ProgressTracker> = mock.clone();
-        dynamic.register("store_sales", 10);
-        dynamic.register("catalog_returns", 4);
-        let store_sales = ProgressHandle::new(Arc::clone(&dynamic), "store_sales");
-        let catalog_returns = ProgressHandle::new(Arc::clone(&dynamic), "catalog_returns");
+        let store_sales = Arc::clone(&dynamic).register("store_sales", 10);
+        let catalog_returns = Arc::clone(&dynamic).register("catalog_returns", 4);
         store_sales.increment(3);
         catalog_returns.increment(1);
         dynamic.finish();
@@ -429,18 +415,20 @@ mod tests {
     }
 
     #[test]
-    fn default_register_and_finish_are_noops() {
-        // An impl that only overrides `increment` should compile and run.
+    fn default_start_and_finish_are_noops() {
         #[derive(Debug)]
         struct Minimal(AtomicU64);
         impl ProgressTracker for Minimal {
-            fn increment(&self, _item: &str, units: u64) {
-                self.0.fetch_add(units, Ordering::Relaxed);
+            fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
+                ProgressHandle::new(move |units| {
+                    self.0.fetch_add(units, Ordering::Relaxed);
+                })
             }
         }
-        let m = Minimal(AtomicU64::new(0));
-        m.register("region", 99); // no-op default
-        m.increment("region", 7);
+        let m = Arc::new(Minimal(AtomicU64::new(0)));
+        let region = Arc::clone(&m).register("region", 99);
+        m.start(); // no-op default
+        region.increment(7);
         m.finish(); // no-op default
         assert_eq!(m.0.load(Ordering::Relaxed), 7);
     }

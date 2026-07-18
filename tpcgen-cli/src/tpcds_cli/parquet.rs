@@ -63,24 +63,24 @@ impl Parquet {
 
         // Plan each table and pre-register the row group totals so trackers
         // can size their bars before the first increment
-        let mut work: Vec<(Table, Session, TpcdsGenerationPlan)> = tables
+        let mut work: Vec<(Table, Session, TpcdsGenerationPlan, ProgressHandle)> = tables
             .map(|(table, session)| {
                 let plan =
                     TpcdsGenerationPlan::new(table, session.get_scaling(), self.row_group_bytes);
-                progress.register(table.get_name(), plan.row_group_count() as u64);
-                (table, session, plan)
+                let handle =
+                    Arc::clone(&progress).register(table.get_name(), plan.row_group_count() as u64);
+                (table, session, plan, handle)
             })
             .collect();
         progress.start();
 
         // Schedule the largest tables (most row groups) first for the best
         // thread utilization (the list is popped from the back)
-        work.sort_by_key(|(_, _, plan)| plan.row_group_count());
+        work.sort_by_key(|(_, _, plan, _)| plan.row_group_count());
 
         let mut queue = WorkerQueue::new(self.num_threads);
-        while let Some((table, session, plan)) = work.pop() {
+        while let Some((table, session, plan, progress)) = work.pop() {
             let this = self.clone();
-            let progress = ProgressHandle::new(Arc::clone(&progress), table.get_name());
             queue
                 .schedule(plan.row_group_count(), move |num_threads| async move {
                     this.generate_table(table, session, plan, num_threads, progress)

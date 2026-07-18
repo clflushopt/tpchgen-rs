@@ -406,7 +406,7 @@ impl Default for TpchGeneratorBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::progress::ProgressTracker;
+    use crate::progress::{ProgressHandle, ProgressTracker};
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc, Mutex,
@@ -420,18 +420,15 @@ mod tests {
     }
 
     impl ProgressTracker for RecordingProgress {
-        fn register(&self, item: &str, total_units: u64) {
+        fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
+            let item = item.to_owned();
             self.registered
                 .lock()
                 .unwrap()
-                .push((item.to_owned(), total_units));
-        }
-
-        fn increment(&self, item: &str, units: u64) {
-            self.increments
-                .lock()
-                .unwrap()
-                .push((item.to_owned(), units));
+                .push((item.clone(), total_units));
+            ProgressHandle::new(move |units| {
+                self.increments.lock().unwrap().push((item.clone(), units));
+            })
         }
 
         fn finish(&self) {

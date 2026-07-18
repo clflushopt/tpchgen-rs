@@ -2,7 +2,7 @@
 use crate::logging::configure_logging;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
-use crate::progress::{no_op_progress_tracker, ProgressHandle, ProgressTracker};
+use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::{ArgAction, Args, Subcommand};
 use std::io;
@@ -249,24 +249,23 @@ impl CommonArgs {
                 let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    output.register_table(table, &session, progress.as_ref());
-                    table_sessions.push((table, session));
+                    let handles = output.register_table(table, &session, Arc::clone(&progress));
+                    table_sessions.push((table, session, handles));
                 }
                 progress.start();
-                for (table, session) in table_sessions {
-                    output.generate_table(table, &session, progress.as_ref())?;
+                for (table, session, handles) in table_sessions {
+                    output.generate_table(table, &session, handles)?;
                 }
             }
             OutputFormat::Csv(output) => {
                 let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    output.register_table(table, &session, progress.as_ref());
-                    table_sessions.push((table, session));
+                    let handle = output.register_table(table, &session, Arc::clone(&progress));
+                    table_sessions.push((table, session, handle));
                 }
                 progress.start();
-                for (table, session) in table_sessions {
-                    let handle = ProgressHandle::new(Arc::clone(&progress), table.get_name());
+                for (table, session, handle) in table_sessions {
                     output.generate_table(table, session, handle)?;
                 }
             }

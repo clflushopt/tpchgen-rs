@@ -186,8 +186,10 @@ mod tests {
     }
 
     impl ProgressTracker for CountingProgress {
-        fn increment(&self, _item: &str, units: u64) {
-            self.increments.fetch_add(units, Ordering::Relaxed);
+        fn register(self: Arc<Self>, _item: &str, _total_units: u64) -> ProgressHandle {
+            ProgressHandle::new(move |units| {
+                self.increments.fetch_add(units, Ordering::Relaxed);
+            })
         }
     }
 
@@ -228,7 +230,7 @@ mod tests {
         let writes = Arc::new(Mutex::new(Vec::new()));
         let tracker = Arc::new(CountingProgress::default());
         let progress: Arc<dyn ProgressTracker> = tracker.clone();
-        let progress = ProgressHandle::new(progress, "ignored");
+        let progress = progress.register("ignored", 2);
 
         let sources = vec![
             TestSource {

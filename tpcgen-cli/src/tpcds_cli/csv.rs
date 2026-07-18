@@ -7,6 +7,7 @@ use arrow_csv::writer::WriterBuilder;
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
+use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen_arrow::{
     CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
@@ -37,14 +38,14 @@ impl Csv {
         &self,
         table: Table,
         session: &Session,
-        progress: &dyn ProgressTracker,
-    ) {
+        progress: Arc<dyn ProgressTracker>,
+    ) -> ProgressHandle {
         let rows: u64 = session
             .get_scaling()
             .get_row_count(table)
             .try_into()
             .unwrap_or(0);
-        progress.register(table.get_name(), rows);
+        progress.register(table.get_name(), rows)
     }
 
     /// Generate one TPC-DS table as a CSV file.
