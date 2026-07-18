@@ -159,9 +159,8 @@ mod indicatif_impl {
     use super::{ProgressHandle, ProgressTracker};
     use indicatif::ProgressDrawTarget;
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
-    use std::collections::BTreeMap;
     use std::io::{self, Write};
-    use std::sync::{Arc, OnceLock, RwLock};
+    use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
 
     const LABEL_WIDTH: usize = 22;
     const BAR_WIDTH: usize = 18;
@@ -179,7 +178,7 @@ mod indicatif_impl {
     #[derive(Debug)]
     pub struct IndicatifProgress {
         multi: MultiProgress,
-        items: RwLock<BTreeMap<String, ProgressBar>>,
+        bars: Mutex<Vec<ProgressBar>>,
     }
 
     impl IndicatifProgress {
@@ -190,7 +189,7 @@ mod indicatif_impl {
                 multi: MultiProgress::with_draw_target(ProgressDrawTarget::stderr_with_hz(
                     PROGRESS_REFRESH_HZ,
                 )),
-                items: RwLock::new(BTreeMap::new()),
+                bars: Mutex::new(Vec::new()),
             }
         }
 
@@ -202,11 +201,17 @@ mod indicatif_impl {
             })
         }
 
+        fn lock_bars(&self) -> MutexGuard<'_, Vec<ProgressBar>> {
+            self.bars
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+        }
+
         #[cfg(test)]
         fn hidden() -> Self {
             Self {
                 multi: MultiProgress::with_draw_target(ProgressDrawTarget::hidden()),
-                items: RwLock::new(BTreeMap::new()),
+                bars: Mutex::new(Vec::new()),
             }
         }
     }
@@ -219,30 +224,20 @@ mod indicatif_impl {
 
     impl ProgressTracker for IndicatifProgress {
         fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
-            let Ok(mut items) = self.items.write() else {
-                return ProgressHandle::no_op();
-            };
-
             // Indicatif treats zero-length items as complete.
             let bar_len = total_units.max(1);
-            let item_key = item.to_owned();
             let pb = self.multi.add(
                 ProgressBar::new(bar_len)
                     .with_style(bar_style())
-                    .with_message(item_key.clone())
+                    .with_message(item.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
-            items.insert(item_key, pb.clone());
+            self.lock_bars().push(pb.clone());
             ProgressHandle::new(move |units| pb.inc(units))
         }
 
         fn start(&self) {
-            let bars = {
-                let Ok(items) = self.items.read() else {
-                    return;
-                };
-                items.values().cloned().collect::<Vec<_>>()
-            };
+            let bars = self.lock_bars().clone();
 
             // Draw each registered item at 0% before work starts.
             for bar in bars {
@@ -253,12 +248,7 @@ mod indicatif_impl {
         }
 
         fn finish(&self) {
-            let bars = {
-                let Ok(items) = self.items.read() else {
-                    return;
-                };
-                items.values().cloned().collect::<Vec<_>>()
-            };
+            let bars = self.lock_bars().clone();
 
             for bar in bars {
                 bar.finish_using_style();
@@ -313,9 +303,9 @@ mod indicatif_impl {
             lineitem.increment(1);
             orders.increment(5);
 
-            let items = t.items.read().unwrap();
-            assert_eq!(items["lineitem"].position(), 1);
-            assert_eq!(items["orders"].position(), 5);
+            let bars = t.bars.lock().unwrap();
+            assert_eq!(bars[0].position(), 1);
+            assert_eq!(bars[1].position(), 5);
         }
 
         #[test]
@@ -323,10 +313,10 @@ mod indicatif_impl {
             let t = Arc::new(IndicatifProgress::hidden());
             Arc::clone(&t).register("store_returns", 0);
 
-            let items = t.items.read().unwrap();
-            assert_eq!(items["store_returns"].position(), 0);
-            assert_eq!(items["store_returns"].length(), Some(1));
-            assert!(!items["store_returns"].is_finished());
+            let bars = t.bars.lock().unwrap();
+            assert_eq!(bars[0].position(), 0);
+            assert_eq!(bars[0].length(), Some(1));
+            assert!(!bars[0].is_finished());
         }
 
         #[test]
@@ -336,9 +326,9 @@ mod indicatif_impl {
             for _ in 0..5 {
                 orders.increment(1);
             }
-            let items = t.items.read().unwrap();
-            assert_eq!(items["orders"].position(), 5);
-            assert!(!items["orders"].is_finished());
+            let bars = t.bars.lock().unwrap();
+            assert_eq!(bars[0].position(), 5);
+            assert!(!bars[0].is_finished());
         }
 
         #[test]
@@ -348,7 +338,7 @@ mod indicatif_impl {
             orders.increment(2);
             t.finish();
 
-            assert!(t.items.read().unwrap()["orders"].is_finished());
+            assert!(t.bars.lock().unwrap()[0].is_finished());
         }
     }
 }
