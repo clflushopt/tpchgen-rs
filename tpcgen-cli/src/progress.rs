@@ -298,10 +298,12 @@ mod indicatif_impl {
         #[test]
         fn registers_and_increments() {
             let t = Arc::new(IndicatifProgress::hidden());
-            let progress = t.clone().register("lineitem", 60);
-            progress.increment(1);
-            let progress = t.clone().register("orders", 15);
-            progress.increment(5);
+            let progress = [
+                t.clone().register("lineitem", 60),
+                t.clone().register("orders", 15),
+            ];
+            progress[0].increment(1);
+            progress[1].increment(5);
 
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 1);
@@ -381,10 +383,12 @@ mod tests {
     fn mock_tracker_works_through_progress_handles() {
         let mock = Arc::new(MockTracker::default());
         let dynamic: Arc<dyn ProgressTracker> = mock.clone();
-        let progress = dynamic.clone().register("store_sales", 10);
-        progress.increment(3);
-        let progress = dynamic.clone().register("catalog_returns", 4);
-        progress.increment(1);
+        let progress = [
+            dynamic.clone().register("store_sales", 10),
+            dynamic.clone().register("catalog_returns", 4),
+        ];
+        progress[0].increment(3);
+        progress[1].increment(1);
         dynamic.finish();
 
         assert_eq!(
