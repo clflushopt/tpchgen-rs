@@ -67,8 +67,9 @@ impl Parquet {
             .map(|(table, session)| {
                 let plan =
                     TpcdsGenerationPlan::new(table, session.get_scaling(), self.row_group_bytes);
-                let progress =
-                    Arc::clone(&progress).register(table.get_name(), plan.row_group_count() as u64);
+                let progress = progress
+                    .clone()
+                    .register(table.get_name(), plan.row_group_count() as u64);
                 (table, session, plan, progress)
             })
             .collect();

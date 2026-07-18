@@ -242,14 +242,14 @@ impl CommonArgs {
                     table_sessions.push((table, session));
                 }
                 output
-                    .generate_tables(table_sessions, Arc::clone(&progress))
+                    .generate_tables(table_sessions, progress.clone())
                     .await?;
             }
             OutputFormat::Dat(output) => {
                 let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let progress = output.register_table(table, &session, Arc::clone(&progress));
+                    let progress = output.register_table(table, &session, progress.clone());
                     table_sessions.push((table, session, progress));
                 }
                 progress.start();
@@ -261,7 +261,7 @@ impl CommonArgs {
                 let mut table_sessions = Vec::with_capacity(tables.len());
                 for table in tables {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let progress = output.register_table(table, &session, Arc::clone(&progress));
+                    let progress = output.register_table(table, &session, progress.clone());
                     table_sessions.push((table, session, progress));
                 }
                 progress.start();

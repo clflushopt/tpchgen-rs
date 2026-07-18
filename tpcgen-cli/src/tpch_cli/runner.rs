@@ -86,7 +86,7 @@ impl PlanRunner {
         }
         let progress_by_table: BTreeMap<Table, ProgressHandle> = totals
             .into_iter()
-            .map(|(table, total)| (table, Arc::clone(&progress).register(table.name(), total)))
+            .map(|(table, total)| (table, progress.clone().register(table.name(), total)))
             .collect();
         progress.start();
 

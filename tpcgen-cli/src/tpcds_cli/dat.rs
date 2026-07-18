@@ -70,7 +70,9 @@ impl Dat {
     ) -> DatProgress {
         let register = |table: Table| {
             let row_count = session.get_scaling().get_row_count(table);
-            Arc::clone(&progress).register(table.get_name(), row_count.try_into().unwrap_or(0))
+            progress
+                .clone()
+                .register(table.get_name(), row_count.try_into().unwrap_or(0))
         };
 
         match table {
