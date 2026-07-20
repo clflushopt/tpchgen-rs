@@ -4,6 +4,7 @@ use crate::logging::configure_logging;
 use crate::progress::IndicatifProgress;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
 use std::io;
 #[cfg(feature = "indicatif-progress")]
@@ -131,8 +132,8 @@ pub struct CommonArgs {
     output_dir: PathBuf,
 
     /// Which tables to generate (default: all)
-    #[arg(short = 'T', long = "tables", value_delimiter = ',')]
-    tables: Option<Vec<String>>,
+    #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
+    tables: Option<Vec<Table>>,
 
     /// Reference implementation to match (default: trino)
     #[arg(long, default_value_t = CompatMode::Trino)]
@@ -293,10 +294,9 @@ impl CommonArgs {
 
     /// Return the tables that should be generated.
     fn tables(&self) -> Result<Vec<Table>> {
-        if let Some(tables) = &self.tables {
-            tables.iter().map(|table| parse_table(table)).collect()
-        } else {
-            Ok(Table::main_tables())
+        match &self.tables {
+            Some(tables) => Ok(tables.clone()),
+            None => Ok(Table::main_tables()),
         }
     }
 
@@ -356,6 +356,73 @@ fn parse_table(table: &str) -> Result<Table> {
     }
 }
 
+/// Parses a TPC-DS table name, and supplies the list of table names (with
+/// descriptions) shown in `--help`.
+#[derive(Debug, Clone)]
+struct TableValueParser;
+
+impl TypedValueParser for TableValueParser {
+    type Value = Table;
+
+    fn parse_ref(
+        &self,
+        cmd: &clap::Command,
+        _: Option<&clap::Arg>,
+        value: &std::ffi::OsStr,
+    ) -> std::result::Result<Self::Value, clap::Error> {
+        let to_err = |msg: String| {
+            clap::Error::raw(clap::error::ErrorKind::InvalidValue, format!("{msg}\n")).with_cmd(cmd)
+        };
+
+        let value = value
+            .to_str()
+            .ok_or_else(|| to_err("table names must be valid UTF-8".to_string()))?;
+
+        parse_table(value).map_err(|e| to_err(e.to_string()))
+    }
+
+    fn possible_values(
+        &self,
+    ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+        Some(Box::new(Table::main_tables().into_iter().map(|table| {
+            clap::builder::PossibleValue::new(table.get_name()).help(table_help(table))
+        })))
+    }
+}
+
+/// One line description of each TPC-DS table, shown in `--help`.
+fn table_help(table: Table) -> &'static str {
+    match table {
+        Table::CallCenter => "Call center dimension",
+        Table::CatalogPage => "Catalog page dimension",
+        Table::CatalogReturns => "Catalog returns fact",
+        Table::CatalogSales => "Catalog sales fact",
+        Table::Customer => "Customer dimension",
+        Table::CustomerAddress => "Customer address dimension",
+        Table::CustomerDemographics => "Customer demographics dimension",
+        Table::DateDim => "Date dimension",
+        Table::HouseholdDemographics => "Household demographics dimension",
+        Table::IncomeBand => "Income band dimension",
+        Table::Inventory => "Inventory fact",
+        Table::Item => "Item dimension",
+        Table::Promotion => "Promotion dimension",
+        Table::Reason => "Reason dimension",
+        Table::ShipMode => "Ship mode dimension",
+        Table::Store => "Store dimension",
+        Table::StoreReturns => "Store returns fact",
+        Table::StoreSales => "Store sales fact",
+        Table::TimeDim => "Time dimension",
+        Table::Warehouse => "Warehouse dimension",
+        Table::WebPage => "Web page dimension",
+        Table::WebReturns => "Web returns fact",
+        Table::WebSales => "Web sales fact",
+        Table::WebSite => "Web site dimension",
+        Table::DbgenVersion => "Metadata about the generator run",
+        // source tables are not selectable on the command line
+        _ => "",
+    }
+}
+
 fn expected_table_names() -> String {
     Table::main_tables()
         .iter()
@@ -396,5 +463,20 @@ fn parse_row_group_bytes(s: &str) -> std::result::Result<usize, String> {
         Err("must be greater than zero".to_string())
     } else {
         Ok(parsed)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_main_table_has_help_text() {
+        for table in Table::main_tables() {
+            assert!(
+                !table_help(table).is_empty(),
+                "{table} is missing a --help description"
+            );
+        }
     }
 }
