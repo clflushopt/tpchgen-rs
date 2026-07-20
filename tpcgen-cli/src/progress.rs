@@ -7,21 +7,19 @@
 //!
 //! 1. [`ProgressTracker::register`] once per progress item, before work
 //!    starts, with the total number of output units the item will produce
-//!    (chunks for TBL/CSV, row groups for Parquet). Registration returns a
-//!    [`ProgressHandle`] bound to that item.
+//!    (chunks or rows for text output, row groups for Parquet). Registration
+//!    returns a [`ProgressHandle`] bound to that item.
 //! 2. [`ProgressTracker::start`] once after all known progress items have
 //!    been registered and before work starts. This hook is optional for
 //!    paths that register items lazily.
 //! 3. [`ProgressHandle::increment`] after output units are written.
-//!    Multiple generation tasks may call handles concurrently, so their
-//!    callbacks must be `Send + Sync` and lightweight.
-//! 4. [`ProgressTracker::finish`] once on the success path when the
-//!    generation run exits. Implementations should use `finish` for normal
-//!    success cleanup and `Drop` only as an error or panic fallback.
+//!    Cloned handles may be advanced concurrently by generation tasks.
+//! 4. [`ProgressHandle::complete`] after an item's output is committed.
+//!    This is optional for paths without a distinct item-completion boundary.
+//! 5. [`ProgressTracker::finish`] after the generation run completes
+//!    successfully.
 //!
-//! When invoked, `register`, `start`, and `finish` are serial and may do
-//! bookkeeping or I/O; handles may be incremented concurrently while output
-//! is being written.
+//! Registration and run-level lifecycle callbacks are invoked serially.
 //!
 //! Implementations must not panic and must not propagate I/O errors —
 //! progress reporting is best-effort and must never affect the data
@@ -77,7 +75,8 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     ///
     /// Called once per item before work starts. The `item` is a stable
     /// identifier, usually a table name. The returned handle is the only
-    /// capability generation tasks need to advance that item.
+    /// capability generation tasks need to report item progress and optional
+    /// completion.
     ///
     /// The [`Arc`] receiver lets implementations return a `'static` handle
     /// that shares tracker state with concurrent generation tasks.
@@ -90,37 +89,55 @@ pub trait ProgressTracker: Send + Sync + fmt::Debug {
     /// registered item set. The default does nothing.
     fn start(&self) {}
 
-    /// Called once after the last [`ProgressHandle::increment`] on the success
-    /// path. Implementations should use this for normal success cleanup
-    /// and `Drop` only as an error or panic fallback. The default does
-    /// nothing.
+    /// Called once when the generation run completes successfully.
+    /// The default does nothing.
     fn finish(&self) {}
 }
 
-/// A cloneable handle for reporting progress for one registered item.
+/// A cloneable handle for reporting progress and optional completion for one
+/// registered item.
 ///
-/// Handles are created by [`ProgressTracker::register`] and directly own the
-/// item-specific increment behavior. Run-level lifecycle operations remain the
+/// Handles are created by [`ProgressTracker::register`] to report item-specific
+/// progress and optional completion. Run-level lifecycle operations remain the
 /// responsibility of the tracker owner.
 #[derive(Clone)]
 pub struct ProgressHandle {
     increment: Arc<dyn Fn(u64) + Send + Sync>,
+    complete: Arc<dyn Fn() + Send + Sync>,
 }
 
 impl ProgressHandle {
-    /// Create a handle backed by `increment`.
+    /// Create a handle for reporting item progress with no completion callback.
     pub fn new<F>(increment: F) -> Self
     where
         F: Fn(u64) + Send + Sync + 'static,
     {
+        Self::new_with_complete(increment, || {})
+    }
+
+    /// Create a handle for reporting item progress and completion.
+    pub fn new_with_complete<F, C>(increment: F, complete: C) -> Self
+    where
+        F: Fn(u64) + Send + Sync + 'static,
+        C: Fn() + Send + Sync + 'static,
+    {
         Self {
             increment: Arc::new(increment),
+            complete: Arc::new(complete),
         }
     }
 
     /// Advance this item's counter by `units` output units.
     pub fn increment(&self, units: u64) {
         (self.increment)(units);
+    }
+
+    /// Optionally notify the tracker that this item completed successfully.
+    ///
+    /// Generation paths that cannot identify an independent item-completion
+    /// boundary may rely on [`ProgressTracker::finish`] instead.
+    pub fn complete(&self) {
+        (self.complete)();
     }
 
     fn no_op() -> Self {
@@ -174,7 +191,7 @@ mod indicatif_impl {
     /// Renders one compact progress bar per progress item on stderr.
     ///
     /// Items are added in [`ProgressTracker::register`], which returns a handle
-    /// that advances its progress bar directly.
+    /// that advances and completes its progress bar directly.
     #[derive(Debug)]
     pub struct IndicatifProgress {
         multi: MultiProgress,
@@ -232,8 +249,19 @@ mod indicatif_impl {
                     .with_message(item.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
-            self.lock_bars().push(pb.clone());
-            ProgressHandle::new(move |units| pb.inc(units))
+
+            let increment_bar = pb.clone();
+            let complete_bar = pb.clone();
+            self.lock_bars().push(pb);
+
+            ProgressHandle::new_with_complete(
+                move |units| {
+                    increment_bar.inc(units);
+                },
+                move || {
+                    complete_bar.finish_using_style();
+                },
+            )
         }
 
         fn start(&self) {
@@ -334,6 +362,21 @@ mod indicatif_impl {
         }
 
         #[test]
+        fn item_completes_before_tracker_finishes() {
+            let t = Arc::new(IndicatifProgress::hidden());
+            let orders = t.clone().register("orders", 5);
+            let _lineitem = t.clone().register("lineitem", 10);
+            orders.increment(3);
+
+            orders.complete();
+
+            let bars = t.bars.lock().unwrap();
+            assert_eq!(bars[0].position(), 5);
+            assert!(bars[0].is_finished());
+            assert!(!bars[1].is_finished());
+        }
+
+        #[test]
         fn finish_marks_registered_items_finished() {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("orders", 2);
@@ -409,6 +452,23 @@ mod tests {
     }
 
     #[test]
+    fn progress_handle_runs_complete_callback() {
+        let completed = Arc::new(AtomicU64::new(0));
+        let completed_for_callback = completed.clone();
+
+        let progress = ProgressHandle::new_with_complete(
+            |_| {},
+            move || {
+                completed_for_callback.fetch_add(1, Ordering::Relaxed);
+            },
+        );
+
+        progress.complete();
+
+        assert_eq!(completed.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
     fn default_start_and_finish_are_noops() {
         #[derive(Debug)]
         struct Minimal(AtomicU64);
@@ -423,6 +483,7 @@ mod tests {
         let progress = m.clone().register("region", 99);
         m.start(); // no-op default
         progress.increment(7);
+        progress.complete(); // no-op completion callback
         m.finish(); // no-op default
         assert_eq!(m.0.load(Ordering::Relaxed), 7);
     }
