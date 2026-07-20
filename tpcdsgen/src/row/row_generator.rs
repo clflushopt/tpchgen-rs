@@ -3,7 +3,7 @@ use crate::row::GeneratedRow;
 
 /// Result of row generation (RowGeneratorResult)
 ///
-/// Uses `GeneratedRow` enum instead of `Box<dyn TableRow>` to avoid
+/// Uses `GeneratedRow` enum instead of a boxed trait object to avoid
 /// heap allocations and enable static dispatch. See ISSUE-004.
 pub struct RowGeneratorResult {
     rows: Vec<GeneratedRow>,

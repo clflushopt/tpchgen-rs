@@ -16,7 +16,6 @@
 
 use crate::generator::{GeneratorColumn, StoreGeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::{Address, Date, Decimal};
 use std::fmt;
 
@@ -100,46 +99,6 @@ impl StoreRow {
         let bit_position = column.get_global_column_number()
             - StoreGeneratorColumn::WStoreSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
-    }
-
-    fn get_string_or_null_for_key(&self, value: i64, column: &StoreGeneratorColumn) -> String {
-        if self.is_null(column) || value < 0 {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null(&self, value: &str, column: &StoreGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_int_or_null(&self, value: i32, column: &StoreGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_decimal_or_null(&self, value: &Decimal, column: &StoreGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_date_string_or_null(&self, julian_days: i64, column: &StoreGeneratorColumn) -> String {
-        if self.is_null(column) || julian_days < 0 {
-            String::new()
-        } else {
-            Date::from_julian_days(julian_days as i32).to_string()
-        }
     }
 
     // Getters for SCD fields
@@ -230,7 +189,7 @@ impl StoreRow {
 
 impl StoreRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
-    /// key is negative (mirrors `get_string_or_null_for_key`).
+    /// key is negative.
     fn key_field(&self, value: i64, column: &StoreGeneratorColumn) -> DatField<i64> {
         DatField::new(value, self.is_null(column) || value < 0)
     }
@@ -241,7 +200,7 @@ impl StoreRow {
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
-    /// julian day is negative (mirrors `get_date_string_or_null`).
+    /// julian day is negative.
     fn date_field(&self, julian_days: i64, column: &StoreGeneratorColumn) -> DatField<Date> {
         DatField::from(
             (!(self.is_null(column) || julian_days < 0))
@@ -251,8 +210,8 @@ impl StoreRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for StoreRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use StoreGeneratorColumn::*;
@@ -290,99 +249,5 @@ impl fmt::Display for StoreRow {
             self.field(self.address.get_gmt_offset(), &WStoreAddressGmtOffset),
             self.field(self.d_tax_percentage, &WStoreTaxPercentage),
         )
-    }
-}
-
-impl TableRow for StoreRow {
-    fn get_values(&self) -> Vec<String> {
-        use StoreGeneratorColumn::*;
-        vec![
-            self.get_string_or_null_for_key(self.store_sk, &WStoreSk),
-            self.get_string_or_null(&self.store_id, &WStoreId),
-            self.get_date_string_or_null(self.rec_start_date_id, &WStoreRecStartDateId),
-            self.get_date_string_or_null(self.rec_end_date_id, &WStoreRecEndDateId),
-            self.get_string_or_null_for_key(self.closed_date_id, &WStoreClosedDateId),
-            self.get_string_or_null(&self.store_name, &WStoreName),
-            self.get_int_or_null(self.employees, &WStoreEmployees),
-            self.get_int_or_null(self.floor_space, &WStoreFloorSpace),
-            self.get_string_or_null(&self.hours, &WStoreHours),
-            self.get_string_or_null(&self.store_manager, &WStoreManager),
-            self.get_int_or_null(self.market_id, &WStoreMarketId),
-            self.get_string_or_null(&self.geography_class, &WStoreGeographyClass),
-            self.get_string_or_null(&self.market_desc, &WStoreMarketDesc),
-            self.get_string_or_null(&self.market_manager, &WStoreMarketManager),
-            self.get_string_or_null_for_key(self.division_id, &WStoreDivisionId),
-            self.get_string_or_null(&self.division_name, &WStoreDivisionName),
-            self.get_string_or_null_for_key(self.company_id, &WStoreCompanyId),
-            self.get_string_or_null(&self.company_name, &WStoreCompanyName),
-            self.get_int_or_null(self.address.get_street_number(), &WStoreAddressStreetNum),
-            self.get_string_or_null(&self.address.get_street_name(), &WStoreAddressStreetName1),
-            self.get_string_or_null(self.address.get_street_type(), &WStoreAddressStreetType),
-            self.get_string_or_null(self.address.get_suite_number(), &WStoreAddressSuiteNum),
-            self.get_string_or_null(self.address.get_city(), &WStoreAddressCity),
-            self.get_string_or_null(
-                self.address.get_county().unwrap_or(""),
-                &WStoreAddressCounty,
-            ),
-            self.get_string_or_null(self.address.get_state(), &WStoreAddressState),
-            self.get_string_or_null(&format!("{:05}", self.address.get_zip()), &WStoreAddressZip),
-            self.get_string_or_null(self.address.get_country(), &WStoreAddressCountry),
-            self.get_string_or_null(
-                &self.address.get_gmt_offset().to_string(),
-                &WStoreAddressGmtOffset,
-            ),
-            self.get_decimal_or_null(&self.d_tax_percentage, &WStoreTaxPercentage),
-        ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn test_address() -> Address {
-        Address::new(
-            "Suite 100".to_string(),
-            100,
-            "Main".to_string(),
-            "Street".to_string(),
-            "Blvd".to_string(),
-            "Springfield".to_string(),
-            Some("Some County".to_string()),
-            "CA".to_string(),
-            "United States".to_string(),
-            904,
-            -8,
-        )
-        .unwrap()
-    }
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let row = StoreRow::new(
-            0b10,
-            1,
-            "AAAAAAAABAAAAAAA".to_string(),
-            2450815,
-            -1,
-            -1,
-            "ought".to_string(),
-            245,
-            5250760,
-            "8AM-4PM".to_string(),
-            "William Ward".to_string(),
-            10,
-            Decimal::new(45, 2).unwrap(),
-            "Unknown".to_string(),
-            "Some market description".to_string(),
-            "Market Mgr".to_string(),
-            1,
-            "Unknown".to_string(),
-            1,
-            "Unknown".to_string(),
-            test_address(),
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 }

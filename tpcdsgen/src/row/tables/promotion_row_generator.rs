@@ -186,9 +186,8 @@ impl RowGenerator for PromotionRowGenerator {
 
 #[cfg(test)]
 mod tests {
-    use crate::row::table_row::TableRow;
-
     use super::*;
+    use crate::row::dat_values;
 
     #[test]
     fn test_generate_promotion_row() {
@@ -201,7 +200,7 @@ mod tests {
         assert!(result.is_ok());
 
         let row_result = result.unwrap();
-        let values = row_result.get_rows()[0].get_values();
+        let values = dat_values(&row_result.get_rows()[0]);
         assert_eq!(values.len(), 19);
     }
 }

@@ -14,7 +14,6 @@
 
 use crate::generator::{GeneratorColumn, PromotionGeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::Decimal;
 use std::fmt;
 
@@ -87,56 +86,6 @@ impl PromotionRow {
             p_channel_details,
             p_purpose,
             p_discount_active,
-        }
-    }
-
-    fn get_string_or_null_for_key(&self, key: i64, column: PromotionGeneratorColumn) -> String {
-        if key == -1 || self.is_null_at(column) {
-            String::new()
-        } else {
-            key.to_string()
-        }
-    }
-
-    fn get_string_or_null_string(&self, value: &str, column: PromotionGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null_decimal(
-        &self,
-        value: &Decimal,
-        column: PromotionGeneratorColumn,
-    ) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null_int(&self, value: i32, column: PromotionGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null_for_boolean(
-        &self,
-        value: bool,
-        column: PromotionGeneratorColumn,
-    ) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else if value {
-            "Y".to_string()
-        } else {
-            "N".to_string()
         }
     }
 
@@ -229,7 +178,7 @@ impl PromotionRow {
 
 impl PromotionRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
-    /// key is -1 (mirrors `get_string_or_null_for_key`).
+    /// key is -1.
     fn key_field(&self, key: i64, column: PromotionGeneratorColumn) -> DatField<i64> {
         DatField::new(key, key == -1 || self.is_null_at(column))
     }
@@ -241,8 +190,8 @@ impl PromotionRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for PromotionRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use PromotionGeneratorColumn::*;
@@ -273,106 +222,10 @@ impl fmt::Display for PromotionRow {
     }
 }
 
-impl TableRow for PromotionRow {
-    fn get_values(&self) -> Vec<String> {
-        vec![
-            self.get_string_or_null_for_key(self.p_promo_sk, PromotionGeneratorColumn::PPromoSk),
-            self.get_string_or_null_string(&self.p_promo_id, PromotionGeneratorColumn::PPromoId),
-            self.get_string_or_null_for_key(
-                self.p_start_date_id,
-                PromotionGeneratorColumn::PStartDateId,
-            ),
-            self.get_string_or_null_for_key(
-                self.p_end_date_id,
-                PromotionGeneratorColumn::PEndDateId,
-            ),
-            self.get_string_or_null_for_key(self.p_item_sk, PromotionGeneratorColumn::PItemSk),
-            self.get_string_or_null_decimal(&self.p_cost, PromotionGeneratorColumn::PCost),
-            self.get_string_or_null_int(
-                self.p_response_target,
-                PromotionGeneratorColumn::PResponseTarget,
-            ),
-            self.get_string_or_null_string(
-                &self.p_promo_name,
-                PromotionGeneratorColumn::PPromoName,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_dmail,
-                PromotionGeneratorColumn::PChannelDmail,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_email,
-                PromotionGeneratorColumn::PChannelEmail,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_catalog,
-                PromotionGeneratorColumn::PChannelCatalog,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_tv,
-                PromotionGeneratorColumn::PChannelTv,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_radio,
-                PromotionGeneratorColumn::PChannelRadio,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_press,
-                PromotionGeneratorColumn::PChannelPress,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_event,
-                PromotionGeneratorColumn::PChannelEvent,
-            ),
-            self.get_string_or_null_for_boolean(
-                self.p_channel_demo,
-                PromotionGeneratorColumn::PChannelDemo,
-            ),
-            self.get_string_or_null_string(
-                &self.p_channel_details,
-                PromotionGeneratorColumn::PChannelDetails,
-            ),
-            self.get_string_or_null_string(&self.p_purpose, PromotionGeneratorColumn::PPurpose),
-            self.get_string_or_null_for_boolean(
-                self.p_discount_active,
-                PromotionGeneratorColumn::PDiscountActive,
-            ),
-        ]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        // Null bit on p_promo_id plus a -1 p_item_sk exercise both NULL paths.
-        let row = PromotionRow::new(
-            0b10,
-            1,
-            "AAAAAAAABAAAAAAA".to_string(),
-            2450815,
-            2450875,
-            -1,
-            Decimal::new(100000, 2).unwrap(),
-            1,
-            "ought".to_string(),
-            true,
-            false,
-            true,
-            false,
-            true,
-            false,
-            true,
-            false,
-            "Details".to_string(),
-            "Unknown".to_string(),
-            true,
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
-    }
+    use crate::row::dat_values;
 
     #[test]
     fn test_promotion_row_creation() {
@@ -428,7 +281,7 @@ mod tests {
             true,
         );
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values.len(), 19);
         assert_eq!(values[0], "1");
         assert_eq!(values[1], "AAAAAAAABAAAAAAA");

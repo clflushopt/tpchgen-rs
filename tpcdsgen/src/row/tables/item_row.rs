@@ -16,7 +16,6 @@
 
 use crate::generator::{GeneratorColumn, ItemGeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::{Date, Decimal};
 use std::fmt;
 
@@ -106,38 +105,6 @@ impl ItemRow {
         let bit_position = column.get_global_column_number()
             - ItemGeneratorColumn::IItemSk.get_global_column_number();
         (self.null_bit_map & (1 << bit_position)) != 0
-    }
-
-    fn get_string_or_null_for_key(&self, value: i64, column: &ItemGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null(&self, value: &str, column: &ItemGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_decimal_or_null(&self, value: &Decimal, column: &ItemGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_date_string_or_null(&self, julian_days: i64, column: &ItemGeneratorColumn) -> String {
-        if self.is_null(column) || julian_days < 0 {
-            String::new()
-        } else {
-            Date::from_julian_days(julian_days as i32).to_string()
-        }
     }
 
     // Getters for SCD fields
@@ -242,8 +209,8 @@ impl ItemRow {
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
-    /// julian day is negative (mirrors `get_date_string_or_null`); the Date
-    /// is only constructed when it will be printed.
+    /// julian day is negative; the Date is only constructed when it will be
+    /// printed.
     fn date_field(&self, julian_days: i64, column: &ItemGeneratorColumn) -> DatField<Date> {
         DatField::from(
             (!(self.is_null(column) || julian_days < 0))
@@ -253,8 +220,8 @@ impl ItemRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for ItemRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use ItemGeneratorColumn::*;
@@ -285,73 +252,5 @@ impl fmt::Display for ItemRow {
             self.field(self.i_manager_id, &IManagerId),
             self.field(&self.i_product_name, &IProductName),
         )
-    }
-}
-
-impl TableRow for ItemRow {
-    fn get_values(&self) -> Vec<String> {
-        use ItemGeneratorColumn::*;
-        vec![
-            self.get_string_or_null_for_key(self.i_item_sk, &IItemSk),
-            self.get_string_or_null(&self.i_item_id, &IItemId),
-            self.get_date_string_or_null(self.i_rec_start_date_id, &IRecStartDateId),
-            self.get_date_string_or_null(self.i_rec_end_date_id, &IRecEndDateId),
-            self.get_string_or_null(&self.i_item_desc, &IItemDesc),
-            self.get_decimal_or_null(&self.i_current_price, &ICurrentPrice),
-            self.get_decimal_or_null(&self.i_wholesale_cost, &IWholesaleCost),
-            self.get_string_or_null_for_key(self.i_brand_id, &IBrandId),
-            self.get_string_or_null(&self.i_brand, &IBrand),
-            self.get_string_or_null_for_key(self.i_class_id, &IClassId),
-            self.get_string_or_null(&self.i_class, &IClass),
-            self.get_string_or_null_for_key(self.i_category_id, &ICategoryId),
-            self.get_string_or_null(&self.i_category, &ICategory),
-            self.get_string_or_null_for_key(self.i_manufact_id, &IManufactId),
-            self.get_string_or_null(&self.i_manufact, &IManufact),
-            self.get_string_or_null(&self.i_size, &ISize),
-            self.get_string_or_null(&self.i_formulation, &IFormulation),
-            self.get_string_or_null(&self.i_color, &IColor),
-            self.get_string_or_null(&self.i_units, &IUnits),
-            self.get_string_or_null(&self.i_container, &IContainer),
-            self.get_string_or_null_for_key(self.i_manager_id, &IManagerId),
-            self.get_string_or_null(&self.i_product_name, &IProductName),
-        ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        // Null bit on i_item_id (position 1) plus a negative SCD end date
-        // exercise both NULL paths.
-        let row = ItemRow::new(
-            0b10,
-            1,
-            "AAAAAAAABAAAAAAA".to_string(),
-            2450815,
-            -1,
-            "An item description".to_string(),
-            Decimal::new(1234, 2).unwrap(),
-            Decimal::new(567, 2).unwrap(),
-            5004001,
-            "edu packscholar #1".to_string(),
-            4,
-            "scholaramalgamalg".to_string(),
-            5,
-            "Music".to_string(),
-            1,
-            "oughtn st".to_string(),
-            "small".to_string(),
-            "693dark73009e2b57f2fc".to_string(),
-            "navajo".to_string(),
-            "Ounce".to_string(),
-            "Unknown".to_string(),
-            35,
-            "oughtoughtought".to_string(),
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 }

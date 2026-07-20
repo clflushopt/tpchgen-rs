@@ -423,7 +423,7 @@ impl RowGenerator for CallCenterRowGenerator {
 mod tests {
     use super::*;
     use crate::config::Session;
-    use crate::row::TableRow;
+    use crate::row::dat_values;
 
     #[test]
     fn test_call_center_row_generator_creation() {
@@ -445,7 +445,7 @@ mod tests {
         assert!(result.should_end_row());
 
         // Check that we can get values (CSV serialization works)
-        let values = rows[0].get_values();
+        let values = dat_values(&rows[0]);
         assert_eq!(values[0], "1"); // cc_call_center_sk should be row number
     }
 }

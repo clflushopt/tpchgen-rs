@@ -354,7 +354,7 @@ impl RowGenerator for StoreSalesRowGenerator {
 mod tests {
     use super::*;
     use crate::config::Session;
-    use crate::row::TableRow;
+    use crate::row::dat_values;
 
     #[test]
     fn test_store_sales_row_generator_creation() {
@@ -377,7 +377,7 @@ mod tests {
 
         // First row should have 23 columns
         let first_row = &result.get_rows()[0];
-        assert_eq!(first_row.get_values().len(), 23);
+        assert_eq!(dat_values(&first_row).len(), 23);
     }
 
     #[test]
@@ -389,14 +389,14 @@ mod tests {
         let result1 = generator
             .generate_row_and_child_rows(1, &session, None, None)
             .unwrap();
-        let values1 = result1.get_rows()[0].get_values();
+        let values1 = dat_values(&result1.get_rows()[0]);
         let ticket1 = &values1[9]; // ss_ticket_number
 
         // Generate second row (should be in same order)
         let result2 = generator
             .generate_row_and_child_rows(2, &session, None, None)
             .unwrap();
-        let values2 = result2.get_rows()[0].get_values();
+        let values2 = dat_values(&result2.get_rows()[0]);
         let ticket2 = &values2[9];
 
         // Same ticket number means same order

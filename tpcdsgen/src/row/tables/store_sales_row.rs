@@ -16,7 +16,6 @@
 
 use crate::generator::{GeneratorColumn, StoreSalesGeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::Pricing;
 use std::fmt;
 
@@ -94,34 +93,6 @@ impl StoreSalesRow {
         &self.ss_pricing
     }
 
-    fn get_string_or_null_for_key(&self, key: i64, column: StoreSalesGeneratorColumn) -> String {
-        if key == -1 || self.is_null_at(column) {
-            String::new()
-        } else {
-            key.to_string()
-        }
-    }
-
-    fn get_string_or_null_int(&self, value: i32, column: StoreSalesGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null_decimal(
-        &self,
-        value: &crate::types::Decimal,
-        column: StoreSalesGeneratorColumn,
-    ) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
     fn is_null_at(&self, column: StoreSalesGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - StoreSalesGeneratorColumn::SsSoldDateSk.get_global_column_number();
@@ -158,8 +129,8 @@ impl StoreSalesRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for StoreSalesRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use StoreSalesGeneratorColumn::*;
@@ -235,68 +206,10 @@ impl fmt::Display for StoreSalesRow {
     }
 }
 
-impl TableRow for StoreSalesRow {
-    fn get_values(&self) -> Vec<String> {
-        use StoreSalesGeneratorColumn::*;
-
-        // Note: Java has coupon_amount twice at positions 15 and 20 (bug in original)
-        // We replicate this for byte-for-byte compatibility
-        vec![
-            self.get_string_or_null_for_key(self.ss_sold_date_sk, SsSoldDateSk),
-            self.get_string_or_null_for_key(self.ss_sold_time_sk, SsSoldTimeSk),
-            self.get_string_or_null_for_key(self.ss_sold_item_sk, SsSoldItemSk),
-            self.get_string_or_null_for_key(self.ss_sold_customer_sk, SsSoldCustomerSk),
-            self.get_string_or_null_for_key(self.ss_sold_cdemo_sk, SsSoldCdemoSk),
-            self.get_string_or_null_for_key(self.ss_sold_hdemo_sk, SsSoldHdemoSk),
-            self.get_string_or_null_for_key(self.ss_sold_addr_sk, SsSoldAddrSk),
-            self.get_string_or_null_for_key(self.ss_sold_store_sk, SsSoldStoreSk),
-            self.get_string_or_null_for_key(self.ss_sold_promo_sk, SsSoldPromoSk),
-            self.get_string_or_null_for_key(self.ss_ticket_number, SsTicketNumber),
-            self.get_string_or_null_int(self.ss_pricing.get_quantity(), SsPricingQuantity),
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_wholesale_cost(),
-                SsPricingWholesaleCost,
-            ),
-            self.get_string_or_null_decimal(&self.ss_pricing.get_list_price(), SsPricingListPrice),
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_sales_price(),
-                SsPricingSalesPrice,
-            ),
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_coupon_amount(),
-                SsPricingCouponAmt,
-            ),
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_ext_sales_price(),
-                SsPricingExtSalesPrice,
-            ),
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_ext_wholesale_cost(),
-                SsPricingExtWholesaleCost,
-            ),
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_ext_list_price(),
-                SsPricingExtListPrice,
-            ),
-            self.get_string_or_null_decimal(&self.ss_pricing.get_ext_tax(), SsPricingExtTax),
-            // Note: coupon_amount appears twice in Java (bug replicated for compatibility)
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_coupon_amount(),
-                SsPricingCouponAmt,
-            ),
-            self.get_string_or_null_decimal(&self.ss_pricing.get_net_paid(), SsPricingNetPaid),
-            self.get_string_or_null_decimal(
-                &self.ss_pricing.get_net_paid_including_tax(),
-                SsPricingNetPaidIncTax,
-            ),
-            self.get_string_or_null_decimal(&self.ss_pricing.get_net_profit(), SsPricingNetProfit),
-        ]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::row::dat_values;
     use crate::types::Decimal;
 
     fn create_test_pricing() -> Pricing {
@@ -357,25 +270,12 @@ mod tests {
             0, 2451545, 36000, 1, 100, 200, 300, 400, 500, 600, 1, pricing,
         );
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values.len(), 23);
         assert_eq!(values[0], "2451545"); // ss_sold_date_sk
         assert_eq!(values[2], "1"); // ss_sold_item_sk
         assert_eq!(values[9], "1"); // ss_ticket_number
         assert_eq!(values[10], "5"); // quantity
-    }
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let pricing = create_test_pricing();
-        // A null bit (ss_sold_time_sk) plus a -1 key (ss_sold_promo_sk)
-        // exercise both NULL paths.
-        let row = StoreSalesRow::new(
-            0b10, 2451545, 36000, 1, 100, 200, 300, 400, 500, -1, 1, pricing,
-        );
-
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 
     #[test]
@@ -387,7 +287,7 @@ mod tests {
             2451545, 36000, 1, 100, 200, 300, 400, 500, 600, 1, pricing,
         );
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values[0], "2451545"); // not null
         assert_eq!(values[1], ""); // null (bit 1 set)
     }
