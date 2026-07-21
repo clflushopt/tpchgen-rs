@@ -12,7 +12,7 @@
  * limitations under the License.
  */
 
-//! CSV formatting support TPC-DS
+//! CSV formatting support for TPC-DS
 //!
 //! Each table row type gets a `<Table>Csv` wrapper whose `Display` impl emits
 //! one CSV line

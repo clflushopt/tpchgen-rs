@@ -30,9 +30,16 @@ pub(super) fn register_table(
 ) -> TableProgress {
     let register = |table: Table| {
         let row_count = session.get_scaling().get_row_count(table);
-        progress
-            .clone()
-            .register(table.get_name(), row_count.try_into().unwrap_or(0))
+        // Row counts are always non negative, so this conversion never fails.
+        // Clamp rather than panic if that ever changes: a wrong progress total
+        // should not abort generation.
+        debug_assert!(
+            row_count >= 0,
+            "negative row count for {}: {row_count}",
+            table.get_name()
+        );
+        let row_count = u64::try_from(row_count).unwrap_or(0);
+        progress.clone().register(table.get_name(), row_count)
     };
 
     match table {

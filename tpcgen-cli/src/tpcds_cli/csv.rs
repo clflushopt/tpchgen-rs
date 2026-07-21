@@ -76,7 +76,7 @@ impl TableOutput for Csv {
     }
 }
 
-/// One in-progress CSV output file: rows are written to `<table>.csv.inprogress`,
+/// One in-progress CSV output file: rows are written to `<table>.inprogress`,
 /// which is renamed to `<table>.csv` on `finish`.
 pub(super) struct CsvTableFile {
     writer: BufWriter<File>,
@@ -111,8 +111,13 @@ impl TableWriter for CsvTableFile {
     }
 
     /// Flush and rename the temporary file into place, returning the final path.
-    fn finish(mut self) -> Result<PathBuf> {
-        self.writer.flush()?;
+    fn finish(self) -> Result<PathBuf> {
+        // Close the file before renaming: Windows can refuse to rename a file
+        // that is still open.
+        let file = self.writer.into_inner().map_err(|err| {
+            io::Error::other(format!("Failed to write {:?}: {err}", self.temp_path))
+        })?;
+        drop(file);
         std::fs::rename(&self.temp_path, &self.path).map_err(|err| {
             io::Error::other(format!(
                 "Failed to rename {:?} to {:?} file: {err}",
