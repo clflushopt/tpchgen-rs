@@ -76,11 +76,11 @@ fn test_tpcgen_cli_tpcds_dat_verbose_enables_status_logging() {
         "Expected verbose mode setup log, got stderr: {stderr}"
     );
     assert!(
-        stderr.contains("Generating reason..."),
+        stderr.contains("Writing") && stderr.contains("reason.dat using"),
         "Expected TPC-DS table start log, got stderr: {stderr}"
     );
     assert!(
-        stderr.contains("Generated reason: 1 rows ->"),
+        stderr.contains("Generated") && stderr.contains("reason.dat"),
         "Expected TPC-DS table completion log, got stderr: {stderr}"
     );
 }

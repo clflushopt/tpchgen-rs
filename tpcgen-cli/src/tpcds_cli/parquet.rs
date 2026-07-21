@@ -1,6 +1,6 @@
 //! TPC-DS Parquet output.
 
-use super::plan::TpcdsGenerationPlan;
+use super::plan::{ChunkFormat, TpcdsGenerationPlan};
 use crate::parquet::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::worker_queue::WorkerQueue;
@@ -65,11 +65,15 @@ impl Parquet {
         // can size their bars before the first increment
         let mut work: Vec<(Table, Session, TpcdsGenerationPlan, ProgressHandle)> = tables
             .map(|(table, session)| {
-                let plan =
-                    TpcdsGenerationPlan::new(table, session.get_scaling(), self.row_group_bytes);
+                let plan = TpcdsGenerationPlan::new(
+                    table,
+                    session.get_scaling(),
+                    self.row_group_bytes,
+                    ChunkFormat::Parquet,
+                );
                 let progress = progress
                     .clone()
-                    .register(table.get_name(), plan.row_group_count() as u64);
+                    .register(table.get_name(), plan.chunk_count() as u64);
                 (table, session, plan, progress)
             })
             .collect();
@@ -77,13 +81,13 @@ impl Parquet {
 
         // Schedule the largest tables (most row groups) first for the best
         // thread utilization (the list is popped from the back)
-        work.sort_by_key(|(_, _, plan, _)| plan.row_group_count());
+        work.sort_by_key(|(_, _, plan, _)| plan.chunk_count());
 
         let mut queue = WorkerQueue::new(self.num_threads);
         while let Some((table, session, plan, progress)) = work.pop() {
             let this = self.clone();
             queue
-                .schedule(plan.row_group_count(), move |num_threads| async move {
+                .schedule(plan.chunk_count(), move |num_threads| async move {
                     this.generate_table(table, session, plan, num_threads, progress)
                         .await?;
                     Ok(num_threads)

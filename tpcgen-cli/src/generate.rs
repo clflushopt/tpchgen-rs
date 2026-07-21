@@ -13,8 +13,8 @@ use tokio::task::JoinSet;
 
 /// Something that knows how to generate data into a buffer
 ///
-/// For example, this is implemented for the different generators in the tpchgen
-/// crate
+/// For example, this is implemented for the different generators in the
+/// `tpchgen` and `tpcdsgen` crates
 pub trait Source: Send {
     /// generates the data for this generator into the buffer, returning the buffer.
     fn create(self, buffer: Vec<u8>) -> Vec<u8>;

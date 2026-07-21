@@ -23,6 +23,13 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
 const DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES: usize = DEFAULT_PARQUET_ROW_GROUP_BYTES as usize;
 
+/// Target size of the in memory buffers DAT output is generated into.
+///
+/// Buffers are the unit of parallelism for DAT generation, so this trades off
+/// scheduling granularity against peak memory use (roughly this many bytes per
+/// thread).
+const DEFAULT_DAT_CHUNK_BYTES: usize = 8 * 1024 * 1024;
+
 enum OutputFormat {
     Dat(dat::Dat),
     Csv(csv::Csv),
@@ -54,6 +61,15 @@ enum Commands {
 struct DatArgs {
     #[command(flatten)]
     common: CommonArgs,
+
+    /// The number of threads for parallel generation, defaults to the number of CPUs
+    #[arg(
+        short,
+        long,
+        default_value_t = num_cpus::get(),
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
+    )]
+    num_threads: usize,
 }
 
 #[derive(Args)]
@@ -170,7 +186,7 @@ impl Cli {
 
 impl DatArgs {
     async fn run(self) -> Result<()> {
-        self.common.run_dat().await
+        self.common.run_dat(self.num_threads).await
     }
 }
 
@@ -189,13 +205,13 @@ impl ParquetArgs {
 }
 
 impl CommonArgs {
-    async fn run_dat(self) -> Result<()> {
-        let output = dat::Dat::new(self.output_dir.clone())?;
-        let tables = self.dat_tables()?;
-        // DAT return tables are emitted as side effects of their sales table generator.
-        // CSV and Parquet have direct return-table generators and do not need expansion.
-        self.run_output_with_tables(OutputFormat::Dat(output), tables)
-            .await
+    async fn run_dat(self, num_threads: usize) -> Result<()> {
+        let output = dat::Dat::new(
+            self.output_dir.clone(),
+            DEFAULT_DAT_CHUNK_BYTES,
+            num_threads,
+        )?;
+        self.run_output(OutputFormat::Dat(output)).await
     }
 
     async fn run_parquet(
@@ -233,30 +249,28 @@ impl CommonArgs {
 
         std::fs::create_dir_all(&self.output_dir)?;
 
-        match output_format {
-            // Parquet generates all tables in one call so that multiple
-            // tables can be generated concurrently
-            OutputFormat::Parquet(output) => {
-                let mut table_sessions = Vec::with_capacity(tables.len());
-                for table in tables {
+        // Parquet and DAT generate all tables in one call so that multiple
+        // tables can be generated concurrently
+        let table_sessions = |tables: Vec<Table>| -> Result<Vec<(Table, Session)>> {
+            tables
+                .into_iter()
+                .map(|table| {
                     let session = self.to_session(Some(table.get_name().to_string()))?;
-                    table_sessions.push((table, session));
-                }
+                    Ok((table, session))
+                })
+                .collect()
+        };
+
+        match output_format {
+            OutputFormat::Parquet(output) => {
                 output
-                    .generate_tables(table_sessions, progress.clone())
+                    .generate_tables(table_sessions(tables)?, progress.clone())
                     .await?;
             }
             OutputFormat::Dat(output) => {
-                let mut table_sessions = Vec::with_capacity(tables.len());
-                for table in tables {
-                    let session = self.to_session(Some(table.get_name().to_string()))?;
-                    let progress = output.register_table(table, &session, progress.clone());
-                    table_sessions.push((table, session, progress));
-                }
-                progress.start();
-                for (table, session, progress) in table_sessions {
-                    output.generate_table(table, &session, progress)?;
-                }
+                output
+                    .generate_tables(table_sessions(tables)?, progress.clone())
+                    .await?;
             }
             OutputFormat::Csv(output) => {
                 let mut table_sessions = Vec::with_capacity(tables.len());
@@ -298,24 +312,6 @@ impl CommonArgs {
             Some(tables) => Ok(tables.clone()),
             None => Ok(Table::main_tables()),
         }
-    }
-
-    /// Return the DAT tables to generate, mapping return-only selections to
-    /// their sales table generators because DAT emits return files as side effects.
-    fn dat_tables(&self) -> Result<Vec<Table>> {
-        let mut tables = Vec::new();
-        for table in self.tables()? {
-            let table = match table {
-                Table::CatalogReturns => Table::CatalogSales,
-                Table::StoreReturns => Table::StoreSales,
-                Table::WebReturns => Table::WebSales,
-                table => table,
-            };
-            if !tables.contains(&table) {
-                tables.push(table);
-            }
-        }
-        Ok(tables)
     }
 
     fn to_session(&self, table: Option<String>) -> Result<Session> {
