@@ -242,23 +242,27 @@ mod indicatif_impl {
     impl ProgressTracker for IndicatifProgress {
         fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
             // Indicatif treats zero-length items as complete.
-            let bar_len = total_units.max(1);
-            let pb = self.multi.add(
-                ProgressBar::new(bar_len)
+            let length = total_units.max(1);
+            let bar = self.multi.add(
+                ProgressBar::new(length)
                     .with_style(bar_style())
                     .with_message(item.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
-
-            let increment_bar = pb.clone();
-            let complete_bar = pb.clone();
-            self.lock_bars().push(pb);
+            let increment_bar = bar.clone();
+            let complete_bar = bar.clone();
+            self.lock_bars().push(bar);
 
             ProgressHandle::new_with_complete(
                 move |units| {
                     increment_bar.inc(units);
+                    if increment_bar.position() >= length {
+                        // Progress reached the total, so finish the bar.
+                        increment_bar.finish_using_style();
+                    }
                 },
                 move || {
+                    // The generator completed, so finish the bar.
                     complete_bar.finish_using_style();
                 },
             )
@@ -350,7 +354,7 @@ mod indicatif_impl {
         }
 
         #[test]
-        fn reaches_total() {
+        fn reaching_total_finishes_item() {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("orders", 5);
             for _ in 0..5 {
@@ -358,17 +362,28 @@ mod indicatif_impl {
             }
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 5);
-            assert!(!bars[0].is_finished());
+            assert!(bars[0].is_finished());
         }
 
         #[test]
-        fn item_completes_before_tracker_finishes() {
+        fn reaching_total_across_parts_finishes_item() {
+            let t = Arc::new(IndicatifProgress::hidden());
+            let first_part = t.clone().register("lineitem", 5);
+            let second_part = first_part.clone();
+
+            first_part.increment(2);
+            assert!(!t.bars.lock().unwrap()[0].is_finished());
+
+            second_part.increment(3);
+            assert!(t.bars.lock().unwrap()[0].is_finished());
+        }
+
+        #[test]
+        fn reaching_one_total_does_not_finish_other_items() {
             let t = Arc::new(IndicatifProgress::hidden());
             let orders = t.clone().register("orders", 5);
             let _lineitem = t.clone().register("lineitem", 10);
-            orders.increment(3);
-
-            orders.complete();
+            orders.increment(5);
 
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 5);
@@ -377,10 +392,25 @@ mod indicatif_impl {
         }
 
         #[test]
+        fn explicit_completion_finishes_item_below_total() {
+            let t = Arc::new(IndicatifProgress::hidden());
+            let progress = t.clone().register("catalog_returns", 10);
+            progress.increment(9);
+
+            progress.complete();
+
+            let bars = t.bars.lock().unwrap();
+            assert_eq!(bars[0].position(), 10);
+            assert!(bars[0].is_finished());
+        }
+
+        #[test]
         fn finish_marks_registered_items_finished() {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("orders", 2);
-            progress.increment(2);
+            progress.increment(1);
+            assert!(!t.bars.lock().unwrap()[0].is_finished());
+
             t.finish();
 
             assert!(t.bars.lock().unwrap()[0].is_finished());
