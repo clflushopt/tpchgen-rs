@@ -1,5 +1,4 @@
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::Date;
 use std::fmt;
 
@@ -144,18 +143,9 @@ impl DateDimRow {
             "N"
         }
     }
-
-    /// Get string value or NULL for optional fields
-    fn get_string_or_null<T: ToString>(&self, value: T, column_index: usize) -> String {
-        if self.is_field_null(column_index) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
 }
 
-/// DAT field helper mirroring `get_string_or_null`.
+/// DAT field helper for this row's columns.
 impl DateDimRow {
     fn field<T>(&self, value: T, column_index: usize) -> DatField<T> {
         DatField::new(value, self.is_field_null(column_index))
@@ -163,8 +153,8 @@ impl DateDimRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for DateDimRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -199,82 +189,5 @@ impl fmt::Display for DateDimRow {
             self.field(Self::format_boolean(self.d_current_quarter), 26),
             self.field(Self::format_boolean(self.d_current_year), 27),
         )
-    }
-}
-
-impl TableRow for DateDimRow {
-    fn get_values(&self) -> Vec<String> {
-        vec![
-            self.get_string_or_null(self.d_date_sk, 0),
-            self.get_string_or_null(&self.d_date_id, 1),
-            self.get_string_or_null(self.d_date.to_string(), 2),
-            self.get_string_or_null(self.d_month_seq, 3),
-            self.get_string_or_null(self.d_week_seq, 4),
-            self.get_string_or_null(self.d_quarter_seq, 5),
-            self.get_string_or_null(self.d_year, 6),
-            self.get_string_or_null(self.d_dow, 7),
-            self.get_string_or_null(self.d_moy, 8),
-            self.get_string_or_null(self.d_dom, 9),
-            self.get_string_or_null(self.d_qoy, 10),
-            self.get_string_or_null(self.d_fy_year, 11),
-            self.get_string_or_null(self.d_fy_quarter_seq, 12),
-            self.get_string_or_null(self.d_fy_week_seq, 13),
-            self.get_string_or_null(&self.d_day_name, 14),
-            self.get_string_or_null(&self.d_quarter_name, 15),
-            self.get_string_or_null(Self::format_boolean(self.d_holiday), 16),
-            self.get_string_or_null(Self::format_boolean(self.d_weekend), 17),
-            self.get_string_or_null(Self::format_boolean(self.d_following_holiday), 18),
-            self.get_string_or_null(self.d_first_dom, 19),
-            self.get_string_or_null(self.d_last_dom, 20),
-            self.get_string_or_null(self.d_same_day_ly, 21),
-            self.get_string_or_null(self.d_same_day_lq, 22),
-            self.get_string_or_null(Self::format_boolean(self.d_current_day), 23),
-            self.get_string_or_null(Self::format_boolean(self.d_current_week), 24),
-            self.get_string_or_null(Self::format_boolean(self.d_current_month), 25),
-            self.get_string_or_null(Self::format_boolean(self.d_current_quarter), 26),
-            self.get_string_or_null(Self::format_boolean(self.d_current_year), 27),
-        ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let row = DateDimRow::new(
-            0b10,
-            2451545,
-            "AAAAAAAAOKJNECAA".to_string(),
-            Date::from_julian_days(2451545),
-            1200,
-            5218,
-            400,
-            2000,
-            6,
-            1,
-            1,
-            1,
-            1999,
-            399,
-            5217,
-            "Saturday".to_string(),
-            "2000Q1".to_string(),
-            true,
-            true,
-            false,
-            2451545,
-            2451575,
-            2451179,
-            2451454,
-            false,
-            false,
-            false,
-            false,
-            true,
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 }

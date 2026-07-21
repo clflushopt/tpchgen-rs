@@ -14,7 +14,7 @@
 
 //! Generated row enum for static dispatch and zero-allocation row storage.
 //!
-//! This enum eliminates the need for `Box<dyn TableRow>` in the hot path,
+//! This enum eliminates the need for a boxed trait object in the hot path,
 //! avoiding heap allocations and enabling static dispatch.
 //!
 //! See ISSUE-004 for details.
@@ -23,15 +23,15 @@ use crate::row::{
     CallCenterRow, CatalogPageRow, CatalogReturnsRow, CatalogSalesRow, CustomerAddressRow,
     CustomerDemographicsRow, CustomerRow, DateDimRow, DbgenVersionRow, HouseholdDemographicsRow,
     IncomeBandRow, InventoryRow, ItemRow, PromotionRow, ReasonRow, ShipModeRow, StoreReturnsRow,
-    StoreRow, StoreSalesRow, TableRow, TimeDimRow, WarehouseRow, WebPageRow, WebReturnsRow,
-    WebSalesRow, WebSiteRow,
+    StoreRow, StoreSalesRow, TimeDimRow, WarehouseRow, WebPageRow, WebReturnsRow, WebSalesRow,
+    WebSiteRow,
 };
 use std::fmt;
 
 /// Enum holding all possible generated row types.
 ///
 /// This enables static dispatch and eliminates heap allocations that would
-/// be required with `Box<dyn TableRow>`.
+/// be required with a boxed trait object.
 #[derive(Clone)]
 pub enum GeneratedRow {
     CallCenter(CallCenterRow),
@@ -91,38 +91,6 @@ impl fmt::Display for GeneratedRow {
             GeneratedRow::WebReturns(row) => row.fmt(f),
             GeneratedRow::WebSales(row) => row.fmt(f),
             GeneratedRow::WebSite(row) => row.fmt(f),
-        }
-    }
-}
-
-impl TableRow for GeneratedRow {
-    fn get_values(&self) -> Vec<String> {
-        match self {
-            GeneratedRow::CallCenter(row) => row.get_values(),
-            GeneratedRow::CatalogPage(row) => row.get_values(),
-            GeneratedRow::CatalogReturns(row) => row.get_values(),
-            GeneratedRow::CatalogSales(row) => row.get_values(),
-            GeneratedRow::Customer(row) => row.get_values(),
-            GeneratedRow::CustomerAddress(row) => row.get_values(),
-            GeneratedRow::CustomerDemographics(row) => row.get_values(),
-            GeneratedRow::DateDim(row) => row.get_values(),
-            GeneratedRow::DbgenVersion(row) => row.get_values(),
-            GeneratedRow::HouseholdDemographics(row) => row.get_values(),
-            GeneratedRow::IncomeBand(row) => row.get_values(),
-            GeneratedRow::Inventory(row) => row.get_values(),
-            GeneratedRow::Item(row) => row.get_values(),
-            GeneratedRow::Promotion(row) => row.get_values(),
-            GeneratedRow::Reason(row) => row.get_values(),
-            GeneratedRow::ShipMode(row) => row.get_values(),
-            GeneratedRow::Store(row) => row.get_values(),
-            GeneratedRow::StoreReturns(row) => row.get_values(),
-            GeneratedRow::StoreSales(row) => row.get_values(),
-            GeneratedRow::TimeDim(row) => row.get_values(),
-            GeneratedRow::Warehouse(row) => row.get_values(),
-            GeneratedRow::WebPage(row) => row.get_values(),
-            GeneratedRow::WebReturns(row) => row.get_values(),
-            GeneratedRow::WebSales(row) => row.get_values(),
-            GeneratedRow::WebSite(row) => row.get_values(),
         }
     }
 }
@@ -287,15 +255,6 @@ mod tests {
         let row = CallCenterRow::builder().build();
         let generated: GeneratedRow = row.into();
         assert!(matches!(generated, GeneratedRow::CallCenter(_)));
-    }
-
-    #[test]
-    fn test_generated_row_get_values() {
-        let row = CallCenterRow::builder().build();
-        let generated: GeneratedRow = row.clone().into();
-
-        // Values should be the same whether accessed directly or through enum
-        assert_eq!(row.get_values(), generated.get_values());
     }
 
     #[test]

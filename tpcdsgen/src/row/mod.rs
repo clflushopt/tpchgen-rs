@@ -7,7 +7,20 @@ mod tables;
 pub use abstract_row_generator::AbstractRowGenerator;
 pub use generated_row::GeneratedRow;
 pub use row_generator::{RowGenerator, RowGeneratorResult};
-pub use table_row::TableRow;
+
+/// Splits a row's DAT line into its column values.
+///
+/// Test helper for the row tests, which assert on individual columns of the
+/// `fmt::Display` (DAT) output.
+#[cfg(test)]
+pub(crate) fn dat_values(row: &impl std::fmt::Display) -> Vec<String> {
+    row.to_string()
+        .strip_suffix('|')
+        .expect("DAT line ends with a field separator")
+        .split('|')
+        .map(str::to_string)
+        .collect()
+}
 pub use tables::{
     call_center_row, call_center_row_generator, catalog_page_row, catalog_page_row_generator,
     catalog_returns_row, catalog_returns_row_generator, catalog_sales_row,

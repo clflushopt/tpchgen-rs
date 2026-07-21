@@ -14,7 +14,6 @@
 
 use crate::generator::{GeneratorColumn, WebSiteGeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::{Address, Date, Decimal};
 use std::fmt;
 
@@ -137,54 +136,6 @@ impl WebSiteRow {
         &self.web_tax_percentage
     }
 
-    fn get_string_or_null_for_key(&self, key: i64, column: WebSiteGeneratorColumn) -> String {
-        if key == -1 || self.is_null_at(column) {
-            String::new()
-        } else {
-            key.to_string()
-        }
-    }
-
-    fn get_string_or_null_string(&self, value: &str, column: WebSiteGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null_int(&self, value: i32, column: WebSiteGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null_decimal(
-        &self,
-        value: &Decimal,
-        column: WebSiteGeneratorColumn,
-    ) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_date_string_or_null_from_julian_days(
-        &self,
-        julian_days: i64,
-        column: WebSiteGeneratorColumn,
-    ) -> String {
-        if self.is_null_at(column) || julian_days < 0 {
-            String::new()
-        } else {
-            Date::from_julian_days(julian_days as i32).to_string()
-        }
-    }
-
     fn is_null_at(&self, column: WebSiteGeneratorColumn) -> bool {
         let bit_position = column.get_global_column_number()
             - WebSiteGeneratorColumn::WebSiteSk.get_global_column_number();
@@ -214,7 +165,7 @@ impl WebSiteRow {
 
 impl WebSiteRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
-    /// key is -1 (mirrors `get_string_or_null_for_key`).
+    /// key is -1.
     fn key_field(&self, key: i64, column: WebSiteGeneratorColumn) -> DatField<i64> {
         DatField::new(key, key == -1 || self.is_null_at(column))
     }
@@ -225,7 +176,7 @@ impl WebSiteRow {
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
-    /// julian day is negative (mirrors `get_date_string_or_null_from_julian_days`).
+    /// julian day is negative.
     fn date_field(&self, julian_days: i64, column: WebSiteGeneratorColumn) -> DatField<Date> {
         DatField::from(
             (!(self.is_null_at(column) || julian_days < 0))
@@ -235,8 +186,8 @@ impl WebSiteRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for WebSiteRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use WebSiteGeneratorColumn::*;
@@ -277,142 +228,10 @@ impl fmt::Display for WebSiteRow {
     }
 }
 
-impl TableRow for WebSiteRow {
-    fn get_values(&self) -> Vec<String> {
-        vec![
-            self.get_string_or_null_for_key(self.web_site_sk, WebSiteGeneratorColumn::WebSiteSk),
-            self.get_string_or_null_string(&self.web_site_id, WebSiteGeneratorColumn::WebSiteId),
-            self.get_date_string_or_null_from_julian_days(
-                self.web_rec_start_date_id,
-                WebSiteGeneratorColumn::WebRecStartDateId,
-            ),
-            self.get_date_string_or_null_from_julian_days(
-                self.web_rec_end_date_id,
-                WebSiteGeneratorColumn::WebRecEndDateId,
-            ),
-            self.get_string_or_null_string(&self.web_name, WebSiteGeneratorColumn::WebName),
-            self.get_string_or_null_for_key(
-                self.web_open_date,
-                WebSiteGeneratorColumn::WebOpenDate,
-            ),
-            self.get_string_or_null_for_key(
-                self.web_close_date,
-                WebSiteGeneratorColumn::WebCloseDate,
-            ),
-            self.get_string_or_null_string(&self.web_class, WebSiteGeneratorColumn::WebClass),
-            self.get_string_or_null_string(&self.web_manager, WebSiteGeneratorColumn::WebManager),
-            self.get_string_or_null_int(self.web_market_id, WebSiteGeneratorColumn::WebMarketId),
-            self.get_string_or_null_string(
-                &self.web_market_class,
-                WebSiteGeneratorColumn::WebMarketClass,
-            ),
-            self.get_string_or_null_string(
-                &self.web_market_desc,
-                WebSiteGeneratorColumn::WebMarketDesc,
-            ),
-            self.get_string_or_null_string(
-                &self.web_market_manager,
-                WebSiteGeneratorColumn::WebMarketManager,
-            ),
-            self.get_string_or_null_int(self.web_company_id, WebSiteGeneratorColumn::WebCompanyId),
-            self.get_string_or_null_string(
-                &self.web_company_name,
-                WebSiteGeneratorColumn::WebCompanyName,
-            ),
-            self.get_string_or_null_string(
-                &self.web_address.get_street_number().to_string(),
-                WebSiteGeneratorColumn::WebAddressStreetNum,
-            ),
-            self.get_string_or_null_string(
-                &self.web_address.get_street_name(),
-                WebSiteGeneratorColumn::WebAddressStreetName1,
-            ),
-            self.get_string_or_null_string(
-                self.web_address.get_street_type(),
-                WebSiteGeneratorColumn::WebAddressStreetType,
-            ),
-            self.get_string_or_null_string(
-                self.web_address.get_suite_number(),
-                WebSiteGeneratorColumn::WebAddressSuiteNum,
-            ),
-            self.get_string_or_null_string(
-                self.web_address.get_city(),
-                WebSiteGeneratorColumn::WebAddressCity,
-            ),
-            self.get_string_or_null_string(
-                self.web_address.get_county().unwrap_or(""),
-                WebSiteGeneratorColumn::WebAddressCounty,
-            ),
-            self.get_string_or_null_string(
-                self.web_address.get_state(),
-                WebSiteGeneratorColumn::WebAddressState,
-            ),
-            self.get_string_or_null_string(
-                &format!("{:05}", self.web_address.get_zip()),
-                WebSiteGeneratorColumn::WebAddressZip,
-            ),
-            self.get_string_or_null_string(
-                self.web_address.get_country(),
-                WebSiteGeneratorColumn::WebAddressCountry,
-            ),
-            self.get_string_or_null_int(
-                self.web_address.get_gmt_offset(),
-                WebSiteGeneratorColumn::WebAddressGmtOffset,
-            ),
-            self.get_string_or_null_decimal(
-                &self.web_tax_percentage,
-                WebSiteGeneratorColumn::WebTaxPercentage,
-            ),
-        ]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn test_address() -> Address {
-        Address::new(
-            "Suite 100".to_string(),
-            100,
-            "Main".to_string(),
-            "Street".to_string(),
-            "Blvd".to_string(),
-            "Springfield".to_string(),
-            Some("Some County".to_string()),
-            "CA".to_string(),
-            "United States".to_string(),
-            904,
-            -8,
-        )
-        .unwrap()
-    }
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let row = WebSiteRow::new(
-            0b10,
-            1,
-            "AAAAAAAABAAAAAAA".to_string(),
-            2450815,
-            -1,
-            "site_0".to_string(),
-            2450807,
-            -1,
-            "Unknown".to_string(),
-            "Otis Boyd".to_string(),
-            2,
-            "mkt class".to_string(),
-            "mkt desc".to_string(),
-            "Mkt Mgr".to_string(),
-            10,
-            "Company".to_string(),
-            test_address(),
-            Decimal::new(12, 2).unwrap(),
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
-    }
+    use crate::row::dat_values;
 
     #[test]
     fn test_web_site_row_values_count() {
@@ -452,7 +271,7 @@ mod tests {
             Decimal::new(650, 2).unwrap(),
         );
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values.len(), 26);
     }
 }

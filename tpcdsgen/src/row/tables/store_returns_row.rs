@@ -16,7 +16,6 @@
 
 use crate::generator::{GeneratorColumn, StoreReturnsGeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::Pricing;
 use std::fmt;
 
@@ -66,34 +65,6 @@ impl StoreReturnsRow {
             sr_reason_sk,
             sr_ticket_number,
             sr_pricing,
-        }
-    }
-
-    fn get_string_or_null_for_key(&self, key: i64, column: StoreReturnsGeneratorColumn) -> String {
-        if key == -1 || self.is_null_at(column) {
-            String::new()
-        } else {
-            key.to_string()
-        }
-    }
-
-    fn get_string_or_null_int(&self, value: i32, column: StoreReturnsGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null_decimal(
-        &self,
-        value: &crate::types::Decimal,
-        column: StoreReturnsGeneratorColumn,
-    ) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
         }
     }
 
@@ -153,8 +124,8 @@ impl StoreReturnsRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for StoreReturnsRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use StoreReturnsGeneratorColumn::*;
@@ -213,53 +184,10 @@ impl fmt::Display for StoreReturnsRow {
     }
 }
 
-impl TableRow for StoreReturnsRow {
-    fn get_values(&self) -> Vec<String> {
-        use StoreReturnsGeneratorColumn::*;
-
-        vec![
-            self.get_string_or_null_for_key(self.sr_returned_date_sk, SrReturnedDateSk),
-            self.get_string_or_null_for_key(self.sr_returned_time_sk, SrReturnedTimeSk),
-            self.get_string_or_null_for_key(self.sr_item_sk, SrItemSk),
-            self.get_string_or_null_for_key(self.sr_customer_sk, SrCustomerSk),
-            self.get_string_or_null_for_key(self.sr_cdemo_sk, SrCdemoSk),
-            self.get_string_or_null_for_key(self.sr_hdemo_sk, SrHdemoSk),
-            self.get_string_or_null_for_key(self.sr_addr_sk, SrAddrSk),
-            self.get_string_or_null_for_key(self.sr_store_sk, SrStoreSk),
-            self.get_string_or_null_for_key(self.sr_reason_sk, SrReasonSk),
-            self.get_string_or_null_for_key(self.sr_ticket_number, SrTicketNumber),
-            self.get_string_or_null_int(self.sr_pricing.get_quantity(), SrPricingQuantity),
-            self.get_string_or_null_decimal(&self.sr_pricing.get_net_paid(), SrPricingNetPaid),
-            self.get_string_or_null_decimal(&self.sr_pricing.get_ext_tax(), SrPricingExtTax),
-            self.get_string_or_null_decimal(
-                &self.sr_pricing.get_net_paid_including_tax(),
-                SrPricingNetPaidIncTax,
-            ),
-            self.get_string_or_null_decimal(&self.sr_pricing.get_fee(), SrPricingFee),
-            self.get_string_or_null_decimal(
-                &self.sr_pricing.get_ext_ship_cost(),
-                SrPricingExtShipCost,
-            ),
-            self.get_string_or_null_decimal(
-                &self.sr_pricing.get_refunded_cash(),
-                SrPricingRefundedCash,
-            ),
-            self.get_string_or_null_decimal(
-                &self.sr_pricing.get_reversed_charge(),
-                SrPricingReversedCharge,
-            ),
-            self.get_string_or_null_decimal(
-                &self.sr_pricing.get_store_credit(),
-                SrPricingStoreCredit,
-            ),
-            self.get_string_or_null_decimal(&self.sr_pricing.get_net_loss(), SrPricingNetLoss),
-        ]
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::row::dat_values;
     use crate::types::Decimal;
 
     fn create_test_pricing() -> Pricing {
@@ -308,23 +236,10 @@ mod tests {
             pricing,
         );
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values.len(), 20);
         assert_eq!(values[0], "2451545"); // sr_returned_date_sk
         assert_eq!(values[9], "1"); // sr_ticket_number
-    }
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let pricing = create_test_pricing();
-        // A null bit (sr_returned_time_sk) plus a -1 key (sr_reason_sk)
-        // exercise both NULL paths.
-        let row = StoreReturnsRow::new(
-            0b10, 2451545, 36000, 1, 100, 200, 300, 400, 500, -1, 1, pricing,
-        );
-
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 
     #[test]
@@ -336,7 +251,7 @@ mod tests {
             2451545, 36000, 1, 100, 200, 300, 400, 500, 600, 1, pricing,
         );
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values[0], "2451545"); // not null
         assert_eq!(values[1], ""); // null (bit 1 set)
     }
