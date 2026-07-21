@@ -16,16 +16,18 @@
 //!
 //! Generates TPC-DS benchmark data with byte-for-byte compatibility with the Java reference.
 
-use crate::progress::{ProgressHandle, ProgressTracker};
+use super::generate::{generate_table, TableOutput, TableWriter};
+use super::progress::{register_table, TableProgress};
+use crate::progress::ProgressTracker;
 use std::fs::File;
-use std::path::{Path, PathBuf};
+use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 
-use log::info;
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::error::InvalidOptionError;
 use tpcdsgen::output::DatWriter;
-use tpcdsgen::row::*;
+use tpcdsgen::row::GeneratedRow;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -37,16 +39,6 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[derive(Debug, Clone)]
 pub(super) struct Dat {
     output_dir: PathBuf,
-}
-
-#[derive(Debug)]
-pub(super) enum DatProgress {
-    None,
-    Single(ProgressHandle),
-    Paired {
-        sales: ProgressHandle,
-        returns: ProgressHandle,
-    },
 }
 
 impl Dat {
@@ -67,333 +59,43 @@ impl Dat {
         table: Table,
         session: &Session,
         progress: Arc<dyn ProgressTracker>,
-    ) -> DatProgress {
-        let register = |table: Table| {
-            let row_count = session.get_scaling().get_row_count(table);
-            progress
-                .clone()
-                .register(table.get_name(), row_count.try_into().unwrap_or(0))
-        };
-
-        match table {
-            Table::StoreSales => DatProgress::Paired {
-                sales: register(Table::StoreSales),
-                returns: register(Table::StoreReturns),
-            },
-            Table::CatalogSales => DatProgress::Paired {
-                sales: register(Table::CatalogSales),
-                returns: register(Table::CatalogReturns),
-            },
-            Table::WebSales => DatProgress::Paired {
-                sales: register(Table::WebSales),
-                returns: register(Table::WebReturns),
-            },
-            Table::StoreReturns | Table::CatalogReturns | Table::WebReturns => DatProgress::None,
-            _ => DatProgress::Single(register(table)),
-        }
+    ) -> TableProgress {
+        register_table(table, session, progress)
     }
 
     pub(super) fn generate_table(
         &self,
         table: Table,
         session: &Session,
-        progress: DatProgress,
+        progress: TableProgress,
     ) -> Result<()> {
-        match table {
-            // Simple dimension tables
-            Table::CallCenter => generate_simple::<CallCenterRowGenerator>(
-                table,
-                session,
-                &self.output_dir,
-                progress,
-            ),
-            Table::CatalogPage => generate_simple::<CatalogPageRowGenerator>(
-                table,
-                session,
-                &self.output_dir,
-                progress,
-            ),
-            Table::Customer => {
-                generate_simple::<CustomerRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::CustomerAddress => generate_simple::<CustomerAddressRowGenerator>(
-                table,
-                session,
-                &self.output_dir,
-                progress,
-            ),
-            Table::CustomerDemographics => generate_simple::<CustomerDemographicsRowGenerator>(
-                table,
-                session,
-                &self.output_dir,
-                progress,
-            ),
-            Table::DateDim => {
-                generate_simple::<DateDimRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::DbgenVersion => generate_simple::<DbgenVersionRowGenerator>(
-                table,
-                session,
-                &self.output_dir,
-                progress,
-            ),
-            Table::HouseholdDemographics => generate_simple::<HouseholdDemographicsRowGenerator>(
-                table,
-                session,
-                &self.output_dir,
-                progress,
-            ),
-            Table::IncomeBand => generate_simple::<IncomeBandRowGenerator>(
-                table,
-                session,
-                &self.output_dir,
-                progress,
-            ),
-            Table::Item => {
-                generate_simple::<ItemRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::Promotion => {
-                generate_simple::<PromotionRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::Reason => {
-                generate_simple::<ReasonRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::ShipMode => {
-                generate_simple::<ShipModeRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::Store => {
-                generate_simple::<StoreRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::TimeDim => {
-                generate_simple::<TimeDimRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::Warehouse => {
-                generate_simple::<WarehouseRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::WebPage => {
-                generate_simple::<WebPageRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::WebSite => {
-                generate_simple::<WebSiteRowGenerator>(table, session, &self.output_dir, progress)
-            }
-            Table::Inventory => {
-                generate_simple::<InventoryRowGenerator>(table, session, &self.output_dir, progress)
-            }
-
-            // Sales generators write their return tables at the same time.
-            Table::StoreSales => generate_store_sales(session, &self.output_dir, progress),
-            Table::StoreReturns => Ok(()), // Generated with StoreSales
-            Table::CatalogSales => generate_catalog_sales(session, &self.output_dir, progress),
-            Table::CatalogReturns => Ok(()), // Generated with CatalogSales
-            Table::WebSales => generate_web_sales(session, &self.output_dir, progress),
-            Table::WebReturns => Ok(()), // Generated with WebSales
-
-            // Source tables - skip
-            _ => Ok(()),
-        }
+        generate_table(self, table, session, progress)
     }
 }
 
-/// Trait for creating row generators
-trait RowGeneratorFactory: RowGenerator + Sized {
-    fn create() -> Self;
+impl TableOutput for Dat {
+    type Writer = DatTableWriter;
+
+    fn create_writer(&self, table: Table, session: &Session) -> Result<Self::Writer> {
+        let path = self.output_dir.join(format!("{}.dat", table.get_name()));
+        let writer = DatWriter::new(File::create(&path)?, session.get_compat_mode());
+        Ok(DatTableWriter { writer, path })
+    }
 }
 
-macro_rules! impl_factory {
-    ($($gen:ty),*) => {
-        $(
-            impl RowGeneratorFactory for $gen {
-                fn create() -> Self { Self::new() }
-            }
-        )*
-    };
+/// One DAT output file. Rows are written straight to `<table>.dat`.
+pub(super) struct DatTableWriter {
+    writer: DatWriter<File>,
+    path: PathBuf,
 }
 
-// Implement factory for all simple generators
-impl_factory!(
-    CallCenterRowGenerator,
-    CatalogPageRowGenerator,
-    CustomerRowGenerator,
-    CustomerAddressRowGenerator,
-    CustomerDemographicsRowGenerator,
-    DateDimRowGenerator,
-    DbgenVersionRowGenerator,
-    HouseholdDemographicsRowGenerator,
-    IncomeBandRowGenerator,
-    InventoryRowGenerator,
-    ItemRowGenerator,
-    PromotionRowGenerator,
-    ReasonRowGenerator,
-    ShipModeRowGenerator,
-    StoreRowGenerator,
-    TimeDimRowGenerator,
-    WarehouseRowGenerator,
-    WebPageRowGenerator,
-    WebSiteRowGenerator
-);
-
-// Implement factory for generators that emit sales and returns rows
-impl_factory!(
-    CatalogSalesRowGenerator,
-    StoreSalesRowGenerator,
-    WebSalesRowGenerator
-);
-
-/// Generate a simple table (one row per row_number, no child tables)
-fn generate_simple<G: RowGeneratorFactory>(
-    table: Table,
-    session: &Session,
-    output_dir: &Path,
-    progress: DatProgress,
-) -> Result<()> {
-    let DatProgress::Single(progress) = progress else {
-        unreachable!("simple DAT table must have one progress handle")
-    };
-    let mut generator = G::create();
-    let row_count = session.get_scaling().get_row_count(table);
-
-    let path = get_output_path(table, output_dir);
-    let file = File::create(&path)?;
-    let mut writer = DatWriter::new(file, session.get_compat_mode());
-
-    info!("Generating {}...", table.get_name());
-
-    for row_number in 1..=row_count {
-        let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
-
-        for row in result.get_rows() {
-            writer.write_display_row(row)?;
-        }
-
-        generator.consume_remaining_seeds_for_row();
-        progress.increment(1);
+impl TableWriter for DatTableWriter {
+    fn write_row(&mut self, row: &GeneratedRow) -> io::Result<()> {
+        self.writer.write_display_row(row)
     }
 
-    writer.flush()?;
-    info!(
-        "Generated {}: {} rows -> {}",
-        table.get_name(),
-        row_count,
-        path.display()
-    );
-
-    Ok(())
-}
-
-/// Generate store_sales and store_returns together
-fn generate_store_sales(session: &Session, output_dir: &Path, progress: DatProgress) -> Result<()> {
-    generate_sales_and_returns::<StoreSalesRowGenerator>(
-        Table::StoreSales,
-        Table::StoreReturns,
-        session,
-        output_dir,
-        progress,
-    )
-}
-
-/// Generate catalog_sales and catalog_returns together
-fn generate_catalog_sales(
-    session: &Session,
-    output_dir: &Path,
-    progress: DatProgress,
-) -> Result<()> {
-    generate_sales_and_returns::<CatalogSalesRowGenerator>(
-        Table::CatalogSales,
-        Table::CatalogReturns,
-        session,
-        output_dir,
-        progress,
-    )
-}
-
-/// Generate web_sales and web_returns together
-fn generate_web_sales(session: &Session, output_dir: &Path, progress: DatProgress) -> Result<()> {
-    generate_sales_and_returns::<WebSalesRowGenerator>(
-        Table::WebSales,
-        Table::WebReturns,
-        session,
-        output_dir,
-        progress,
-    )
-}
-
-/// Generate sales and returns tables in one pass.
-///
-/// Sales generators can emit rows for both output tables. Keeping them paired
-/// preserves row advancement and seed consumption.
-fn generate_sales_and_returns<G: RowGeneratorFactory>(
-    sales_table: Table,
-    returns_table: Table,
-    session: &Session,
-    output_dir: &Path,
-    progress: DatProgress,
-) -> Result<()> {
-    let DatProgress::Paired {
-        sales: sales_progress,
-        returns: returns_progress,
-    } = progress
-    else {
-        unreachable!("sales DAT table must have sales and returns progress handles")
-    };
-    let mut generator = G::create();
-    let source_row_count = session.get_scaling().get_row_count(sales_table);
-
-    let sales_path = get_output_path(sales_table, output_dir);
-    let returns_path = get_output_path(returns_table, output_dir);
-
-    let compat_mode = session.get_compat_mode();
-    let mut sales_writer = DatWriter::new(File::create(&sales_path)?, compat_mode);
-    let mut returns_writer = DatWriter::new(File::create(&returns_path)?, compat_mode);
-
-    info!(
-        "Generating {} + {}...",
-        sales_table.get_name(),
-        returns_table.get_name()
-    );
-
-    let mut sales_count = 0i64;
-    let mut returns_count = 0i64;
-    let mut row_number = 1i64;
-
-    while row_number <= source_row_count {
-        let result = generator.generate_row_and_child_rows(row_number, session, None, None)?;
-        let rows = result.get_rows();
-
-        if !rows.is_empty() {
-            sales_writer.write_display_row(&rows[0])?;
-            sales_count += 1;
-        }
-
-        if rows.len() > 1 {
-            returns_writer.write_display_row(&rows[1])?;
-            returns_count += 1;
-            returns_progress.increment(1);
-        }
-
-        if result.should_end_row() {
-            generator.consume_remaining_seeds_for_row();
-            row_number += 1;
-            sales_progress.increment(1);
-        }
+    fn finish(mut self) -> Result<PathBuf> {
+        self.writer.flush()?;
+        Ok(self.path)
     }
-
-    sales_writer.flush()?;
-    returns_writer.flush()?;
-
-    info!(
-        "Generated {} + {}: {} sales, {} returns -> {}, {}",
-        sales_table.get_name(),
-        returns_table.get_name(),
-        sales_count,
-        returns_count,
-        sales_path.display(),
-        returns_path.display()
-    );
-
-    Ok(())
-}
-
-/// Get output file path for a table
-fn get_output_path(table: Table, output_dir: &Path) -> PathBuf {
-    output_dir.join(format!("{}.dat", table.get_name()))
 }

@@ -5,9 +5,9 @@ use std::fmt;
 #[derive(Debug, Clone)]
 pub struct ReasonRow {
     null_bit_map: i64,
-    r_reason_sk: i64,
-    r_reason_id: String,
-    r_reason_description: String,
+    pub(crate) r_reason_sk: i64,
+    pub(crate) r_reason_id: String,
+    pub(crate) r_reason_description: String,
 }
 
 impl ReasonRow {
@@ -26,7 +26,7 @@ impl ReasonRow {
     }
 
     /// Check if a column should be null based on the null bitmap (TableRowWithNulls logic)
-    fn should_be_null(&self, column_position: i32) -> bool {
+    pub(crate) fn should_be_null(&self, column_position: i32) -> bool {
         ((self.null_bit_map >> column_position) & 1) == 1
     }
 
@@ -50,7 +50,7 @@ impl ReasonRow {
 /// DAT field helper: NULL is driven purely by the null bit
 /// (reason applies no key sentinel check, only the null bit).
 impl ReasonRow {
-    fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
+    pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
     }
 }
