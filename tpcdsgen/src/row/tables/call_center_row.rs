@@ -169,8 +169,7 @@ impl CallCenterRow {
         )
     }
 
-    /// DAT field printing the literal `NULL` when the null bit is set
-    ///.
+    /// DAT field printing the literal `NULL` when the null bit is set.
     fn nulled<T>(&self, value: T, column_position: i32) -> NullLiteralField<T> {
         NullLiteralField::new(value, self.is_null(column_position))
     }

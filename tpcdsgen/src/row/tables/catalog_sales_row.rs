@@ -186,8 +186,7 @@ impl CatalogSalesRow {
         DatField::new(value, self.is_null(column) || value < 0)
     }
 
-    /// DAT field for a regular value: NULL when the null bit is set
-    ///.
+    /// DAT field for a regular value: NULL when the null bit is set.
     fn field<T>(&self, value: T, column: &CatalogSalesGeneratorColumn) -> DatField<T> {
         DatField::new(value, self.is_null(column))
     }
