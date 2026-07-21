@@ -257,12 +257,13 @@ mod indicatif_impl {
                 move |units| {
                     increment_bar.inc(units);
                     if increment_bar.position() >= length {
-                        // Progress reached the total, so finish the bar.
+                        // Finish exact-count items even when the caller does not report completion.
                         increment_bar.finish_using_style();
                     }
                 },
                 move || {
-                    // The generator completed, so finish the bar.
+                    // Finish when the caller reports successful item completion, even if
+                    // the counter has not reached its registered total.
                     complete_bar.finish_using_style();
                 },
             )
