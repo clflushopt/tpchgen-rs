@@ -61,6 +61,7 @@ jobs:
 
   # Build wheels + sdist (but don’t upload artifacts)
   build-packages:
+    needs: lint
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
