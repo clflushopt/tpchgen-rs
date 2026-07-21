@@ -832,3 +832,21 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_arrow_schema() {
         .expect("dv_create_time field");
     assert_eq!(field.data_type(), &DataType::Time32(TimeUnit::Second));
 }
+
+/// Test that `--help` lists each selectable TPC-DS table.
+#[test]
+fn test_tpcgen_cli_tpcds_help_lists_tables() {
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("--help")
+        .assert()
+        .success();
+
+    let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
+    for table in Table::main_tables() {
+        assert!(
+            stdout.contains(&format!("- {}:", table.get_name())),
+            "Expected `tpcds --help` to list {table}, got stdout: {stdout}"
+        );
+    }
+}
