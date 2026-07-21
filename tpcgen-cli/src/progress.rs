@@ -253,20 +253,21 @@ mod indicatif_impl {
             let complete_bar = bar.clone();
             self.lock_bars().push(bar);
 
-            ProgressHandle::new_with_complete(
-                move |units| {
-                    increment_bar.inc(units);
-                    if increment_bar.position() >= length {
-                        // Finish exact-count items even when the caller does not report completion.
-                        increment_bar.finish_using_style();
-                    }
-                },
-                move || {
-                    // Finish when the caller reports successful item completion, even if
-                    // the counter has not reached its registered total.
-                    complete_bar.finish_using_style();
-                },
-            )
+            let on_increment = move |units| {
+                increment_bar.inc(units);
+                if increment_bar.position() >= length {
+                    // Finish exact-count items even when the caller does not report completion.
+                    increment_bar.finish_using_style();
+                }
+            };
+
+            let on_complete = move || {
+                // Finish when the caller reports successful item completion, even if
+                // the counter has not reached its registered total.
+                complete_bar.finish_using_style();
+            };
+
+            ProgressHandle::new_with_complete(on_increment, on_complete)
         }
 
         fn start(&self) {
