@@ -16,7 +16,6 @@
 
 use crate::generator::{CatalogPageGeneratorColumn, GeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use std::fmt;
 
 /// Catalog page row
@@ -68,34 +67,6 @@ impl CatalogPageRow {
         (self.null_bit_map & (1 << bit_position)) != 0
     }
 
-    fn get_string_or_null_for_key(
-        &self,
-        value: i64,
-        column: &CatalogPageGeneratorColumn,
-    ) -> String {
-        if self.is_null(column) || value < 0 {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null(&self, value: &str, column: &CatalogPageGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_int_or_null(&self, value: i32, column: &CatalogPageGeneratorColumn) -> String {
-        if self.is_null(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
     pub fn null_bit_map(&self) -> i64 {
         self.null_bit_map
     }
@@ -139,7 +110,7 @@ impl CatalogPageRow {
 
 impl CatalogPageRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
-    /// key is negative (mirrors `get_string_or_null_for_key`).
+    /// key is negative.
     pub(crate) fn key_field(
         &self,
         value: i64,
@@ -155,8 +126,8 @@ impl CatalogPageRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for CatalogPageRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use CatalogPageGeneratorColumn::*;
@@ -174,47 +145,5 @@ impl fmt::Display for CatalogPageRow {
             self.field(&self.cp_description, &CpDescription),
             self.field(&self.cp_type, &CpType),
         )
-    }
-}
-
-impl TableRow for CatalogPageRow {
-    fn get_values(&self) -> Vec<String> {
-        use CatalogPageGeneratorColumn::*;
-        vec![
-            self.get_string_or_null_for_key(self.cp_catalog_page_sk, &CpCatalogPageSk),
-            self.get_string_or_null(&self.cp_catalog_page_id, &CpCatalogPageId),
-            self.get_string_or_null_for_key(self.cp_start_date_id, &CpStartDateId),
-            self.get_string_or_null_for_key(self.cp_end_date_id, &CpEndDateId),
-            self.get_string_or_null(&self.cp_department, &CpDepartment),
-            self.get_int_or_null(self.cp_catalog_number, &CpCatalogNumber),
-            self.get_int_or_null(self.cp_catalog_page_number, &CpCatalogPageNumber),
-            self.get_string_or_null(&self.cp_description, &CpDescription),
-            self.get_string_or_null(&self.cp_type, &CpType),
-        ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        // Null bit on cp_catalog_page_id plus a negative cp_end_date_id
-        // exercise both NULL paths.
-        let row = CatalogPageRow::new(
-            0b10,
-            1,
-            "AAAAAAAABAAAAAAA".to_string(),
-            2450815,
-            -1,
-            "DEPARTMENT".to_string(),
-            1,
-            27,
-            "A description".to_string(),
-            "bi-annual".to_string(),
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 }

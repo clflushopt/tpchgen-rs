@@ -1,5 +1,4 @@
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use crate::types::Date;
 use std::fmt;
 
@@ -99,58 +98,6 @@ impl WebPageRow {
         (self.null_bit_map & (1 << column_position)) != 0
     }
 
-    /// Convert optional value to string or empty string if null (getStringOrNull)
-    fn get_string_or_null<T: std::fmt::Display>(
-        &self,
-        value: Option<&T>,
-        column_position: i32,
-    ) -> String {
-        if self.should_be_null(column_position) {
-            String::new()
-        } else {
-            match value {
-                Some(v) => v.to_string(),
-                None => String::new(),
-            }
-        }
-    }
-
-    /// Convert key to string or empty string if null (getStringOrNullForKey)
-    /// Returns empty if null OR if value is -1
-    fn get_string_or_null_for_key(&self, value: i64, column_position: i32) -> String {
-        if self.should_be_null(column_position) || value == -1 {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    /// Convert boolean to Y/N string or empty string if null (getStringOrNullForBoolean)
-    fn get_string_or_null_for_boolean(&self, value: bool, column_position: i32) -> String {
-        if self.should_be_null(column_position) {
-            String::new()
-        } else if value {
-            "Y".to_string()
-        } else {
-            "N".to_string()
-        }
-    }
-
-    /// Convert julian date to date string or empty string if null (getDateStringOrNullFromJulianDays)
-    /// Returns empty if null OR if value is negative
-    fn get_date_string_or_null_from_julian_days(
-        &self,
-        julian_days: i64,
-        column_position: i32,
-    ) -> String {
-        if self.should_be_null(column_position) || julian_days < 0 {
-            String::new()
-        } else {
-            let date = Date::from_julian_days(julian_days as i32);
-            date.to_string()
-        }
-    }
-
     pub fn null_bit_map(&self) -> i64 {
         self.null_bit_map
     }
@@ -182,7 +129,7 @@ impl WebPageRow {
 
 impl WebPageRow {
     /// DAT field for a surrogate key: NULL when the null bit is set or the
-    /// key is -1 (mirrors `get_string_or_null_for_key`).
+    /// key is -1.
     pub(crate) fn key_field(&self, value: i64, column_position: i32) -> DatField<i64> {
         DatField::new(value, self.should_be_null(column_position) || value == -1)
     }
@@ -193,7 +140,7 @@ impl WebPageRow {
     }
 
     /// DAT field for an SCD date: NULL when the null bit is set or the
-    /// julian day is negative (mirrors `get_date_string_or_null_from_julian_days`).
+    /// julian day is negative.
     pub(crate) fn date_field(&self, julian_days: i64, column_position: i32) -> DatField<Date> {
         DatField::from(
             (!(self.should_be_null(column_position) || julian_days < 0))
@@ -203,8 +150,8 @@ impl WebPageRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for WebPageRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -225,54 +172,5 @@ impl fmt::Display for WebPageRow {
             self.field(self.wp_image_count, 12),
             self.field(self.wp_max_ad_count, 13),
         )
-    }
-}
-
-impl TableRow for WebPageRow {
-    fn get_values(&self) -> Vec<String> {
-        vec![
-            self.get_string_or_null_for_key(self.wp_page_sk, 0),
-            self.get_string_or_null(Some(&self.wp_page_id), 1),
-            self.get_date_string_or_null_from_julian_days(self.wp_rec_start_date_id, 2),
-            self.get_date_string_or_null_from_julian_days(self.wp_rec_end_date_id, 3),
-            self.get_string_or_null_for_key(self.wp_creation_date_sk, 4),
-            self.get_string_or_null_for_key(self.wp_access_date_sk, 5),
-            self.get_string_or_null_for_boolean(self.wp_autogen_flag, 6),
-            self.get_string_or_null_for_key(self.wp_customer_sk, 7),
-            self.get_string_or_null(Some(&self.wp_url), 8),
-            self.get_string_or_null(Some(&self.wp_type), 9),
-            self.get_string_or_null(Some(&self.wp_char_count.to_string()), 10),
-            self.get_string_or_null(Some(&self.wp_link_count.to_string()), 11),
-            self.get_string_or_null(Some(&self.wp_image_count.to_string()), 12),
-            self.get_string_or_null(Some(&self.wp_max_ad_count.to_string()), 13),
-        ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let row = WebPageRow::new(
-            0b10,
-            1,
-            "AAAAAAAABAAAAAAA".to_string(),
-            2450815,
-            -1,
-            2450807,
-            -1,
-            true,
-            -1,
-            "http://www.foo.com".to_string(),
-            "welcome".to_string(),
-            2531,
-            8,
-            3,
-            4,
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 }

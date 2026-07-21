@@ -13,7 +13,6 @@
  */
 
 use crate::row::table_row::NullLiteralField;
-use crate::row::TableRow;
 use std::fmt;
 
 /// Household Demographics row data structure (HouseholdDemographicsRow)
@@ -67,30 +66,11 @@ impl HouseholdDemographicsRow {
     pub(crate) fn is_null(&self, column_position: i32) -> bool {
         (self.null_bit_map & (1 << column_position)) != 0
     }
-
-    /// Format a value as string, handling nulls
-    fn format_value(&self, value: &str, column_position: i32) -> String {
-        if self.is_null(column_position) {
-            "NULL".to_string()
-        } else {
-            value.to_string()
-        }
-    }
-
-    /// Format a numeric value as string, handling nulls
-    fn format_numeric<T: std::fmt::Display>(&self, value: T, column_position: i32) -> String {
-        if self.is_null(column_position) {
-            "NULL".to_string()
-        } else {
-            value.to_string()
-        }
-    }
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator (no newline); NULL values/numerics print the literal `NULL`,
-/// like `get_values`. Produces the same bytes as joining
-/// [`TableRow::get_values`] with `|`.
+/// separator (no newline); NULL values/numerics print the literal `NULL`
+/// (a Java quirk preserved for byte-for-byte compatibility).
 impl fmt::Display for HouseholdDemographicsRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -102,19 +82,6 @@ impl fmt::Display for HouseholdDemographicsRow {
             NullLiteralField::new(self.hd_dep_count, self.is_null(3)),
             NullLiteralField::new(self.hd_vehicle_count, self.is_null(4)),
         )
-    }
-}
-
-impl TableRow for HouseholdDemographicsRow {
-    /// Get all values as strings for CSV output (getValues())
-    fn get_values(&self) -> Vec<String> {
-        vec![
-            self.format_numeric(self.hd_demo_sk, 0),
-            self.format_numeric(self.hd_income_band_sk, 1),
-            self.format_value(&self.hd_buy_potential, 2),
-            self.format_numeric(self.hd_dep_count, 3),
-            self.format_numeric(self.hd_vehicle_count, 4),
-        ]
     }
 }
 
@@ -181,15 +148,7 @@ impl HouseholdDemographicsRowBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let row = HouseholdDemographicsRow::builder()
-            .set_null_bit_map(0b10)
-            .build();
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
-    }
+    use crate::row::dat_values;
 
     #[test]
     fn test_household_demographics_row_builder() {
@@ -222,7 +181,7 @@ mod tests {
             .set_null_bit_map(0)
             .build();
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values.len(), 5); // 5 columns total
         assert_eq!(values[0], "1"); // hd_demo_sk
         assert_eq!(values[1], "5"); // hd_income_band_sk
@@ -275,7 +234,7 @@ mod tests {
             .set_null_bit_map(1 << 2) // Make hd_buy_potential null
             .build();
 
-        let values = row.get_values();
+        let values = dat_values(&row);
         assert_eq!(values[0], "1"); // hd_demo_sk not null
         assert_eq!(values[1], "5"); // hd_income_band_sk not null
         assert_eq!(values[2], "NULL"); // hd_buy_potential is null

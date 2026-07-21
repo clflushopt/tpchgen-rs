@@ -375,7 +375,7 @@ impl RowGenerator for WebSiteRowGenerator {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::row::TableRow;
+    use crate::row::dat_values;
 
     #[test]
     fn test_web_site_row_generator_creation() {
@@ -393,7 +393,7 @@ mod tests {
         assert!(result.is_ok());
 
         let row_result = result.unwrap();
-        let values = row_result.get_rows()[0].get_values();
+        let values = dat_values(&row_result.get_rows()[0]);
         assert_eq!(values.len(), 26);
     }
 }

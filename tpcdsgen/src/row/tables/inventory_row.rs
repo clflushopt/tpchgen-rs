@@ -16,7 +16,6 @@
 
 use crate::generator::{GeneratorColumn, InventoryGeneratorColumn};
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use std::fmt;
 
 /// Represents a single row in the inventory table.
@@ -43,22 +42,6 @@ impl InventoryRow {
             inv_item_sk,
             inv_warehouse_sk,
             inv_quantity_on_hand,
-        }
-    }
-
-    fn get_string_or_null_for_key(&self, value: i64, column: InventoryGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
-
-    fn get_string_or_null(&self, value: i32, column: InventoryGeneratorColumn) -> String {
-        if self.is_null_at(column) {
-            String::new()
-        } else {
-            value.to_string()
         }
     }
 
@@ -90,8 +73,8 @@ impl InventoryRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for InventoryRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         use InventoryGeneratorColumn::*;
@@ -107,34 +90,5 @@ impl fmt::Display for InventoryRow {
                 self.is_null_at(InvQuantityOnHand)
             ),
         )
-    }
-}
-
-impl TableRow for InventoryRow {
-    fn get_values(&self) -> Vec<String> {
-        vec![
-            self.get_string_or_null_for_key(self.inv_date_sk, InventoryGeneratorColumn::InvDateSk),
-            self.get_string_or_null_for_key(self.inv_item_sk, InventoryGeneratorColumn::InvItemSk),
-            self.get_string_or_null_for_key(
-                self.inv_warehouse_sk,
-                InventoryGeneratorColumn::InvWarehouseSk,
-            ),
-            self.get_string_or_null(
-                self.inv_quantity_on_hand,
-                InventoryGeneratorColumn::InvQuantityOnHand,
-            ),
-        ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let row = InventoryRow::new(0b10, 2451545, 17, 3, 250);
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 }

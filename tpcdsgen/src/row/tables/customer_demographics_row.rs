@@ -1,5 +1,4 @@
 use crate::row::table_row::DatField;
-use crate::row::TableRow;
 use std::fmt;
 
 /// Customer demographics table row (CustomerDemographicsRow)
@@ -89,18 +88,9 @@ impl CustomerDemographicsRow {
     fn should_be_null(&self, column_position: i32) -> bool {
         ((self.null_bit_map >> column_position) & 1) == 1
     }
-
-    /// Convert value to string or empty string if null (getStringOrNull)
-    fn get_string_or_null<T: ToString>(&self, value: T, column_position: i32) -> String {
-        if self.should_be_null(column_position) {
-            String::new()
-        } else {
-            value.to_string()
-        }
-    }
 }
 
-/// DAT field helper mirroring `get_string_or_null`.
+/// DAT field helper for this row's columns.
 impl CustomerDemographicsRow {
     pub(crate) fn field<T>(&self, value: T, column_position: i32) -> DatField<T> {
         DatField::new(value, self.should_be_null(column_position))
@@ -108,8 +98,8 @@ impl CustomerDemographicsRow {
 }
 
 /// Formats the row as a DAT line: `|`-separated values with a trailing
-/// separator and empty fields for NULL columns (no newline). Produces the
-/// same bytes as joining [`TableRow::get_values`] with `|`.
+/// separator and empty fields for NULL columns (no newline). Produces one
+/// `|`-terminated field per column.
 impl fmt::Display for CustomerDemographicsRow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
@@ -125,45 +115,5 @@ impl fmt::Display for CustomerDemographicsRow {
             self.field(self.cd_dep_employed_count, 7),
             self.field(self.cd_dep_college_count, 8),
         )
-    }
-}
-
-impl TableRow for CustomerDemographicsRow {
-    fn get_values(&self) -> Vec<String> {
-        // Column positions match Java CustomerDemographicsGeneratorColumn (0-8)
-        vec![
-            self.get_string_or_null(self.cd_demo_sk, 0),
-            self.get_string_or_null(&self.cd_gender, 1),
-            self.get_string_or_null(&self.cd_marital_status, 2),
-            self.get_string_or_null(&self.cd_education_status, 3),
-            self.get_string_or_null(self.cd_purchase_estimate, 4),
-            self.get_string_or_null(&self.cd_credit_rating, 5),
-            self.get_string_or_null(self.cd_dep_count, 6),
-            self.get_string_or_null(self.cd_dep_employed_count, 7),
-            self.get_string_or_null(self.cd_dep_college_count, 8),
-        ]
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_display_matches_get_values() {
-        let row = CustomerDemographicsRow::new(
-            0b10,
-            1,
-            "M".to_string(),
-            "S".to_string(),
-            "College".to_string(),
-            500,
-            "Good".to_string(),
-            2,
-            1,
-            0,
-        );
-        let expected = format!("{}|", row.get_values().join("|"));
-        assert_eq!(row.to_string(), expected);
     }
 }
