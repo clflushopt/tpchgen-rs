@@ -3,6 +3,7 @@
 use crate::parquet::generate_parquet;
 use crate::progress::no_op_progress_tracker;
 use crate::progress::{ProgressHandle, ProgressTracker};
+use crate::temp_path::inprogress_path;
 use crate::tpch_cli::csv::*;
 use crate::tpch_cli::generate::generate_in_chunks;
 use crate::tpch_cli::generate::Source;
@@ -163,7 +164,7 @@ where
                 return Ok(());
             }
             // write to a temp file and then rename to avoid partial files
-            let temp_path = path.with_extension("inprogress");
+            let temp_path = inprogress_path(path);
             let file = std::fs::File::create(&temp_path).map_err(|err| {
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;
@@ -208,7 +209,7 @@ where
                 return Ok(());
             }
             // write to a temp file and then rename to avoid partial files
-            let temp_path = path.with_extension("inprogress");
+            let temp_path = inprogress_path(path);
             let file = std::fs::File::create(&temp_path).map_err(|err| {
                 io::Error::other(format!("Failed to create {temp_path:?}: {err}"))
             })?;

@@ -16,6 +16,7 @@
 //!   contains (`,`, `|`, tab, `;`).
 
 use crate::progress::ProgressTracker;
+use crate::temp_path::inprogress_path;
 use crate::tpcds_cli::generate::{generate_table, TableOutput, TableWriter};
 use crate::tpcds_cli::progress::{register_table, TableProgress};
 use std::fs::File;
@@ -76,7 +77,7 @@ impl TableOutput for Csv {
     }
 }
 
-/// One in-progress CSV output file: rows are written to `<table>.inprogress`,
+/// One in-progress CSV output file: rows are written to `<table>.csv.inprogress`,
 /// which is renamed to `<table>.csv` on `finish`.
 pub(super) struct CsvTableFile {
     writer: BufWriter<File>,
@@ -87,7 +88,7 @@ pub(super) struct CsvTableFile {
 
 impl CsvTableFile {
     fn create(path: PathBuf, header: &str, delimiter: char) -> Result<Self> {
-        let temp_path = path.with_extension("inprogress");
+        let temp_path = inprogress_path(&path);
         let file = File::create(&temp_path)
             .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
         let mut writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
