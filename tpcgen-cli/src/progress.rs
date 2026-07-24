@@ -174,15 +174,16 @@ pub use indicatif_impl::IndicatifProgress;
 #[cfg(feature = "indicatif-progress")]
 mod indicatif_impl {
     use super::{ProgressHandle, ProgressTracker};
+    #[cfg(test)]
     use indicatif::ProgressDrawTarget;
     use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
     use std::io::{self, Write};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
+    use std::time::{Duration, Instant};
 
     const LABEL_WIDTH: usize = 22;
     const BAR_WIDTH: usize = 18;
-    // 5 Hz redraws every 200 ms, keeping multi-bar updates responsive without repainting too often.
-    const PROGRESS_REFRESH_HZ: u8 = 5;
+    const PROGRESS_FLUSH_INTERVAL: Duration = Duration::from_millis(200);
     const PROGRESS_CHARS: &str = "=>-";
 
     /// Default [`ProgressTracker`] implementation backed by
@@ -203,9 +204,7 @@ mod indicatif_impl {
         /// [`ProgressTracker::register`].
         pub fn new() -> Self {
             Self {
-                multi: MultiProgress::with_draw_target(ProgressDrawTarget::stderr_with_hz(
-                    PROGRESS_REFRESH_HZ,
-                )),
+                multi: MultiProgress::new(),
                 bars: Mutex::new(Vec::new()),
             }
         }
@@ -242,43 +241,28 @@ mod indicatif_impl {
     impl ProgressTracker for IndicatifProgress {
         fn register(self: Arc<Self>, item: &str, total_units: u64) -> ProgressHandle {
             // Indicatif treats zero-length items as complete.
-            let length = total_units.max(1);
+            let total = total_units.max(1);
             let bar = self.multi.add(
-                ProgressBar::new(length)
+                ProgressBar::new(total)
                     .with_style(bar_style())
                     .with_message(item.to_owned())
                     .with_finish(ProgressFinish::AndLeave),
             );
-            let increment_bar = bar.clone();
-            let complete_bar = bar.clone();
-            self.lock_bars().push(bar);
-
-            let on_increment = move |units| {
-                increment_bar.inc(units);
-                if increment_bar.position() >= length {
-                    // Finish exact-count items even when the caller does not report completion.
-                    increment_bar.finish_using_style();
-                }
-            };
-
-            let on_complete = move || {
-                // Finish when the caller reports successful item completion, even if
-                // the counter has not reached its registered total.
-                complete_bar.finish_using_style();
-            };
-
-            ProgressHandle::new_with_complete(on_increment, on_complete)
+            self.lock_bars().push(bar.clone());
+            throttled_progress_handle(bar, total)
         }
 
         fn start(&self) {
             let bars = self.lock_bars().clone();
 
-            // Draw each registered item at 0% before work starts.
-            for bar in bars {
+            // Populate every bar's initial draw state, then force one render so
+            // the full registered table set is visible before generation starts.
+            for bar in &bars {
+                bar.tick();
+            }
+            if let Some(bar) = bars.last() {
                 bar.force_draw();
             }
-            // Reduce flicker by moving the cursor instead of clearing lines once the item set is stable.
-            self.multi.set_move_cursor(true);
         }
 
         fn finish(&self) {
@@ -287,6 +271,113 @@ mod indicatif_impl {
             for bar in bars {
                 bar.finish_using_style();
             }
+        }
+    }
+
+    // ProgressBar::inc enters indicatif's render path. When many threads report
+    // row-level progress, calling it for every row can repeatedly redraw the
+    // cursor, so batch deltas before forwarding them to indicatif.
+    fn throttled_progress_handle(bar: ProgressBar, total: u64) -> ProgressHandle {
+        throttled_progress_handle_with_clock(bar, total, Instant::now)
+    }
+
+    fn throttled_progress_handle_with_clock<N>(
+        bar: ProgressBar,
+        total: u64,
+        now: N,
+    ) -> ProgressHandle
+    where
+        N: Fn() -> Instant + Send + Sync + 'static,
+    {
+        let progress = Arc::new(ThrottledProgress::new(bar, total, now));
+        let increment = progress.clone();
+        let complete = progress;
+
+        ProgressHandle::new_with_complete(
+            move |units| increment.increment(units),
+            move || complete.complete(),
+        )
+    }
+
+    struct ThrottledProgress {
+        bar: ProgressBar,
+        total: u64,
+        throttle: Mutex<ThrottleState>,
+        clock: Arc<dyn Fn() -> Instant + Send + Sync>,
+    }
+
+    impl ThrottledProgress {
+        fn new<N>(bar: ProgressBar, total: u64, now: N) -> Self
+        where
+            N: Fn() -> Instant + Send + Sync + 'static,
+        {
+            let next_flush = now();
+            Self {
+                bar,
+                total,
+                throttle: Mutex::new(ThrottleState {
+                    pending: 0,
+                    next_flush,
+                }),
+                clock: Arc::new(now),
+            }
+        }
+
+        fn increment(&self, units: u64) {
+            if units == 0 {
+                return;
+            }
+
+            let mut throttle = self
+                .throttle
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if self.bar.is_finished() {
+                throttle.clear();
+                return;
+            }
+
+            throttle.pending = throttle.pending.saturating_add(units);
+            let now = (self.clock)();
+            if now < throttle.next_flush {
+                return;
+            }
+
+            throttle.next_flush = now + PROGRESS_FLUSH_INTERVAL;
+            let remaining_to_total = self.total.saturating_sub(self.bar.position());
+            let flush_units = std::mem::take(&mut throttle.pending).min(remaining_to_total);
+            if flush_units == 0 {
+                return;
+            }
+            self.bar.inc(flush_units);
+            if self.bar.position() >= self.total {
+                // Finish exact-count items even when the caller does not report completion.
+                self.bar.finish_using_style();
+            }
+        }
+
+        fn complete(&self) {
+            let mut throttle = self
+                .throttle
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            throttle.clear();
+            if self.bar.is_finished() {
+                return;
+            }
+
+            self.bar.finish_using_style();
+        }
+    }
+
+    struct ThrottleState {
+        pending: u64,
+        next_flush: Instant,
+    }
+
+    impl ThrottleState {
+        fn clear(&mut self) {
+            self.pending = 0;
         }
     }
 
@@ -359,25 +450,71 @@ mod indicatif_impl {
         fn reaching_total_finishes_item() {
             let t = Arc::new(IndicatifProgress::hidden());
             let progress = t.clone().register("orders", 5);
-            for _ in 0..5 {
-                progress.increment(1);
-            }
+            progress.increment(5);
+
             let bars = t.bars.lock().unwrap();
             assert_eq!(bars[0].position(), 5);
             assert!(bars[0].is_finished());
         }
 
         #[test]
-        fn reaching_total_across_parts_finishes_item() {
+        fn large_items_coalesce_small_increments() {
+            let start = Instant::now();
+            let now = Arc::new(Mutex::new(start));
+            let clock = now.clone();
+            let bar = ProgressBar::with_draw_target(Some(10_000), ProgressDrawTarget::hidden());
+            let progress = throttled_progress_handle_with_clock(bar.clone(), 10_000, move || {
+                *clock.lock().unwrap()
+            });
+
+            progress.increment(1);
+            assert_eq!(bar.position(), 1);
+
+            for _ in 1..50 {
+                progress.increment(1);
+            }
+
+            assert_eq!(bar.position(), 1);
+
+            *now.lock().unwrap() = start + PROGRESS_FLUSH_INTERVAL;
+            progress.increment(1);
+
+            assert_eq!(bar.position(), 51);
+        }
+
+        #[test]
+        fn extra_increments_after_finish_do_not_advance_item() {
             let t = Arc::new(IndicatifProgress::hidden());
-            let first_part = t.clone().register("lineitem", 5);
-            let second_part = first_part.clone();
+            let progress = t.clone().register("store_returns", 1);
 
-            first_part.increment(2);
-            assert!(!t.bars.lock().unwrap()[0].is_finished());
+            progress.increment(1);
+            progress.increment(10);
 
-            second_part.increment(3);
-            assert!(t.bars.lock().unwrap()[0].is_finished());
+            let bars = t.bars.lock().unwrap();
+            assert_eq!(bars[0].position(), 1);
+            assert!(bars[0].is_finished());
+        }
+
+        #[test]
+        fn completion_finishes_after_pending_increments() {
+            let start = Instant::now();
+            let clock = Arc::new(Mutex::new(start));
+            let bar = ProgressBar::with_draw_target(Some(5), ProgressDrawTarget::hidden());
+            let progress = throttled_progress_handle_with_clock(bar.clone(), 5, move || {
+                *clock.lock().unwrap()
+            });
+
+            progress.increment(2);
+            assert_eq!(bar.position(), 2);
+
+            progress.increment(1);
+            progress.increment(1);
+            assert_eq!(bar.position(), 2);
+
+            progress.complete();
+
+            assert_eq!(bar.position(), 5);
+            assert!(bar.is_finished());
         }
 
         #[test]
