@@ -1,21 +1,31 @@
 //! TPC-DS CSV output.
+//!
+//! Rows are formatted via the `tpcdsgen::csv` Display wrappers (the same
+//! model as the TPC-H CSV output): one header line, then one line per row
+//! with the same field values as the DAT output, joined by the delimiter
+//! with no trailing separator. Free-text columns that can contain the
+//! delimiter are double-quoted.
+//!
+//! Two deliberate differences from the DAT output, documented in more detail
+//! on `tpcdsgen::csv`:
+//!
+//! * Output is UTF-8 in both compat modes, where the DAT output is ISO-8859-1
+//!   in `CompatMode::Trino`. The values match as characters, not as bytes.
+//! * Quoting is a fixed per-column property rather than quote-when-needed, so
+//!   `--delimiter` is only safe for delimiters that no unquoted column
+//!   contains (`,`, `|`, tab, `;`).
 
-use crate::progress::{ProgressHandle, ProgressTracker};
-use arrow::array::RecordBatch;
-use arrow::record_batch::RecordBatchReader;
-use arrow_csv::writer::WriterBuilder;
+use crate::progress::ProgressTracker;
+use crate::temp_path::inprogress_path;
+use crate::tpcds_cli::generate::{generate_table, TableOutput, TableWriter};
+use crate::tpcds_cli::progress::{register_table, TableProgress};
 use std::fs::File;
 use std::io::{self, BufWriter, Write};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tpcdsgen::config::{Session, Table};
-use tpcdsgen_arrow::{
-    CallCenterArrow, CatalogPageArrow, CatalogReturnsArrow, CatalogSalesArrow,
-    CustomerAddressArrow, CustomerArrow, CustomerDemographicsArrow, DateDimArrow,
-    DbgenVersionArrow, HouseholdDemographicsArrow, IncomeBandArrow, InventoryArrow, ItemArrow,
-    PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
-    TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
-};
+use tpcdsgen::csv::{csv_header, GeneratedRowCsv};
+use tpcdsgen::row::GeneratedRow;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -39,108 +49,82 @@ impl Csv {
         table: Table,
         session: &Session,
         progress: Arc<dyn ProgressTracker>,
-    ) -> ProgressHandle {
-        let rows: u64 = session
-            .get_scaling()
-            .get_row_count(table)
-            .try_into()
-            .unwrap_or(0);
-        progress.register(table.get_name(), rows)
+    ) -> TableProgress {
+        register_table(table, session, progress)
     }
 
     /// Generate one TPC-DS table as a CSV file.
     pub(super) fn generate_table(
         &self,
         table: Table,
-        session: Session,
-        progress: ProgressHandle,
+        session: &Session,
+        progress: TableProgress,
     ) -> Result<()> {
-        let path = self.output_dir.join(format!("{}.csv", table.get_name()));
-
-        match table {
-            Table::CallCenter => self.write_batches(path, CallCenterArrow::new(session), &progress),
-            Table::CatalogPage => {
-                self.write_batches(path, CatalogPageArrow::new(session), &progress)
-            }
-            Table::CatalogReturns => {
-                self.write_batches(path, CatalogReturnsArrow::new(session), &progress)
-            }
-            Table::CatalogSales => {
-                self.write_batches(path, CatalogSalesArrow::new(session), &progress)
-            }
-            Table::Customer => self.write_batches(path, CustomerArrow::new(session), &progress),
-            Table::CustomerAddress => {
-                self.write_batches(path, CustomerAddressArrow::new(session), &progress)
-            }
-            Table::CustomerDemographics => {
-                self.write_batches(path, CustomerDemographicsArrow::new(session), &progress)
-            }
-            Table::DateDim => self.write_batches(path, DateDimArrow::new(session), &progress),
-            Table::DbgenVersion => {
-                self.write_batches(path, DbgenVersionArrow::new(session), &progress)
-            }
-            Table::HouseholdDemographics => {
-                self.write_batches(path, HouseholdDemographicsArrow::new(session), &progress)
-            }
-            Table::IncomeBand => self.write_batches(path, IncomeBandArrow::new(session), &progress),
-            Table::Inventory => self.write_batches(path, InventoryArrow::new(session), &progress),
-            Table::Item => self.write_batches(path, ItemArrow::new(session), &progress),
-            Table::Promotion => self.write_batches(path, PromotionArrow::new(session), &progress),
-            Table::Reason => self.write_batches(path, ReasonArrow::new(session), &progress),
-            Table::ShipMode => self.write_batches(path, ShipModeArrow::new(session), &progress),
-            Table::Store => self.write_batches(path, StoreArrow::new(session), &progress),
-            Table::StoreReturns => {
-                self.write_batches(path, StoreReturnsArrow::new(session), &progress)
-            }
-            Table::StoreSales => self.write_batches(path, StoreSalesArrow::new(session), &progress),
-            Table::TimeDim => self.write_batches(path, TimeDimArrow::new(session), &progress),
-            Table::Warehouse => self.write_batches(path, WarehouseArrow::new(session), &progress),
-            Table::WebPage => self.write_batches(path, WebPageArrow::new(session), &progress),
-            Table::WebReturns => self.write_batches(path, WebReturnsArrow::new(session), &progress),
-            Table::WebSales => self.write_batches(path, WebSalesArrow::new(session), &progress),
-            Table::WebSite => self.write_batches(path, WebSiteArrow::new(session), &progress),
-            _ => Ok(()),
-        }
+        generate_table(self, table, session, progress)
     }
+}
 
-    /// Write the record batches to a CSV file at the specified path.
-    fn write_batches<I>(
-        &self,
-        path: PathBuf,
-        mut batches: I,
-        progress: &ProgressHandle,
-    ) -> Result<()>
-    where
-        I: RecordBatchReader,
-    {
-        let temp_path = path.with_extension("inprogress");
+impl TableOutput for Csv {
+    type Writer = CsvTableFile;
+
+    /// Create the CSV file for `table` (written to a temporary `.inprogress`
+    /// path until finished) and write the header line.
+    fn create_writer(&self, table: Table, _session: &Session) -> Result<Self::Writer> {
+        let path = self.output_dir.join(format!("{}.csv", table.get_name()));
+        let header = csv_header(table, self.delimiter)
+            .ok_or_else(|| format!("table {} has no CSV output", table.get_name()))?;
+        CsvTableFile::create(path, &header, self.delimiter)
+    }
+}
+
+/// One in-progress CSV output file: rows are written to `<table>.csv.inprogress`,
+/// which is renamed to `<table>.csv` on `finish`.
+pub(super) struct CsvTableFile {
+    writer: BufWriter<File>,
+    temp_path: PathBuf,
+    path: PathBuf,
+    delimiter: char,
+}
+
+impl CsvTableFile {
+    fn create(path: PathBuf, header: &str, delimiter: char) -> Result<Self> {
+        let temp_path = inprogress_path(&path);
         let file = File::create(&temp_path)
             .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
-        let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
+        let mut writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
+        writeln!(writer, "{header}")?;
+        Ok(Self {
+            writer,
+            temp_path,
+            path,
+            delimiter,
+        })
+    }
+}
 
-        let mut writer = WriterBuilder::new()
-            .with_header(true)
-            .with_delimiter(self.delimiter as u8)
-            .build(writer);
+impl TableWriter for CsvTableFile {
+    fn write_row(&mut self, row: &GeneratedRow) -> io::Result<()> {
+        writeln!(
+            self.writer,
+            "{}",
+            GeneratedRowCsv::with_delimiter(row, self.delimiter)
+        )
+    }
 
-        // Write the header first.
-        writer.write(&RecordBatch::new_empty(batches.schema()))?;
-
-        for batch in &mut batches {
-            let batch = batch?;
-            writer.write(&batch)?;
-            progress.increment(batch.num_rows() as u64);
-        }
-
-        let mut writer = writer.into_inner();
-        writer.flush()?;
-
-        std::fs::rename(&temp_path, &path).map_err(|err| {
+    /// Flush and rename the temporary file into place, returning the final path.
+    fn finish(self) -> Result<PathBuf> {
+        // Close the file before renaming: Windows can refuse to rename a file
+        // that is still open.
+        let file = self.writer.into_inner().map_err(|err| {
+            io::Error::other(format!("Failed to write {:?}: {err}", self.temp_path))
+        })?;
+        drop(file);
+        std::fs::rename(&self.temp_path, &self.path).map_err(|err| {
             io::Error::other(format!(
-                "Failed to rename {temp_path:?} to {path:?} file: {err}"
+                "Failed to rename {:?} to {:?} file: {err}",
+                self.temp_path, self.path
             ))
         })?;
-
-        Ok(())
+        Ok(self.path)
     }
 }

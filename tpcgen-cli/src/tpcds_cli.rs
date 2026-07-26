@@ -16,8 +16,10 @@ use tpcdsgen::error::TpcdsError;
 
 pub mod csv;
 pub mod dat;
+mod generate;
 pub mod parquet;
 mod plan;
+mod progress;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
@@ -191,9 +193,7 @@ impl ParquetArgs {
 impl CommonArgs {
     async fn run_dat(self) -> Result<()> {
         let output = dat::Dat::new(self.output_dir.clone())?;
-        let tables = self.dat_tables()?;
-        // DAT return tables are emitted as side effects of their sales table generator.
-        // CSV and Parquet have direct return-table generators and do not need expansion.
+        let tables = self.row_generator_tables()?;
         self.run_output_with_tables(OutputFormat::Dat(output), tables)
             .await
     }
@@ -215,7 +215,9 @@ impl CommonArgs {
 
     async fn run_csv(self, delimiter: char) -> Result<()> {
         let output = csv::Csv::new(self.output_dir.clone(), delimiter);
-        self.run_output(OutputFormat::Csv(output)).await
+        let tables = self.row_generator_tables()?;
+        self.run_output_with_tables(OutputFormat::Csv(output), tables)
+            .await
     }
 
     async fn run_output(self, output_format: OutputFormat) -> Result<()> {
@@ -267,7 +269,7 @@ impl CommonArgs {
                 }
                 progress.start();
                 for (table, session, progress) in table_sessions {
-                    output.generate_table(table, session, progress)?;
+                    output.generate_table(table, &session, progress)?;
                 }
             }
         }
@@ -300,9 +302,11 @@ impl CommonArgs {
         }
     }
 
-    /// Return the DAT tables to generate, mapping return-only selections to
-    /// their sales table generators because DAT emits return files as side effects.
-    fn dat_tables(&self) -> Result<Vec<Table>> {
+    /// Return the tables to generate for the row-generator outputs (DAT and
+    /// CSV), mapping return-only selections to their sales table generators
+    /// because return files are emitted as side effects of the sales tables.
+    /// Parquet has direct return-table generators and does not need expansion.
+    fn row_generator_tables(&self) -> Result<Vec<Table>> {
         let mut tables = Vec::new();
         for table in self.tables()? {
             let table = match table {

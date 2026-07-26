@@ -3,6 +3,7 @@
 use super::plan::TpcdsGenerationPlan;
 use crate::parquet::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
+use crate::temp_path::inprogress_path;
 use crate::worker_queue::WorkerQueue;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::Compression;
@@ -460,16 +461,24 @@ impl Parquet {
             .map(move |range| make_reader(session.clone(), *range.start(), *range.end()));
 
         // write to a temp file and then rename to avoid partial files
-        let temp_path = path.with_extension("inprogress");
+        let temp_path = inprogress_path(&path);
         let file = File::create(&temp_path)
             .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
         let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-        generate_parquet(writer, sources, num_threads, self.compression, progress).await?;
+        generate_parquet(
+            writer,
+            sources,
+            num_threads,
+            self.compression,
+            progress.clone(),
+        )
+        .await?;
         std::fs::rename(&temp_path, &path).map_err(|err| {
             io::Error::other(format!(
                 "Failed to rename {temp_path:?} to {path:?} file: {err}"
             ))
         })?;
+        progress.complete();
 
         Ok(())
     }
