@@ -375,6 +375,106 @@ fn test_tpcgen_cli_tpcds_dat_multiple_table_selection_command_forms() {
     }
 }
 
+/// Repeated selections and both sides of a sales/returns pair should schedule
+/// each row generator exactly once for DAT and CSV.
+#[test]
+fn test_tpcgen_cli_tpcds_row_outputs_deduplicate_selected_tables() {
+    let table_orders = [
+        "reason,reason,reason,\
+         store_sales,store_returns,store_sales,\
+         catalog_sales,catalog_returns,catalog_sales,\
+         web_sales,web_returns,web_sales",
+        "reason,reason,reason,\
+         store_returns,store_sales,store_returns,\
+         catalog_returns,catalog_sales,catalog_returns,\
+         web_returns,web_sales,web_returns",
+    ];
+
+    for tables in table_orders {
+        for (format, extension) in [("dat", "dat"), ("csv", "csv")] {
+            let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+            let assert = cargo_bin_cmd!("tpcgen-cli")
+                .arg("tpcds")
+                .arg(format)
+                .arg("--scale-factor")
+                .arg("0")
+                .arg("--tables")
+                .arg(tables)
+                .arg("--output-dir")
+                .arg(temp_dir.path())
+                .arg("--verbose")
+                .assert()
+                .success();
+
+            let expected_files = [
+                format!("reason.{extension}"),
+                format!("store_sales.{extension}"),
+                format!("store_returns.{extension}"),
+                format!("catalog_sales.{extension}"),
+                format!("catalog_returns.{extension}"),
+                format!("web_sales.{extension}"),
+                format!("web_returns.{extension}"),
+            ]
+            .into_iter()
+            .collect::<BTreeSet<_>>();
+            let actual_files = fs::read_dir(temp_dir.path())
+                .expect("Failed to read generated output directory")
+                .map(|entry| {
+                    entry
+                        .expect("Failed to read generated output directory entry")
+                        .file_name()
+                        .into_string()
+                        .expect("Generated output file name is not valid UTF-8")
+                })
+                .collect::<BTreeSet<_>>();
+            assert_eq!(actual_files, expected_files);
+
+            let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+            assert_eq!(stderr.matches("Generating reason...").count(), 1);
+            for pair in ["store", "catalog", "web"] {
+                assert_eq!(
+                    stderr
+                        .matches(&format!("Generating {pair}_sales + {pair}_returns..."))
+                        .count(),
+                    1,
+                    "Expected the {pair} sales/returns generator to run once for {format} with {tables}, got stderr: {stderr}"
+                );
+            }
+        }
+    }
+}
+
+/// Parquet receives the same deduplicated table selection as other formats.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_deduplicates_repeated_table_selection() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0")
+        .arg("--tables")
+        .arg("reason,reason,reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let actual_files = fs::read_dir(temp_dir.path())
+        .expect("Failed to read generated output directory")
+        .map(|entry| {
+            entry
+                .expect("Failed to read generated output directory entry")
+                .file_name()
+                .into_string()
+                .expect("Generated output file name is not valid UTF-8")
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(actual_files, vec!["reason.parquet"]);
+}
+
 /// Test each TPC-DS DAT table can be selected individually and creates output.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_individual_table_selection_outputs_requested_table() {
