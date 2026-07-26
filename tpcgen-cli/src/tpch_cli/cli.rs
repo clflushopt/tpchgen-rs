@@ -7,7 +7,7 @@ use crate::logging::configure_logging;
 use crate::progress::IndicatifProgress;
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
-use std::collections::BTreeSet;
+use std::collections::HashSet;
 use std::io;
 #[cfg(feature = "indicatif-progress")]
 use std::io::IsTerminal;
@@ -179,7 +179,7 @@ impl CommonArgs {
     /// Return the selected tables without repeated values, preserving the
     /// command-line order of their first occurrence.
     fn tables(&self) -> Option<Vec<Table>> {
-        let mut seen = BTreeSet::new();
+        let mut seen = HashSet::new();
         self.tables.as_ref().map(|tables| {
             tables
                 .iter()

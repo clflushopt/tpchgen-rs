@@ -63,7 +63,7 @@ impl IntoSize for BufWriter<File> {
 ///
 /// Represents the 8 tables in the TPC-H benchmark schema.
 /// Tables are ordered by size (smallest to largest at SF=1).
-#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Table {
     /// Nation table (25 rows)
     Nation,
