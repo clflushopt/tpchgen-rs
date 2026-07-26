@@ -7,6 +7,7 @@ use crate::logging::configure_logging;
 use crate::progress::IndicatifProgress;
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Parser};
+use std::collections::BTreeSet;
 use std::io;
 #[cfg(feature = "indicatif-progress")]
 use std::io::IsTerminal;
@@ -134,6 +135,8 @@ impl CommonArgs {
     /// Initialize CLI logging/progress output and create a
     /// [`TpchGeneratorBuilder`] pre-configured with the common options.
     fn builder(self, format: OutputFormat) -> TpchGeneratorBuilder {
+        let tables = self.tables();
+
         #[cfg(feature = "indicatif-progress")]
         let progress = self
             .should_show_progress_bars()
@@ -146,7 +149,7 @@ impl CommonArgs {
             .with_num_threads(self.num_threads)
             .with_stdout(self.stdout);
 
-        if let Some(tables) = self.tables {
+        if let Some(tables) = tables {
             builder = builder.with_tables(tables);
         }
         if let Some(parts) = self.parts {
@@ -171,6 +174,19 @@ impl CommonArgs {
         }
 
         builder
+    }
+
+    /// Return the selected tables without repeated values, preserving the
+    /// command-line order of their first occurrence.
+    fn tables(&self) -> Option<Vec<Table>> {
+        let mut seen = BTreeSet::new();
+        self.tables.as_ref().map(|tables| {
+            tables
+                .iter()
+                .copied()
+                .filter(|table| seen.insert(*table))
+                .collect()
+        })
     }
 
     #[cfg(feature = "indicatif-progress")]
@@ -415,5 +431,55 @@ impl ParquetArgs {
             .build()
             .generate()
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
+        CommonArgs {
+            scale_factor: 1.0,
+            output_dir: PathBuf::new(),
+            tables: Some(tables),
+            parts: None,
+            part: None,
+            num_threads: 1,
+            verbose: false,
+            quiet: false,
+            stdout: false,
+            progress_bars_enabled: false,
+        }
+    }
+
+    #[test]
+    fn tables_deduplicates_repeated_selections_in_first_seen_order() {
+        let tables = args_with_tables(vec![
+            Table::Region,
+            Table::Region,
+            Table::Nation,
+            Table::Region,
+            Table::Nation,
+        ])
+        .tables();
+
+        assert_eq!(tables, Some(vec![Table::Region, Table::Nation]));
+    }
+
+    #[test]
+    fn tables_deduplicates_values_from_repeated_flags_and_aliases() {
+        let cli = Cli::try_parse_from([
+            "tpchgen", "tbl", "--tables", "region,r", "--tables", "nation", "--tables", "region",
+        ])
+        .unwrap();
+        let Some(Commands::Tbl(args)) = cli.command else {
+            panic!("expected tbl command")
+        };
+
+        assert_eq!(
+            args.common.tables(),
+            Some(vec![Table::Region, Table::Nation])
+        );
     }
 }
