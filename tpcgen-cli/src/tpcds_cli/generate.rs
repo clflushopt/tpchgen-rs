@@ -198,6 +198,7 @@ fn generate_simple<G: RowGeneratorFactory, O: TableOutput>(
     }
 
     let path = writer.finish()?;
+    progress.complete();
     info!(
         "Generated {}: {} rows -> {}",
         table.get_name(),
@@ -266,6 +267,8 @@ fn generate_sales_and_returns<G: RowGeneratorFactory, O: TableOutput>(
 
     let sales_path = sales_writer.finish()?;
     let returns_path = returns_writer.finish()?;
+    sales_progress.complete();
+    returns_progress.complete();
 
     info!(
         "Generated {} + {}: {} sales, {} returns -> {}, {}",

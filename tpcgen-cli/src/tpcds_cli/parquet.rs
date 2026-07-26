@@ -465,12 +465,20 @@ impl Parquet {
         let file = File::create(&temp_path)
             .map_err(|err| io::Error::other(format!("Failed to create {temp_path:?}: {err}")))?;
         let writer = BufWriter::with_capacity(32 * 1024 * 1024, file);
-        generate_parquet(writer, sources, num_threads, self.compression, progress).await?;
+        generate_parquet(
+            writer,
+            sources,
+            num_threads,
+            self.compression,
+            progress.clone(),
+        )
+        .await?;
         std::fs::rename(&temp_path, &path).map_err(|err| {
             io::Error::other(format!(
                 "Failed to rename {temp_path:?} to {path:?} file: {err}"
             ))
         })?;
+        progress.complete();
 
         Ok(())
     }
