@@ -115,7 +115,8 @@ impl Format {
                 .with_header(false),
             Format::Csv => builder
                 .with_delimiter(CSV_SEPARATOR as u8)
-                .with_header(true),
+                .with_header(true)
+                .with_header_validation(true),
         };
         builder
             .build(data)
