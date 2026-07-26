@@ -298,7 +298,11 @@ impl CommonArgs {
     /// Return the tables that should be generated.
     fn tables(&self) -> Result<Vec<Table>> {
         let tables = self.tables.clone().unwrap_or_else(Table::main_tables);
-        Ok(deduplicate_tables(tables))
+        let mut seen = HashSet::new();
+        Ok(tables
+            .into_iter()
+            .filter(|table| seen.insert(*table))
+            .collect())
     }
 
     /// Return the tables to generate for the row-generator outputs (DAT and
@@ -306,7 +310,19 @@ impl CommonArgs {
     /// because return files are emitted as side effects of the sales tables.
     /// Parquet has direct return-table generators and does not need expansion.
     fn row_generator_tables(&self) -> Result<Vec<Table>> {
-        Ok(normalize_row_generator_tables(self.tables()?))
+        let mut tables = Vec::new();
+        for table in self.tables()? {
+            let table = match table {
+                Table::CatalogReturns => Table::CatalogSales,
+                Table::StoreReturns => Table::StoreSales,
+                Table::WebReturns => Table::WebSales,
+                table => table,
+            };
+            if !tables.contains(&table) {
+                tables.push(table);
+            }
+        }
+        Ok(tables)
     }
 
     fn to_session(&self, table: Option<String>) -> Result<Session> {
@@ -326,28 +342,6 @@ impl CommonArgs {
 
         Ok(builder.build()?)
     }
-}
-
-/// Deduplicate parsed table selections while preserving command-line order.
-fn deduplicate_tables(tables: impl IntoIterator<Item = Table>) -> Vec<Table> {
-    let mut seen = HashSet::new();
-    tables
-        .into_iter()
-        .filter(|table| seen.insert(*table))
-        .collect()
-}
-
-/// Normalize table selections for DAT and CSV's paired row generators.
-///
-/// Each returns table is emitted by its corresponding sales generator, so
-/// selecting either or both sides of a pair must schedule that generator once.
-fn normalize_row_generator_tables(tables: impl IntoIterator<Item = Table>) -> Vec<Table> {
-    deduplicate_tables(tables.into_iter().map(|table| match table {
-        Table::CatalogReturns => Table::CatalogSales,
-        Table::StoreReturns => Table::StoreSales,
-        Table::WebReturns => Table::WebSales,
-        table => table,
-    }))
 }
 
 fn parse_table(table: &str) -> Result<Table> {
@@ -483,6 +477,18 @@ fn parse_row_group_bytes(s: &str) -> std::result::Result<usize, String> {
 mod tests {
     use super::*;
 
+    fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
+        CommonArgs {
+            scale_factor: 1.0,
+            output_dir: PathBuf::new(),
+            tables: Some(tables),
+            compat: CompatMode::Trino,
+            verbose: false,
+            quiet: false,
+            progress_bars_enabled: false,
+        }
+    }
+
     #[test]
     fn every_main_table_has_help_text() {
         for table in Table::main_tables() {
@@ -494,41 +500,57 @@ mod tests {
     }
 
     #[test]
-    fn deduplicates_repeated_table_selections_in_order() {
-        let tables = deduplicate_tables([
+    fn tables_deduplicates_repeated_selections_in_first_seen_order() {
+        let tables = args_with_tables(vec![
             Table::Reason,
             Table::Reason,
             Table::ShipMode,
             Table::Reason,
             Table::ShipMode,
-        ]);
+        ])
+        .tables()
+        .unwrap();
 
         assert_eq!(tables, vec![Table::Reason, Table::ShipMode]);
     }
 
     #[test]
-    fn normalizes_every_sales_returns_pair_in_both_orders() {
+    fn row_generator_tables_collapses_sales_returns_pairs_in_both_orders() {
         for (sales, returns) in [
             (Table::CatalogSales, Table::CatalogReturns),
             (Table::StoreSales, Table::StoreReturns),
             (Table::WebSales, Table::WebReturns),
         ] {
             assert_eq!(
-                normalize_row_generator_tables([sales, returns]),
+                args_with_tables(vec![sales, returns])
+                    .row_generator_tables()
+                    .unwrap(),
                 vec![sales]
             );
             assert_eq!(
-                normalize_row_generator_tables([returns, sales]),
+                args_with_tables(vec![returns, sales])
+                    .row_generator_tables()
+                    .unwrap(),
                 vec![sales]
             );
-            assert_eq!(normalize_row_generator_tables([sales]), vec![sales]);
-            assert_eq!(normalize_row_generator_tables([returns]), vec![sales]);
+            assert_eq!(
+                args_with_tables(vec![sales])
+                    .row_generator_tables()
+                    .unwrap(),
+                vec![sales]
+            );
+            assert_eq!(
+                args_with_tables(vec![returns])
+                    .row_generator_tables()
+                    .unwrap(),
+                vec![sales]
+            );
         }
     }
 
     #[test]
-    fn normalizes_mixed_sales_returns_pairs_and_repeated_selections() {
-        let tables = normalize_row_generator_tables([
+    fn row_generator_tables_normalizes_mixed_pairs_and_duplicates() {
+        let tables = args_with_tables(vec![
             Table::StoreReturns,
             Table::Reason,
             Table::StoreSales,
@@ -538,7 +560,9 @@ mod tests {
             Table::WebReturns,
             Table::WebSales,
             Table::Reason,
-        ]);
+        ])
+        .row_generator_tables()
+        .unwrap();
 
         assert_eq!(
             tables,

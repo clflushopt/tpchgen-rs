@@ -445,24 +445,25 @@ fn test_tpcgen_cli_tpcds_row_outputs_deduplicate_selected_tables() {
     }
 }
 
-/// Parquet receives the same deduplicated table selection as other formats.
-#[test]
-fn test_tpcgen_cli_tpcds_parquet_deduplicates_repeated_table_selection() {
+fn generate_parquet_files(table_args: &[String]) -> BTreeSet<String> {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
-    cargo_bin_cmd!("tpcgen-cli")
+    let mut command = cargo_bin_cmd!("tpcgen-cli");
+    command
         .arg("tpcds")
         .arg("parquet")
         .arg("--scale-factor")
-        .arg("0")
-        .arg("--tables")
-        .arg("reason,reason,reason")
+        .arg("0");
+    for tables in table_args {
+        command.arg("--tables").arg(tables);
+    }
+    command
         .arg("--output-dir")
         .arg(temp_dir.path())
         .assert()
         .success();
 
-    let actual_files = fs::read_dir(temp_dir.path())
+    fs::read_dir(temp_dir.path())
         .expect("Failed to read generated output directory")
         .map(|entry| {
             entry
@@ -471,8 +472,57 @@ fn test_tpcgen_cli_tpcds_parquet_deduplicates_repeated_table_selection() {
                 .into_string()
                 .expect("Generated output file name is not valid UTF-8")
         })
-        .collect::<Vec<_>>();
-    assert_eq!(actual_files, vec!["reason.parquet"]);
+        .collect()
+}
+
+/// Parquet receives the same exact-value deduplication as other formats,
+/// including when values are supplied through repeated `--tables` flags.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_deduplicates_repeated_table_selection() {
+    let expected = BTreeSet::from(["reason.parquet".to_string()]);
+    for table_args in [
+        vec!["reason,reason,reason".to_string()],
+        vec![
+            "reason".to_string(),
+            "reason".to_string(),
+            "reason".to_string(),
+        ],
+    ] {
+        assert_eq!(generate_parquet_files(&table_args), expected);
+    }
+}
+
+/// Parquet keeps sales and returns as distinct output selections while still
+/// deduplicating repeated occurrences of either table.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_preserves_sales_returns_selection_semantics() {
+    for (sales, returns) in [
+        (Table::CatalogSales, Table::CatalogReturns),
+        (Table::StoreSales, Table::StoreReturns),
+        (Table::WebSales, Table::WebReturns),
+    ] {
+        let sales = sales.get_name();
+        let returns = returns.get_name();
+
+        assert_eq!(
+            generate_parquet_files(&[sales.to_string()]),
+            BTreeSet::from([format!("{sales}.parquet")])
+        );
+        assert_eq!(
+            generate_parquet_files(&[returns.to_string()]),
+            BTreeSet::from([format!("{returns}.parquet")])
+        );
+
+        for tables in [
+            format!("{sales},{returns},{sales}"),
+            format!("{returns},{sales},{returns}"),
+        ] {
+            assert_eq!(
+                generate_parquet_files(&[tables]),
+                BTreeSet::from([format!("{sales}.parquet"), format!("{returns}.parquet"),])
+            );
+        }
+    }
 }
 
 /// Test each TPC-DS DAT table can be selected individually and creates output.
