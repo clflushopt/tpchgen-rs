@@ -176,7 +176,9 @@ mod indicatif_impl {
     use super::{ProgressHandle, ProgressTracker};
     #[cfg(test)]
     use indicatif::ProgressDrawTarget;
-    use indicatif::{MultiProgress, ProgressBar, ProgressFinish, ProgressStyle};
+    use indicatif::{
+        HumanDuration, MultiProgress, ProgressBar, ProgressFinish, ProgressState, ProgressStyle,
+    };
     use std::io::{self, Write};
     use std::sync::{Arc, Mutex, MutexGuard, OnceLock};
     use std::time::{Duration, Instant};
@@ -337,6 +339,12 @@ mod indicatif_impl {
                 return;
             }
 
+            let position = self.bar.position();
+            if position == 0 {
+                // Reset before the first increment so queued time is excluded from the ETA.
+                self.bar.reset_eta();
+            }
+
             throttle.pending = throttle.pending.saturating_add(units);
             let now = (self.clock)();
             if now < throttle.next_flush {
@@ -344,7 +352,7 @@ mod indicatif_impl {
             }
 
             throttle.next_flush = now + PROGRESS_FLUSH_INTERVAL;
-            let remaining_to_total = self.total.saturating_sub(self.bar.position());
+            let remaining_to_total = self.total.saturating_sub(position);
             let flush_units = std::mem::take(&mut throttle.pending).min(remaining_to_total);
             if flush_units == 0 {
                 return;
@@ -385,19 +393,30 @@ mod indicatif_impl {
         static STYLE: OnceLock<ProgressStyle> = OnceLock::new();
         STYLE
             .get_or_init(|| {
-                let template = bar_template();
                 ProgressStyle::default_bar()
-                    .template(&template)
+                    .template(&bar_template())
                     .expect("progress bar template is valid")
                     .progress_chars(PROGRESS_CHARS)
+                    .with_key("status", write_progress_status)
             })
             .clone()
     }
 
     fn bar_template() -> String {
         format!(
-            "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%) ETA {{eta}}"
+            "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%){{status}}"
         )
+    }
+
+    fn write_progress_status(state: &ProgressState, writer: &mut dyn std::fmt::Write) {
+        let started = state.pos() > 0;
+        if state.is_finished() {
+            let _ = write!(writer, " done");
+        } else if !started {
+            let _ = write!(writer, " ETA --");
+        } else {
+            let _ = write!(writer, " ETA {:#}", HumanDuration(state.eta()));
+        }
     }
 
     struct IndicatifLogWriter {
@@ -560,10 +579,24 @@ mod indicatif_impl {
         }
 
         #[test]
-        fn progress_bar_template_shows_eta() {
-            let template = bar_template();
+        fn progress_status_reflects_lifecycle() {
+            let bar = ProgressBar::with_draw_target(Some(10), ProgressDrawTarget::hidden());
 
-            assert!(template.ends_with("ETA {eta}"));
+            assert_eq!(rendered_status(&bar), " ETA --");
+
+            bar.inc(1);
+            let active_status = rendered_status(&bar);
+            assert!(active_status.starts_with(" ETA "));
+            assert_ne!(active_status, " ETA --");
+
+            bar.finish();
+            assert_eq!(rendered_status(&bar), " done");
+        }
+
+        fn rendered_status(bar: &ProgressBar) -> String {
+            let mut status = String::new();
+            bar.update(|state| write_progress_status(state, &mut status));
+            status
         }
     }
 }
