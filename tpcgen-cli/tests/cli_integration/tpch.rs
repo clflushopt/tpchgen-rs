@@ -50,6 +50,39 @@ fn test_tpcgen_cli_tpch_command_forms() {
     }
 }
 
+/// Repeated TPC-H table selections should schedule each table once.
+#[test]
+fn test_tpcgen_cli_tpch_deduplicates_selected_tables() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "tbl"])
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("region,region,nation,region,nation")
+        .arg("--num-threads")
+        .arg("4")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--verbose")
+        .assert()
+        .success();
+
+    assert!(temp_dir.path().join("region.tbl").exists());
+    assert!(temp_dir.path().join("nation.tbl").exists());
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read generated output directory")
+            .count(),
+        2
+    );
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert_eq!(stderr.matches("Writing table region").count(), 1);
+    assert_eq!(stderr.matches("Writing table nation").count(), 1);
+}
+
 /// Test TBL output for scale factor 0.001 using tpchgen-cli
 #[test]
 fn test_tpchgen_cli_tbl_scale_factor_0_001() {
