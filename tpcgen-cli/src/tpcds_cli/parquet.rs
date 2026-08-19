@@ -7,7 +7,6 @@ use crate::temp_path::inprogress_path;
 use crate::worker_queue::WorkerQueue;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::Compression;
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::{self, BufWriter};
 use std::path::PathBuf;
@@ -57,14 +56,10 @@ impl Parquet {
         tables: Vec<(Table, Session)>,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
-        // Remove duplicate table selections: generating the same table
-        // twice concurrently would race on the same output file
-        let mut seen = HashSet::new();
-        let tables = tables.into_iter().filter(|(table, _)| seen.insert(*table));
-
         // Plan each table and pre-register the row group totals so trackers
         // can size their bars before the first increment
         let mut work: Vec<(Table, Session, TpcdsGenerationPlan, ProgressHandle)> = tables
+            .into_iter()
             .map(|(table, session)| {
                 let plan =
                     TpcdsGenerationPlan::new(table, session.get_scaling(), self.row_group_bytes);
