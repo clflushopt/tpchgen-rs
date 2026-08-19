@@ -385,15 +385,19 @@ mod indicatif_impl {
         static STYLE: OnceLock<ProgressStyle> = OnceLock::new();
         STYLE
             .get_or_init(|| {
-                let template = format!(
-                    "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%)"
-                );
+                let template = bar_template();
                 ProgressStyle::default_bar()
                     .template(&template)
                     .expect("progress bar template is valid")
                     .progress_chars(PROGRESS_CHARS)
             })
             .clone()
+    }
+
+    fn bar_template() -> String {
+        format!(
+            "{{msg:!{LABEL_WIDTH}}} [{{bar:{BAR_WIDTH}.cyan/blue}}] ({{percent:>3}}%) ETA {{eta}}"
+        )
     }
 
     struct IndicatifLogWriter {
@@ -553,6 +557,13 @@ mod indicatif_impl {
             t.finish();
 
             assert!(t.bars.lock().unwrap()[0].is_finished());
+        }
+
+        #[test]
+        fn progress_bar_template_shows_eta() {
+            let template = bar_template();
+
+            assert!(template.ends_with("ETA {eta}"));
         }
     }
 }

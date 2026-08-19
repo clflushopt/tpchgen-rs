@@ -6,6 +6,7 @@ use crate::progress::{no_op_progress_tracker, ProgressTracker};
 use crate::tpch_cli::{Compression, DEFAULT_PARQUET_ROW_GROUP_BYTES};
 use clap::builder::TypedValueParser;
 use clap::{ArgAction, Args, Subcommand};
+use std::collections::HashSet;
 use std::io;
 #[cfg(feature = "indicatif-progress")]
 use std::io::IsTerminal;
@@ -296,10 +297,12 @@ impl CommonArgs {
 
     /// Return the tables that should be generated.
     fn tables(&self) -> Result<Vec<Table>> {
-        match &self.tables {
-            Some(tables) => Ok(tables.clone()),
-            None => Ok(Table::main_tables()),
-        }
+        let tables = self.tables.clone().unwrap_or_else(Table::main_tables);
+        let mut seen = HashSet::new();
+        Ok(tables
+            .into_iter()
+            .filter(|table| seen.insert(*table))
+            .collect())
     }
 
     /// Return the tables to generate for the row-generator outputs (DAT and
@@ -474,6 +477,18 @@ fn parse_row_group_bytes(s: &str) -> std::result::Result<usize, String> {
 mod tests {
     use super::*;
 
+    fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
+        CommonArgs {
+            scale_factor: 1.0,
+            output_dir: PathBuf::new(),
+            tables: Some(tables),
+            compat: CompatMode::Trino,
+            verbose: false,
+            quiet: false,
+            progress_bars_enabled: false,
+        }
+    }
+
     #[test]
     fn every_main_table_has_help_text() {
         for table in Table::main_tables() {
@@ -482,5 +497,81 @@ mod tests {
                 "{table} is missing a --help description"
             );
         }
+    }
+
+    #[test]
+    fn tables_deduplicates_repeated_selections_in_first_seen_order() {
+        let tables = args_with_tables(vec![
+            Table::Reason,
+            Table::Reason,
+            Table::ShipMode,
+            Table::Reason,
+            Table::ShipMode,
+        ])
+        .tables()
+        .unwrap();
+
+        assert_eq!(tables, vec![Table::Reason, Table::ShipMode]);
+    }
+
+    #[test]
+    fn row_generator_tables_collapses_sales_returns_pairs_in_both_orders() {
+        for (sales, returns) in [
+            (Table::CatalogSales, Table::CatalogReturns),
+            (Table::StoreSales, Table::StoreReturns),
+            (Table::WebSales, Table::WebReturns),
+        ] {
+            assert_eq!(
+                args_with_tables(vec![sales, returns])
+                    .row_generator_tables()
+                    .unwrap(),
+                vec![sales]
+            );
+            assert_eq!(
+                args_with_tables(vec![returns, sales])
+                    .row_generator_tables()
+                    .unwrap(),
+                vec![sales]
+            );
+            assert_eq!(
+                args_with_tables(vec![sales])
+                    .row_generator_tables()
+                    .unwrap(),
+                vec![sales]
+            );
+            assert_eq!(
+                args_with_tables(vec![returns])
+                    .row_generator_tables()
+                    .unwrap(),
+                vec![sales]
+            );
+        }
+    }
+
+    #[test]
+    fn row_generator_tables_normalizes_mixed_pairs_and_duplicates() {
+        let tables = args_with_tables(vec![
+            Table::StoreReturns,
+            Table::Reason,
+            Table::StoreSales,
+            Table::StoreReturns,
+            Table::CatalogSales,
+            Table::CatalogReturns,
+            Table::WebReturns,
+            Table::WebSales,
+            Table::Reason,
+        ])
+        .row_generator_tables()
+        .unwrap();
+
+        assert_eq!(
+            tables,
+            vec![
+                Table::StoreSales,
+                Table::Reason,
+                Table::CatalogSales,
+                Table::WebSales,
+            ]
+        );
     }
 }
