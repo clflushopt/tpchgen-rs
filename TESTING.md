@@ -7,7 +7,7 @@ port for TPC-DS. Comparisons are byte-for-byte rather than statistical.
 Only the text formats (`.tbl` for TPC-H, `.dat` for TPC-DS) can be compared to a
 reference implementation directly, because those are the only formats the
 reference implementations produce. Arrow, CSV, and Parquet are verified against
-that text output instead, so their correctness follows from its.
+that text output instead, so their correctness follows from it.
 
 ## The chain of trust
 
@@ -17,20 +17,23 @@ that text output instead, so their correctness follows from its.
   Trino Java (TPC-DS) --'                            '--> Parquet
 ```
 
+Each stage is checked against the stage before it: the text output is checked
+against the reference implementations, and Arrow, CSV, and Parquet are each
+checked, directly or transitively, against that text output.
+
 ### Text output against the reference implementations
 
 `tpcgen-cli tpch tbl` and `tpcgen-cli tpcds dat` are compared to reference data
-produced by the original generators. Comparison is by MD5 of the whole file,
-with an optional row-level `diff` when a hash does not match. The expected
-hashes live in `tpcgen-cli/tests/fixtures/` and are committed to the repo, so
-the common case needs neither a container runtime nor a reference build.
+using [`compare-all-tables.sh`](tpcgen-cli/scripts/tpch/compare-all-tables.sh)
+(TPC-H) and
+[`compare-all-tables.sh`](tpcgen-cli/scripts/tpcds/compare-all-tables.sh)
+(TPC-DS). Comparison is by MD5 of the whole file. The expected hashes live in
+`tpcgen-cli/tests/fixtures/` and are committed to the repo, so the common case
+needs neither a container runtime nor a reference build.
 
-The suites live next to the unified CLI crate:
+Please see the comparison scripts for more details:
 
-- TPC-H: [tpcgen-cli/scripts/tpch/](tpcgen-cli/scripts/tpch/). `compare-all-tables.sh`
-  checks output against `tpcgen-cli/tests/fixtures/tpch/scale-N/MD5SUMS`,
-  generated from C `dbgen` by `generate-fixtures.sh` (which needs docker or
-  podman).
+- TPC-H: [tpcgen-cli/scripts/tpch/](tpcgen-cli/scripts/tpch/)
 - TPC-DS: [tpcgen-cli/scripts/tpcds/](tpcgen-cli/scripts/tpcds/). Two reference
   implementations, selected with `--compat trino` (the Java port the Rust code
   was derived from) and `--compat c` (the TPC-supplied C `dsdgen`, whose
@@ -46,63 +49,46 @@ The suites live next to the unified CLI crate:
 ```
 
 TPC-H has a second, finer-grained check at the library level:
-`tpchgen/tests/integration_tests.rs` compares each generator row by row against
-gzipped reference tables checked into `tpchgen/data/` at scale factors 0.001 and
-0.01, so a failure points at a single record rather than a file hash.
+[`tpchgen/tests/integration_tests.rs`](tpchgen/tests/integration_tests.rs)
+compares each generator row by row against gzipped reference tables checked
+into `tpchgen/data/` at scale factors 0.001 and 0.01.
 
-### Arrow against the text output
+### Validating Arrow output
 
-`tpchgen-arrow/tests/reparse.rs` and `tpcdsgen-arrow/tests/reparse.rs` write
-rows out through the same `Display` and CSV formatting impls the CLI uses, read
-them back with the Arrow CSV reader, and assert the result equals the
-`RecordBatch`es the Arrow generators produce directly. Since the text output is
-known to match the reference implementations, matching it transitively makes the
-Arrow output correct as well.
+[`tpchgen-arrow/tests/reparse.rs`](tpchgen-arrow/tests/reparse.rs) and
+[`tpcdsgen-arrow/tests/reparse.rs`](tpcdsgen-arrow/tests/reparse.rs) write rows
+out through `Display` and CSV formatting impls, read them back with the Arrow
+CSV reader, and assert the result equals the `RecordBatch`es the Arrow
+generators produce directly. Since the text output is known to match the
+reference implementations, matching it transitively makes the Arrow output
+correct as well. The TPC-DS version also covers chunked generation.
 
-The TPC-DS version covers all 24 conformance tables. It also restarts each
-generator partway through the table (see `skip_starting_row`) to check that a
-generator resumed at an arbitrary source row produces the same rows as one run
-from the start, which is what parallel generation relies on.
+### Validating CSV output
 
-### CSV against Arrow
-
-The same reparse tests run a second time over CSV output, using
-`tpcdsgen::csv::{csv_header, GeneratedRowCsv}` for TPC-DS and the `*Csv` row
-wrappers in `tpchgen::csv` for TPC-H. These are the types
-`tpcgen-cli/src/tpcds_cli/csv.rs` and its TPC-H counterpart use to write real
-CSV files, so the test exercises the shipped formatting code rather than a
+The same reparse tests run a second time over CSV output, using the shipped
+CSV types — [`tpcdsgen::csv`](tpcdsgen/src/csv.rs) for TPC-DS and
+[`tpchgen::csv`](tpchgen/src/csv.rs) for TPC-H — that `tpcgen-cli` uses to
+write real CSV files. This exercises the shipped formatting code rather than a
 parallel implementation of it.
 
-### Parquet against Arrow
+### Validating Parquet output
 
-Parquet is written from the Arrow batches, so the CLI integration tests in
-`tpcgen-cli/tests/cli_integration/` check the properties the writer could break
-on its own:
-
-- Splitting a table across row groups generated from separate source row ranges
-  gives the same data as a single pass (`test_tpcgen_cli_tpcds_parquet_matches_single_pass_generation`).
-  `store_returns` is generated from the `store_sales` generator, so this also
-  proves no return rows are lost or duplicated at range boundaries.
-- `--num-threads 1` and `--num-threads 4` produce byte-identical files.
-- The Arrow schema survives the round trip, including types with no exact
-  Parquet equivalent such as the `Time32(Second)` column in `dbgen_version`.
+Parquet is written from the Arrow batches, so
+[`tpcgen-cli/tests/cli_integration/`](tpcgen-cli/tests/cli_integration/) checks
+the properties the writer could break on its own: row-group splits produce the
+same data as a single pass, `--num-threads 1` and `--num-threads 4` produce
+byte-identical files, and the Arrow schema survives the round trip, including
+types with no exact Parquet equivalent such as `Time32(Second)`.
 
 ## Conformance in CI
 
-Conformance runs in two tiers.
-
-Every pull request runs `tpch-conformance.yml` and `tpcds-conformance.yml`.
-These do the MD5-only check against the committed `MD5SUMS`, which proves the
-output is byte-identical to what the recorded reference hashes describe. TPC-H
-covers scale factors 0.001, 0.01, 0.1 and 1; TPC-DS covers scale factor 1
-against both compat modes. `rust.yml` runs `cargo nextest run --workspace` on
-the same trigger, which is where the reparse and CLI integration tests run.
-
-Every merge to main runs `full-conformance.yml`, the slow pass. It rebuilds the
-reference data from the reference implementations themselves (C `dbgen` in
-docker, the published C `dsdgen` dataset, and a fresh Maven build of the Trino
-Java port), diffs our output against it byte for byte, and fails if the
-committed `MD5SUMS` have drifted from the living reference.
+All the conformance tests described above run on every CI run.
+[`tpch-conformance.yml`](.github/workflows/tpch-conformance.yml) and
+[`tpcds-conformance.yml`](.github/workflows/tpcds-conformance.yml) run the
+MD5-only check on every pull request.
+[`full-conformance.yml`](.github/workflows/full-conformance.yml) rebuilds the
+reference data from the reference implementations themselves and re-checks it
+byte for byte on every merge to main.
 
 ## Known coverage limits
 
@@ -130,6 +116,8 @@ The suites do not cover everything:
 
 ## Verifying it yourself
 
+### TPC-H
+
 `tpcgen-cli tpch` generates exactly the same bytes as the original `dbgen`
 program, which you can confirm with `shasum`:
 
@@ -155,7 +143,7 @@ shasum tpch-dbgen/*.tbl
 [`tpch-dbgen`]: https://github.com/electrum/tpch-dbgen
 [alamb/tpcds-data]: https://github.com/alamb/tpcds-data
 
-### Scale factor 1
+#### Scale factor 1
 
 ```sh
 $ shasum tpch-dbgen/*.tbl
@@ -169,7 +157,7 @@ ac61de9604337e791f1bdbcef8f0cdcc21b01514  tpch-dbgen/region.tbl
 baad047476a2720d99b707b6f7a7c9e50c170d5a  tpch-dbgen/supplier.tbl
 ```
 
-### Scale factor 10
+#### Scale factor 10
 
 ```sh
 $ shasum tpch-dbgen/*.tbl
@@ -183,7 +171,7 @@ ac61de9604337e791f1bdbcef8f0cdcc21b01514  tpch-dbgen/region.tbl
 42a76ba965916326e52adca1725ed9ee18b8e61b  tpch-dbgen/supplier.tbl
 ```
 
-### Scale factor 100
+#### Scale factor 100
 
 ```sh
 $ shasum tpch-dbgen/*.tbl
@@ -196,3 +184,29 @@ f6eb11ed8a2b4d7d70e30b334fc4fc5a28e03ea4  tpch-dbgen/part.tbl
 ac61de9604337e791f1bdbcef8f0cdcc21b01514  tpch-dbgen/region.tbl
 48bc62481b58ff96e5e50a70b3892f4d95f7372f  tpch-dbgen/supplier.tbl
 ```
+
+### TPC-DS
+
+There are two reference implementations to check against.
+
+For the Trino Java port (`--compat trino`, the default), build it once and
+generate its reference data:
+
+```sh
+./tpcgen-cli/scripts/tpcds/bootstrap-trino.sh
+./tpcgen-cli/scripts/tpcds/generate-fixtures.sh
+shasum tpcgen-cli/tests/fixtures/tpcds/scale-1-trino/*.dat
+```
+
+For the C `dsdgen` reference (`--compat c`), the data is pre-generated and
+published in [alamb/tpcds-data], so no build is needed:
+
+```sh
+./tpcgen-cli/scripts/tpcds/generate-fixtures.sh --compat c
+shasum tpcgen-cli/tests/fixtures/tpcds/scale-1-c/*.dat
+```
+
+Compare either set of hashes against `tpcgen-cli tpcds dat --compat <trino|c>`
+output for the same scale factor. See the suite's
+[README](tpcgen-cli/scripts/tpcds/README.md) for other scale factors and
+options.
