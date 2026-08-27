@@ -1,11 +1,11 @@
 use super::generate::Sink;
-use super::output_plan::OutputPlanGenerator;
+use super::output_plan::{OutputPlanGenerator, ParquetWriteOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
 use super::statistics::WriteStatistics;
 use crate::parquet::IntoSize;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
-pub use ::parquet::basic::Compression;
+pub use ::parquet::basic::{Compression, Encoding};
 use log::info;
 use std::fmt::Display;
 use std::fs::File;
@@ -188,6 +188,8 @@ pub struct GeneratorConfig {
     pub num_threads: usize,
     /// Parquet compression format
     pub parquet_compression: Compression,
+    /// Per-column Parquet encodings (overrides writer defaults)
+    pub parquet_column_encodings: Vec<(String, Encoding)>,
     /// Target row group size in bytes for Parquet files
     pub parquet_row_group_bytes: i64,
     /// Number of partitions to generate (if None, generates a single file per table)
@@ -209,6 +211,7 @@ impl Default for GeneratorConfig {
             format: OutputFormat::Tbl,
             num_threads: num_cpus::get(),
             parquet_compression: Compression::SNAPPY,
+            parquet_column_encodings: Vec::new(),
             parquet_row_group_bytes: DEFAULT_PARQUET_ROW_GROUP_BYTES,
             parts: None,
             part: None,
@@ -263,7 +266,10 @@ impl TpchGenerator {
         let mut output_plan_generator = OutputPlanGenerator::new(
             config.format,
             config.scale_factor,
-            config.parquet_compression,
+            ParquetWriteOptions {
+                compression: config.parquet_compression,
+                column_encodings: config.parquet_column_encodings,
+            },
             config.parquet_row_group_bytes,
             config.stdout,
             config.output_dir,
@@ -345,6 +351,12 @@ impl TpchGeneratorBuilder {
     /// Set Parquet compression format (default: SNAPPY).
     pub fn with_parquet_compression(mut self, compression: Compression) -> Self {
         self.config.parquet_compression = compression;
+        self
+    }
+
+    /// Set per-column Parquet encodings (overrides writer defaults).
+    pub fn with_parquet_column_encodings(mut self, encodings: Vec<(String, Encoding)>) -> Self {
+        self.config.parquet_column_encodings = encodings;
         self
     }
 

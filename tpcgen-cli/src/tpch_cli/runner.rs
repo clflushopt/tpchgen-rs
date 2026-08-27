@@ -200,6 +200,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
+                plan.parquet_column_encodings(),
                 progress,
             )
             .await
@@ -219,6 +220,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
+                plan.parquet_column_encodings(),
                 progress,
             )
             .await?;
@@ -382,7 +384,8 @@ define_run!(
 mod tests {
     use super::*;
     use crate::progress::ProgressTracker;
-    use crate::tpch_cli::{Compression, GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
+    use crate::tpch_cli::output_plan::ParquetWriteOptions;
+    use crate::tpch_cli::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
     use std::sync::{
         atomic::{AtomicU64, Ordering},
         Arc,
@@ -420,7 +423,7 @@ mod tests {
             Table::Lineitem,
             1.0,
             OutputFormat::Tbl,
-            Compression::SNAPPY,
+            ParquetWriteOptions::default(),
             OutputLocation::File(output_path.clone()),
             generation_plan,
             ',',

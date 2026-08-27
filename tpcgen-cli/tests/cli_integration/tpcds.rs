@@ -1,11 +1,11 @@
-use super::test_helpers::{expect_row_group_sizes, RowGroups};
+use super::test_helpers::{column_encodings, expect_row_group_sizes, RowGroups};
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::{DataType, TimeUnit};
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
-use parquet::basic::Compression;
+use parquet::basic::{Compression, Encoding};
 use parquet::file::metadata::ParquetMetaDataReader;
 use std::collections::BTreeSet;
 use std::fs;
@@ -238,6 +238,59 @@ fn test_tpcgen_cli_tpcds_parquet_compression() {
             assert_eq!(column.compression(), Compression::UNCOMPRESSED);
         }
     }
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("reason")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .success();
+
+    let path = temp_dir.path().join("reason.parquet");
+    let desc_encodings = column_encodings(&path, "r_reason_description");
+    let sk_encodings = column_encodings(&path, "r_reason_sk");
+
+    assert!(
+        desc_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
+        "r_reason_description encodings: {desc_encodings:?}"
+    );
+    assert!(
+        !sk_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
+        "r_reason_sk encodings: {sk_encodings:?}"
+    );
+}
+
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=NOT_AN_ENCODING")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("invalid value") && stderr.contains("--column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
 }
 
 #[test]

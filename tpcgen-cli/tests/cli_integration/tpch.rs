@@ -1,7 +1,8 @@
-use super::test_helpers::{expect_row_group_sizes, RowGroups};
+use super::test_helpers::{column_encodings, expect_row_group_sizes, RowGroups};
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
+use parquet::basic::Encoding;
 use std::fs;
 use std::fs::File;
 use std::io::Read;
@@ -48,6 +49,78 @@ fn test_tpcgen_cli_tpch_command_forms() {
             form.join(" ")
         );
     }
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_parquet_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.001")
+        .arg("--tables")
+        .arg("lineitem")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .success();
+
+    let path = temp_dir.path().join("lineitem.parquet");
+    let comment_encodings = column_encodings(&path, "l_comment");
+    let shipinstruct_encodings = column_encodings(&path, "l_shipinstruct");
+    let orderkey_encodings = column_encodings(&path, "l_orderkey");
+
+    assert!(
+        comment_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
+        "l_comment encodings: {comment_encodings:?}"
+    );
+    assert!(
+        shipinstruct_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
+        "l_shipinstruct encodings: {shipinstruct_encodings:?}"
+    );
+    assert!(
+        !orderkey_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
+        "l_orderkey encodings: {orderkey_encodings:?}"
+    );
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_parquet_rejects_invalid_column_encoding() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("l_comment=NOT_AN_ENCODING")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("invalid value") && stderr.contains("--column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("nocolonequal")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("expected COLUMN=ENCODING"),
+        "unexpected stderr: {stderr}"
+    );
 }
 
 /// Repeated TPC-H table selections should schedule each table once.

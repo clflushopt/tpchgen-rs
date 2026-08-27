@@ -1,3 +1,4 @@
+use parquet::basic::Encoding;
 use parquet::file::metadata::ParquetMetaDataReader;
 use std::fs::File;
 use std::path::Path;
@@ -38,4 +39,19 @@ pub(crate) fn expect_row_group_sizes(output_dir: &Path, expected_row_groups: Vec
     let expected_row_groups = format!("{expected_row_groups:#?}");
     let actual_row_groups = format!("{actual_row_groups:#?}");
     assert_eq!(actual_row_groups, expected_row_groups);
+}
+
+pub(crate) fn column_encodings(path: &Path, column: &str) -> Vec<Encoding> {
+    let file = File::open(path).expect("Failed to open parquet file");
+    let mut metadata_reader = ParquetMetaDataReader::new();
+    metadata_reader.try_parse(&file).unwrap();
+    let metadata = metadata_reader.finish().unwrap();
+    for row_group in metadata.row_groups() {
+        for col in row_group.columns() {
+            if col.column_path().string() == column {
+                return col.encodings().collect();
+            }
+        }
+    }
+    panic!("column {column} not found in {}", path.display());
 }

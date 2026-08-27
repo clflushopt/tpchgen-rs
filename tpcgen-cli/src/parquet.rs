@@ -6,12 +6,13 @@ use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
 use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
-use parquet::basic::Compression;
+use parquet::basic::{Compression, Encoding};
 use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
-use parquet::schema::types::SchemaDescPtr;
+use parquet::schema::types::{ColumnPath, SchemaDescPtr};
 use std::io;
 use std::io::Write;
+use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::mpsc::{Receiver, Sender};
 
@@ -21,6 +22,19 @@ use crate::tpch_cli::statistics::WriteStatistics;
 pub trait IntoSize {
     /// Convert the object into a size
     fn into_size(self) -> Result<usize, io::Error>;
+}
+
+pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), String> {
+    let Some((name, encoding)) = s.split_once('=') else {
+        return Err(format!("expected COLUMN=ENCODING, got: '{s}'"));
+    };
+    let name = name.trim();
+    let encoding = encoding.trim();
+    if name.is_empty() || encoding.is_empty() {
+        return Err(format!("expected COLUMN=ENCODING, got: '{s}'"));
+    }
+    let encoding = Encoding::from_str(encoding).map_err(|e| e.to_string())?;
+    Ok((name.to_string(), encoding))
 }
 
 /// Converts a set of RecordBatchReaders into a Parquet file.
@@ -34,6 +48,7 @@ pub async fn generate_parquet<W, I>(
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
+    column_encodings: &[(String, Encoding)],
     progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
@@ -52,9 +67,14 @@ where
     let schema = first_iter.schema();
 
     // Compute the parquet schema
-    let mut writer_properties = WriterProperties::builder()
-        .set_compression(parquet_compression)
-        .build();
+    let mut builder = WriterProperties::builder().set_compression(parquet_compression);
+    for (col, enc) in column_encodings {
+        let path = ColumnPath::from(col.as_str());
+        builder = builder
+            .set_column_encoding(path.clone(), *enc)
+            .set_column_dictionary_enabled(path, false);
+    }
+    let mut writer_properties = builder.build();
     // Embed the Arrow schema in the Parquet metadata (as ArrowWriter does) so
     // readers recover Arrow types with no exact Parquet equivalent (e.g. the
     // Time32(seconds) column in the TPC-DS dbgen_version table)
@@ -226,6 +246,7 @@ mod tests {
             vec![region_source(), region_source()].into_iter(),
             1,
             Compression::UNCOMPRESSED,
+            &[],
             progress,
         )
         .await
@@ -233,5 +254,25 @@ mod tests {
 
         assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
+    }
+
+    #[test]
+    fn parse_column_encoding_pair_accepts_two_valid_pairs() {
+        assert_eq!(
+            parse_column_encoding_pair("l_comment=DELTA_LENGTH_BYTE_ARRAY").unwrap(),
+            ("l_comment".to_string(), Encoding::DELTA_LENGTH_BYTE_ARRAY)
+        );
+        assert_eq!(
+            parse_column_encoding_pair(" l_shipinstruct = delta_byte_array ").unwrap(),
+            ("l_shipinstruct".to_string(), Encoding::DELTA_BYTE_ARRAY)
+        );
+    }
+
+    #[test]
+    fn parse_column_encoding_pair_rejects_malformed_and_unknown() {
+        assert!(parse_column_encoding_pair("nocolonequal").is_err());
+        assert!(parse_column_encoding_pair("=PLAIN").is_err());
+        assert!(parse_column_encoding_pair("l_comment=").is_err());
+        assert!(parse_column_encoding_pair("l_comment=NOT_AN_ENCODING").is_err());
     }
 }

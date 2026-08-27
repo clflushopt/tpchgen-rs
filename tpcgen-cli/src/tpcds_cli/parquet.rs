@@ -6,7 +6,7 @@ use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::temp_path::inprogress_path;
 use crate::worker_queue::WorkerQueue;
 use arrow::record_batch::RecordBatchReader;
-use parquet::basic::Compression;
+use parquet::basic::{Compression, Encoding};
 use std::fs::File;
 use std::io::{self, BufWriter};
 use std::path::PathBuf;
@@ -27,6 +27,7 @@ pub(super) struct Parquet {
     compression: Compression,
     row_group_bytes: usize,
     num_threads: usize,
+    column_encodings: Vec<(String, Encoding)>,
 }
 
 impl Parquet {
@@ -35,12 +36,14 @@ impl Parquet {
         compression: Compression,
         row_group_bytes: usize,
         num_threads: usize,
+        column_encodings: Vec<(String, Encoding)>,
     ) -> Self {
         Self {
             output_dir,
             compression,
             row_group_bytes,
             num_threads,
+            column_encodings,
         }
     }
 
@@ -465,6 +468,7 @@ impl Parquet {
             sources,
             num_threads,
             self.compression,
+            &self.column_encodings,
             progress.clone(),
         )
         .await?;
