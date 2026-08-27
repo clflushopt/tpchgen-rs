@@ -65,7 +65,7 @@ fn test_tpcgen_cli_tpch_parquet_column_encoding() {
         .arg(temp_dir.path())
         .arg("--no-progress")
         .arg("--column-encoding")
-        .arg("l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY")
+        .arg("l_comment=DELTA_LENGTH_BYTE_ARRAY, l_shipinstruct = delta_length_byte_array ")
         .assert()
         .success();
 
@@ -121,6 +121,23 @@ fn test_tpcgen_cli_tpch_parquet_rejects_invalid_column_encoding() {
         stderr.contains("expected COLUMN=ENCODING"),
         "unexpected stderr: {stderr}"
     );
+
+    for invalid in ["=PLAIN", "l_comment="] {
+        let assert = cargo_bin_cmd!("tpcgen-cli")
+            .args(["tpch", "parquet"])
+            .arg("--output-dir")
+            .arg(temp_dir.path())
+            .arg("--column-encoding")
+            .arg(invalid)
+            .assert()
+            .failure();
+
+        let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+        assert!(
+            stderr.contains("expected COLUMN=ENCODING"),
+            "unexpected stderr for {invalid}: {stderr}"
+        );
+    }
 }
 
 /// Repeated TPC-H table selections should schedule each table once.

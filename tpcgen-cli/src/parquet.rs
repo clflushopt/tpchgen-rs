@@ -255,24 +255,4 @@ mod tests {
         assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
     }
-
-    #[test]
-    fn parse_column_encoding_pair_accepts_two_valid_pairs() {
-        assert_eq!(
-            parse_column_encoding_pair("l_comment=DELTA_LENGTH_BYTE_ARRAY").unwrap(),
-            ("l_comment".to_string(), Encoding::DELTA_LENGTH_BYTE_ARRAY)
-        );
-        assert_eq!(
-            parse_column_encoding_pair(" l_shipinstruct = delta_byte_array ").unwrap(),
-            ("l_shipinstruct".to_string(), Encoding::DELTA_BYTE_ARRAY)
-        );
-    }
-
-    #[test]
-    fn parse_column_encoding_pair_rejects_malformed_and_unknown() {
-        assert!(parse_column_encoding_pair("nocolonequal").is_err());
-        assert!(parse_column_encoding_pair("=PLAIN").is_err());
-        assert!(parse_column_encoding_pair("l_comment=").is_err());
-        assert!(parse_column_encoding_pair("l_comment=NOT_AN_ENCODING").is_err());
-    }
 }
