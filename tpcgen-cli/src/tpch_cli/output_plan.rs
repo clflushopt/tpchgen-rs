@@ -50,6 +50,8 @@ impl Default for ParquetWriteOptions {
         }
     }
 }
+
+/// Describes an output partition (file) that will be generated
 #[derive(Debug, Clone, PartialEq)]
 pub struct OutputPlan {
     /// The table
