@@ -442,13 +442,6 @@ impl CsvArgs {
 
 impl ParquetArgs {
     async fn run(self) -> io::Result<()> {
-        if self.column_encoding.is_some() && self.common.tables.is_none() {
-            return Err(io::Error::other(
-                "--column-encoding requires --tables: it names columns from a specific \
-                 table's schema, and without --tables every table is generated, most of \
-                 which won't have that column",
-            ));
-        }
         self.common
             .builder(OutputFormat::Parquet)
             .with_parquet_compression(self.compression)
@@ -491,29 +484,6 @@ mod tests {
         .tables();
 
         assert_eq!(tables, Some(vec![Table::Region, Table::Nation]));
-    }
-
-    #[tokio::test]
-    async fn column_encoding_without_tables_is_rejected() {
-        let cli = Cli::try_parse_from([
-            "tpchgen",
-            "parquet",
-            "--column-encoding",
-            "l_comment=PLAIN",
-            "--output-dir",
-            "/nonexistent-should-never-be-created",
-        ])
-        .unwrap();
-        let Some(Commands::Parquet(args)) = cli.command else {
-            panic!("expected parquet command")
-        };
-
-        let err = args.run().await.unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("--column-encoding requires --tables"),
-            "{err}"
-        );
     }
 
     #[test]

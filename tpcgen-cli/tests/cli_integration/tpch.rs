@@ -126,6 +126,42 @@ fn test_tpcgen_cli_tpch_parquet_rejects_invalid_column_encoding() {
     }
 }
 
+/// `--column-encoding` naming a column that only exists on some of the
+/// selected tables must fail before any table is written, not partway
+/// through after another table has already completed.
+#[test]
+fn test_tpcgen_cli_tpch_parquet_column_encoding_missing_from_one_table_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // l_comment only exists on lineitem, not orders.
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("lineitem,orders")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_comment=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("column 'l_comment'") && stderr.contains("orders"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
 /// Repeated TPC-H table selections should schedule each table once.
 #[test]
 fn test_tpcgen_cli_tpch_deduplicates_selected_tables() {

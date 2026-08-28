@@ -5,6 +5,7 @@ use crate::parquet::generate_parquet;
 use crate::progress::{ProgressHandle, ProgressTracker};
 use crate::temp_path::inprogress_path;
 use crate::worker_queue::WorkerQueue;
+use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use parquet::basic::{Compression, Encoding};
 use std::fs::File;
@@ -19,6 +20,74 @@ use tpcdsgen_arrow::{
     PromotionArrow, ReasonArrow, ShipModeArrow, StoreArrow, StoreReturnsArrow, StoreSalesArrow,
     TimeDimArrow, WarehouseArrow, WebPageArrow, WebReturnsArrow, WebSalesArrow, WebSiteArrow,
 };
+
+/// Returns `table`'s Arrow schema without generating any rows. Used to
+/// validate `--column-encoding` column names against every selected table
+/// before scheduling any generation work.
+fn table_schema(table: Table, session: &Session) -> SchemaRef {
+    let session = session.clone();
+    match table {
+        Table::CallCenter => CallCenterArrow::new(session).schema(),
+        Table::CatalogPage => CatalogPageArrow::new(session).schema(),
+        Table::CatalogReturns => CatalogReturnsArrow::new(session).schema(),
+        Table::CatalogSales => CatalogSalesArrow::new(session).schema(),
+        Table::Customer => CustomerArrow::new(session).schema(),
+        Table::CustomerAddress => CustomerAddressArrow::new(session).schema(),
+        Table::CustomerDemographics => CustomerDemographicsArrow::new(session).schema(),
+        Table::DateDim => DateDimArrow::new(session).schema(),
+        Table::DbgenVersion => DbgenVersionArrow::new(session).schema(),
+        Table::HouseholdDemographics => HouseholdDemographicsArrow::new(session).schema(),
+        Table::IncomeBand => IncomeBandArrow::new(session).schema(),
+        Table::Inventory => InventoryArrow::new(session).schema(),
+        Table::Item => ItemArrow::new(session).schema(),
+        Table::Promotion => PromotionArrow::new(session).schema(),
+        Table::Reason => ReasonArrow::new(session).schema(),
+        Table::ShipMode => ShipModeArrow::new(session).schema(),
+        Table::Store => StoreArrow::new(session).schema(),
+        Table::StoreReturns => StoreReturnsArrow::new(session).schema(),
+        Table::StoreSales => StoreSalesArrow::new(session).schema(),
+        Table::TimeDim => TimeDimArrow::new(session).schema(),
+        Table::Warehouse => WarehouseArrow::new(session).schema(),
+        Table::WebPage => WebPageArrow::new(session).schema(),
+        Table::WebReturns => WebReturnsArrow::new(session).schema(),
+        Table::WebSales => WebSalesArrow::new(session).schema(),
+        Table::WebSite => WebSiteArrow::new(session).schema(),
+        _ => unreachable!("table_schema is only called for main TPC-DS tables"),
+    }
+}
+
+/// Validates that every column referenced by `encodings` exists in every one
+/// of `tables`' schemas, before any generation starts.
+///
+/// Failing here (rather than inside `generate_parquet`, once tables are
+/// already scheduled and some may be running concurrently) means a typo'd or
+/// table-specific column name can't leave one table's `.parquet` file fully
+/// written while a sibling table fails mid-run because it simply doesn't
+/// have that column.
+fn validate_column_encodings(
+    tables: &[(Table, Session)],
+    encodings: &[(String, Encoding)],
+) -> io::Result<()> {
+    for (col, _) in encodings {
+        let missing: Vec<&str> = tables
+            .iter()
+            .filter(|(table, session)| {
+                !table_schema(*table, session)
+                    .fields()
+                    .iter()
+                    .any(|f| f.name() == col)
+            })
+            .map(|(table, _)| table.get_name())
+            .collect();
+        if !missing.is_empty() {
+            return Err(io::Error::other(format!(
+                "column '{col}' for --column-encoding not found in table(s): {}",
+                missing.join(", ")
+            )));
+        }
+    }
+    Ok(())
+}
 
 /// Parquet output generator.
 #[derive(Debug, Clone)]
@@ -59,6 +128,15 @@ impl Parquet {
         tables: Vec<(Table, Session)>,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
+        // Validate --column-encoding columns against every selected table's
+        // schema up front: catching a missing column here means the command
+        // fails before any table starts writing, rather than after some
+        // tables have already completed while an unrelated table (that
+        // simply doesn't have the requested column) fails mid-run.
+        if let Some(encodings) = &self.column_encodings {
+            validate_column_encodings(&tables, encodings)?;
+        }
+
         // Plan each table and pre-register the row group totals so trackers
         // can size their bars before the first increment
         let mut work: Vec<(Table, Session, TpcdsGenerationPlan, ProgressHandle)> = tables
@@ -480,5 +558,51 @@ impl Parquet {
         progress.complete();
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn table_sessions(tables: &[Table]) -> Vec<(Table, Session)> {
+        tables
+            .iter()
+            .map(|&table| (table, Session::default()))
+            .collect()
+    }
+
+    #[test]
+    fn validate_column_encodings_accepts_a_column_present_in_every_selected_table() {
+        // Every TPC-DS column name is prefixed by its own table (r_, cc_, ...),
+        // so "present in every selected table" only ever means a single-table
+        // selection in practice; this exercises that path.
+        let tables = table_sessions(&[Table::Reason]);
+        let encodings = [("r_reason_description".to_string(), Encoding::PLAIN)];
+        assert!(validate_column_encodings(&tables, &encodings).is_ok());
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_a_column_missing_from_one_selected_table() {
+        // r_reason_description only exists on reason, not item.
+        let tables = table_sessions(&[Table::Reason, Table::Item]);
+        let encodings = [("r_reason_description".to_string(), Encoding::PLAIN)];
+        let err = validate_column_encodings(&tables, &encodings).unwrap_err();
+        let message = err.to_string();
+        assert!(
+            message.contains("column 'r_reason_description'"),
+            "{message}"
+        );
+        assert!(
+            message.contains("table(s): item"),
+            "expected only 'item' listed as missing the column, got: {message}"
+        );
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_a_typo() {
+        let tables = table_sessions(&[Table::Reason]);
+        let encodings = [("r_reason_description_typo".to_string(), Encoding::PLAIN)];
+        assert!(validate_column_encodings(&tables, &encodings).is_err());
     }
 }

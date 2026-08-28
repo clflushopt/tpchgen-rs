@@ -6,6 +6,8 @@ use super::statistics::WriteStatistics;
 use crate::parquet::IntoSize;
 use crate::progress::{no_op_progress_tracker, ProgressTracker};
 pub use ::parquet::basic::{Compression, Encoding};
+use arrow::datatypes::SchemaRef;
+use arrow::record_batch::RecordBatchReader;
 use log::info;
 use std::fmt::Display;
 use std::fs::File;
@@ -15,7 +17,15 @@ use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Instant;
 use tpchgen::distribution::Distributions;
+use tpchgen::generators::{
+    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
+    PartSuppGenerator, RegionGenerator, SupplierGenerator,
+};
 use tpchgen::text::TextPool;
+use tpchgen_arrow::{
+    CustomerArrow, LineItemArrow, NationArrow, OrderArrow, PartArrow, PartSuppArrow, RegionArrow,
+    SupplierArrow,
+};
 
 /// Wrapper around a buffer writer that counts the number of buffers and bytes written
 pub struct WriterSink<W: Write> {
@@ -221,6 +231,57 @@ impl Default for GeneratorConfig {
     }
 }
 
+/// Returns `table`'s Arrow schema without generating any rows: `part`/`part_count`
+/// don't affect the schema, so `(1, 1)` (the whole table, undivided) is used
+/// unconditionally. Used to validate `--column-encoding` column names against
+/// every selected table before scheduling any generation work.
+fn table_schema(table: Table, scale_factor: f64) -> SchemaRef {
+    match table {
+        Table::Nation => NationArrow::new(NationGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Region => RegionArrow::new(RegionGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Part => PartArrow::new(PartGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Supplier => SupplierArrow::new(SupplierGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Partsupp => PartSuppArrow::new(PartSuppGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Customer => CustomerArrow::new(CustomerGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Orders => OrderArrow::new(OrderGenerator::new(scale_factor, 1, 1)).schema(),
+        Table::Lineitem => LineItemArrow::new(LineItemGenerator::new(scale_factor, 1, 1)).schema(),
+    }
+}
+
+/// Validates that every column referenced by `encodings` exists in every one
+/// of `tables`' schemas, before any generation starts.
+///
+/// Failing here (rather than inside `generate_parquet`, once tables are
+/// already scheduled and some may be running concurrently) means a typo'd or
+/// table-specific column name can't leave one table's `.parquet` file fully
+/// written while a sibling table fails mid-run because it simply doesn't
+/// have that column.
+fn validate_column_encodings(
+    tables: &[Table],
+    scale_factor: f64,
+    encodings: &[(String, Encoding)],
+) -> io::Result<()> {
+    for (col, _) in encodings {
+        let missing: Vec<&str> = tables
+            .iter()
+            .filter(|table| {
+                !table_schema(**table, scale_factor)
+                    .fields()
+                    .iter()
+                    .any(|f| f.name() == col)
+            })
+            .map(|table| table.name())
+            .collect();
+        if !missing.is_empty() {
+            return Err(io::Error::other(format!(
+                "column '{col}' for --column-encoding not found in table(s): {}",
+                missing.join(", ")
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// TPC-H data generator
 ///
 /// The main entry point for generating TPC-H benchmark data.
@@ -261,6 +322,15 @@ impl TpchGenerator {
                 Table::Lineitem,
             ]
         };
+
+        // Validate --column-encoding columns against every selected table's
+        // schema up front: catching a missing column here means the command
+        // fails before any table starts writing, rather than after some
+        // tables have already completed while an unrelated table (that
+        // simply doesn't have the requested column) fails mid-run.
+        if let Some(encodings) = &config.parquet_column_encodings {
+            validate_column_encodings(&tables, config.scale_factor, encodings)?;
+        }
 
         // Determine what files to generate
         let mut output_plan_generator = OutputPlanGenerator::new(
@@ -449,6 +519,45 @@ mod tests {
         fn finish(&self) {
             self.finishes.fetch_add(1, Ordering::Relaxed);
         }
+    }
+
+    #[test]
+    fn validate_column_encodings_accepts_a_column_present_in_every_selected_table() {
+        // Every TPC-H column name is prefixed by its own table (l_, o_, ...),
+        // so "present in every selected table" only ever means a single-table
+        // selection in practice; this exercises that path.
+        let tables = [Table::Lineitem];
+        let encodings = [("l_orderkey".to_string(), Encoding::PLAIN)];
+        assert!(validate_column_encodings(&tables, 0.001, &encodings).is_ok());
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_a_column_missing_from_one_selected_table() {
+        // l_comment only exists on lineitem, not orders.
+        let tables = [Table::Lineitem, Table::Orders];
+        let encodings = [("l_comment".to_string(), Encoding::PLAIN)];
+        let err = validate_column_encodings(&tables, 0.001, &encodings).unwrap_err();
+        let message = err.to_string();
+        assert!(message.contains("column 'l_comment'"), "{message}");
+        assert!(message.contains("orders"), "{message}");
+        assert!(!message.contains("lineitem"), "{message}");
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_a_typo_against_the_default_table_set() {
+        let tables = [
+            Table::Nation,
+            Table::Region,
+            Table::Part,
+            Table::Supplier,
+            Table::Partsupp,
+            Table::Customer,
+            Table::Orders,
+            Table::Lineitem,
+        ];
+        let encodings = [("l_comment_typo".to_string(), Encoding::PLAIN)];
+        // Fails before touching any table's actual generation.
+        assert!(validate_column_encodings(&tables, 0.001, &encodings).is_err());
     }
 
     #[tokio::test]

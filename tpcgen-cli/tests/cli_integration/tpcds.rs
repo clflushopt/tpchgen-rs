@@ -287,6 +287,42 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
     );
 }
 
+/// `--column-encoding` naming a column that only exists on some of the
+/// selected tables must fail before any table is written, not partway
+/// through after another table has already completed.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding_missing_from_one_table_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // r_reason_description only exists on reason, not item.
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("column 'r_reason_description'") && stderr.contains("item"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
 #[test]
 fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
