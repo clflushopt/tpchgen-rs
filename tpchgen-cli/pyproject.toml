@@ -8,5 +8,10 @@ dynamic = ["version", "readme", "license", "authors"]
 description = "Python CLI for TPC-H data generator"
 requires-python = ">=3.8"
 
+[project.urls]
+Homepage = "https://github.com/datafusion-contrib/tpcgen-rs"
+Repository = "https://github.com/datafusion-contrib/tpcgen-rs"
+Issues = "https://github.com/datafusion-contrib/tpcgen-rs/issues"
+
 [tool.maturin]
 bindings = "bin"  # this makes maturin treat it as a binary crate (not a library)
