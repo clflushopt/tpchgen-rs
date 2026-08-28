@@ -21,4 +21,4 @@ This crate ensures correct results using two methods.
 
 Please see [CONTRIBUTING.md] for more information on how to contribute to this project.
 
-[CONTRIBUTING.md]: https://github.com/clflushopt/tpchgen-rs/blob/main/CONTRIBUTING.md
+[CONTRIBUTING.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/CONTRIBUTING.md

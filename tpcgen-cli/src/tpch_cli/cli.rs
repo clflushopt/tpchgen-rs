@@ -24,7 +24,7 @@ use std::sync::Arc;
     about = "TPC-H Data Generator",
     // --help output
     long_about = r#"
-TPCH Data Generator (https://github.com/clflushopt/tpchgen-rs)
+TPCH Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
 
 By default each table is written to a single file named <output_dir>/<table>.<format>
 
