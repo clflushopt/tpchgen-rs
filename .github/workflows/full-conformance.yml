@@ -48,7 +48,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build Rust table generators
-        run: cargo build --release -p tpcgen-cli
+        run: cargo build --locked --release -p tpcgen-cli
 
       - name: Regenerate reference fixtures from C dbgen
         run: |
@@ -93,7 +93,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build Rust table generators
-        run: cargo build --release -p tpcgen-cli
+        run: cargo build --locked --release -p tpcgen-cli
 
       - name: Download C dsdgen reference fixtures
         run: |
@@ -139,7 +139,7 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Build Rust table generators
-        run: cargo build --release -p tpcgen-cli
+        run: cargo build --locked --release -p tpcgen-cli
 
       - name: Build Trino Java reference implementation
         run: |

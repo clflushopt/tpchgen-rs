@@ -37,7 +37,7 @@ python -m pip install tpchgen-cli
 
 ```shell
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-RUSTFLAGS='-C target-cpu=native' cargo install tpchgen-cli
+RUSTFLAGS='-C target-cpu=native' cargo install --locked tpchgen-cli
 ```
 
 ## Examples

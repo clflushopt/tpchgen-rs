@@ -250,7 +250,6 @@ dd if=/dev/zero of=/data/test1.img bs=1G count=10 oflag=dsync
 cd /data
 git clone git@github.com:datafusion-contrib/tpcgen-rs.git
 cd tpcgen-rs
-cargo install --path tpchgen-cli
+cargo install --locked --path tpchgen-cli
 ```
-
 

@@ -40,7 +40,7 @@ jobs:
 
     - name: Build release binaries
       run: |
-        cargo build --release -p tpcgen-cli
+        cargo build --locked --release -p tpcgen-cli
 
     - name: Run benchmarks
       run: |

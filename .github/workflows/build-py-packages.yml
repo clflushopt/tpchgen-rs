@@ -83,7 +83,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --locked --release --out dist
           working-directory: tpchgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
       - name: Build tpcgen-cli wheel
@@ -91,7 +91,7 @@ jobs:
         uses: PyO3/maturin-action@v1
         with:
           target: ${{ matrix.target }}
-          args: --release --out dist
+          args: --locked --release --out dist
           working-directory: tpcgen-cli
           manylinux: ${{ matrix.manylinux || '' }}
       - name: Upload tpchgen-cli wheels
