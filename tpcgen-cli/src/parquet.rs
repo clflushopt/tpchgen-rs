@@ -7,9 +7,10 @@ use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
 use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
 use parquet::basic::{Compression, Encoding};
-use parquet::file::properties::WriterProperties;
+use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::{ColumnPath, SchemaDescPtr};
+use std::collections::HashSet;
 use std::io;
 use std::io::Write;
 use std::str::FromStr;
@@ -35,6 +36,41 @@ pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), 
     }
     let encoding = Encoding::from_str(encoding).map_err(|e| e.to_string())?;
     Ok((name.to_string(), encoding))
+}
+
+fn apply_column_encodings(
+    mut builder: WriterPropertiesBuilder,
+    schema: &arrow::datatypes::Schema,
+    encodings: &[(String, Encoding)],
+) -> io::Result<WriterPropertiesBuilder> {
+    let names: HashSet<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
+    for (col, enc) in encodings {
+        if !names.contains(col.as_str()) {
+            return Err(io::Error::other(format!(
+                "unknown column '{col}' for --column-encoding"
+            )));
+        }
+        match enc {
+            Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => {
+                return Err(io::Error::other(format!(
+                    "encoding {enc} cannot be set with --column-encoding; dictionary encoding is the writer default. Use a non-dictionary encoding such as PLAIN or DELTA_LENGTH_BYTE_ARRAY"
+                )));
+            }
+            #[allow(deprecated)]
+            Encoding::BIT_PACKED => {
+                return Err(io::Error::other(
+                    "encoding BIT_PACKED is not supported for Parquet writing",
+                ));
+            }
+            _ => {
+                let path = ColumnPath::from(col.as_str());
+                builder = builder
+                    .set_column_encoding(path.clone(), *enc)
+                    .set_column_dictionary_enabled(path, false);
+            }
+        }
+    }
+    Ok(builder)
 }
 
 /// Converts a set of RecordBatchReaders into a Parquet file.
@@ -68,11 +104,8 @@ where
 
     // Compute the parquet schema
     let mut builder = WriterProperties::builder().set_compression(parquet_compression);
-    for (col, enc) in column_encodings.into_iter().flatten() {
-        let path = ColumnPath::from(col.as_str());
-        builder = builder
-            .set_column_encoding(path.clone(), *enc)
-            .set_column_dictionary_enabled(path, false);
+    if let Some(encodings) = column_encodings {
+        builder = apply_column_encodings(builder, schema.as_ref(), encodings)?;
     }
     let mut writer_properties = builder.build();
     // Embed the Arrow schema in the Parquet metadata (as ArrowWriter does) so
@@ -254,5 +287,76 @@ mod tests {
 
         assert_eq!(tracker.increments.load(Ordering::Relaxed), 2);
         assert!(std::fs::metadata(output_path).unwrap().len() > 0);
+    }
+
+    async fn write_region(
+        encodings: Option<&[(String, Encoding)]>,
+        output_path: &std::path::Path,
+    ) -> io::Result<()> {
+        let writer = BufWriter::new(File::create(output_path).unwrap());
+        let tracker = Arc::new(CountingProgress::default());
+        let progress: Arc<dyn ProgressTracker> = tracker;
+        let progress = progress.register("region", 1);
+        generate_parquet(
+            writer,
+            vec![region_source()].into_iter(),
+            1,
+            Compression::UNCOMPRESSED,
+            encodings,
+            progress,
+        )
+        .await
+    }
+
+    #[tokio::test]
+    async fn unknown_column_encoding_returns_error() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let output_path = output_dir.path().join("unknown.parquet");
+        let err = write_region(
+            Some(&[(
+                "not_a_column".to_string(),
+                Encoding::DELTA_LENGTH_BYTE_ARRAY,
+            )]),
+            &output_path,
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("unknown column 'not_a_column'"),
+            "{err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn dictionary_column_encodings_return_error() {
+        let output_dir = tempfile::tempdir().unwrap();
+        for encoding in [Encoding::PLAIN_DICTIONARY, Encoding::RLE_DICTIONARY] {
+            let output_path = output_dir.path().join(format!("{encoding}.parquet"));
+            let err = write_region(Some(&[("r_name".to_string(), encoding)]), &output_path)
+                .await
+                .unwrap_err();
+            let message = err.to_string();
+            assert!(
+                message.contains("cannot be set with --column-encoding"),
+                "encoding {encoding}: {message}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn bit_packed_column_encoding_returns_error() {
+        let output_dir = tempfile::tempdir().unwrap();
+        let output_path = output_dir.path().join("bit_packed.parquet");
+        #[allow(deprecated)]
+        let err = write_region(
+            Some(&[("r_regionkey".to_string(), Encoding::BIT_PACKED)]),
+            &output_path,
+        )
+        .await
+        .unwrap_err();
+        assert!(
+            err.to_string().contains("BIT_PACKED is not supported"),
+            "{err}"
+        );
     }
 }
