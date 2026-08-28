@@ -384,7 +384,7 @@ define_run!(
 mod tests {
     use super::*;
     use crate::progress::ProgressTracker;
-    use crate::tpch_cli::output_plan::ParquetWriteOptions;
+    use crate::tpch_cli::output_plan::ParquetWriterOptions;
     use crate::tpch_cli::{GenerationPlan, DEFAULT_PARQUET_ROW_GROUP_BYTES};
     use std::sync::{
         atomic::{AtomicU64, Ordering},
@@ -423,7 +423,7 @@ mod tests {
             Table::Lineitem,
             1.0,
             OutputFormat::Tbl,
-            ParquetWriteOptions::default(),
+            ParquetWriterOptions::default(),
             OutputLocation::File(output_path.clone()),
             generation_plan,
             ',',

@@ -1,5 +1,5 @@
 use super::generate::Sink;
-use super::output_plan::{OutputPlanGenerator, ParquetWriteOptions};
+use super::output_plan::{OutputPlanGenerator, ParquetWriterOptions};
 use super::plan::DEFAULT_PARQUET_ROW_GROUP_BYTES;
 use super::runner::PlanRunner;
 use super::statistics::WriteStatistics;
@@ -266,7 +266,7 @@ impl TpchGenerator {
         let mut output_plan_generator = OutputPlanGenerator::new(
             config.format,
             config.scale_factor,
-            ParquetWriteOptions {
+            ParquetWriterOptions {
                 compression: config.parquet_compression,
                 column_encodings: config.parquet_column_encodings,
             },

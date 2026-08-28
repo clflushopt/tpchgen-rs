@@ -37,12 +37,12 @@ impl Display for OutputLocation {
 
 /// Parquet writer settings applied when generating parquet output.
 #[derive(Debug, Clone, PartialEq)]
-pub struct ParquetWriteOptions {
+pub struct ParquetWriterOptions {
     pub compression: Compression,
     pub column_encodings: Vec<(String, Encoding)>,
 }
 
-impl Default for ParquetWriteOptions {
+impl Default for ParquetWriterOptions {
     fn default() -> Self {
         Self {
             compression: Compression::SNAPPY,
@@ -60,7 +60,7 @@ pub struct OutputPlan {
     scale_factor: f64,
     /// The output format (TODO don't depend back on something in main)
     output_format: OutputFormat,
-    parquet: ParquetWriteOptions,
+    parquet: ParquetWriterOptions,
     /// Where to output
     output_location: OutputLocation,
     /// Plan for generating the table
@@ -74,7 +74,7 @@ impl OutputPlan {
         table: Table,
         scale_factor: f64,
         output_format: OutputFormat,
-        parquet: ParquetWriteOptions,
+        parquet: ParquetWriterOptions,
         output_location: OutputLocation,
         generation_plan: GenerationPlan,
         csv_delimiter: char,
@@ -153,7 +153,7 @@ impl Display for OutputPlan {
 pub struct OutputPlanGenerator {
     format: OutputFormat,
     scale_factor: f64,
-    parquet: ParquetWriteOptions,
+    parquet: ParquetWriterOptions,
     parquet_row_group_bytes: i64,
     stdout: bool,
     output_dir: PathBuf,
@@ -169,7 +169,7 @@ impl OutputPlanGenerator {
     pub fn new(
         format: OutputFormat,
         scale_factor: f64,
-        parquet: ParquetWriteOptions,
+        parquet: ParquetWriterOptions,
         parquet_row_group_bytes: i64,
         stdout: bool,
         output_dir: PathBuf,
