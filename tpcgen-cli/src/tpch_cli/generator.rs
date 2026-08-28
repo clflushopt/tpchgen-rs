@@ -189,7 +189,7 @@ pub struct GeneratorConfig {
     /// Parquet compression format
     pub parquet_compression: Compression,
     /// Per-column Parquet encodings (overrides writer defaults)
-    pub parquet_column_encodings: Vec<(String, Encoding)>,
+    pub parquet_column_encodings: Option<Vec<(String, Encoding)>>,
     /// Target row group size in bytes for Parquet files
     pub parquet_row_group_bytes: i64,
     /// Number of partitions to generate (if None, generates a single file per table)
@@ -211,7 +211,7 @@ impl Default for GeneratorConfig {
             format: OutputFormat::Tbl,
             num_threads: num_cpus::get(),
             parquet_compression: Compression::SNAPPY,
-            parquet_column_encodings: Vec::new(),
+            parquet_column_encodings: None,
             parquet_row_group_bytes: DEFAULT_PARQUET_ROW_GROUP_BYTES,
             parts: None,
             part: None,
@@ -355,7 +355,10 @@ impl TpchGeneratorBuilder {
     }
 
     /// Set per-column Parquet encodings (overrides writer defaults).
-    pub fn with_parquet_column_encodings(mut self, encodings: Vec<(String, Encoding)>) -> Self {
+    pub fn with_parquet_column_encodings(
+        mut self,
+        encodings: Option<Vec<(String, Encoding)>>,
+    ) -> Self {
         self.config.parquet_column_encodings = encodings;
         self
     }

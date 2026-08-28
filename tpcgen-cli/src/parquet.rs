@@ -48,7 +48,7 @@ pub async fn generate_parquet<W, I>(
     iter_iter: I,
     num_threads: usize,
     parquet_compression: Compression,
-    column_encodings: &[(String, Encoding)],
+    column_encodings: Option<&[(String, Encoding)]>,
     progress: ProgressHandle,
 ) -> Result<(), io::Error>
 where
@@ -68,7 +68,7 @@ where
 
     // Compute the parquet schema
     let mut builder = WriterProperties::builder().set_compression(parquet_compression);
-    for (col, enc) in column_encodings {
+    for (col, enc) in column_encodings.into_iter().flatten() {
         let path = ColumnPath::from(col.as_str());
         builder = builder
             .set_column_encoding(path.clone(), *enc)
@@ -246,7 +246,7 @@ mod tests {
             vec![region_source(), region_source()].into_iter(),
             1,
             Compression::UNCOMPRESSED,
-            &[],
+            None,
             progress,
         )
         .await

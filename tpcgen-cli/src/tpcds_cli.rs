@@ -134,7 +134,7 @@ struct ParquetArgs {
     /// DELTA_BINARY_PACKED, DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY,
     /// RLE_DICTIONARY, BYTE_STREAM_SPLIT
     #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
-    column_encoding: Vec<(String, Encoding)>,
+    column_encoding: Option<Vec<(String, Encoding)>>,
 }
 
 #[derive(Args)]
@@ -222,7 +222,7 @@ impl CommonArgs {
         compression: Compression,
         row_group_bytes: usize,
         num_threads: usize,
-        column_encoding: Vec<(String, Encoding)>,
+        column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
             self.output_dir.clone(),

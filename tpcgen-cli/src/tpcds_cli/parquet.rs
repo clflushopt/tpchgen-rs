@@ -27,7 +27,7 @@ pub(super) struct Parquet {
     compression: Compression,
     row_group_bytes: usize,
     num_threads: usize,
-    column_encodings: Vec<(String, Encoding)>,
+    column_encodings: Option<Vec<(String, Encoding)>>,
 }
 
 impl Parquet {
@@ -36,7 +36,7 @@ impl Parquet {
         compression: Compression,
         row_group_bytes: usize,
         num_threads: usize,
-        column_encodings: Vec<(String, Encoding)>,
+        column_encodings: Option<Vec<(String, Encoding)>>,
     ) -> Self {
         Self {
             output_dir,
@@ -468,7 +468,7 @@ impl Parquet {
             sources,
             num_threads,
             self.compression,
-            &self.column_encodings,
+            self.column_encodings.as_deref(),
             progress.clone(),
         )
         .await?;
