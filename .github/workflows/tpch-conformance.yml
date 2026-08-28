@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: 1
@@ -26,6 +30,7 @@ jobs:
     # ruleset — rename both together, or PRs block on a phantom check.
     name: TPC-H Conformance Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
