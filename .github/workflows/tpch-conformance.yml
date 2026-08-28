@@ -8,6 +8,7 @@ on:
       - 'tpcgen-cli/**'
       - '.github/**'
   pull_request:
+  merge_group:
   workflow_dispatch:
 
 env:

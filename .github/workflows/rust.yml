@@ -4,6 +4,7 @@ on:
   push:
     branches: ["main"]
   pull_request:
+  merge_group:
   workflow_dispatch:  # Allow manual triggering
 
 env:
@@ -65,3 +66,30 @@ jobs:
     uses: ./.github/workflows/build-py-packages.yml
     with:
       upload-artifacts: false
+
+  # Provide one stable status check for branch rules and the merge queue.
+  rust-checks:
+    name: Rust checks
+    if: ${{ always() }}
+    needs:
+      - lint
+      - test-doc-examples
+      - test-workspace
+      - docs
+      - build-packages
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all Rust jobs passed
+        env:
+          LINT_RESULT: ${{ needs.lint.result }}
+          DOC_TEST_RESULT: ${{ needs.test-doc-examples.result }}
+          WORKSPACE_TEST_RESULT: ${{ needs.test-workspace.result }}
+          DOCS_RESULT: ${{ needs.docs.result }}
+          PACKAGES_RESULT: ${{ needs.build-packages.result }}
+        run: |
+          set -e
+          test "$LINT_RESULT" = success
+          test "$DOC_TEST_RESULT" = success
+          test "$WORKSPACE_TEST_RESULT" = success
+          test "$DOCS_RESULT" = success
+          test "$PACKAGES_RESULT" = success
