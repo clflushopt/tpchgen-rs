@@ -1,4 +1,4 @@
-use super::test_helpers::{column_encodings, expect_row_group_sizes, RowGroups};
+use super::test_helpers::{expect_column_encoding, expect_row_group_sizes, RowGroups};
 use arrow::array::RecordBatch;
 use arrow::compute::concat_batches;
 use arrow::datatypes::{DataType, TimeUnit};
@@ -259,16 +259,10 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding() {
         .success();
 
     let path = temp_dir.path().join("reason.parquet");
-    let desc_encodings = column_encodings(&path, "r_reason_description");
-    let sk_encodings = column_encodings(&path, "r_reason_sk");
-
-    assert!(
-        desc_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
-        "r_reason_description encodings: {desc_encodings:?}"
-    );
-    assert!(
-        !sk_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
-        "r_reason_sk encodings: {sk_encodings:?}"
+    expect_column_encoding(
+        &path,
+        "r_reason_description",
+        Encoding::DELTA_LENGTH_BYTE_ARRAY,
     );
 }
 

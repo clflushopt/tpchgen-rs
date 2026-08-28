@@ -1,4 +1,4 @@
-use super::test_helpers::{column_encodings, expect_row_group_sizes, RowGroups};
+use super::test_helpers::{expect_column_encoding, expect_row_group_sizes, RowGroups};
 use arrow::record_batch::RecordBatchReader;
 use assert_cmd::cargo::cargo_bin_cmd;
 use parquet::arrow::arrow_reader::{ArrowReaderOptions, ParquetRecordBatchReaderBuilder};
@@ -70,22 +70,8 @@ fn test_tpcgen_cli_tpch_parquet_column_encoding() {
         .success();
 
     let path = temp_dir.path().join("lineitem.parquet");
-    let comment_encodings = column_encodings(&path, "l_comment");
-    let shipinstruct_encodings = column_encodings(&path, "l_shipinstruct");
-    let orderkey_encodings = column_encodings(&path, "l_orderkey");
-
-    assert!(
-        comment_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
-        "l_comment encodings: {comment_encodings:?}"
-    );
-    assert!(
-        shipinstruct_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
-        "l_shipinstruct encodings: {shipinstruct_encodings:?}"
-    );
-    assert!(
-        !orderkey_encodings.contains(&Encoding::DELTA_LENGTH_BYTE_ARRAY),
-        "l_orderkey encodings: {orderkey_encodings:?}"
-    );
+    expect_column_encoding(&path, "l_comment", Encoding::DELTA_LENGTH_BYTE_ARRAY);
+    expect_column_encoding(&path, "l_shipinstruct", Encoding::DELTA_LENGTH_BYTE_ARRAY);
 }
 
 #[test]

@@ -41,7 +41,7 @@ pub(crate) fn expect_row_group_sizes(output_dir: &Path, expected_row_groups: Vec
     assert_eq!(actual_row_groups, expected_row_groups);
 }
 
-pub(crate) fn column_encodings(path: &Path, column: &str) -> Vec<Encoding> {
+pub(crate) fn expect_column_encoding(path: &Path, column: &str, expected: Encoding) {
     let file = File::open(path).expect("Failed to open parquet file");
     let mut metadata_reader = ParquetMetaDataReader::new();
     metadata_reader.try_parse(&file).unwrap();
@@ -49,7 +49,12 @@ pub(crate) fn column_encodings(path: &Path, column: &str) -> Vec<Encoding> {
     for row_group in metadata.row_groups() {
         for col in row_group.columns() {
             if col.column_path().string() == column {
-                return col.encodings().collect();
+                let encodings: Vec<Encoding> = col.encodings().collect();
+                assert!(
+                    encodings.contains(&expected),
+                    "expected {column} to use {expected:?}, encodings: {encodings:?}"
+                );
+                return;
             }
         }
     }
