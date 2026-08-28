@@ -6,11 +6,10 @@ use futures::StreamExt;
 use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
 use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
-use parquet::basic::{Compression, Encoding};
+use parquet::basic::{Compression, Encoding, Type};
 use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
 use parquet::file::writer::SerializedFileWriter;
-use parquet::schema::types::{ColumnPath, SchemaDescPtr};
-use std::collections::HashSet;
+use parquet::schema::types::SchemaDescPtr;
 use std::io;
 use std::io::Write;
 use std::str::FromStr;
@@ -38,18 +37,61 @@ pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), 
     Ok((name.to_string(), encoding))
 }
 
+/// Returns `true` if `encoding` can be used as a column's primary (non-dictionary)
+/// encoding for `physical_type`.
+///
+/// Mirrors the parquet crate's own encoder selection: the generic path
+/// (`get_encoder` in `encodings/encoding/mod.rs`) for fixed-width physical
+/// types, and the dedicated byte-array fast path (`arrow/arrow_writer/byte_array.rs`,
+/// used for Arrow `Utf8`/`Utf8View`/`Binary`/etc. columns) for `BYTE_ARRAY`.
+///
+/// Verified against parquet 59.2.0 for every physical type our crates actually
+/// actually produce (`BOOLEAN`, `INT32`, `INT64`, `BYTE_ARRAY`); the
+/// `FLOAT`/`DOUBLE`/`INT96`/`FIXED_LEN_BYTE_ARRAY` cases follow the same
+/// source but are not currently exercised by any TPC-H/TPC-DS column.
+fn encoding_supports_physical_type(encoding: Encoding, physical_type: Type) -> bool {
+    use Type::*;
+    match encoding {
+        Encoding::PLAIN => true,
+        // RleValueEncoder only supports BoolType.
+        Encoding::RLE => physical_type == BOOLEAN,
+        // DeltaBitPackEncoder only supports Int32Type, UInt32Type, Int64Type, and UInt64Type.
+        Encoding::DELTA_BINARY_PACKED => matches!(physical_type, INT32 | INT64),
+        // DeltaLengthByteArrayEncoder / DeltaByteArrayEncoder only support byte arrays;
+        // BYTE_ARRAY columns go through the dedicated fast path, which agrees.
+        Encoding::DELTA_LENGTH_BYTE_ARRAY | Encoding::DELTA_BYTE_ARRAY => {
+            matches!(physical_type, BYTE_ARRAY | FIXED_LEN_BYTE_ARRAY)
+        }
+        // ByteStreamSplitEncoder supports FLOAT/DOUBLE/INT32/INT64; fixed-length byte
+        // arrays go through VariableWidthByteStreamSplitEncoder instead. Variable-length
+        // BYTE_ARRAY columns are not supported by the byte-array fast path.
+        Encoding::BYTE_STREAM_SPLIT => {
+            matches!(
+                physical_type,
+                FLOAT | DOUBLE | INT32 | INT64 | FIXED_LEN_BYTE_ARRAY
+            )
+        }
+        // PLAIN_DICTIONARY/RLE_DICTIONARY/BIT_PACKED are rejected before this is
+        // ever called; anything else is unknown to this writer.
+        _ => false,
+    }
+}
+
 fn apply_column_encodings(
     mut builder: WriterPropertiesBuilder,
-    schema: &arrow::datatypes::Schema,
+    parquet_schema: &SchemaDescPtr,
     encodings: &[(String, Encoding)],
 ) -> io::Result<WriterPropertiesBuilder> {
-    let names: HashSet<&str> = schema.fields().iter().map(|f| f.name().as_str()).collect();
     for (col, enc) in encodings {
-        if !names.contains(col.as_str()) {
+        let Some(descr) = parquet_schema
+            .columns()
+            .iter()
+            .find(|d| d.name() == col.as_str())
+        else {
             return Err(io::Error::other(format!(
                 "unknown column '{col}' for --column-encoding"
             )));
-        }
+        };
         match enc {
             Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => {
                 return Err(io::Error::other(format!(
@@ -63,7 +105,13 @@ fn apply_column_encodings(
                 ));
             }
             _ => {
-                let path = ColumnPath::from(col.as_str());
+                let physical_type = descr.self_type().get_physical_type();
+                if !encoding_supports_physical_type(*enc, physical_type) {
+                    return Err(io::Error::other(format!(
+                        "encoding {enc} is not valid for column '{col}' ({physical_type} physical type)"
+                    )));
+                }
+                let path = descr.path().clone();
                 builder = builder
                     .set_column_encoding(path.clone(), *enc)
                     .set_column_dictionary_enabled(path, false);
@@ -102,10 +150,24 @@ where
     };
     let schema = first_iter.schema();
 
-    // Compute the parquet schema
+    // Compute the parquet schema first: --column-encoding validation needs each
+    // column's real physical type, which only the converted parquet schema has
+    // (coerce_types doesn't depend on column encodings, so this ordering doesn't
+    // change its value).
+    let coerce_types = WriterProperties::builder()
+        .set_compression(parquet_compression)
+        .build()
+        .coerce_types();
+    let parquet_schema = Arc::new(
+        ArrowSchemaConverter::new()
+            .with_coerce_types(coerce_types)
+            .convert(&schema)
+            .unwrap(),
+    );
+
     let mut builder = WriterProperties::builder().set_compression(parquet_compression);
     if let Some(encodings) = column_encodings {
-        builder = apply_column_encodings(builder, schema.as_ref(), encodings)?;
+        builder = apply_column_encodings(builder, &parquet_schema, encodings)?;
     }
     let mut writer_properties = builder.build();
     // Embed the Arrow schema in the Parquet metadata (as ArrowWriter does) so
@@ -113,12 +175,6 @@ where
     // Time32(seconds) column in the TPC-DS dbgen_version table)
     add_encoded_arrow_schema_to_metadata(&schema, &mut writer_properties);
     let writer_properties = Arc::new(writer_properties);
-    let parquet_schema = Arc::new(
-        ArrowSchemaConverter::new()
-            .with_coerce_types(writer_properties.coerce_types())
-            .convert(&schema)
-            .unwrap(),
-    );
 
     // create a stream that computes the data for each row group
     let mut row_group_stream = futures::stream::iter(iter_iter)
@@ -358,5 +414,64 @@ mod tests {
             err.to_string().contains("BIT_PACKED is not supported"),
             "{err}"
         );
+    }
+
+    #[tokio::test]
+    async fn encoding_incompatible_with_column_type_returns_clean_error_not_panic() {
+        let output_dir = tempfile::tempdir().unwrap();
+        // r_regionkey is INT64 (not BOOLEAN): RLE only supports boolean columns.
+        // Before validating physical types, this reached the parquet crate's
+        // internal `.unwrap()` on the encoder result and panicked instead of
+        // returning an `Err`.
+        let output_path = output_dir.path().join("regionkey_rle.parquet");
+        let err = write_region(
+            Some(&[("r_regionkey".to_string(), Encoding::RLE)]),
+            &output_path,
+        )
+        .await
+        .unwrap_err();
+        let message = err.to_string();
+        assert!(
+            message.contains("RLE is not valid for column 'r_regionkey'"),
+            "{message}"
+        );
+
+        // r_name is BYTE_ARRAY (Utf8View): DELTA_BINARY_PACKED only supports
+        // INT32/INT64 columns.
+        let output_path = output_dir.path().join("name_delta_binary_packed.parquet");
+        let err = write_region(
+            Some(&[("r_name".to_string(), Encoding::DELTA_BINARY_PACKED)]),
+            &output_path,
+        )
+        .await
+        .unwrap_err();
+        let message = err.to_string();
+        assert!(
+            message.contains("DELTA_BINARY_PACKED is not valid for column 'r_name'"),
+            "{message}"
+        );
+    }
+
+    #[tokio::test]
+    async fn encoding_compatible_with_column_type_succeeds() {
+        let output_dir = tempfile::tempdir().unwrap();
+
+        let output_path = output_dir.path().join("regionkey_delta.parquet");
+        write_region(
+            Some(&[("r_regionkey".to_string(), Encoding::DELTA_BINARY_PACKED)]),
+            &output_path,
+        )
+        .await
+        .unwrap();
+        assert!(std::fs::metadata(&output_path).unwrap().len() > 0);
+
+        let output_path = output_dir.path().join("name_delta_length.parquet");
+        write_region(
+            Some(&[("r_name".to_string(), Encoding::DELTA_LENGTH_BYTE_ARRAY)]),
+            &output_path,
+        )
+        .await
+        .unwrap();
+        assert!(std::fs::metadata(&output_path).unwrap().len() > 0);
     }
 }

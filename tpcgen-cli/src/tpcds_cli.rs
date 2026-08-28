@@ -130,9 +130,14 @@ struct ParquetArgs {
     ///
     /// Example: `r_reason_description=DELTA_LENGTH_BYTE_ARRAY`
     ///
-    /// Supported encodings: PLAIN, PLAIN_DICTIONARY, RLE, BIT_PACKED,
-    /// DELTA_BINARY_PACKED, DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY,
-    /// RLE_DICTIONARY, BYTE_STREAM_SPLIT
+    /// Supported encodings: PLAIN, RLE, DELTA_BINARY_PACKED,
+    /// DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT. Each
+    /// encoding must also be valid for the target column's Parquet physical
+    /// type (e.g. RLE only applies to boolean columns).
+    ///
+    /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
+    /// dictionary encoding is the writer default and cannot be requested
+    /// through this flag, and BIT_PACKED is not supported for writing.
     #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
     column_encoding: Option<Vec<(String, Encoding)>>,
 }
@@ -224,6 +229,14 @@ impl CommonArgs {
         num_threads: usize,
         column_encoding: Option<Vec<(String, Encoding)>>,
     ) -> Result<()> {
+        if column_encoding.is_some() && self.tables.is_none() {
+            return Err(TpcdsError::new(
+                "--column-encoding requires --tables: it names columns from a specific \
+                 table's schema, and without --tables every table is generated, most of \
+                 which won't have that column",
+            )
+            .into());
+        }
         let output = parquet::Parquet::new(
             self.output_dir.clone(),
             compression,
@@ -507,6 +520,34 @@ mod tests {
             quiet: false,
             progress_bars_enabled: false,
         }
+    }
+
+    #[tokio::test]
+    async fn column_encoding_without_tables_is_rejected() {
+        let args = CommonArgs {
+            scale_factor: 0.001,
+            output_dir: PathBuf::from("/nonexistent-should-never-be-created"),
+            tables: None,
+            compat: CompatMode::Trino,
+            verbose: false,
+            quiet: false,
+            progress_bars_enabled: false,
+        };
+
+        let err = args
+            .run_parquet(
+                Compression::UNCOMPRESSED,
+                DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES,
+                1,
+                Some(vec![("r_reason_description".to_string(), Encoding::PLAIN)]),
+            )
+            .await
+            .unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("--column-encoding requires --tables"),
+            "{err}"
+        );
     }
 
     #[test]

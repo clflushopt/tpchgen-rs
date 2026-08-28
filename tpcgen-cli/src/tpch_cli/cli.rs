@@ -282,9 +282,14 @@ struct ParquetArgs {
     ///
     /// Example: `l_comment=DELTA_LENGTH_BYTE_ARRAY,l_shipinstruct=DELTA_LENGTH_BYTE_ARRAY`
     ///
-    /// Supported encodings: PLAIN, PLAIN_DICTIONARY, RLE, BIT_PACKED,
-    /// DELTA_BINARY_PACKED, DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY,
-    /// RLE_DICTIONARY, BYTE_STREAM_SPLIT
+    /// Supported encodings: PLAIN, RLE, DELTA_BINARY_PACKED,
+    /// DELTA_LENGTH_BYTE_ARRAY, DELTA_BYTE_ARRAY, BYTE_STREAM_SPLIT. Each
+    /// encoding must also be valid for the target column's Parquet physical
+    /// type (e.g. RLE only applies to boolean columns).
+    ///
+    /// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are rejected:
+    /// dictionary encoding is the writer default and cannot be requested
+    /// through this flag, and BIT_PACKED is not supported for writing.
     #[arg(long, value_delimiter = ',', value_parser = parse_column_encoding_pair)]
     column_encoding: Option<Vec<(String, Encoding)>>,
 }
@@ -437,6 +442,13 @@ impl CsvArgs {
 
 impl ParquetArgs {
     async fn run(self) -> io::Result<()> {
+        if self.column_encoding.is_some() && self.common.tables.is_none() {
+            return Err(io::Error::other(
+                "--column-encoding requires --tables: it names columns from a specific \
+                 table's schema, and without --tables every table is generated, most of \
+                 which won't have that column",
+            ));
+        }
         self.common
             .builder(OutputFormat::Parquet)
             .with_parquet_compression(self.compression)
@@ -479,6 +491,29 @@ mod tests {
         .tables();
 
         assert_eq!(tables, Some(vec![Table::Region, Table::Nation]));
+    }
+
+    #[tokio::test]
+    async fn column_encoding_without_tables_is_rejected() {
+        let cli = Cli::try_parse_from([
+            "tpchgen",
+            "parquet",
+            "--column-encoding",
+            "l_comment=PLAIN",
+            "--output-dir",
+            "/nonexistent-should-never-be-created",
+        ])
+        .unwrap();
+        let Some(Commands::Parquet(args)) = cli.command else {
+            panic!("expected parquet command")
+        };
+
+        let err = args.run().await.unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("--column-encoding requires --tables"),
+            "{err}"
+        );
     }
 
     #[test]
