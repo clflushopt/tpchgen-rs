@@ -1,5 +1,11 @@
 # tpcgen-rs
 
+> [!NOTE]
+> Originally written by [@clflushopt](https://github.com/clflushopt) at
+> [`clflushopt/tpchgen-rs`](https://github.com/clflushopt/tpchgen-rs).
+> The project is now maintained at
+> [`datafusion-contrib/tpcgen-rs`](https://github.com/datafusion-contrib/tpcgen-rs).
+
 [![Apache licensed][license-badge]][license-url]
 [![Build Status][actions-badge]][actions-url]
 
