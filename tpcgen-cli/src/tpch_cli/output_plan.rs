@@ -60,6 +60,7 @@ pub struct OutputPlan {
     scale_factor: f64,
     /// The output format (TODO don't depend back on something in main)
     output_format: OutputFormat,
+    /// Parquet writer options (compression and column encodings)
     parquet: ParquetWriterOptions,
     /// Where to output
     output_location: OutputLocation,
