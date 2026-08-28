@@ -8,9 +8,9 @@ of (`duckdb`). On a 2023 Mac M3 Max laptop, it easily generates data faster than
 can be written to SSD. See [BENCHMARKS.md] for more details on performance and
 benchmarking.
 
-[BENCHMARKS.md]: https://github.com/clflushopt/tpchgen-rs/blob/main/benchmarks/BENCHMARKS.md
+[BENCHMARKS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/benchmarks/BENCHMARKS.md
 
-* See the tpchgen [README.md](https://github.com/clflushopt/tpchgen-rs) for
+* See the tpchgen [README.md](https://github.com/datafusion-contrib/tpcgen-rs) for
 project details
 * Watch this [awesome demo](https://www.youtube.com/watch?v=UYIC57hlL14)  by
 [@alamb](https://github.com/alamb) to see `tpchgen-cli` in action
@@ -104,4 +104,3 @@ tpchgen-cli --format=parquet --parquet-compression=ZSTD(1) -s 10
 # After
 tpchgen-cli parquet --compression=ZSTD(1) -s 10
 ```
-

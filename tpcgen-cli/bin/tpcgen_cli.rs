@@ -13,7 +13,7 @@ type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 #[command(
     about = "TPC-H and TPC-DS data generator",
     long_about = r#"
-TPC-H and TPC-DS data generator (https://github.com/clflushopt/tpchgen-rs)
+TPC-H and TPC-DS data generator (https://github.com/datafusion-contrib/tpcgen-rs)
 
 Examples
 
