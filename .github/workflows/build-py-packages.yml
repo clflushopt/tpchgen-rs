@@ -14,6 +14,9 @@ on:
         default: all
         type: string
 
+permissions:
+  contents: read
+
 jobs:
   wheels:
     runs-on: ${{ matrix.runner }}
