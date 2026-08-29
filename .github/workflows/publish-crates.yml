@@ -13,26 +13,13 @@ jobs:
     permissions:
       contents: read
       id-token: write     # Required for OIDC token exchange
-    strategy:
-      # Publish package one by one instead of flooding the registry
-      max-parallel: 1
-      matrix:
-        # Order here is sensitive, as it will be used to determine the order of publishing
-        package:
-          - "tpchgen"
-          - "tpcdsgen"
-          - "tpchgen-arrow"
-          - "tpcdsgen-arrow"
-          - "tpcgen-cli"
-          - "tpchgen-cli"
     steps:
       - uses: actions/checkout@v7
 
       - uses: rust-lang/crates-io-auth-action@v1
         id: auth
 
-      - name: Publish ${{ matrix.package }}
-        working-directory: ${{ matrix.package }}
-        run: cargo publish --locked
+      - name: Publish workspace
+        run: cargo publish --workspace
         env:
           CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
