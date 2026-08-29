@@ -50,7 +50,7 @@ jobs:
 
     - name: Build Rust table generators
       run: |
-        cargo build --release -p tpcgen-cli
+        cargo build --locked --release -p tpcgen-cli
 
     - name: Run conformance tests (Rust vs Java)
       run: |
@@ -85,7 +85,7 @@ jobs:
 
     - name: Build Rust table generators
       run: |
-        cargo build --release -p tpcgen-cli
+        cargo build --locked --release -p tpcgen-cli
 
     - name: Run conformance tests (Rust --compat c vs C dsdgen)
       run: |

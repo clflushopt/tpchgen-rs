@@ -54,7 +54,7 @@ jobs:
 
       - name: Build Rust table generators
         run: |
-          cargo build --release -p tpcgen-cli
+          cargo build --locked --release -p tpcgen-cli
 
       - name: Run conformance tests (Rust vs C dbgen MD5SUMS)
         run: |
