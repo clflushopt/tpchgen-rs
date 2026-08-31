@@ -80,7 +80,7 @@ impl GenerationPlan {
     ) -> Result<Self, String> {
         if !(0.0..=100_000.0).contains(&scale_factor) {
             return Err(format!(
-                "Invalid scale factor. Expected a number between 0 and 100000, got {scale_factor}"
+                "Invalid scale factor. Expected a number between 0 and 100000, inclusive, got {scale_factor}"
             ));
         }
 
@@ -668,7 +668,7 @@ mod tests {
         #[test]
         fn unsupported_scale_factor() {
             Test::new().with_scale_factor(100_001.0).assert_err(
-                "Invalid scale factor. Expected a number between 0 and 100000, got 100001",
+                "Invalid scale factor. Expected a number between 0 and 100000, inclusive, got 100001",
             );
         }
     }
