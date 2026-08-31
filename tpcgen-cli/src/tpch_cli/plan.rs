@@ -62,7 +62,6 @@ pub struct GenerationPlan {
 }
 
 pub const DEFAULT_PARQUET_ROW_GROUP_BYTES: i64 = 7 * 1024 * 1024;
-const MAX_SCALE_FACTOR: f64 = 100_000.0;
 
 impl GenerationPlan {
     /// Returns a GenerationPlan number of parts to generate
@@ -79,9 +78,9 @@ impl GenerationPlan {
         cli_part_count: Option<i32>,
         parquet_row_group_bytes: i64,
     ) -> Result<Self, String> {
-        if !(0.0..=MAX_SCALE_FACTOR).contains(&scale_factor) {
+        if !(0.0..=100_000.0).contains(&scale_factor) {
             return Err(format!(
-                "Invalid scale factor. Expected a number between 0 and {MAX_SCALE_FACTOR}, got {scale_factor}"
+                "Invalid scale factor. Expected a number between 0 and 100000, got {scale_factor}"
             ));
         }
 
@@ -668,11 +667,9 @@ mod tests {
 
         #[test]
         fn unsupported_scale_factor() {
-            Test::new()
-                .with_scale_factor(MAX_SCALE_FACTOR + 1.0)
-                .assert_err(
-                    "Invalid scale factor. Expected a number between 0 and 100000, got 100001",
-                );
+            Test::new().with_scale_factor(100_001.0).assert_err(
+                "Invalid scale factor. Expected a number between 0 and 100000, got 100001",
+            );
         }
     }
 
