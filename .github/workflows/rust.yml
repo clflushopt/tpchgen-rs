@@ -7,58 +7,69 @@ on:
   merge_group:
   workflow_dispatch:  # Allow manual triggering
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Run cargo-fmt
         run: cargo fmt --all -- --check
       - name: Run cargo-clippy
-        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+        run: cargo clippy --locked --workspace --all-targets --all-features -- -D warnings
       - name: Check
-        run: cargo check --verbose --workspace --all-targets
+        run: cargo check --locked --verbose --workspace --all-targets
       - name: Check tpchgen-cli without default features
-        run: cargo check -p tpchgen-cli --all-targets --no-default-features
+        run: cargo check --locked -p tpchgen-cli --all-targets --no-default-features
       - name: Check tpcgen-cli without default features
-        run: cargo check -p tpcgen-cli --all-targets --no-default-features
+        run: cargo check --locked -p tpcgen-cli --all-targets --no-default-features
 
   # Documentation examples tests
   test-doc-examples:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: lint
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name: Doc Examples (cargo test --workspace --doc)
-        run: cargo test --workspace --doc
+        run: cargo test --locked --workspace --doc
 
   # Library and integration tests
   test-workspace:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: lint
     steps:
-      - uses: actions/checkout@v7
-      - uses: taiki-e/install-action@v2.86.6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: taiki-e/install-action@37f7c5781271959fb65b6b35224e28652ff2b63d # v2.87.0
         with:
           tool: nextest@0.9.140
       # nextest runs lib, bins and test targets by default (doc tests are
       # not supported by nextest and are covered by the job above)
       - name: All Tests (workspace)
-        run: cargo nextest run --workspace
+        run: cargo nextest run --locked --workspace
 
   # documentation build
   docs:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     needs: lint
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - name : Build docs
         env:
           RUSTDOCFLAGS: "-D warnings"
-        run: cargo doc --no-deps --workspace
+        run: cargo doc --locked --no-deps --workspace
 
   # Build wheels + sdist (but don’t upload artifacts)
   build-packages:
