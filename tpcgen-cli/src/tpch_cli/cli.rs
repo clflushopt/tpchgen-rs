@@ -24,7 +24,7 @@ use std::sync::Arc;
     about = "TPC-H Data Generator",
     // --help output
     long_about = r#"
-TPCH Data Generator (https://github.com/clflushopt/tpchgen-rs)
+TPCH Data Generator (https://github.com/datafusion-contrib/tpcgen-rs)
 
 By default each table is written to a single file named <output_dir>/<table>.<format>
 
@@ -79,7 +79,7 @@ enum Commands {
 
 #[derive(clap::Args)]
 struct CommonArgs {
-    /// Scale factor to create
+    /// Scale factor to create (supported range: 0 through 100000, inclusive)
     #[arg(short, long, default_value_t = 1.)]
     scale_factor: f64,
 

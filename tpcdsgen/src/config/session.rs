@@ -193,7 +193,7 @@ impl SessionBuilder {
             return Err(InvalidOptionError::with_message(
                 "scale",
                 &self.scale.to_string(),
-                "Scale must be greater than 0 and less than 100000",
+                "Scale must be between 0 and 100000, inclusive",
             )
             .into());
         }

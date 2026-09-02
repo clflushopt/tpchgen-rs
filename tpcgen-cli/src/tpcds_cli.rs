@@ -126,7 +126,7 @@ struct ParquetArgs {
 
 #[derive(Args)]
 pub struct CommonArgs {
-    /// Scale factor to create
+    /// Scale factor to create (supported range: 0 through 100000, inclusive)
     #[arg(short, long, default_value_t = 1.)]
     scale_factor: f64,
 
