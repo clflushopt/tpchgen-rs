@@ -60,9 +60,8 @@ pub struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    // Top-level args are used for the default TBL output.
-    // args_conflicts_with_subcommands prevents these from being silently ignored
-    // when a subcommand is present (e.g. `tpchgen-cli -s 10 parquet` is an error).
+    // Reject top-level arguments when a subcommand is present instead of
+    // silently ignoring them (e.g. `tpchgen-cli -s 10 parquet` is an error).
     #[command(flatten)]
     args: CommonArgs,
 }
