@@ -336,6 +336,7 @@ impl Cli {
         }
     }
 
+    /// Generate TBL output when no output-format subcommand is specified.
     async fn run_default(self) -> io::Result<()> {
         self.args
             .builder(OutputFormat::Tbl)
