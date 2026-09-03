@@ -60,8 +60,6 @@ pub struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,
 
-    // Reject top-level arguments when a subcommand is present instead of
-    // silently ignoring them (e.g. `tpchgen-cli -s 10 parquet` is an error).
     #[command(flatten)]
     args: CommonArgs,
 }
