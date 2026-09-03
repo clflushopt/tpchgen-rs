@@ -4,11 +4,12 @@ use arrow::datatypes::SchemaRef;
 use arrow::record_batch::RecordBatchReader;
 use futures::StreamExt;
 use log::debug;
-use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk, ArrowRowGroupWriterFactory};
+use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
 use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
 use parquet::basic::Compression;
 use parquet::file::properties::WriterProperties;
 use parquet::file::writer::SerializedFileWriter;
+use parquet::schema::types::SchemaDescPtr;
 use std::io;
 use std::io::Write;
 use std::sync::Arc;
@@ -66,22 +67,15 @@ where
             .unwrap(),
     );
 
-    let root_schema = parquet_schema.root_schema_ptr();
-    let writer = SerializedFileWriter::new(writer, root_schema, writer_properties)?;
-    let row_group_factory = Arc::new(ArrowRowGroupWriterFactory::new(
-        &writer,
-        Arc::clone(&schema),
-    ));
-
     // create a stream that computes the data for each row group
     let mut row_group_stream = futures::stream::iter(iter_iter)
-        .enumerate()
-        .map(async |(row_group_index, iter)| {
-            let row_group_factory = Arc::clone(&row_group_factory);
+        .map(async |iter| {
+            let parquet_schema = Arc::clone(&parquet_schema);
+            let writer_properties = Arc::clone(&writer_properties);
             let schema = Arc::clone(&schema);
             // run on a separate thread
             tokio::task::spawn(async move {
-                encode_row_group(row_group_factory, row_group_index, schema, iter)
+                encode_row_group(parquet_schema, writer_properties, schema, iter)
             })
             .await
             .map_err(|e| io::Error::other(format!("Inner task panicked: {e}")))?
@@ -93,12 +87,16 @@ where
     // A blocking task that writes the row groups to the file
     // done in a blocking task to avoid having a thread waiting on IO
     // Now, read each completed row group and write it to the file
+    let root_schema = parquet_schema.root_schema_ptr();
+    let writer_properties_captured = Arc::clone(&writer_properties);
     let (tx, mut rx): (
         Sender<Vec<ArrowColumnChunk>>,
         Receiver<Vec<ArrowColumnChunk>>,
     ) = tokio::sync::mpsc::channel(num_threads);
     let writer_task = tokio::task::spawn_blocking(move || {
-        let mut writer = writer;
+        // Create parquet writer
+        let mut writer =
+            SerializedFileWriter::new(writer, root_schema, writer_properties_captured).unwrap();
 
         while let Some(column_chunks) = rx.blocking_recv() {
             // Start row group
@@ -144,8 +142,8 @@ where
 ///
 /// Returns an array of [`ArrowColumnChunk`].
 fn encode_row_group<I>(
-    row_group_factory: Arc<ArrowRowGroupWriterFactory>,
-    row_group_index: usize,
+    parquet_schema: SchemaDescPtr,
+    writer_properties: Arc<WriterProperties>,
     schema: SchemaRef,
     iter: I,
 ) -> Result<Vec<ArrowColumnChunk>, io::Error>
@@ -153,9 +151,13 @@ where
     I: RecordBatchReader,
 {
     // Create writers for each of the leaf columns
-    let mut col_writers = row_group_factory
-        .create_column_writers(row_group_index)
-        .map_err(io::Error::other)?;
+    #[allow(deprecated)]
+    let mut col_writers = parquet::arrow::arrow_writer::get_column_writers(
+        &parquet_schema,
+        &writer_properties,
+        &schema,
+    )
+    .map_err(io::Error::other)?;
 
     // generate the data and send it to the tasks (via the sender channels)
     for batch in iter {
