@@ -7,6 +7,7 @@ use crate::temp_path::inprogress_path;
 use crate::tpch_cli::csv::*;
 use crate::tpch_cli::generate::generate_in_chunks;
 use crate::tpch_cli::generate::Source;
+use crate::tpch_cli::generator::column_encodings_for_table;
 use crate::tpch_cli::output_plan::{OutputLocation, OutputPlan};
 use crate::tpch_cli::tbl::*;
 use crate::tpch_cli::tbl::{LineItemTblSource, NationTblSource, RegionTblSource};
@@ -192,6 +193,13 @@ where
     I: Iterator + 'static,
     I::Item: RecordBatchReader + Send,
 {
+    // Keep only the encodings for columns on this table.
+    // --column-encoding usually targets a few tables, not all of them.
+    let column_encodings = plan
+        .parquet_column_encodings()
+        .map(|encodings| column_encodings_for_table(plan.table(), plan.scale_factor(), encodings));
+    let column_encodings = column_encodings.as_deref();
+
     match plan.output_location() {
         OutputLocation::Stdout => {
             let writer = BufWriter::with_capacity(32 * 1024 * 1024, io::stdout()); // 32MB buffer
@@ -200,7 +208,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
-                plan.parquet_column_encodings(),
+                column_encodings,
                 progress,
             )
             .await
@@ -220,7 +228,7 @@ where
                 sources,
                 num_threads,
                 plan.parquet_compression(),
-                plan.parquet_column_encodings(),
+                column_encodings,
                 progress,
             )
             .await?;

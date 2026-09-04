@@ -126,15 +126,15 @@ fn test_tpcgen_cli_tpch_parquet_rejects_invalid_column_encoding() {
     }
 }
 
-/// `--column-encoding` naming a column that only exists on some of the
-/// selected tables must fail before any table is written, not partway
-/// through after another table has already completed.
+/// A `--column-encoding` column that exists on only some selected tables
+/// applies there and is skipped elsewhere. Selecting tables that do not
+/// share every named column is not an error.
 #[test]
-fn test_tpcgen_cli_tpch_parquet_column_encoding_missing_from_one_table_fails_before_any_output() {
+fn test_tpcgen_cli_tpch_parquet_column_encoding_applies_only_where_the_column_exists() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // l_comment only exists on lineitem, not orders.
-    let assert = cargo_bin_cmd!("tpcgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
         .args(["tpch", "parquet"])
         .arg("--scale-factor")
         .arg("0.01")
@@ -146,11 +146,43 @@ fn test_tpcgen_cli_tpch_parquet_column_encoding_missing_from_one_table_fails_bef
         .arg("--column-encoding")
         .arg("l_comment=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
+        .success();
+
+    let lineitem_path = temp_dir.path().join("lineitem.parquet");
+    expect_column_encoding(
+        &lineitem_path,
+        "l_comment",
+        Encoding::DELTA_LENGTH_BYTE_ARRAY,
+    );
+    assert!(
+        temp_dir.path().join("orders.parquet").exists(),
+        "expected orders.parquet to still be generated, just without l_comment applied to it"
+    );
+}
+
+/// A `--column-encoding` column that matches no selected table (a typo)
+/// must fail before any table is written.
+#[test]
+fn test_tpcgen_cli_tpch_parquet_column_encoding_typo_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "parquet"])
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("lineitem,orders")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--no-progress")
+        .arg("--column-encoding")
+        .arg("l_comment_typo=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
         .failure();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("column 'l_comment'") && stderr.contains("orders"),
+        stderr.contains("column 'l_comment_typo'"),
         "unexpected stderr: {stderr}"
     );
     assert_eq!(

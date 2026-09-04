@@ -287,15 +287,15 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_invalid_column_encoding() {
     );
 }
 
-/// `--column-encoding` naming a column that only exists on some of the
-/// selected tables must fail before any table is written, not partway
-/// through after another table has already completed.
+/// A `--column-encoding` column that exists on only some selected tables
+/// applies there and is skipped elsewhere. Selecting tables that do not
+/// share every named column is not an error.
 #[test]
-fn test_tpcgen_cli_tpcds_parquet_column_encoding_missing_from_one_table_fails_before_any_output() {
+fn test_tpcgen_cli_tpcds_parquet_column_encoding_applies_only_where_the_column_exists() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
 
     // r_reason_description only exists on reason, not item.
-    let assert = cargo_bin_cmd!("tpcgen-cli")
+    cargo_bin_cmd!("tpcgen-cli")
         .arg("tpcds")
         .arg("parquet")
         .arg("--scale-factor")
@@ -307,11 +307,43 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_missing_from_one_table_fails_be
         .arg("--column-encoding")
         .arg("r_reason_description=DELTA_LENGTH_BYTE_ARRAY")
         .assert()
+        .success();
+
+    let reason_path = temp_dir.path().join("reason.parquet");
+    expect_column_encoding(
+        &reason_path,
+        "r_reason_description",
+        Encoding::DELTA_LENGTH_BYTE_ARRAY,
+    );
+    assert!(
+        temp_dir.path().join("item.parquet").exists(),
+        "expected item.parquet to still be generated, just without r_reason_description applied to it"
+    );
+}
+
+/// A `--column-encoding` column that matches no selected table (a typo)
+/// must fail before any table is written.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description_typo=DELTA_LENGTH_BYTE_ARRAY")
+        .assert()
         .failure();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert!(
-        stderr.contains("column 'r_reason_description'") && stderr.contains("item"),
+        stderr.contains("column 'r_reason_description_typo'"),
         "unexpected stderr: {stderr}"
     );
     assert_eq!(
