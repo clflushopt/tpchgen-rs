@@ -231,14 +231,10 @@ impl Default for GeneratorConfig {
     }
 }
 
-/// Returns `table`'s Arrow schema. Does not generate any rows: `part` and
-/// `part_count` do not affect the schema, so this always uses `(1, 1)` (the
-/// whole table).
+/// Returns `table`'s Arrow schema. Does not generate any rows.
 ///
-/// Used by [`validate_column_encodings`] to catch a typo'd
-/// `--column-encoding` column name, and by [`column_encodings_for_table`]
-/// to find which requested encodings apply to a given table. A
-/// `--column-encoding` column usually belongs to one table, not all of them.
+/// `part` and `part_count` do not change the schema, so this always asks
+/// for `(1, 1)`.
 pub(super) fn table_schema(table: Table, scale_factor: f64) -> SchemaRef {
     match table {
         Table::Nation => NationArrow::new(NationGenerator::new(scale_factor, 1, 1)).schema(),
@@ -252,20 +248,19 @@ pub(super) fn table_schema(table: Table, scale_factor: f64) -> SchemaRef {
     }
 }
 
-/// Checks that each column in `encodings` exists in at least one of
-/// `tables`' schemas. Runs before any generation starts.
+/// Checks each column in `encodings` against every table in `tables`.
 ///
-/// A `--column-encoding` column usually applies to only some of the
-/// selected tables (e.g. `l_comment` exists only on `lineitem`).
-/// [`column_encodings_for_table`] applies each encoding where it matches
-/// and skips it elsewhere. This check only catches a column name that
-/// matches no table — almost always a typo.
+/// Rejects an encoding `reject_unsupported_encoding` always rejects.
+/// Rejects a column name that matches no table (almost always a typo). A
+/// column that matches only some tables is fine: [`column_encodings_for_table`]
+/// applies it there and skips it elsewhere.
 pub(super) fn validate_column_encodings(
     tables: &[Table],
     scale_factor: f64,
     encodings: &[(String, Encoding)],
 ) -> io::Result<()> {
-    for (col, _) in encodings {
+    for (col, enc) in encodings {
+        crate::parquet::reject_unsupported_encoding(*enc)?;
         let matches_any_table = tables.iter().any(|table| {
             table_schema(*table, scale_factor)
                 .fields()
@@ -281,9 +276,7 @@ pub(super) fn validate_column_encodings(
     Ok(())
 }
 
-/// Returns the encodings from `encodings` whose column exists in `table`'s
-/// schema. A column meant for a different table (e.g. `l_comment` while
-/// generating `orders`) is skipped, not rejected.
+/// Keeps only the encodings whose column exists in `table`'s schema.
 pub(super) fn column_encodings_for_table(
     table: Table,
     scale_factor: f64,
@@ -338,10 +331,21 @@ impl TpchGenerator {
             ]
         };
 
-        // Catch a --column-encoding column that matches no selected table
-        // (a typo) before scheduling any work. Each table only gets the
-        // encodings for its own columns (see `column_encodings_for_table`),
-        // so a column for a different table is not an error here.
+        // Warm up the distributions and text pool now, not on the first
+        // table. validate_column_encodings (below) builds a real generator
+        // per table to read its schema, and every generator also creates
+        // these statics. Warm up first, or the cost hides inside
+        // validation and this timing is wrong.
+        let start = Instant::now();
+        Distributions::static_default();
+        TextPool::get_or_init_default();
+        let elapsed = start.elapsed();
+        info!("Created static distributions and text pools in {elapsed:?}");
+
+        // Reject a --column-encoding column that matches no selected table
+        // (a typo) before any work starts. column_encodings_for_table
+        // (below) skips a column that only matches some tables, so that
+        // case is not an error.
         if let Some(encodings) = &config.parquet_column_encodings {
             validate_column_encodings(&tables, config.scale_factor, encodings)?;
         }
@@ -364,14 +368,6 @@ impl TpchGenerator {
             output_plan_generator.generate_plans(table, config.part, config.parts)?;
         }
         let output_plans = output_plan_generator.build();
-
-        // Force the creation of the distributions and text pool so it doesn't
-        // get charged to the first table.
-        let start = Instant::now();
-        Distributions::static_default();
-        TextPool::get_or_init_default();
-        let elapsed = start.elapsed();
-        info!("Created static distributions and text pools in {elapsed:?}");
 
         let runner = PlanRunner::new(output_plans, config.num_threads)
             .with_progress_tracker(progress_tracker);
@@ -536,30 +532,26 @@ mod tests {
     }
 
     #[test]
-    fn validate_column_encodings_accepts_a_column_present_on_just_one_selected_table() {
+    fn validate_column_encodings_accepts_a_column_present_on_just_one_table() {
         // l_comment exists only on lineitem, not orders.
-        // column_encodings_for_table skips it for orders, so this is fine.
         let tables = [Table::Lineitem, Table::Orders];
         let encodings = [("l_comment".to_string(), Encoding::PLAIN)];
         assert!(validate_column_encodings(&tables, 0.001, &encodings).is_ok());
     }
 
     #[test]
-    fn validate_column_encodings_rejects_a_typo_against_the_default_table_set() {
-        let tables = [
-            Table::Nation,
-            Table::Region,
-            Table::Part,
-            Table::Supplier,
-            Table::Partsupp,
-            Table::Customer,
-            Table::Orders,
-            Table::Lineitem,
-        ];
+    fn validate_column_encodings_rejects_a_typo() {
+        let tables = [Table::Lineitem, Table::Orders];
         let encodings = [("l_comment_typo".to_string(), Encoding::PLAIN)];
-        // Fails before any table starts generating.
         let err = validate_column_encodings(&tables, 0.001, &encodings).unwrap_err();
         assert!(err.to_string().contains("column 'l_comment_typo'"), "{err}");
+    }
+
+    #[test]
+    fn validate_column_encodings_rejects_dictionary_encoding() {
+        let tables = [Table::Lineitem];
+        let encodings = [("l_comment".to_string(), Encoding::PLAIN_DICTIONARY)];
+        assert!(validate_column_encodings(&tables, 0.001, &encodings).is_err());
     }
 
     #[test]
@@ -571,10 +563,6 @@ mod tests {
         assert_eq!(
             column_encodings_for_table(Table::Lineitem, 0.001, &encodings),
             vec![("l_comment".to_string(), Encoding::PLAIN)]
-        );
-        assert_eq!(
-            column_encodings_for_table(Table::Orders, 0.001, &encodings),
-            vec![("o_comment".to_string(), Encoding::PLAIN)]
         );
         assert_eq!(
             column_encodings_for_table(Table::Nation, 0.001, &encodings),

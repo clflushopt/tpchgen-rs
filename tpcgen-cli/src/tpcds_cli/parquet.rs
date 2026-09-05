@@ -22,11 +22,6 @@ use tpcdsgen_arrow::{
 };
 
 /// Returns `table`'s Arrow schema. Does not generate any rows.
-///
-/// Used by [`validate_column_encodings`] to catch a typo'd
-/// `--column-encoding` column name, and by [`column_encodings_for_table`]
-/// to find which requested encodings apply to a given table. A
-/// `--column-encoding` column usually belongs to one table, not all of them.
 fn table_schema(table: Table, session: &Session) -> SchemaRef {
     let session = session.clone();
     match table {
@@ -59,19 +54,18 @@ fn table_schema(table: Table, session: &Session) -> SchemaRef {
     }
 }
 
-/// Checks that each column in `encodings` exists in at least one of
-/// `tables`' schemas. Runs before any generation starts.
+/// Checks each column in `encodings` against every table in `tables`.
 ///
-/// A `--column-encoding` column usually applies to only some of the
-/// selected tables (e.g. `r_reason_description` exists only on `reason`).
-/// [`column_encodings_for_table`] applies each encoding where it matches
-/// and skips it elsewhere. This check only catches a column name that
-/// matches no table — almost always a typo.
+/// Rejects an encoding `reject_unsupported_encoding` always rejects.
+/// Rejects a column name that matches no table (almost always a typo). A
+/// column that matches only some tables is fine: [`column_encodings_for_table`]
+/// applies it there and skips it elsewhere.
 fn validate_column_encodings(
     tables: &[(Table, Session)],
     encodings: &[(String, Encoding)],
 ) -> io::Result<()> {
-    for (col, _) in encodings {
+    for (col, enc) in encodings {
+        crate::parquet::reject_unsupported_encoding(*enc)?;
         let matches_any_table = tables.iter().any(|(table, session)| {
             table_schema(*table, session)
                 .fields()
@@ -87,8 +81,7 @@ fn validate_column_encodings(
     Ok(())
 }
 
-/// Returns the encodings from `encodings` whose column exists in `table`'s
-/// schema. A column meant for a different table is skipped, not rejected.
+/// Keeps only the encodings whose column exists in `table`'s schema.
 fn column_encodings_for_table(
     table: Table,
     session: &Session,
@@ -141,10 +134,10 @@ impl Parquet {
         tables: Vec<(Table, Session)>,
         progress: Arc<dyn ProgressTracker>,
     ) -> io::Result<()> {
-        // Catch a --column-encoding column that matches no selected table
-        // (a typo) before scheduling any work. Each table only gets the
-        // encodings for its own columns (see `column_encodings_for_table`),
-        // so a column for a different table is not an error here.
+        // Reject a --column-encoding column that matches no selected table
+        // (a typo) before any work starts. column_encodings_for_table
+        // (below) skips a column that only matches some tables, so that
+        // case is not an error.
         if let Some(encodings) = &self.column_encodings {
             validate_column_encodings(&tables, encodings)?;
         }
@@ -593,9 +586,8 @@ mod tests {
     }
 
     #[test]
-    fn validate_column_encodings_accepts_a_column_present_on_just_one_selected_table() {
+    fn validate_column_encodings_accepts_a_column_present_on_just_one_table() {
         // r_reason_description exists only on reason, not item.
-        // column_encodings_for_table skips it for item, so this is fine.
         let tables = table_sessions(&[Table::Reason, Table::Item]);
         let encodings = [("r_reason_description".to_string(), Encoding::PLAIN)];
         assert!(validate_column_encodings(&tables, &encodings).is_ok());
@@ -614,6 +606,16 @@ mod tests {
     }
 
     #[test]
+    fn validate_column_encodings_rejects_dictionary_encoding() {
+        let tables = table_sessions(&[Table::Reason]);
+        let encodings = [(
+            "r_reason_description".to_string(),
+            Encoding::PLAIN_DICTIONARY,
+        )];
+        assert!(validate_column_encodings(&tables, &encodings).is_err());
+    }
+
+    #[test]
     fn column_encodings_for_table_keeps_only_matching_columns() {
         let session = Session::default();
         let encodings = [
@@ -623,10 +625,6 @@ mod tests {
         assert_eq!(
             column_encodings_for_table(Table::Reason, &session, &encodings),
             vec![("r_reason_description".to_string(), Encoding::PLAIN)]
-        );
-        assert_eq!(
-            column_encodings_for_table(Table::Item, &session, &encodings),
-            vec![("i_item_desc".to_string(), Encoding::PLAIN)]
         );
         assert_eq!(
             column_encodings_for_table(Table::CallCenter, &session, &encodings),

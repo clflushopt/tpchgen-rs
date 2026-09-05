@@ -194,7 +194,6 @@ where
     I::Item: RecordBatchReader + Send,
 {
     // Keep only the encodings for columns on this table.
-    // --column-encoding usually targets a few tables, not all of them.
     let column_encodings = plan
         .parquet_column_encodings()
         .map(|encodings| column_encodings_for_table(plan.table(), plan.scale_factor(), encodings));

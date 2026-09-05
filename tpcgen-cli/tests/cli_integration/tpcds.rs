@@ -355,6 +355,43 @@ fn test_tpcgen_cli_tpcds_parquet_column_encoding_typo_fails_before_any_output() 
     );
 }
 
+/// PLAIN_DICTIONARY, RLE_DICTIONARY, and BIT_PACKED are always rejected.
+/// This must fail before any table is written, same as a typo, even when
+/// the column exists on only one of the selected tables.
+#[test]
+fn test_tpcgen_cli_tpcds_parquet_dictionary_encoding_fails_before_any_output() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    // r_reason_description only exists on reason. This must still fail up
+    // front, before either table is scheduled.
+    let assert = cargo_bin_cmd!("tpcgen-cli")
+        .arg("tpcds")
+        .arg("parquet")
+        .arg("--scale-factor")
+        .arg("0.01")
+        .arg("--tables")
+        .arg("reason,item")
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .arg("--column-encoding")
+        .arg("r_reason_description=PLAIN_DICTIONARY")
+        .assert()
+        .failure();
+
+    let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
+    assert!(
+        stderr.contains("cannot be set with --column-encoding"),
+        "unexpected stderr: {stderr}"
+    );
+    assert_eq!(
+        fs::read_dir(temp_dir.path())
+            .expect("Failed to read output directory")
+            .count(),
+        0,
+        "expected no output files when validation fails before generation starts"
+    );
+}
+
 #[test]
 fn test_tpcgen_cli_tpcds_parquet_row_group_size_1mb() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");

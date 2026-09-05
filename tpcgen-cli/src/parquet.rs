@@ -7,7 +7,7 @@ use log::debug;
 use parquet::arrow::arrow_writer::{compute_leaves, ArrowColumnChunk};
 use parquet::arrow::{add_encoded_arrow_schema_to_metadata, ArrowSchemaConverter};
 use parquet::basic::{Compression, Encoding};
-use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder};
+use parquet::file::properties::{WriterProperties, WriterPropertiesBuilder, DEFAULT_COERCE_TYPES};
 use parquet::file::writer::SerializedFileWriter;
 use parquet::schema::types::SchemaDescPtr;
 use std::io;
@@ -37,25 +37,40 @@ pub(crate) fn parse_column_encoding_pair(s: &str) -> Result<(String, Encoding), 
     Ok((name.to_string(), encoding))
 }
 
+/// Rejects an encoding `--column-encoding` cannot use.
+///
+/// Dictionary encoding is a writer setting, not a column encoding.
+/// `BIT_PACKED` is not supported for writing in this parquet version.
+pub(crate) fn reject_unsupported_encoding(encoding: Encoding) -> io::Result<()> {
+    match encoding {
+        Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => Err(io::Error::other(format!(
+            "encoding {encoding} cannot be set with --column-encoding; dictionary encoding is the writer default. Use a non-dictionary encoding such as PLAIN or DELTA_LENGTH_BYTE_ARRAY"
+        ))),
+        #[allow(deprecated)]
+        Encoding::BIT_PACKED => Err(io::Error::other(
+            "encoding BIT_PACKED is not supported for Parquet writing",
+        )),
+        _ => Ok(()),
+    }
+}
+
 /// Applies `encodings` to `builder`.
 ///
-/// This does not check an encoding against the column's physical type
-/// (e.g. `RLE` needs a boolean column). The parquet writer already checks
-/// this when it builds the column writer, but reports it as a panic, not
-/// an `Err`. A second check here would just drift out of sync with it.
-/// Tracking issue: <TODO: link upstream arrow-rs issue>. Until it lands,
-/// `generate_parquet`'s task-join error handling catches that panic.
+/// Does not check an encoding against the column's physical type (RLE
+/// needs a boolean column, for example). The parquet writer checks this
+/// itself, but panics instead of returning an error. Not yet filed
+/// upstream in apache/arrow-rs.
 ///
-/// `PLAIN_DICTIONARY`, `RLE_DICTIONARY`, and `BIT_PACKED` are rejected
-/// directly, though. These are not type mismatches: dictionary encoding is
-/// a separate writer setting, not a `set_column_encoding` value, and
-/// `BIT_PACKED` is not supported for writing in this parquet version.
+/// So a bad match only fails once its table starts generating, unlike an
+/// unknown column or a rejected encoding. In a multi-table run, another
+/// table can finish first.
 fn apply_column_encodings(
     mut builder: WriterPropertiesBuilder,
     parquet_schema: &SchemaDescPtr,
     encodings: &[(String, Encoding)],
 ) -> io::Result<WriterPropertiesBuilder> {
     for (col, enc) in encodings {
+        reject_unsupported_encoding(*enc)?;
         let Some(descr) = parquet_schema
             .columns()
             .iter()
@@ -65,25 +80,10 @@ fn apply_column_encodings(
                 "unknown column '{col}' for --column-encoding"
             )));
         };
-        match enc {
-            Encoding::PLAIN_DICTIONARY | Encoding::RLE_DICTIONARY => {
-                return Err(io::Error::other(format!(
-                    "encoding {enc} cannot be set with --column-encoding; dictionary encoding is the writer default. Use a non-dictionary encoding such as PLAIN or DELTA_LENGTH_BYTE_ARRAY"
-                )));
-            }
-            #[allow(deprecated)]
-            Encoding::BIT_PACKED => {
-                return Err(io::Error::other(
-                    "encoding BIT_PACKED is not supported for Parquet writing",
-                ));
-            }
-            _ => {
-                let path = descr.path().clone();
-                builder = builder
-                    .set_column_encoding(path.clone(), *enc)
-                    .set_column_dictionary_enabled(path, false);
-            }
-        }
+        let path = descr.path().clone();
+        builder = builder
+            .set_column_encoding(path.clone(), *enc)
+            .set_column_dictionary_enabled(path, false);
     }
     Ok(builder)
 }
@@ -118,15 +118,12 @@ where
     let schema = first_iter.schema();
 
     // Compute the parquet schema first. apply_column_encodings needs it to
-    // map column names to a ColumnPath and to check they exist. coerce_types
-    // does not depend on column encodings, so this order does not change it.
-    let coerce_types = WriterProperties::builder()
-        .set_compression(parquet_compression)
-        .build()
-        .coerce_types();
+    // map column names to a ColumnPath and check they exist. Nothing here
+    // sets coerce_types, so use the default constant instead of building a
+    // WriterProperties just to read it back.
     let parquet_schema = Arc::new(
         ArrowSchemaConverter::new()
-            .with_coerce_types(coerce_types)
+            .with_coerce_types(DEFAULT_COERCE_TYPES)
             .convert(&schema)
             .unwrap(),
     );
@@ -268,6 +265,17 @@ mod tests {
     };
     use tpchgen::generators::RegionGenerator;
     use tpchgen_arrow::RegionArrow;
+
+    #[test]
+    fn reject_unsupported_encoding_rejects_dictionary_and_bit_packed() {
+        assert!(reject_unsupported_encoding(Encoding::PLAIN_DICTIONARY).is_err());
+        assert!(reject_unsupported_encoding(Encoding::RLE_DICTIONARY).is_err());
+        #[allow(deprecated)]
+        {
+            assert!(reject_unsupported_encoding(Encoding::BIT_PACKED).is_err());
+        }
+        assert!(reject_unsupported_encoding(Encoding::PLAIN).is_ok());
+    }
 
     #[derive(Debug, Default)]
     struct CountingProgress {
