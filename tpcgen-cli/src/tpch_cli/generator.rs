@@ -100,15 +100,25 @@ impl FromStr for Table {
     /// only support the exclusive abbreviations.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "n" | "nation" => Ok(Table::Nation),
-            "r" | "region" => Ok(Table::Region),
-            "s" | "supplier" => Ok(Table::Supplier),
-            "P" | "part" => Ok(Table::Part),
-            "S" | "partsupp" => Ok(Table::Partsupp),
-            "c" | "customer" => Ok(Table::Customer),
-            "O" | "orders" => Ok(Table::Orders),
-            "L" | "lineitem" => Ok(Table::Lineitem),
-            _ => Err("Invalid table name {s}"),
+            "n" => Ok(Table::Nation),
+            "r" => Ok(Table::Region),
+            "s" => Ok(Table::Supplier),
+            "P" => Ok(Table::Part),
+            "S" => Ok(Table::Partsupp),
+            "c" => Ok(Table::Customer),
+            "O" => Ok(Table::Orders),
+            "L" => Ok(Table::Lineitem),
+            _ => match s.to_ascii_lowercase().as_str() {
+                "nation" => Ok(Table::Nation),
+                "region" => Ok(Table::Region),
+                "supplier" => Ok(Table::Supplier),
+                "part" => Ok(Table::Part),
+                "partsupp" => Ok(Table::Partsupp),
+                "customer" => Ok(Table::Customer),
+                "orders" => Ok(Table::Orders),
+                "lineitem" => Ok(Table::Lineitem),
+                _ => Err("Invalid table name {s}"),
+            },
         }
     }
 }
