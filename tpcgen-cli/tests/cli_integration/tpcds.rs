@@ -289,9 +289,9 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_zero_row_group_bytes() {
         .code(2);
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
-    assert!(
-        stderr.contains("error: invalid value '0' for '--row-group-bytes <ROW_GROUP_BYTES>'"),
-        "Expected --row-group-bytes=0 to be rejected at argument parse time, got stderr: {stderr}"
+    assert_eq!(
+        stderr,
+        "error: invalid value '0' for '--row-group-bytes <ROW_GROUP_BYTES>': must be greater than zero\n\nFor more information, try '--help'.\n"
     );
 }
 

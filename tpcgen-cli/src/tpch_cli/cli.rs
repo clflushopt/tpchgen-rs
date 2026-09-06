@@ -2,6 +2,7 @@ use super::{
     Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
+use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
@@ -252,7 +253,7 @@ struct ParquetArgs {
     #[arg(
         long,
         default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
-        value_parser = clap::value_parser!(i64).range(1..)
+        value_parser = parse_row_group_bytes::<i64>
     )]
     row_group_bytes: i64,
 }

@@ -1,4 +1,5 @@
 //! TPC-DS data generation CLI with a dbgen compatible API.
+use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
@@ -110,7 +111,7 @@ struct ParquetArgs {
     #[arg(
         long,
         default_value_t = DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES,
-        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
+        value_parser = parse_row_group_bytes::<usize>
     )]
     row_group_bytes: usize,
 
