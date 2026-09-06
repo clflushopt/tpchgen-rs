@@ -2,6 +2,7 @@ use super::{
     Compression, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder,
     DEFAULT_PARQUET_ROW_GROUP_BYTES,
 };
+use crate::args::parse_row_group_bytes;
 use crate::logging::configure_logging;
 #[cfg(feature = "indicatif-progress")]
 use crate::progress::IndicatifProgress;
@@ -237,7 +238,7 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Target size in row group bytes in Parquet files
+    /// Target row-group size in bytes
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// with many query engines. Therefore, smaller row groups enable better
@@ -249,7 +250,11 @@ struct ParquetArgs {
     /// groups under this limit.
     ///
     /// Typical values range from 10MB to 100MB.
-    #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
+    #[arg(
+        long,
+        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
+        value_parser = parse_row_group_bytes
+    )]
     row_group_bytes: i64,
 }
 

@@ -25,7 +25,7 @@ use tpcdsgen_arrow::{
 pub(super) struct Parquet {
     output_dir: PathBuf,
     compression: Compression,
-    row_group_bytes: usize,
+    row_group_bytes: i64,
     num_threads: usize,
 }
 
@@ -33,7 +33,7 @@ impl Parquet {
     pub(super) fn new(
         output_dir: PathBuf,
         compression: Compression,
-        row_group_bytes: usize,
+        row_group_bytes: i64,
         num_threads: usize,
     ) -> Self {
         Self {
