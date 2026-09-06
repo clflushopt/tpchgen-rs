@@ -99,27 +99,22 @@ impl FromStr for Table {
     /// not support this since it just adds unnecessary complexity and confusion so we
     /// only support the exclusive abbreviations.
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "n" => Ok(Table::Nation),
-            "r" => Ok(Table::Region),
-            "s" => Ok(Table::Supplier),
-            "P" => Ok(Table::Part),
-            "S" => Ok(Table::Partsupp),
-            "c" => Ok(Table::Customer),
-            "O" => Ok(Table::Orders),
-            "L" => Ok(Table::Lineitem),
-            _ => match s.to_ascii_lowercase().as_str() {
-                "nation" => Ok(Table::Nation),
-                "region" => Ok(Table::Region),
-                "supplier" => Ok(Table::Supplier),
-                "part" => Ok(Table::Part),
-                "partsupp" => Ok(Table::Partsupp),
-                "customer" => Ok(Table::Customer),
-                "orders" => Ok(Table::Orders),
-                "lineitem" => Ok(Table::Lineitem),
-                _ => Err("Invalid table name {s}"),
-            },
+        for (alias, table) in [
+            ("n", Table::Nation),
+            ("r", Table::Region),
+            ("s", Table::Supplier),
+            ("P", Table::Part),
+            ("S", Table::Partsupp),
+            ("c", Table::Customer),
+            ("O", Table::Orders),
+            ("L", Table::Lineitem),
+        ] {
+            if s == alias || s.eq_ignore_ascii_case(table.name()) {
+                return Ok(table);
+            }
         }
+
+        Err("Invalid table name {s}")
     }
 }
 
