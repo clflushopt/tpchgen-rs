@@ -110,7 +110,7 @@ struct ParquetArgs {
     #[arg(
         long,
         default_value_t = DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES,
-        value_parser = parse_row_group_bytes
+        value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
     )]
     row_group_bytes: usize,
 
@@ -462,15 +462,6 @@ fn parse_delimiter(s: &str) -> std::result::Result<char, String> {
         ));
     }
     Ok(parsed)
-}
-
-fn parse_row_group_bytes(s: &str) -> std::result::Result<usize, String> {
-    let parsed = s.parse::<usize>().map_err(|e| e.to_string())?;
-    if parsed == 0 {
-        Err("must be greater than zero".to_string())
-    } else {
-        Ok(parsed)
-    }
 }
 
 #[cfg(test)]
