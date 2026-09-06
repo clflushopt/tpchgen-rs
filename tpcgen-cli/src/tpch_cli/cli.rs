@@ -253,7 +253,7 @@ struct ParquetArgs {
     #[arg(
         long,
         default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
-        value_parser = parse_row_group_bytes::<i64>
+        value_parser = parse_row_group_bytes
     )]
     row_group_bytes: i64,
 }

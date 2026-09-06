@@ -25,8 +25,6 @@ mod progress;
 
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-const DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES: usize = DEFAULT_PARQUET_ROW_GROUP_BYTES as usize;
-
 enum OutputFormat {
     Dat(dat::Dat),
     Csv(csv::Csv),
@@ -110,10 +108,10 @@ struct ParquetArgs {
     /// Typical values range from 10MB to 100MB.
     #[arg(
         long,
-        default_value_t = DEFAULT_TPCDS_PARQUET_ROW_GROUP_BYTES,
-        value_parser = parse_row_group_bytes::<usize>
+        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
+        value_parser = parse_row_group_bytes
     )]
-    row_group_bytes: usize,
+    row_group_bytes: i64,
 
     /// The number of threads for parallel generation, defaults to the number of CPUs
     #[arg(
@@ -203,7 +201,7 @@ impl CommonArgs {
     async fn run_parquet(
         self,
         compression: Compression,
-        row_group_bytes: usize,
+        row_group_bytes: i64,
         num_threads: usize,
     ) -> Result<()> {
         let output = parquet::Parquet::new(
