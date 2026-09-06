@@ -14,6 +14,7 @@ mod tests {
 
     #[test]
     fn row_group_bytes_enforces_i64_range() {
+        assert_eq!(parse_row_group_bytes("1"), Ok(1));
         assert_eq!(parse_row_group_bytes(&i64::MAX.to_string()), Ok(i64::MAX));
         assert!(parse_row_group_bytes("9223372036854775808").is_err());
     }

@@ -388,16 +388,6 @@ impl ParquetArgs {
 mod tests {
     use super::*;
 
-    #[test]
-    fn parquet_row_group_bytes_accepts_one() {
-        let cli = Cli::try_parse_from(["tpchgen", "parquet", "--row-group-bytes=1"]).unwrap();
-        let Some(Commands::Parquet(args)) = cli.command else {
-            panic!("expected parquet command")
-        };
-
-        assert_eq!(args.row_group_bytes, 1);
-    }
-
     fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
         CommonArgs {
             scale_factor: 1.0,
