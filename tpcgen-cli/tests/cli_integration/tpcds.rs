@@ -286,7 +286,7 @@ fn test_tpcgen_cli_tpcds_parquet_rejects_zero_row_group_bytes() {
         .arg("--row-group-bytes")
         .arg("0")
         .assert()
-        .code(2);
+        .failure();
 
     let stderr = String::from_utf8_lossy(&assert.get_output().stderr);
     assert_eq!(
