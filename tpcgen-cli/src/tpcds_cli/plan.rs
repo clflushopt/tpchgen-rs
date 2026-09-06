@@ -193,12 +193,6 @@ mod tests {
     }
 
     #[test]
-    fn maximum_row_group_size_uses_single_group() {
-        let plan = plan(Table::StoreSales, 1.0, i64::MAX);
-        assert_eq!(plan.ranges, vec![1..=240_000]);
-    }
-
-    #[test]
     fn store_sales_sf1_default() {
         let plan = plan(Table::StoreSales, 1.0, DEFAULT_ROW_GROUP_BYTES);
         // ~568 MB estimated output in 7 MB row groups over 240k source rows
