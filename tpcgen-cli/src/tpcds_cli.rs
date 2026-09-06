@@ -95,7 +95,7 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Target size in row group bytes in Parquet files
+    /// Target Parquet row-group size in bytes (must be positive)
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// with many query engines. Therefore, smaller row groups enable better

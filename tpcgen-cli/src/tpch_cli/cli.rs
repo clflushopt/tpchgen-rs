@@ -237,7 +237,7 @@ struct ParquetArgs {
     #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
-    /// Target size in row group bytes in Parquet files
+    /// Target Parquet row-group size in bytes (must be positive)
     ///
     /// Row groups are the typical unit of parallel processing and compression
     /// with many query engines. Therefore, smaller row groups enable better
@@ -249,7 +249,11 @@ struct ParquetArgs {
     /// groups under this limit.
     ///
     /// Typical values range from 10MB to 100MB.
-    #[arg(long, default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES)]
+    #[arg(
+        long,
+        default_value_t = DEFAULT_PARQUET_ROW_GROUP_BYTES,
+        value_parser = clap::value_parser!(i64).range(1..)
+    )]
     row_group_bytes: i64,
 }
 
@@ -382,6 +386,16 @@ impl ParquetArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parquet_row_group_bytes_accepts_one() {
+        let cli = Cli::try_parse_from(["tpchgen", "parquet", "--row-group-bytes=1"]).unwrap();
+        let Some(Commands::Parquet(args)) = cli.command else {
+            panic!("expected parquet command")
+        };
+
+        assert_eq!(args.row_group_bytes, 1);
+    }
 
     fn args_with_tables(tables: Vec<Table>) -> CommonArgs {
         CommonArgs {
