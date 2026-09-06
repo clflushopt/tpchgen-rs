@@ -46,7 +46,9 @@ fn test_parquet_rejects_non_positive_row_group_bytes() {
                 .code(2)
                 .stdout("")
                 .stderr(predicates::str::contains("error: invalid value"))
-                .stderr(predicates::str::contains("--row-group-bytes <ROW_GROUP_BYTES>"));
+                .stderr(predicates::str::contains(
+                    "--row-group-bytes <ROW_GROUP_BYTES>",
+                ));
 
             assert!(
                 !output_dir.exists(),
