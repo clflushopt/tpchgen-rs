@@ -1,6 +1,7 @@
 [package]
 name = "tpchgen-cli"
 version = { workspace = true }
+rust-version = { workspace = true }
 authors = { workspace = true }
 description = "Blazing fast pure Rust TPC-H data generator command line tool."
 readme = "README.md"

@@ -5,6 +5,7 @@ description = "Blazing fast pure Rust zero dependency TPC-H data generation libr
 repository = { workspace = true }
 readme = "README.md"
 version = { workspace = true }
+rust-version = { workspace = true }
 edition = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen"
 license = { workspace = true }

@@ -12,6 +12,9 @@ license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/datafusion-contrib/tpcgen-rs"
 version = "4.0.0-rc.1"
+# Minimum supported Rust version (MSRV).
+# Enforced by the `msrv` job in .github/workflows/rust.yml.
+rust-version = "1.88"
 
 [workspace.dependencies]
 tpcdsgen = { path = "tpcdsgen", version = "4.0.0-rc.1" }
