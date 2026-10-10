@@ -121,7 +121,7 @@ could be executed. This format is still useful for benchmarking and comparison.
 | Name                  | Generator | Output Format        | Notes                                    |
 |-----------------------|-----------|----------------------|------------------------------------------|
 | [tbl_tpchgen.sh]      | `tpchgen` | TBL                  |                                          |
-| [tbl_tpchgen_1.sh]    | `dbgen`   | TBL                  | Restricted to 1 core (`--num-threads=1`) |
+| [tbl_tpchgen_1.sh]    | `tpchgen` | TBL                  | Restricted to 1 core (`--num-threads=1`) |
 | [tbl_dbgen.sh]        | `dbgen`   | TBL                  |                                          |
 | [tbl_dbgen_O3.sh]     | `dbgen`   | TBL                  | `dbgen` modified (compiled with `-O3`)   |
 

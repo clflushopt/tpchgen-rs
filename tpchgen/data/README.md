@@ -19,11 +19,11 @@ The tbl files are all named after the tables they represent.
 
 | File         | Description         |
 | ------------ | ------------------- |
-| parts.tbl    | TPCH parts table    |
+| part.tbl     | TPCH part table     |
 | customer.tbl | TPCH customer table |
-| lineitem.tbl | TPCH linetime table |
+| lineitem.tbl | TPCH lineitem table |
 | nation.tbl   | TPCH nation table   |
-| orders.tbl   | TPCH order table    |
+| orders.tbl   | TPCH orders table   |
 | partsupp.tbl | TPCH partsupp table |
 | region.tbl   | TPCH region table   |
 | supplier.tbl | TPCH supplier table |
@@ -92,7 +92,7 @@ docker run -v `pwd`:/data -it  ghcr.io/scalytics/tpch-docker:main -vf -s 0.001
 
 This produces data that matches what is currently checked in here.
 
-Here is an example from `customers.tbl`:
+Here is an example from `customer.tbl`:
 
 ```text
 1|Customer#000000001|IVhzIApeRb ot,c,E|15|25-989-741-2988|711.56|BUILDING|to the even, regular platelets. regular, ironic epitaphs nag e|

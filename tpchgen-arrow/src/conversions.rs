@@ -45,7 +45,7 @@ where
         .unwrap()
 }
 
-/// Coverts an iterator of displayable values to an Arrow StringViewArray
+/// Converts an iterator of displayable values to an Arrow StringViewArray
 ///
 /// This results in an extra copy of the data, which could be avoided for some types
 pub fn string_view_array_from_display_iter<I>(values: I) -> StringViewArray

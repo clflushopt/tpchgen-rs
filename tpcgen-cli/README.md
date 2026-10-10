@@ -7,6 +7,7 @@ generating [TPC-H] and [TPC-DS] data.
 > [tpcgen-rs project] for the full project details.
 
 [TPC-H]: https://www.tpc.org/tpch/
+[TPC-DS]: https://www.tpc.org/tpcds/
 [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/README.md
 [tpcgen-rs project]: https://github.com/datafusion-contrib/tpcgen-rs
 `tpcgen-cli` is a high performance, parallel command line interface for generating TPC-H
@@ -38,15 +39,15 @@ tpcgen-cli tpch -s 1 --output-dir /tmp/tpch
 # TPC-H Scale Factor 1, all tables, in CSV format
 tpcgen-cli tpch csv -s 1 --output-dir /tmp/tpch
 
-# TPC-DS Scale Factor 10, all tables, in `dat` (pipe-delimited) format 
-# 10 part(itions) written to `/tmp/tpcds/<table_name>/<table_name>.<part>.parquet
+# TPC-DS Scale Factor 10, all tables, in Apache Parquet format,
+# 10 part(itions) written to `/tmp/tpcds/<table_name>/<table_name>.<part>.parquet`
 tpcgen-cli tpcds parquet -s 10 --parts 10 --output-dir /tmp/tpcds
 
 # TPC-DS Scale Factor 100, store_sales table, in Apache Parquet format,
 # 10 part(itions) written to `/tmp/tpcds/store_sales/store_sales.<part>.parquet`
 tpcgen-cli tpcds parquet -s 100 --tables store_sales --parts 10 --output-dir /tmp/tpcds
 
-# TPC-C Scale Factor 1, Per-column encodings 
+# TPC-H Scale Factor 1, Per-column encodings 
 # (overrides Parquet writer defaults for named columns)
 tpcgen-cli tpch parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LENGTH_BYTE_ARRAY --output-dir /tmp/tpch
 

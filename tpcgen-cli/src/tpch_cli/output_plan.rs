@@ -232,10 +232,10 @@ impl OutputPlanGenerator {
 
     /// Return the output location for the given table
     ///
-    /// * if part of is None, the output location is `{output_dir}/{table}.{extension}`
+    /// * if part is None, the output location is `{output_dir}/{table}.{extension}`
     ///
     /// * if part is Some(part), then the output location
-    ///   will be `{output_dir}/{table}/{table}table.{part}.{extension}`
+    ///   will be `{output_dir}/{table}/{table}.{part}.{extension}`
     ///   (e.g. orders/orders.1.tbl, orders/orders.2.tbl, etc.)
     fn output_location(&mut self, table: Table, part: Option<i32>) -> io::Result<OutputLocation> {
         let extension = self.format.extension();
