@@ -203,8 +203,12 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
         }
     }
 
-    /// Build an array one pass over `rows` for the values and a second for
-    /// the validity bitmap (`valid` returns true for non-null rows).
+    /// Build an array with an entry for each row in `rows`
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `value`: function that returns the value for a row
+    /// * `valid`: function that returns true if the row is non-null
     pub fn build<R>(
         &mut self,
         rows: &[R],
@@ -261,7 +265,13 @@ fn pack_bits<R>(dst: &mut Vec<u64>, rows: &[R], valid: impl Fn(&R) -> bool) {
 }
 
 impl PrimitiveArrayRecycler<Int32Type> {
-    /// Nullable INTEGER column; null when null bitmap bit `pos` is set.
+    /// Nullable INTEGER column
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `value`: function to get the integer value for a row
     pub fn int32<R>(
         &mut self,
         rows: &[R],
@@ -272,8 +282,11 @@ impl PrimitiveArrayRecycler<Int32Type> {
         self.build(rows, value, |r| !is_null(nbm(r), pos))
     }
 
-    /// Nullable INTEGER surrogate key; null when bit `pos` is set or `sk < 0`
-    /// (sentinel for absent FK).
+    /// Nullable INTEGER surrogate key
+    ///
+    /// See [`integer_sk_opt`] for details on how nulls and absent keys are handled.
+    ///
+    /// Arguments: as [`Self::int32`], with `sk` returning the surrogate key for a row
     pub fn int32_sk<R>(
         &mut self,
         rows: &[R],
@@ -290,7 +303,15 @@ impl PrimitiveArrayRecycler<Int32Type> {
 }
 
 impl PrimitiveArrayRecycler<Int64Type> {
-    /// Nullable BIGINT surrogate key; null when bit `pos` is set or `sk < 0`.
+    /// Nullable BIGINT surrogate key
+    ///
+    /// See [`sk_opt`] for details on how nulls and absent keys are handled.
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `sk`: function to get the surrogate key for a row
     pub fn int64_sk<R>(
         &mut self,
         rows: &[R],
@@ -303,7 +324,13 @@ impl PrimitiveArrayRecycler<Int64Type> {
 }
 
 impl PrimitiveArrayRecycler<Decimal128Type> {
-    /// Nullable DECIMAL(7,2) column; null when bit `pos` is set.
+    /// Nullable DECIMAL(7,2) column
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `value`: function to get the decimal value for a row
     pub fn decimal_7_2<R>(
         &mut self,
         rows: &[R],
