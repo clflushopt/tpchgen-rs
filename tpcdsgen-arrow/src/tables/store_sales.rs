@@ -1,6 +1,7 @@
-use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt, sk_opt};
+use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, is_null, opt, sk_opt};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
+use arrow::array::{Int32Array, Int64Array, RecordBatch  };
+use arrow::buffer::{ScalarBuffer, NullBuffer};
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
@@ -72,7 +73,20 @@ impl Iterator for StoreSalesArrow {
             return None;
         }
 
-        let mut ss_sold_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let mut ss_sold_date: Vec<i32> = Vec::with_capacity(rows.len());
+        for r in rows {
+            ss_sold_date.push(r.get_ss_sold_date_sk() as i32); // ignore nulls
+        }
+        // let nulls  = NullBufferBuilder::new(rows.len());
+        let nulls = NullBuffer::from_iter(
+            rows.iter()
+                .map(|r| !is_null(r.null_bit_map(), 0))
+        );
+        let ss_sold_date_array = Int32Array::new(
+            ScalarBuffer::from(ss_sold_date),
+            Some(nulls),
+        );
+
         let mut ss_sold_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut ss_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
         let mut ss_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
@@ -99,7 +113,6 @@ impl Iterator for StoreSalesArrow {
         for r in rows {
             let nbm = r.null_bit_map();
             let p = r.get_ss_pricing();
-            ss_sold_date.push(integer_sk_opt(nbm, 0, r.get_ss_sold_date_sk()));
             ss_sold_time.push(integer_sk_opt(nbm, 1, r.get_ss_sold_time_sk()));
             ss_item.push(integer_sk_opt(nbm, 2, r.get_ss_sold_item_sk()));
             ss_customer.push(integer_sk_opt(nbm, 3, r.get_ss_sold_customer_sk()));
@@ -134,7 +147,7 @@ impl Iterator for StoreSalesArrow {
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(Int32Array::from(ss_sold_date)),
+                Arc::new(ss_sold_date_array),
                 Arc::new(Int32Array::from(ss_sold_time)),
                 Arc::new(Int32Array::from(ss_item)),
                 Arc::new(Int32Array::from(ss_customer)),
