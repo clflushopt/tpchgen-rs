@@ -48,42 +48,6 @@ pub enum WebSiteGeneratorColumn {
     WebScd,
 }
 
-impl WebSiteGeneratorColumn {
-    pub fn values() -> &'static [WebSiteGeneratorColumn] {
-        &[
-            WebSiteGeneratorColumn::WebSiteSk,
-            WebSiteGeneratorColumn::WebSiteId,
-            WebSiteGeneratorColumn::WebRecStartDateId,
-            WebSiteGeneratorColumn::WebRecEndDateId,
-            WebSiteGeneratorColumn::WebName,
-            WebSiteGeneratorColumn::WebOpenDate,
-            WebSiteGeneratorColumn::WebCloseDate,
-            WebSiteGeneratorColumn::WebClass,
-            WebSiteGeneratorColumn::WebManager,
-            WebSiteGeneratorColumn::WebMarketId,
-            WebSiteGeneratorColumn::WebMarketClass,
-            WebSiteGeneratorColumn::WebMarketDesc,
-            WebSiteGeneratorColumn::WebMarketManager,
-            WebSiteGeneratorColumn::WebCompanyId,
-            WebSiteGeneratorColumn::WebCompanyName,
-            WebSiteGeneratorColumn::WebAddressStreetNum,
-            WebSiteGeneratorColumn::WebAddressStreetName1,
-            WebSiteGeneratorColumn::WebAddressStreetType,
-            WebSiteGeneratorColumn::WebAddressSuiteNum,
-            WebSiteGeneratorColumn::WebAddressCity,
-            WebSiteGeneratorColumn::WebAddressCounty,
-            WebSiteGeneratorColumn::WebAddressState,
-            WebSiteGeneratorColumn::WebAddressZip,
-            WebSiteGeneratorColumn::WebAddressCountry,
-            WebSiteGeneratorColumn::WebAddressGmtOffset,
-            WebSiteGeneratorColumn::WebTaxPercentage,
-            WebSiteGeneratorColumn::WebNulls,
-            WebSiteGeneratorColumn::WebAddress,
-            WebSiteGeneratorColumn::WebScd,
-        ]
-    }
-}
-
 impl GeneratorColumn for WebSiteGeneratorColumn {
     fn get_table(&self) -> Table {
         Table::WebSite
@@ -134,6 +98,40 @@ impl GeneratorColumn for WebSiteGeneratorColumn {
             WebSiteGeneratorColumn::WebScd => 70,
             _ => 1,
         }
+    }
+
+    fn values() -> &'static [Self] {
+        &[
+            WebSiteGeneratorColumn::WebSiteSk,
+            WebSiteGeneratorColumn::WebSiteId,
+            WebSiteGeneratorColumn::WebRecStartDateId,
+            WebSiteGeneratorColumn::WebRecEndDateId,
+            WebSiteGeneratorColumn::WebName,
+            WebSiteGeneratorColumn::WebOpenDate,
+            WebSiteGeneratorColumn::WebCloseDate,
+            WebSiteGeneratorColumn::WebClass,
+            WebSiteGeneratorColumn::WebManager,
+            WebSiteGeneratorColumn::WebMarketId,
+            WebSiteGeneratorColumn::WebMarketClass,
+            WebSiteGeneratorColumn::WebMarketDesc,
+            WebSiteGeneratorColumn::WebMarketManager,
+            WebSiteGeneratorColumn::WebCompanyId,
+            WebSiteGeneratorColumn::WebCompanyName,
+            WebSiteGeneratorColumn::WebAddressStreetNum,
+            WebSiteGeneratorColumn::WebAddressStreetName1,
+            WebSiteGeneratorColumn::WebAddressStreetType,
+            WebSiteGeneratorColumn::WebAddressSuiteNum,
+            WebSiteGeneratorColumn::WebAddressCity,
+            WebSiteGeneratorColumn::WebAddressCounty,
+            WebSiteGeneratorColumn::WebAddressState,
+            WebSiteGeneratorColumn::WebAddressZip,
+            WebSiteGeneratorColumn::WebAddressCountry,
+            WebSiteGeneratorColumn::WebAddressGmtOffset,
+            WebSiteGeneratorColumn::WebTaxPercentage,
+            WebSiteGeneratorColumn::WebNulls,
+            WebSiteGeneratorColumn::WebAddress,
+            WebSiteGeneratorColumn::WebScd,
+        ]
     }
 }
 

@@ -154,11 +154,8 @@ impl GeneratorColumn for CatalogSalesGeneratorColumn {
             CatalogSalesGeneratorColumn::CsPermutation => 0,
         }
     }
-}
 
-impl CatalogSalesGeneratorColumn {
-    /// Returns all variants in order
-    pub fn all_variants() -> &'static [CatalogSalesGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use CatalogSalesGeneratorColumn::*;
         &[
             CsSoldDateSk,

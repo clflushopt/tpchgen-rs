@@ -92,7 +92,7 @@ impl OrderInfo {
 ///
 /// [`StoreReturnsRowGenerator`]: crate::row::StoreReturnsRowGenerator
 pub struct StoreSalesRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<StoreSalesGeneratorColumn>,
     item_permutation: Option<Vec<i32>>,
     remaining_line_items: i32,
     order_info: OrderInfo,
@@ -104,7 +104,7 @@ impl StoreSalesRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         StoreSalesRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::StoreSales, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             item_permutation: None,
             remaining_line_items: 0,
             order_info: OrderInfo::default(),

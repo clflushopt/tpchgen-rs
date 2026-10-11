@@ -115,11 +115,8 @@ impl GeneratorColumn for StoreSalesGeneratorColumn {
             StoreSalesGeneratorColumn::SsPermutation => 0,
         }
     }
-}
 
-impl StoreSalesGeneratorColumn {
-    /// Returns all variants in order
-    pub fn all_variants() -> &'static [StoreSalesGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use StoreSalesGeneratorColumn::*;
         &[
             SsSoldDateSk,

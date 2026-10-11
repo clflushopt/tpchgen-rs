@@ -40,7 +40,7 @@ const STORE_CLOSED_PCT: i32 = 30;
 const STORE_DESC_MIN: i32 = 15;
 
 pub struct StoreRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<StoreGeneratorColumn>,
     text: RandomTextGenerator,
     previous_row: Option<StoreRow>,
     session: Session,
@@ -50,7 +50,7 @@ impl StoreRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         StoreRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::Store, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             text: RandomTextGenerator::new(),
             previous_row: None,
             session,
@@ -384,9 +384,10 @@ impl StoreRowGenerator {
 }
 
 impl ScdRowGenerator for StoreRowGenerator {
+    type Column = StoreGeneratorColumn;
     type Row = StoreRow;
 
-    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator {
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator<StoreGeneratorColumn> {
         &mut self.abstract_generator
     }
 

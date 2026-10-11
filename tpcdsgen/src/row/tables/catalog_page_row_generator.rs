@@ -27,7 +27,7 @@ const CATALOGS_PER_YEAR: i32 = 18;
 const WIDTH_CP_DESCRIPTION: i32 = 100;
 
 pub struct CatalogPageRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<CatalogPageGeneratorColumn>,
     text: RandomTextGenerator,
     session: Session,
 }
@@ -36,7 +36,7 @@ impl CatalogPageRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         CatalogPageRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::CatalogPage, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             text: RandomTextGenerator::new(),
             session,
         }

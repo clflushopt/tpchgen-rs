@@ -27,7 +27,7 @@ use crate::types::Address;
 
 /// Row generator for the CUSTOMER_ADDRESS table (CustomerAddressRowGenerator)
 pub struct CustomerAddressRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<CustomerAddressGeneratorColumn>,
     session: Session,
 }
 
@@ -35,7 +35,7 @@ impl CustomerAddressRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::CustomerAddress, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             session,
         }
     }

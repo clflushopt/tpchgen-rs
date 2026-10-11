@@ -26,7 +26,7 @@ use crate::table::Table;
 use crate::types::{Address, Decimal};
 
 pub struct WebSiteRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<WebSiteGeneratorColumn>,
     text: RandomTextGenerator,
     previous_row: Option<WebSiteRow>,
     session: Session,
@@ -36,7 +36,7 @@ impl WebSiteRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::WebSite, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             text: RandomTextGenerator::new(),
             previous_row: None,
             session,
@@ -372,9 +372,10 @@ impl WebSiteRowGenerator {
 }
 
 impl ScdRowGenerator for WebSiteRowGenerator {
+    type Column = WebSiteGeneratorColumn;
     type Row = WebSiteRow;
 
-    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator {
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator<WebSiteGeneratorColumn> {
         &mut self.abstract_generator
     }
 

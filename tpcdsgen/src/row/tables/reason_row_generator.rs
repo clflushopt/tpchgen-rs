@@ -8,7 +8,7 @@ use crate::table::Table;
 
 /// Row generator for the REASON table (ReasonRowGenerator)
 pub struct ReasonRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<ReasonGeneratorColumn>,
     session: Session,
 }
 
@@ -16,7 +16,7 @@ impl ReasonRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::Reason, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             session,
         }
     }

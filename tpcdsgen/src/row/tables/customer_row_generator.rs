@@ -30,7 +30,7 @@ use crate::types::Date;
 
 /// Customer row generator (CustomerRowGenerator)
 pub struct CustomerRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<CustomerGeneratorColumn>,
     session: Session,
 }
 
@@ -38,7 +38,7 @@ impl CustomerRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         CustomerRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::Customer, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             session,
         }
     }

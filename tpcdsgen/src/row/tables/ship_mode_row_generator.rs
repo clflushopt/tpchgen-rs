@@ -8,14 +8,14 @@ use crate::table::Table;
 
 /// Row generator for the SHIP_MODE table (ShipModeRowGenerator)
 pub struct ShipModeRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<ShipModeGeneratorColumn>,
 }
 
 impl ShipModeRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(_session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::ShipMode, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
         }
     }
 

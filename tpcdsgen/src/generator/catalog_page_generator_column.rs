@@ -62,11 +62,8 @@ impl GeneratorColumn for CatalogPageGeneratorColumn {
             _ => 1,
         }
     }
-}
 
-impl CatalogPageGeneratorColumn {
-    /// Returns all variants in order
-    pub fn all_variants() -> &'static [CatalogPageGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use CatalogPageGeneratorColumn::*;
         &[
             CpCatalogPageSk,

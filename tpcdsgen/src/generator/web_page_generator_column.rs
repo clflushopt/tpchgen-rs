@@ -56,12 +56,9 @@ impl GeneratorColumn for WebPageGeneratorColumn {
             _ => 1,
         }
     }
-}
 
-impl WebPageGeneratorColumn {
-    /// Get all generator column values (for Table integration)
-    pub fn values() -> Vec<WebPageGeneratorColumn> {
-        vec![
+    fn values() -> &'static [Self] {
+        &[
             Self::WpPageSk,
             Self::WpPageId,
             Self::WpRecStartDateId,

@@ -1,85 +1,77 @@
 use crate::generator::GeneratorColumn;
 use crate::random::RandomNumberStream;
-use crate::table::Table;
+use std::marker::PhantomData;
 
 /// Abstract base for row generators (AbstractRowGenerator)
 ///
-/// Manages the random number streams and walks the source rows
-/// `current_row..=row_count` the generator is to produce.
-pub struct AbstractRowGenerator {
-    table: Table,
+/// Manages the random number streams for the generator columns `C` of one
+/// table and walks the source rows `current_row..=row_count` the generator
+/// is to produce.
+pub struct AbstractRowGenerator<C> {
     /// The next source row to generate (1-based)
     current_row: u64,
     /// The last source row to generate (inclusive)
     row_count: u64,
-    /// Random number streams stored in a Vec, indexed by (global_column_number - base_global_column_number)
-    /// This replaces HashMap for O(1) direct array access without hashing overhead
+    /// One stream per column in `C::values()`, in that order
     random_number_streams: Vec<RandomNumberStream>,
-    /// The minimum global column number for this table's columns
-    /// Used to convert global_column_number to Vec index
+    /// Global column number of the first column, so a column's stream is at
+    /// index `global_column_number - base_global_column_number`
     base_global_column_number: i32,
+    column: PhantomData<C>,
 }
 
-impl AbstractRowGenerator {
-    /// Create a new abstract row generator for source rows `1..=row_count`
-    /// of the given table.
+impl<C: GeneratorColumn> AbstractRowGenerator<C> {
+    /// Create a new abstract row generator for source rows `1..=row_count`.
     ///
-    /// Pre-creates all random number streams for the table's generator columns
+    /// Pre-creates the random number streams of all generator columns
     /// (matching Java's AbstractRowGenerator constructor behavior)
-    pub fn new(table: Table, row_count: u64) -> Self {
-        let column_count = table.get_generator_column_count();
-
-        // Find the base global column number (minimum among all columns)
-        let base_global_column_number = if column_count > 0 {
-            table
-                .get_generator_column_by_index(0)
-                .map(|col| col.get_global_column_number())
-                .unwrap_or(0)
-        } else {
-            0
-        };
+    pub fn new(row_count: u64) -> Self {
+        let columns = C::values();
+        let base_global_column_number = columns
+            .first()
+            .map(|column| column.get_global_column_number())
+            .unwrap_or(0);
 
         // Pre-create all streams for this table's generator columns
         // This is critical because consume_remaining_seeds_for_row needs to advance
         // ALL streams, even ones that haven't been accessed yet
-        let mut random_number_streams = Vec::with_capacity(column_count);
-
-        for i in 0..column_count {
-            if let Some(gen_col) = table.get_generator_column_by_index(i) {
-                let global_column_number = gen_col.get_global_column_number();
-                let seeds_per_row = gen_col.get_seeds_per_row();
-
-                random_number_streams.push(RandomNumberStream::new_with_column(
+        let random_number_streams = columns
+            .iter()
+            .enumerate()
+            .map(|(index, column)| {
+                let global_column_number = column.get_global_column_number();
+                // get_random_number_stream relies on contiguous column numbers
+                assert_eq!(
                     global_column_number,
-                    seeds_per_row,
-                ));
-            }
-        }
+                    base_global_column_number + index as i32,
+                    "generator columns must have contiguous global column numbers"
+                );
+                RandomNumberStream::new_with_column(
+                    global_column_number,
+                    column.get_seeds_per_row(),
+                )
+            })
+            .collect();
 
         Self {
-            table,
             current_row: 1,
             row_count,
             random_number_streams,
             base_global_column_number,
+            column: PhantomData,
         }
     }
 
-    /// Get the table this generator is for
-    pub fn get_table(&self) -> Table {
-        self.table
-    }
-
-    /// Get a random number stream for a generator column
-    /// Uses direct array indexing for O(1) access
-    pub fn get_random_number_stream<C: GeneratorColumn>(
-        &mut self,
-        column: &C,
-    ) -> &mut RandomNumberStream {
-        let global_column_number = column.get_global_column_number();
-        let index = (global_column_number - self.base_global_column_number) as usize;
-
-        &mut self.random_number_streams[index]
+    /// Get the random number stream for a generator column
+    #[inline]
+    pub fn get_random_number_stream(&mut self, column: &C) -> &mut RandomNumberStream {
+        let index = (column.get_global_column_number() - self.base_global_column_number) as usize;
+        debug_assert!(index < self.random_number_streams.len());
+        // SAFETY: only columns of type `C` can be passed in. `GeneratorColumn`
+        // is sealed and `new` verified that `C::values()` has contiguous global
+        // column numbers starting at `base_global_column_number`, with one
+        // stream per column, so `index` is always in bounds.
+        unsafe { self.random_number_streams.get_unchecked_mut(index) }
     }
 
     /// Consume remaining seeds for all streams (AbstractRowGenerator.consumeRemainingSeedsForRow)
@@ -137,26 +129,17 @@ mod tests {
     use crate::generator::CallCenterGeneratorColumn;
 
     #[test]
-    fn test_abstract_row_generator_creation() {
-        let generator = AbstractRowGenerator::new(Table::CallCenter, 6);
-        assert_eq!(generator.get_table(), Table::CallCenter);
-    }
-
-    #[test]
-    fn test_random_number_stream_creation() {
-        let mut generator = AbstractRowGenerator::new(Table::CallCenter, 6);
-        let column = &CallCenterGeneratorColumn::CcCallCenterSk;
-
-        let _stream1 = generator.get_random_number_stream(column);
-        let _stream2 = generator.get_random_number_stream(column);
-
-        // Should reuse the same stream for the same column
+    fn creates_one_stream_per_column() {
+        let mut generator = AbstractRowGenerator::<CallCenterGeneratorColumn>::new(6);
         assert_eq!(generator.random_number_streams.len(), 34);
+
+        let stream = generator.get_random_number_stream(&CallCenterGeneratorColumn::CcNulls);
+        assert_eq!(stream.get_seeds_per_row(), 2);
     }
 
     #[test]
     fn walks_the_source_row_range() {
-        let mut generator = AbstractRowGenerator::new(Table::CallCenter, 6);
+        let mut generator = AbstractRowGenerator::<CallCenterGeneratorColumn>::new(6);
         assert_eq!(generator.next_row_number(), Some(1));
         generator.finish_row();
         assert_eq!(generator.next_row_number(), Some(2));
@@ -170,18 +153,5 @@ mod tests {
 
         generator.skip_rows_until_starting_row_number(3);
         assert_eq!(generator.next_row_number(), Some(3));
-    }
-
-    #[test]
-    fn test_multiple_column_streams() {
-        let mut generator = AbstractRowGenerator::new(Table::CallCenter, 6);
-        let col1 = &CallCenterGeneratorColumn::CcCallCenterSk;
-        let col2 = &CallCenterGeneratorColumn::CcCallCenterId;
-
-        let _stream1 = generator.get_random_number_stream(col1);
-        let _stream2 = generator.get_random_number_stream(col2);
-
-        // Should create separate streams for different columns
-        assert_eq!(generator.random_number_streams.len(), 34);
     }
 }

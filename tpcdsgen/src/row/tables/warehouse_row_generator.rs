@@ -8,7 +8,7 @@ use crate::types::Address;
 
 /// Row generator for the WAREHOUSE table (WarehouseRowGenerator)
 pub struct WarehouseRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<WarehouseGeneratorColumn>,
     text: RandomTextGenerator,
     session: Session,
 }
@@ -17,7 +17,7 @@ impl WarehouseRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::Warehouse, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             text: RandomTextGenerator::new(),
             session,
         }

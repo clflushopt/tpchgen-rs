@@ -1,18 +1,18 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::distribution::HoursDistribution;
+use crate::generator::TimeDimGeneratorColumn;
 use crate::row::{AbstractRowGenerator, TimeDimRow};
-use crate::table::Table;
 
 pub struct TimeDimRowGenerator {
-    base: AbstractRowGenerator,
+    base: AbstractRowGenerator<TimeDimGeneratorColumn>,
 }
 
 impl TimeDimRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(_session: Session, row_count: u64) -> Self {
         TimeDimRowGenerator {
-            base: AbstractRowGenerator::new(Table::TimeDim, row_count),
+            base: AbstractRowGenerator::new(row_count),
         }
     }
 

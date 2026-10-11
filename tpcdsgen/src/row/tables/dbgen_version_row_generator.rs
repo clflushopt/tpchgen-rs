@@ -13,14 +13,14 @@
  */
 
 use crate::config::Session;
+use crate::generator::DbgenVersionGeneratorColumn;
 use crate::row::{AbstractRowGenerator, DbgenVersionRow};
-use crate::table::Table;
 use crate::types::Date;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Row generator for the DBGEN_VERSION table (DbgenVersionRowGenerator)
 pub struct DbgenVersionRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<DbgenVersionGeneratorColumn>,
     session: Session,
 }
 
@@ -31,7 +31,7 @@ impl DbgenVersionRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::DbgenVersion, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             session,
         }
     }

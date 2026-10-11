@@ -23,30 +23,6 @@ pub enum WarehouseGeneratorColumn {
 }
 
 impl WarehouseGeneratorColumn {
-    /// Get all generator columns in order
-    pub fn values() -> &'static [WarehouseGeneratorColumn] {
-        use WarehouseGeneratorColumn::*;
-        static VALUES: &[WarehouseGeneratorColumn] = &[
-            WWarehouseSk,
-            WWarehouseId,
-            WWarehouseName,
-            WWarehouseSqFt,
-            WAddressStreetNum,
-            WAddressStreetName1,
-            WAddressStreetType,
-            WAddressSuiteNum,
-            WAddressCity,
-            WAddressCounty,
-            WAddressState,
-            WAddressZip,
-            WAddressCountry,
-            WAddressGmtOffset,
-            WNulls,
-            WWarehouseAddress,
-        ];
-        VALUES
-    }
-
     /// Get the global column number and seeds per row for this generator column
     fn get_column_info(&self) -> (i32, u32) {
         use WarehouseGeneratorColumn::*;
@@ -82,5 +58,28 @@ impl GeneratorColumn for WarehouseGeneratorColumn {
 
     fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
+    }
+
+    fn values() -> &'static [Self] {
+        use WarehouseGeneratorColumn::*;
+        static VALUES: &[WarehouseGeneratorColumn] = &[
+            WWarehouseSk,
+            WWarehouseId,
+            WWarehouseName,
+            WWarehouseSqFt,
+            WAddressStreetNum,
+            WAddressStreetName1,
+            WAddressStreetType,
+            WAddressSuiteNum,
+            WAddressCity,
+            WAddressCounty,
+            WAddressState,
+            WAddressZip,
+            WAddressCountry,
+            WAddressGmtOffset,
+            WNulls,
+            WWarehouseAddress,
+        ];
+        VALUES
     }
 }

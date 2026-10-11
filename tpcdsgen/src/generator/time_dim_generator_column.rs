@@ -18,15 +18,6 @@ pub enum TimeDimGeneratorColumn {
 }
 
 impl TimeDimGeneratorColumn {
-    pub fn values() -> &'static [TimeDimGeneratorColumn] {
-        use TimeDimGeneratorColumn::*;
-        static VALUES: &[TimeDimGeneratorColumn] = &[
-            TTimeSk, TTimeId, TTime, THour, TMinute, TSecond, TAmPm, TShift, TSubShift, TMealTime,
-            TNulls,
-        ];
-        VALUES
-    }
-
     fn get_column_info(&self) -> (i32, u32) {
         use TimeDimGeneratorColumn::*;
         match self {
@@ -56,5 +47,14 @@ impl GeneratorColumn for TimeDimGeneratorColumn {
 
     fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
+    }
+
+    fn values() -> &'static [Self] {
+        use TimeDimGeneratorColumn::*;
+        static VALUES: &[TimeDimGeneratorColumn] = &[
+            TTimeSk, TTimeId, TTime, THour, TMinute, TSecond, TAmPm, TShift, TSubShift, TMealTime,
+            TNulls,
+        ];
+        VALUES
     }
 }

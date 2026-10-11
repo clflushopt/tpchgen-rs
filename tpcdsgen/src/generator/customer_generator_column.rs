@@ -44,33 +44,6 @@ pub enum CustomerGeneratorColumn {
 }
 
 impl CustomerGeneratorColumn {
-    /// Get all column values in order
-    pub fn values() -> &'static [CustomerGeneratorColumn] {
-        use CustomerGeneratorColumn::*;
-        static VALUES: &[CustomerGeneratorColumn] = &[
-            CCustomerSk,
-            CCustomerId,
-            CCurrentCdemoSk,
-            CCurrentHdemoSk,
-            CCurrentAddrSk,
-            CFirstShiptoDateId,
-            CFirstSalesDateId,
-            CSalutation,
-            CFirstName,
-            CLastName,
-            CPreferredCustFlag,
-            CBirthDay,
-            CBirthMonth,
-            CBirthYear,
-            CBirthCountry,
-            CLogin,
-            CEmailAddress,
-            CLastReviewDate,
-            CNulls,
-        ];
-        VALUES
-    }
-
     /// Get the global column number for this column
     fn global_column_number(&self) -> i32 {
         use CustomerGeneratorColumn::*;
@@ -135,5 +108,31 @@ impl GeneratorColumn for CustomerGeneratorColumn {
 
     fn get_seeds_per_row(&self) -> u32 {
         self.seeds_per_row()
+    }
+
+    fn values() -> &'static [Self] {
+        use CustomerGeneratorColumn::*;
+        static VALUES: &[CustomerGeneratorColumn] = &[
+            CCustomerSk,
+            CCustomerId,
+            CCurrentCdemoSk,
+            CCurrentHdemoSk,
+            CCurrentAddrSk,
+            CFirstShiptoDateId,
+            CFirstSalesDateId,
+            CSalutation,
+            CFirstName,
+            CLastName,
+            CPreferredCustFlag,
+            CBirthDay,
+            CBirthMonth,
+            CBirthYear,
+            CBirthCountry,
+            CLogin,
+            CEmailAddress,
+            CLastReviewDate,
+            CNulls,
+        ];
+        VALUES
     }
 }

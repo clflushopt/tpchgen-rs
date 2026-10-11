@@ -48,7 +48,7 @@ const ROW_SIZE_I_FORMULATION: i32 = 20;
 const I_PROMO_PERCENTAGE: i32 = 20;
 
 pub struct ItemRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<ItemGeneratorColumn>,
     text: RandomTextGenerator,
     previous_row: Option<ItemRow>,
     session: Session,
@@ -58,7 +58,7 @@ impl ItemRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         ItemRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::Item, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             text: RandomTextGenerator::new(),
             previous_row: None,
             session,
@@ -359,9 +359,10 @@ impl ItemRowGenerator {
 }
 
 impl ScdRowGenerator for ItemRowGenerator {
+    type Column = ItemGeneratorColumn;
     type Row = ItemRow;
 
-    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator {
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator<ItemGeneratorColumn> {
         &mut self.abstract_generator
     }
 

@@ -7,14 +7,14 @@ use crate::table::Table;
 
 /// Row generator for the INCOME_BAND table (IncomeBandRowGenerator)
 pub struct IncomeBandRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<IncomeBandGeneratorColumn>,
 }
 
 impl IncomeBandRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(_session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::IncomeBand, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
         }
     }
 

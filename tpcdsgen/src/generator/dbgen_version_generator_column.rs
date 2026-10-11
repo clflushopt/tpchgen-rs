@@ -25,14 +25,6 @@ pub enum DbgenVersionGeneratorColumn {
 }
 
 impl DbgenVersionGeneratorColumn {
-    /// Get all generator columns in order
-    pub fn values() -> &'static [DbgenVersionGeneratorColumn] {
-        use DbgenVersionGeneratorColumn::*;
-        static VALUES: &[DbgenVersionGeneratorColumn] =
-            &[DvVersion, DvCreateDate, DvCreateTime, DvCmdlineArgs];
-        VALUES
-    }
-
     /// Get the global column number and seeds per row for this generator column
     /// Values exactly match Java implementation
     fn get_column_info(&self) -> (i32, u32) {
@@ -57,5 +49,12 @@ impl GeneratorColumn for DbgenVersionGeneratorColumn {
 
     fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
+    }
+
+    fn values() -> &'static [Self] {
+        use DbgenVersionGeneratorColumn::*;
+        static VALUES: &[DbgenVersionGeneratorColumn] =
+            &[DvVersion, DvCreateDate, DvCreateTime, DvCmdlineArgs];
+        VALUES
     }
 }

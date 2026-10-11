@@ -11,14 +11,6 @@ pub enum IncomeBandGeneratorColumn {
 }
 
 impl IncomeBandGeneratorColumn {
-    /// Get all generator columns in order
-    pub fn values() -> &'static [IncomeBandGeneratorColumn] {
-        use IncomeBandGeneratorColumn::*;
-        static VALUES: &[IncomeBandGeneratorColumn] =
-            &[IbIncomeBandId, IbLowerBound, IbUpperBound, IbNulls];
-        VALUES
-    }
-
     /// Get the global column number and seeds per row for this generator column
     /// Values exactly match Java implementation
     fn get_column_info(&self) -> (i32, u32) {
@@ -43,5 +35,12 @@ impl GeneratorColumn for IncomeBandGeneratorColumn {
 
     fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
+    }
+
+    fn values() -> &'static [Self] {
+        use IncomeBandGeneratorColumn::*;
+        static VALUES: &[IncomeBandGeneratorColumn] =
+            &[IbIncomeBandId, IbLowerBound, IbUpperBound, IbNulls];
+        VALUES
     }
 }

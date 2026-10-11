@@ -32,7 +32,7 @@ const PROMO_DETAIL_LENGTH_MIN: i32 = 20;
 const PROMO_DETAIL_LENGTH_MAX: i32 = 60;
 
 pub struct PromotionRowGenerator {
-    abstract_row_generator: AbstractRowGenerator,
+    abstract_row_generator: AbstractRowGenerator<PromotionGeneratorColumn>,
     text: RandomTextGenerator,
     session: Session,
 }
@@ -41,7 +41,7 @@ impl PromotionRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         PromotionRowGenerator {
-            abstract_row_generator: AbstractRowGenerator::new(Table::Promotion, row_count),
+            abstract_row_generator: AbstractRowGenerator::new(row_count),
             text: RandomTextGenerator::new(),
             session,
         }

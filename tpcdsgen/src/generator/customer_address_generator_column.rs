@@ -40,32 +40,6 @@ pub enum CustomerAddressGeneratorColumn {
     CaAddressStreetName2,
 }
 
-impl CustomerAddressGeneratorColumn {
-    /// Get all generator column values in order
-    pub fn values() -> &'static [CustomerAddressGeneratorColumn] {
-        use CustomerAddressGeneratorColumn::*;
-        static VALUES: [CustomerAddressGeneratorColumn; 16] = [
-            CaAddressSk,
-            CaAddressId,
-            CaAddressStreetNum,
-            CaAddressStreetName,
-            CaAddressStreetType,
-            CaAddressSuiteNum,
-            CaAddressCity,
-            CaAddressCounty,
-            CaAddressState,
-            CaAddressZip,
-            CaAddressCountry,
-            CaAddressGmtOffset,
-            CaLocationType,
-            CaNulls,
-            CaAddress,
-            CaAddressStreetName2,
-        ];
-        &VALUES
-    }
-}
-
 impl GeneratorColumn for CustomerAddressGeneratorColumn {
     fn get_table(&self) -> Table {
         Table::CustomerAddress
@@ -111,5 +85,28 @@ impl GeneratorColumn for CustomerAddressGeneratorColumn {
             CustomerAddressGeneratorColumn::CaAddress => 7,
             CustomerAddressGeneratorColumn::CaAddressStreetName2 => 1,
         }
+    }
+
+    fn values() -> &'static [Self] {
+        use CustomerAddressGeneratorColumn::*;
+        static VALUES: [CustomerAddressGeneratorColumn; 16] = [
+            CaAddressSk,
+            CaAddressId,
+            CaAddressStreetNum,
+            CaAddressStreetName,
+            CaAddressStreetType,
+            CaAddressSuiteNum,
+            CaAddressCity,
+            CaAddressCounty,
+            CaAddressState,
+            CaAddressZip,
+            CaAddressCountry,
+            CaAddressGmtOffset,
+            CaLocationType,
+            CaNulls,
+            CaAddress,
+            CaAddressStreetName2,
+        ];
+        &VALUES
     }
 }

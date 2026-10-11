@@ -28,21 +28,6 @@ pub enum InventoryGeneratorColumn {
     InvNulls,
 }
 
-impl InventoryGeneratorColumn {
-    /// Get all variants in order
-    pub fn all_variants() -> &'static [InventoryGeneratorColumn] {
-        use InventoryGeneratorColumn::*;
-        static VARIANTS: [InventoryGeneratorColumn; 5] = [
-            InvDateSk,
-            InvItemSk,
-            InvWarehouseSk,
-            InvQuantityOnHand,
-            InvNulls,
-        ];
-        &VARIANTS
-    }
-}
-
 impl GeneratorColumn for InventoryGeneratorColumn {
     fn get_table(&self) -> Table {
         Table::Inventory
@@ -66,5 +51,17 @@ impl GeneratorColumn for InventoryGeneratorColumn {
             InventoryGeneratorColumn::InvQuantityOnHand => 1,
             InventoryGeneratorColumn::InvNulls => 2,
         }
+    }
+
+    fn values() -> &'static [Self] {
+        use InventoryGeneratorColumn::*;
+        static VARIANTS: [InventoryGeneratorColumn; 5] = [
+            InvDateSk,
+            InvItemSk,
+            InvWarehouseSk,
+            InvQuantityOnHand,
+            InvNulls,
+        ];
+        &VARIANTS
     }
 }

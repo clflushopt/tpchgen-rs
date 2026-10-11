@@ -12,7 +12,7 @@ use crate::types::{Address, Date, Decimal};
 
 /// Row generator for the CALL_CENTER table (CallCenterRowGenerator)
 pub struct CallCenterRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<CallCenterGeneratorColumn>,
     text: RandomTextGenerator,
     previous_row: Option<CallCenterRow>,
     session: Session,
@@ -37,7 +37,7 @@ impl CallCenterRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::CallCenter, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             text: RandomTextGenerator::new(),
             previous_row: None,
             session,
@@ -401,9 +401,10 @@ impl CallCenterRowGenerator {
 }
 
 impl ScdRowGenerator for CallCenterRowGenerator {
+    type Column = CallCenterGeneratorColumn;
     type Row = CallCenterRow;
 
-    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator {
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator<CallCenterGeneratorColumn> {
         &mut self.abstract_generator
     }
 
@@ -429,12 +430,6 @@ mod tests {
     use super::*;
     use crate::config::Session;
     use crate::row::dat_values;
-
-    #[test]
-    fn test_call_center_row_generator_creation() {
-        let generator = CallCenterRowGenerator::new(Session::default(), 1);
-        assert_eq!(generator.abstract_generator.get_table(), Table::CallCenter);
-    }
 
     #[test]
     fn test_generate_call_center_row() {

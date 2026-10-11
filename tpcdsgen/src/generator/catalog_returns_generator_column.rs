@@ -124,11 +124,8 @@ impl GeneratorColumn for CatalogReturnsGeneratorColumn {
             CatalogReturnsGeneratorColumn::CrPricing => 70,
         }
     }
-}
 
-impl CatalogReturnsGeneratorColumn {
-    /// Returns all variants in order
-    pub fn all_variants() -> &'static [CatalogReturnsGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use CatalogReturnsGeneratorColumn::*;
         &[
             CrReturnedDateSk,

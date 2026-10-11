@@ -113,11 +113,8 @@ impl GeneratorColumn for ItemGeneratorColumn {
             IPromoSk => 2,
         }
     }
-}
 
-impl ItemGeneratorColumn {
-    /// Get all generator columns in order
-    pub fn all_columns() -> &'static [ItemGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use ItemGeneratorColumn::*;
         &[
             IItemSk,
