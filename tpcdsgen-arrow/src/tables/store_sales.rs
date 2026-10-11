@@ -1,13 +1,13 @@
-use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, is_null, opt, sk_opt};
+use crate::conversions::{decimal_7_2_array, int32_array, int32_sk_array, int64_sk_array};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, Int64Array, RecordBatch  };
-use arrow::buffer::{ScalarBuffer, NullBuffer};
+use arrow::array::RecordBatch;
 use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{StoreSalesRow, StoreSalesRowGenerator};
+use tpcdsgen::types::{Decimal, Pricing};
 
 /// Generate [`StoreSalesRow`]s in [`RecordBatch`] format
 pub struct StoreSalesArrow {
@@ -73,103 +73,47 @@ impl Iterator for StoreSalesArrow {
             return None;
         }
 
-        let mut ss_sold_date: Vec<i32> = Vec::with_capacity(rows.len());
-        for r in rows {
-            ss_sold_date.push(r.get_ss_sold_date_sk() as i32); // ignore nulls
-        }
-        // let nulls  = NullBufferBuilder::new(rows.len());
-        let nulls = NullBuffer::from_iter(
-            rows.iter()
-                .map(|r| !is_null(r.null_bit_map(), 0))
-        );
-        let ss_sold_date_array = Int32Array::new(
-            ScalarBuffer::from(ss_sold_date),
-            Some(nulls),
-        );
+        let nbm = StoreSalesRow::null_bit_map;
+        let sk32 = |pos, f: fn(&StoreSalesRow) -> i64| int32_sk_array(rows, pos, nbm, f);
+        let dec = |pos, f: fn(&Pricing) -> Decimal| {
+            decimal_7_2_array(rows, pos, nbm, |r| f(r.get_ss_pricing()))
+        };
 
-        let mut ss_sold_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_store: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_promo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_ticket: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ss_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_list_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_sales_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_discount_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_sales_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_list_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_coupon_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_net_paid: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_net_paid_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_net_profit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-
-        for r in rows {
-            let nbm = r.null_bit_map();
-            let p = r.get_ss_pricing();
-            ss_sold_time.push(integer_sk_opt(nbm, 1, r.get_ss_sold_time_sk()));
-            ss_item.push(integer_sk_opt(nbm, 2, r.get_ss_sold_item_sk()));
-            ss_customer.push(integer_sk_opt(nbm, 3, r.get_ss_sold_customer_sk()));
-            ss_cdemo.push(integer_sk_opt(nbm, 4, r.get_ss_sold_cdemo_sk()));
-            ss_hdemo.push(integer_sk_opt(nbm, 5, r.get_ss_sold_hdemo_sk()));
-            ss_addr.push(integer_sk_opt(nbm, 6, r.get_ss_sold_addr_sk()));
-            ss_store.push(integer_sk_opt(nbm, 7, r.get_ss_sold_store_sk()));
-            ss_promo.push(integer_sk_opt(nbm, 8, r.get_ss_sold_promo_sk()));
-            ss_ticket.push(sk_opt(nbm, 9, r.get_ss_ticket_number()));
-            ss_quantity.push(opt(nbm, 10, p.get_quantity()));
-            ss_wholesale_cost.push(opt(nbm, 11, decimal_to_i128(p.get_wholesale_cost())));
-            ss_list_price.push(opt(nbm, 12, decimal_to_i128(p.get_list_price())));
-            ss_sales_price.push(opt(nbm, 13, decimal_to_i128(p.get_sales_price())));
-            // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
-            ss_ext_discount_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
-            ss_ext_sales_price.push(opt(nbm, 15, decimal_to_i128(p.get_ext_sales_price())));
-            ss_ext_wholesale_cost.push(opt(nbm, 16, decimal_to_i128(p.get_ext_wholesale_cost())));
-            ss_ext_list_price.push(opt(nbm, 17, decimal_to_i128(p.get_ext_list_price())));
-            ss_ext_tax.push(opt(nbm, 18, decimal_to_i128(p.get_ext_tax())));
-            // Java bug: coupon_amount appears again at position 19
-            ss_coupon_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
-            ss_net_paid.push(opt(nbm, 19, decimal_to_i128(p.get_net_paid())));
-            ss_net_paid_inc_tax.push(opt(
-                nbm,
-                20,
-                decimal_to_i128(p.get_net_paid_including_tax()),
-            ));
-            ss_net_profit.push(opt(nbm, 21, decimal_to_i128(p.get_net_profit())));
-        }
-
-        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
             self.schema(),
             vec![
-                Arc::new(ss_sold_date_array),
-                Arc::new(Int32Array::from(ss_sold_time)),
-                Arc::new(Int32Array::from(ss_item)),
-                Arc::new(Int32Array::from(ss_customer)),
-                Arc::new(Int32Array::from(ss_cdemo)),
-                Arc::new(Int32Array::from(ss_hdemo)),
-                Arc::new(Int32Array::from(ss_addr)),
-                Arc::new(Int32Array::from(ss_store)),
-                Arc::new(Int32Array::from(ss_promo)),
-                Arc::new(Int64Array::from(ss_ticket)),
-                Arc::new(Int32Array::from(ss_quantity)),
-                Arc::new(dec(ss_wholesale_cost)),
-                Arc::new(dec(ss_list_price)),
-                Arc::new(dec(ss_sales_price)),
-                Arc::new(dec(ss_ext_discount_amt)),
-                Arc::new(dec(ss_ext_sales_price)),
-                Arc::new(dec(ss_ext_wholesale_cost)),
-                Arc::new(dec(ss_ext_list_price)),
-                Arc::new(dec(ss_ext_tax)),
-                Arc::new(dec(ss_coupon_amt)),
-                Arc::new(dec(ss_net_paid)),
-                Arc::new(dec(ss_net_paid_inc_tax)),
-                Arc::new(dec(ss_net_profit)),
+                Arc::new(sk32(0, StoreSalesRow::get_ss_sold_date_sk)),
+                Arc::new(sk32(1, StoreSalesRow::get_ss_sold_time_sk)),
+                Arc::new(sk32(2, StoreSalesRow::get_ss_sold_item_sk)),
+                Arc::new(sk32(3, StoreSalesRow::get_ss_sold_customer_sk)),
+                Arc::new(sk32(4, StoreSalesRow::get_ss_sold_cdemo_sk)),
+                Arc::new(sk32(5, StoreSalesRow::get_ss_sold_hdemo_sk)),
+                Arc::new(sk32(6, StoreSalesRow::get_ss_sold_addr_sk)),
+                Arc::new(sk32(7, StoreSalesRow::get_ss_sold_store_sk)),
+                Arc::new(sk32(8, StoreSalesRow::get_ss_sold_promo_sk)),
+                Arc::new(int64_sk_array(
+                    rows,
+                    9,
+                    nbm,
+                    StoreSalesRow::get_ss_ticket_number,
+                )),
+                Arc::new(int32_array(rows, 10, nbm, |r| {
+                    r.get_ss_pricing().get_quantity()
+                })),
+                Arc::new(dec(11, Pricing::get_wholesale_cost)),
+                Arc::new(dec(12, Pricing::get_list_price)),
+                Arc::new(dec(13, Pricing::get_sales_price)),
+                // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
+                Arc::new(dec(14, Pricing::get_coupon_amount)),
+                Arc::new(dec(15, Pricing::get_ext_sales_price)),
+                Arc::new(dec(16, Pricing::get_ext_wholesale_cost)),
+                Arc::new(dec(17, Pricing::get_ext_list_price)),
+                Arc::new(dec(18, Pricing::get_ext_tax)),
+                // Java bug: coupon_amount appears again at position 19
+                Arc::new(dec(14, Pricing::get_coupon_amount)),
+                Arc::new(dec(19, Pricing::get_net_paid)),
+                Arc::new(dec(20, Pricing::get_net_paid_including_tax)),
+                Arc::new(dec(21, Pricing::get_net_profit)),
             ],
         );
         Some(batch)

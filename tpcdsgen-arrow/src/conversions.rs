@@ -1,6 +1,10 @@
 //! Routines to convert TPC-DS types to Arrow types
 
-use arrow::array::{Decimal128Array, StringViewArray, StringViewBuilder};
+use arrow::array::{
+    ArrowPrimitiveType, Decimal128Array, Int32Array, Int64Array, PrimitiveArray, StringViewArray,
+    StringViewBuilder,
+};
+use arrow::buffer::{NullBuffer, ScalarBuffer};
 use tpcdsgen::types::{Address, Date, Decimal};
 
 /// Julian day number for the Unix epoch (1970-01-01)
@@ -171,6 +175,75 @@ pub fn integer_sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i32> {
     } else {
         Some(i32::try_from(sk).expect("TPC-DS INTEGER surrogate key exceeds i32 range"))
     }
+}
+
+/// Build a primitive array column-at-a-time: one pass over `rows` for the
+/// values and a second for the validity bitmap (`valid` returns true for
+/// non-null rows). Avoids materializing `Vec<Option<T>>`.
+#[inline]
+pub fn primitive_array<T: ArrowPrimitiveType, R>(
+    rows: &[R],
+    value: impl Fn(&R) -> T::Native,
+    valid: impl Fn(&R) -> bool,
+) -> PrimitiveArray<T> {
+    let values: ScalarBuffer<T::Native> = rows.iter().map(value).collect();
+    let nulls = NullBuffer::from_iter(rows.iter().map(valid));
+    PrimitiveArray::new(values, Some(nulls))
+}
+
+/// Nullable INTEGER column; null when null bitmap bit `pos` is set.
+#[inline]
+pub fn int32_array<R>(
+    rows: &[R],
+    pos: u32,
+    nbm: impl Fn(&R) -> i64,
+    value: impl Fn(&R) -> i32,
+) -> Int32Array {
+    primitive_array(rows, value, |r| !is_null(nbm(r), pos))
+}
+
+/// Nullable INTEGER surrogate key; null when bit `pos` is set or `sk < 0`
+/// (sentinel for absent FK).
+#[inline]
+pub fn int32_sk_array<R>(
+    rows: &[R],
+    pos: u32,
+    nbm: impl Fn(&R) -> i64,
+    sk: impl Fn(&R) -> i64,
+) -> Int32Array {
+    primitive_array(
+        rows,
+        |r| sk(r) as i32,
+        |r| !is_null(nbm(r), pos) && sk(r) >= 0,
+    )
+}
+
+/// Nullable BIGINT surrogate key; null when bit `pos` is set or `sk < 0`.
+#[inline]
+pub fn int64_sk_array<R>(
+    rows: &[R],
+    pos: u32,
+    nbm: impl Fn(&R) -> i64,
+    sk: impl Fn(&R) -> i64,
+) -> Int64Array {
+    primitive_array(rows, &sk, |r| !is_null(nbm(r), pos) && sk(r) >= 0)
+}
+
+/// Nullable DECIMAL(7,2) column; null when bit `pos` is set.
+#[inline]
+pub fn decimal_7_2_array<R>(
+    rows: &[R],
+    pos: u32,
+    nbm: impl Fn(&R) -> i64,
+    value: impl Fn(&R) -> Decimal,
+) -> Decimal128Array {
+    primitive_array(
+        rows,
+        |r| decimal_to_i128(value(r)),
+        |r| !is_null(nbm(r), pos),
+    )
+    .with_precision_and_scale(7, 2)
+    .unwrap()
 }
 
 /// Expand an [`Address`] into 10 individual column arrays (street_number, street_name,
