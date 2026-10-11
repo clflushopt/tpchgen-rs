@@ -29,7 +29,8 @@ use crate::row::{AbstractRowGenerator, LineItem};
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
 use crate::types::{
-    generate_pricing_for_sales_table, get_web_sales_pricing_limits, skip_pricing_for_sales_table,
+    generate_pricing_for_sales_table, generate_sale_pricing_for_return,
+    get_web_sales_pricing_limits, skip_pricing_for_sales_table, SalePricing,
 };
 
 /// Percentage for determining if order ships to different customer (gift)
@@ -69,6 +70,21 @@ impl OrderInfo {
             ws_order_number: 0,
         }
     }
+}
+
+/// The fields of a returned `web_sales` line item that its `web_returns`
+/// row is generated from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReturnedWebSale {
+    pub(crate) ws_ship_date_sk: i64,
+    pub(crate) ws_item_sk: i64,
+    pub(crate) ws_ship_customer_sk: i64,
+    pub(crate) ws_ship_cdemo_sk: i64,
+    pub(crate) ws_ship_hdemo_sk: i64,
+    pub(crate) ws_ship_addr_sk: i64,
+    pub(crate) ws_web_page_sk: i64,
+    pub(crate) ws_order_number: i64,
+    pub(crate) ws_pricing: SalePricing,
 }
 
 /// Generates `web_sales` rows, several line items per source row (order).
@@ -161,6 +177,64 @@ impl WebSalesRowGenerator {
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
         skip_pricing_for_sales_table(stream);
+    }
+
+    /// Generate only the fields of the current line item's sales row that
+    /// its return is derived from, advancing the random streams exactly as
+    /// [`Self::generate_sales_row`] would.
+    pub(crate) fn generate_returned_sale(&mut self, ws_item_sk: i64) -> ReturnedWebSale {
+        use WebSalesGeneratorColumn::*;
+
+        let scaling = self.session.get_scaling();
+        let sold_date_sk = self.order_info.ws_sold_date_sk;
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsNulls);
+        skip_null_bit_map(stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsShipDateSk);
+        let ship_lag = RandomValueGenerator::generate_uniform_random_int(1, 120, stream);
+        let ws_ship_date_sk = sold_date_sk + ship_lag as i64;
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWebPageSk);
+        let ws_web_page_sk =
+            generate_scd_join_key(crate::config::Table::WebPage, stream, sold_date_sk, scaling);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWebSiteSk);
+        skip_scd_join_key(sold_date_sk, stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsShipModeSk);
+        skip_uniform_join_key(stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&WsWarehouseSk);
+        skip_uniform_join_key(stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
+        skip_uniform_join_key(stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
+        let ws_pricing = generate_sale_pricing_for_return(&get_web_sales_pricing_limits(), stream);
+
+        ReturnedWebSale {
+            ws_ship_date_sk,
+            ws_item_sk,
+            ws_ship_customer_sk: self.order_info.ws_ship_customer_sk,
+            ws_ship_cdemo_sk: self.order_info.ws_ship_cdemo_sk,
+            ws_ship_hdemo_sk: self.order_info.ws_ship_hdemo_sk,
+            ws_ship_addr_sk: self.order_info.ws_ship_addr_sk,
+            ws_web_page_sk,
+            ws_order_number: self.order_info.ws_order_number,
+            ws_pricing,
+        }
     }
 
     /// Generate the sales row for the current line item.
@@ -438,5 +512,44 @@ impl Iterator for WebSalesRowGenerator {
         let row = self.generate_sales_row(item.item_sk);
         self.finish_line_item();
         Some(row)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The returned-sale projection must draw the same random values as the
+    /// full sales row and agree with it on every field it carries.
+    #[test]
+    fn returned_sale_matches_sales_row() {
+        let session = Session::default();
+        let mut full = WebSalesRowGenerator::new(session.clone(), 50);
+        let mut slim = WebSalesRowGenerator::new(session, 50);
+        let mut compared = 0;
+        while let Some(item) = full.next_line_item() {
+            let slim_item = slim.next_line_item().expect("same line items");
+            assert_eq!(item.item_sk, slim_item.item_sk);
+            assert_eq!(item.is_returned, slim_item.is_returned);
+            let row = full.generate_sales_row(item.item_sk);
+            let sale = slim.generate_returned_sale(slim_item.item_sk);
+            assert_eq!(
+                sale,
+                ReturnedWebSale {
+                    ws_ship_date_sk: row.ws_ship_date_sk,
+                    ws_item_sk: row.ws_item_sk,
+                    ws_ship_customer_sk: row.ws_ship_customer_sk,
+                    ws_ship_cdemo_sk: row.ws_ship_cdemo_sk,
+                    ws_ship_hdemo_sk: row.ws_ship_hdemo_sk,
+                    ws_ship_addr_sk: row.ws_ship_addr_sk,
+                    ws_web_page_sk: row.ws_web_page_sk,
+                    ws_order_number: row.ws_order_number,
+                    ws_pricing: SalePricing::from(&row.ws_pricing),
+                }
+            );
+            assert_eq!(full.finish_line_item(), slim.finish_line_item());
+            compared += 1;
+        }
+        assert!(compared > 100);
     }
 }

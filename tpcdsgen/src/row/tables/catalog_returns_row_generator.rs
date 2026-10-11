@@ -24,8 +24,7 @@ use crate::join_key_utils::{
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::catalog_returns_row::CatalogReturnsRow;
-use crate::row::catalog_sales_row::CatalogSalesRow;
-use crate::row::catalog_sales_row_generator::CatalogSalesRowGenerator;
+use crate::row::catalog_sales_row_generator::{CatalogSalesRowGenerator, ReturnedCatalogSale};
 use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::generate_pricing_for_returns_table;
@@ -39,8 +38,8 @@ const GIFT_PERCENTAGE: i32 = 10;
 /// Generates `catalog_returns` rows: the returned line items of `catalog_sales`.
 ///
 /// Replays the `catalog_sales` line items through a [`CatalogSalesRowGenerator`],
-/// generating the sales row only for the ~10% of line items that are
-/// returned.
+/// generating only the fields the return needs, and only for the ~10% of
+/// line items that are returned.
 pub struct CatalogReturnsRowGenerator {
     sales: CatalogSalesRowGenerator,
     abstract_generator: AbstractRowGenerator<CatalogReturnsGeneratorColumn>,
@@ -75,8 +74,8 @@ impl CatalogReturnsRowGenerator {
             .set_source_row_range(starting_row_number, ending_row_number);
     }
 
-    /// Generate the return row for `sales_row`.
-    fn generate_row(&mut self, sales_row: &CatalogSalesRow) -> CatalogReturnsRow {
+    /// Generate the return row for `sale`.
+    fn generate_row(&mut self, sale: &ReturnedCatalogSale) -> CatalogReturnsRow {
         use CatalogReturnsGeneratorColumn::*;
 
         let scaling = self.sales.session().get_scaling();
@@ -117,23 +116,19 @@ impl CatalogReturnsRowGenerator {
             .get_random_number_stream(&CrReturningCustomerSk);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
         if random_int < GIFT_PERCENTAGE {
-            cr_returning_customer_sk = sales_row.get_cs_ship_customer_sk();
-            cr_returning_cdemo_sk = sales_row.get_cs_ship_cdemo_sk();
+            cr_returning_customer_sk = sale.cs_ship_customer_sk;
+            cr_returning_cdemo_sk = sale.cs_ship_cdemo_sk;
             // skip cr_returning_hdemo_sk, since it doesn't exist on the sales record
-            cr_returning_addr_sk = sales_row.get_cs_ship_addr_sk();
+            cr_returning_addr_sk = sale.cs_ship_addr_sk;
         }
 
         // Generate return quantity (1 to original sale quantity)
-        let sales_pricing = sales_row.get_cs_pricing();
-        let quantity = if sales_pricing.get_quantity() == -1 {
-            sales_pricing.get_quantity()
+        let sales_pricing = &sale.cs_pricing;
+        let quantity = if sales_pricing.quantity == -1 {
+            sales_pricing.quantity
         } else {
             let stream = self.abstract_generator.get_random_number_stream(&CrPricing);
-            RandomValueGenerator::generate_uniform_random_int(
-                1,
-                sales_pricing.get_quantity(),
-                stream,
-            )
+            RandomValueGenerator::generate_uniform_random_int(1, sales_pricing.quantity, stream)
         };
 
         // Generate return pricing
@@ -146,7 +141,7 @@ impl CatalogReturnsRowGenerator {
             .get_random_number_stream(&CrReturnedDateSk);
         let cr_returned_date_sk = generate_returns_date_join_key(
             stream,
-            sales_row.get_cs_ship_date_sk(),
+            sale.cs_ship_date_sk,
             CS_MIN_SHIP_DELAY,
             CS_MAX_SHIP_DELAY,
         );
@@ -181,21 +176,21 @@ impl CatalogReturnsRowGenerator {
             null_bit_map,
             cr_returned_date_sk,
             cr_returned_time_sk,
-            sales_row.get_cs_sold_item_sk(), // cr_item_sk from sales
-            sales_row.get_cs_bill_customer_sk(), // cr_refunded_customer_sk from sales bill
-            sales_row.get_cs_bill_cdemo_sk(), // cr_refunded_cdemo_sk from sales bill
-            sales_row.get_cs_bill_hdemo_sk(), // cr_refunded_hdemo_sk from sales bill
-            sales_row.get_cs_bill_addr_sk(), // cr_refunded_addr_sk from sales bill
+            sale.cs_sold_item_sk,     // cr_item_sk from sales
+            sale.cs_bill_customer_sk, // cr_refunded_customer_sk from sales bill
+            sale.cs_bill_cdemo_sk,    // cr_refunded_cdemo_sk from sales bill
+            sale.cs_bill_hdemo_sk,    // cr_refunded_hdemo_sk from sales bill
+            sale.cs_bill_addr_sk,     // cr_refunded_addr_sk from sales bill
             cr_returning_customer_sk,
             cr_returning_cdemo_sk,
             cr_returning_hdemo_sk,
             cr_returning_addr_sk,
-            sales_row.get_cs_call_center_sk(), // cr_call_center_sk from sales
-            sales_row.get_cs_catalog_page_sk(), // cr_catalog_page_sk from sales
+            sale.cs_call_center_sk,  // cr_call_center_sk from sales
+            sale.cs_catalog_page_sk, // cr_catalog_page_sk from sales
             cr_ship_mode_sk,
             cr_warehouse_sk,
             cr_reason_sk,
-            sales_row.get_cs_order_number(), // cr_order_number from sales
+            sale.cs_order_number, // cr_order_number from sales
             cr_pricing,
         )
     }
@@ -208,8 +203,8 @@ impl Iterator for CatalogReturnsRowGenerator {
         loop {
             let item = self.sales.next_line_item()?;
             let row = if item.is_returned {
-                let sales_row = self.sales.generate_sales_row(item.item_sk);
-                Some(self.generate_row(&sales_row))
+                let sale = self.sales.generate_returned_sale(item.item_sk);
+                Some(self.generate_row(&sale))
             } else {
                 self.sales.skip_item_sales_draws();
                 None
