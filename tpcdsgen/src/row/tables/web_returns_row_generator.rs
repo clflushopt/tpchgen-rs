@@ -20,8 +20,7 @@ use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::web_returns_row::WebReturnsRow;
-use crate::row::web_sales_row::WebSalesRow;
-use crate::row::web_sales_row_generator::{WebSalesRowGenerator, GIFT_PERCENTAGE};
+use crate::row::web_sales_row_generator::{ReturnedWebSale, WebSalesRowGenerator, GIFT_PERCENTAGE};
 use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::generate_pricing_for_returns_table;
@@ -29,8 +28,8 @@ use crate::types::generate_pricing_for_returns_table;
 /// Generates `web_returns` rows: the returned line items of `web_sales`.
 ///
 /// Replays the `web_sales` line items through a [`WebSalesRowGenerator`],
-/// generating the sales row only for the ~10% of line items that are
-/// returned.
+/// generating only the fields the return needs, and only for the ~10% of
+/// line items that are returned.
 pub struct WebReturnsRowGenerator {
     sales: WebSalesRowGenerator,
     abstract_generator: AbstractRowGenerator,
@@ -65,8 +64,8 @@ impl WebReturnsRowGenerator {
             .set_source_row_range(starting_row_number, ending_row_number);
     }
 
-    /// Generate the return row for `sales_row`.
-    fn generate_row(&mut self, sales_row: &WebSalesRow) -> WebReturnsRow {
+    /// Generate the return row for `sale`.
+    fn generate_row(&mut self, sale: &ReturnedWebSale) -> WebReturnsRow {
         use WebReturnsGeneratorColumn::*;
 
         let scaling = self.sales.session().get_scaling();
@@ -76,9 +75,9 @@ impl WebReturnsRowGenerator {
         let null_bit_map = create_null_bit_map(Table::WebReturns, stream);
 
         // Fields taken from the original sale
-        let wr_item_sk = sales_row.get_ws_item_sk();
-        let wr_order_number = sales_row.get_ws_order_number();
-        let wr_web_page_sk = sales_row.get_ws_web_page_sk();
+        let wr_item_sk = sale.ws_item_sk;
+        let wr_order_number = sale.ws_order_number;
+        let wr_web_page_sk = sale.ws_web_page_sk;
 
         // Remaining fields are specific to this return
         let stream = self
@@ -88,7 +87,7 @@ impl WebReturnsRowGenerator {
             &WrReturnedDateSk,
             stream,
             crate::config::Table::DateDim,
-            sales_row.get_ws_ship_date_sk(),
+            sale.ws_ship_date_sk,
             scaling,
         );
 
@@ -155,10 +154,10 @@ impl WebReturnsRowGenerator {
             .get_random_number_stream(&WrReturningCustomerSk);
         let random_int = RandomValueGenerator::generate_uniform_random_int(0, 99, stream);
         if random_int < GIFT_PERCENTAGE {
-            wr_refunded_customer_sk = sales_row.get_ws_ship_customer_sk();
-            wr_refunded_cdemo_sk = sales_row.get_ws_ship_cdemo_sk();
-            wr_refunded_hdemo_sk = sales_row.get_ws_ship_hdemo_sk();
-            wr_refunded_addr_sk = sales_row.get_ws_ship_addr_sk();
+            wr_refunded_customer_sk = sale.ws_ship_customer_sk;
+            wr_refunded_cdemo_sk = sale.ws_ship_cdemo_sk;
+            wr_refunded_hdemo_sk = sale.ws_ship_hdemo_sk;
+            wr_refunded_addr_sk = sale.ws_ship_addr_sk;
         }
 
         // Returning customer is same as refunded customer
@@ -180,15 +179,11 @@ impl WebReturnsRowGenerator {
 
         // Generate pricing for returns
         let stream = self.abstract_generator.get_random_number_stream(&WrPricing);
-        let quantity = RandomValueGenerator::generate_uniform_random_int(
-            1,
-            sales_row.get_ws_pricing().get_quantity(),
-            stream,
-        );
+        let quantity =
+            RandomValueGenerator::generate_uniform_random_int(1, sale.ws_pricing.quantity, stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&WrPricing);
-        let wr_pricing =
-            generate_pricing_for_returns_table(stream, quantity, sales_row.get_ws_pricing());
+        let wr_pricing = generate_pricing_for_returns_table(stream, quantity, &sale.ws_pricing);
 
         WebReturnsRow::new(
             null_bit_map,
@@ -218,8 +213,8 @@ impl Iterator for WebReturnsRowGenerator {
         loop {
             let item = self.sales.next_line_item()?;
             let row = if item.is_returned {
-                let sales_row = self.sales.generate_sales_row(item.item_sk);
-                Some(self.generate_row(&sales_row))
+                let sale = self.sales.generate_returned_sale(item.item_sk);
+                Some(self.generate_row(&sale))
             } else {
                 self.sales.skip_item_sales_draws();
                 None

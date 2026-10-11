@@ -25,7 +25,8 @@ use crate::row::{AbstractRowGenerator, LineItem};
 use crate::slowly_changing_dimension_utils::match_surrogate_key;
 use crate::table::Table;
 use crate::types::{
-    generate_pricing_for_sales_table, get_store_sales_pricing_limits, skip_pricing_for_sales_table,
+    generate_pricing_for_sales_table, generate_sale_pricing_for_return,
+    get_store_sales_pricing_limits, skip_pricing_for_sales_table, SalePricing,
 };
 
 /// Percentage of sales that get returned
@@ -79,6 +80,17 @@ impl OrderInfo {
             ss_ticket_number: 0,
         }
     }
+}
+
+/// The fields of a returned `store_sales` line item that its `store_returns`
+/// row is generated from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ReturnedStoreSale {
+    pub(crate) ss_sold_date_sk: i64,
+    pub(crate) ss_sold_item_sk: i64,
+    pub(crate) ss_sold_customer_sk: i64,
+    pub(crate) ss_ticket_number: i64,
+    pub(crate) ss_pricing: SalePricing,
 }
 
 /// Generates `store_sales` rows, several line items per source row (ticket).
@@ -146,6 +158,33 @@ impl StoreSalesRowGenerator {
 
         let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
         skip_pricing_for_sales_table(stream);
+    }
+
+    /// Generate only the fields of the current line item's sales row that
+    /// its return is derived from, advancing the random streams exactly as
+    /// [`Self::generate_sales_row`] would.
+    pub(crate) fn generate_returned_sale(&mut self, ss_sold_item_sk: i64) -> ReturnedStoreSale {
+        use StoreSalesGeneratorColumn::*;
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsNulls);
+        skip_null_bit_map(stream);
+
+        let stream = self
+            .abstract_generator
+            .get_random_number_stream(&SsSoldPromoSk);
+        skip_join_key(crate::config::Table::Promotion, stream);
+
+        let stream = self.abstract_generator.get_random_number_stream(&SsPricing);
+        let ss_pricing =
+            generate_sale_pricing_for_return(&get_store_sales_pricing_limits(), stream);
+
+        ReturnedStoreSale {
+            ss_sold_date_sk: self.order_info.ss_sold_date_sk,
+            ss_sold_item_sk,
+            ss_sold_customer_sk: self.order_info.ss_sold_customer_sk,
+            ss_ticket_number: self.order_info.ss_ticket_number,
+            ss_pricing,
+        }
     }
 
     /// Generate the sales row for the current line item.
@@ -437,6 +476,36 @@ mod tests {
             assert!(!whole.is_empty());
             assert_eq!(whole, chunked);
         }};
+    }
+
+    /// The returned-sale projection must draw the same random values as the
+    /// full sales row and agree with it on every field it carries.
+    #[test]
+    fn returned_sale_matches_sales_row() {
+        let session = Session::default();
+        let mut full = StoreSalesRowGenerator::new(session.clone(), 50);
+        let mut slim = StoreSalesRowGenerator::new(session, 50);
+        let mut compared = 0;
+        while let Some(item) = full.next_line_item() {
+            let slim_item = slim.next_line_item().expect("same line items");
+            assert_eq!(item.item_sk, slim_item.item_sk);
+            assert_eq!(item.is_returned, slim_item.is_returned);
+            let row = full.generate_sales_row(item.item_sk);
+            let sale = slim.generate_returned_sale(slim_item.item_sk);
+            assert_eq!(
+                sale,
+                ReturnedStoreSale {
+                    ss_sold_date_sk: row.ss_sold_date_sk,
+                    ss_sold_item_sk: row.ss_sold_item_sk,
+                    ss_sold_customer_sk: row.ss_sold_customer_sk,
+                    ss_ticket_number: row.ss_ticket_number,
+                    ss_pricing: SalePricing::from(&row.ss_pricing),
+                }
+            );
+            assert_eq!(full.finish_line_item(), slim.finish_line_item());
+            compared += 1;
+        }
+        assert!(compared > 100);
     }
 
     #[test]

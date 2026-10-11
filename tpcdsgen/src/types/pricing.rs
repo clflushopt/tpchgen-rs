@@ -356,19 +356,119 @@ pub fn get_catalog_sales_pricing_limits() -> PricingLimits {
     )
 }
 
+/// The part of a sale's [`Pricing`] that its return is priced from.
+///
+/// [`generate_sale_pricing_for_return`] calculates only these values, so the
+/// returns generators need not calculate the whole sales row pricing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SalePricing {
+    pub wholesale_cost: Decimal,
+    pub list_price: Decimal,
+    pub sales_price: Decimal,
+    pub quantity: i32,
+    pub ext_discount_amount: Decimal,
+    pub tax_percent: Decimal,
+    pub coupon_amount: Decimal,
+}
+
+impl From<&Pricing> for SalePricing {
+    fn from(pricing: &Pricing) -> Self {
+        SalePricing {
+            wholesale_cost: pricing.wholesale_cost,
+            list_price: pricing.list_price,
+            sales_price: pricing.sales_price,
+            quantity: pricing.quantity,
+            ext_discount_amount: pricing.ext_discount_amount,
+            tax_percent: pricing.tax_percent,
+            coupon_amount: pricing.coupon_amount,
+        }
+    }
+}
+
+/// Generate the [`SalePricing`] of a returned sale.
+///
+/// Draws the same random values as [`generate_pricing_for_sales_table`] but
+/// skips the shipping, tax and profit arithmetic a return does not use.
+pub fn generate_sale_pricing_for_return(
+    limits: &PricingLimits,
+    stream: &mut RandomNumberStream,
+) -> SalePricing {
+    let quantity = RandomValueGenerator::generate_uniform_random_int(
+        Pricing::QUANTITY_MIN,
+        limits.get_max_quantity_sold(),
+        stream,
+    );
+    let decimal_quantity = Decimal::from_integer(quantity);
+    let wholesale_cost = RandomValueGenerator::generate_uniform_random_decimal(
+        Decimal::new(100, 2), // 1.00
+        limits.get_max_wholesale_cost(),
+        stream,
+    );
+
+    let mut markup = RandomValueGenerator::generate_uniform_random_decimal(
+        Pricing::markup_min(),
+        limits.get_max_markup(),
+        stream,
+    );
+    markup = Decimal::add2(markup, Decimal::ONE);
+    let list_price = Decimal::multiply(wholesale_cost, markup);
+
+    let mut discount = Decimal::negate(RandomValueGenerator::generate_uniform_random_decimal(
+        Pricing::discount_min(),
+        limits.get_max_discount(),
+        stream,
+    ));
+    discount = Decimal::add2(discount, Decimal::ONE);
+    let sales_price = Decimal::multiply(list_price, discount);
+    let ext_list_price = Decimal::multiply(list_price, decimal_quantity);
+    let ext_sales_price = Decimal::multiply(sales_price, decimal_quantity);
+    let ext_discount_amount = Decimal::subtract(ext_list_price, ext_sales_price);
+
+    let coupon =
+        RandomValueGenerator::generate_uniform_random_decimal(Decimal::ZERO, Decimal::ONE, stream);
+    let coupon_usage = RandomValueGenerator::generate_uniform_random_int(1, 100, stream);
+    let coupon_amount = if coupon_usage <= 20 {
+        Decimal::multiply(ext_sales_price, coupon)
+    } else {
+        Decimal::ZERO
+    };
+
+    // shipping
+    stream.next_random();
+
+    let tax_percent = RandomValueGenerator::generate_uniform_random_decimal(
+        Decimal::ZERO,
+        Decimal::NINE_PERCENT,
+        stream,
+    );
+
+    SalePricing {
+        wholesale_cost,
+        list_price,
+        sales_price,
+        quantity,
+        ext_discount_amount,
+        tax_percent,
+        coupon_amount,
+    }
+}
+
 /// Generate pricing for returns table (store_returns, catalog_returns, web_returns)
 /// This is the Rust equivalent of Java's Pricing.generatePricingForReturnsTable
 pub fn generate_pricing_for_returns_table(
     stream: &mut RandomNumberStream,
     quantity: i32,
-    base_pricing: &Pricing,
+    base_pricing: &SalePricing,
 ) -> Pricing {
-    let wholesale_cost = base_pricing.get_wholesale_cost();
-    let list_price = base_pricing.get_list_price();
-    let sales_price = base_pricing.get_sales_price();
-    let tax_percent = base_pricing.get_tax_percent();
-    let ext_discount_amount = base_pricing.get_ext_discount_amount();
-    let coupon_amount = base_pricing.get_coupon_amount();
+    let SalePricing {
+        wholesale_cost,
+        list_price,
+        sales_price,
+        tax_percent,
+        ext_discount_amount,
+        coupon_amount,
+        quantity: _,
+    } = *base_pricing;
 
     let decimal_quantity = Decimal::from_integer(quantity);
     let ext_wholesale_cost = Decimal::multiply(decimal_quantity, wholesale_cost);
@@ -511,6 +611,25 @@ mod tests {
         assert_eq!(Pricing::QUANTITY_MIN, 1);
         assert_eq!(Pricing::markup_min().get_number(), 0);
         assert_eq!(Pricing::discount_min().get_number(), 0);
+    }
+
+    #[test]
+    fn test_sale_pricing_for_return_matches_sales_table_pricing() {
+        use crate::random::RandomNumberStream;
+        for limits in [
+            get_store_sales_pricing_limits(),
+            get_catalog_sales_pricing_limits(),
+            get_web_sales_pricing_limits(),
+        ] {
+            for seed in 1..200 {
+                let mut full = RandomNumberStream::new(seed);
+                let mut slim = RandomNumberStream::new(seed);
+                let pricing = generate_pricing_for_sales_table(&limits, &mut full);
+                let sale_pricing = generate_sale_pricing_for_return(&limits, &mut slim);
+                assert_eq!(sale_pricing, SalePricing::from(&pricing));
+                assert_eq!(full.next_random(), slim.next_random());
+            }
+        }
     }
 
     #[test]

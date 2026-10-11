@@ -20,8 +20,7 @@ use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::store_returns_row::StoreReturnsRow;
-use crate::row::store_sales_row::StoreSalesRow;
-use crate::row::store_sales_row_generator::StoreSalesRowGenerator;
+use crate::row::store_sales_row_generator::{ReturnedStoreSale, StoreSalesRowGenerator};
 use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::generate_pricing_for_returns_table;
@@ -32,8 +31,8 @@ const SR_SAME_CUSTOMER: i32 = 80;
 /// Generates `store_returns` rows: the returned line items of `store_sales`.
 ///
 /// Replays the `store_sales` line items through a [`StoreSalesRowGenerator`],
-/// generating the sales row only for the ~10% of line items that are
-/// returned.
+/// generating only the fields the return needs, and only for the ~10% of
+/// line items that are returned.
 pub struct StoreReturnsRowGenerator {
     sales: StoreSalesRowGenerator,
     abstract_generator: AbstractRowGenerator,
@@ -68,8 +67,8 @@ impl StoreReturnsRowGenerator {
             .set_source_row_range(starting_row_number, ending_row_number);
     }
 
-    /// Generate the return row for `sales_row`.
-    fn generate_row(&mut self, sales_row: &StoreSalesRow) -> StoreReturnsRow {
+    /// Generate the return row for `sale`.
+    fn generate_row(&mut self, sale: &ReturnedStoreSale) -> StoreReturnsRow {
         use StoreReturnsGeneratorColumn::*;
 
         let scaling = self.sales.session().get_scaling();
@@ -79,8 +78,8 @@ impl StoreReturnsRowGenerator {
         let null_bit_map = create_null_bit_map(Table::StoreReturns, stream);
 
         // Some of the information in the return is taken from the original sale
-        let sr_ticket_number = sales_row.get_ss_ticket_number();
-        let sr_item_sk = sales_row.get_ss_sold_item_sk();
+        let sr_ticket_number = sale.ss_ticket_number;
+        let sr_item_sk = sale.ss_sold_item_sk;
 
         // Some fields are conditionally taken from the sale (80% same customer)
         let stream = self
@@ -98,7 +97,7 @@ impl StoreReturnsRowGenerator {
             .get_random_number_stream(&SrTicketNumber);
         let random_int = RandomValueGenerator::generate_uniform_random_int(1, 100, stream);
         if random_int < SR_SAME_CUSTOMER {
-            sr_customer_sk = sales_row.get_ss_sold_customer_sk();
+            sr_customer_sk = sale.ss_sold_customer_sk;
         }
 
         // The rest of the columns are generated for this specific return
@@ -109,7 +108,7 @@ impl StoreReturnsRowGenerator {
             &SrReturnedDateSk,
             stream,
             crate::config::Table::DateDim,
-            sales_row.get_ss_sold_date_sk(),
+            sale.ss_sold_date_sk,
             scaling,
         );
 
@@ -164,13 +163,10 @@ impl StoreReturnsRowGenerator {
         );
 
         // Generate return quantity (1 to original sale quantity)
-        let sales_pricing = sales_row.get_ss_pricing();
+        let sales_pricing = &sale.ss_pricing;
         let stream = self.abstract_generator.get_random_number_stream(&SrPricing);
-        let quantity = RandomValueGenerator::generate_uniform_random_int(
-            1,
-            sales_pricing.get_quantity(),
-            stream,
-        );
+        let quantity =
+            RandomValueGenerator::generate_uniform_random_int(1, sales_pricing.quantity, stream);
 
         // Generate return pricing
         let stream = self.abstract_generator.get_random_number_stream(&SrPricing);
@@ -200,8 +196,8 @@ impl Iterator for StoreReturnsRowGenerator {
         loop {
             let item = self.sales.next_line_item()?;
             let row = if item.is_returned {
-                let sales_row = self.sales.generate_sales_row(item.item_sk);
-                Some(self.generate_row(&sales_row))
+                let sale = self.sales.generate_returned_sale(item.item_sk);
+                Some(self.generate_row(&sale))
             } else {
                 self.sales.skip_item_sales_draws();
                 None
