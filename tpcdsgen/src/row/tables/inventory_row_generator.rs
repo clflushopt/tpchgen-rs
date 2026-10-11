@@ -43,7 +43,7 @@ use crate::types::Date;
 /// assert_eq!(row.to_string(), "2450815|1|1|211|"); // DAT format
 /// ```
 pub struct InventoryRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<InventoryGeneratorColumn>,
     session: Session,
 }
 
@@ -51,7 +51,7 @@ impl InventoryRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         InventoryRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::Inventory, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             session,
         }
     }

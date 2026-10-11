@@ -83,7 +83,7 @@ impl OrderInfo {
 ///
 /// [`CatalogReturnsRowGenerator`]: crate::row::CatalogReturnsRowGenerator
 pub struct CatalogSalesRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<CatalogSalesGeneratorColumn>,
     item_permutation: Option<Vec<i32>>,
     julian_date: i64,
     next_date_index: u64,
@@ -97,7 +97,7 @@ impl CatalogSalesRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         CatalogSalesRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::CatalogSales, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             item_permutation: None,
             julian_date: Date::JULIAN_DATA_START_DATE,
             next_date_index: 0,

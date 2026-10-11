@@ -43,48 +43,6 @@ pub enum CallCenterGeneratorColumn {
 }
 
 impl CallCenterGeneratorColumn {
-    /// Get all generator columns in order
-    pub fn values() -> &'static [CallCenterGeneratorColumn] {
-        use CallCenterGeneratorColumn::*;
-        static VALUES: &[CallCenterGeneratorColumn] = &[
-            CcCallCenterSk,
-            CcCallCenterId,
-            CcRecStartDateId,
-            CcRecEndDateId,
-            CcClosedDateId,
-            CcOpenDateId,
-            CcName,
-            CcClass,
-            CcEmployees,
-            CcSqFt,
-            CcHours,
-            CcManager,
-            CcMarketId,
-            CcMarketClass,
-            CcMarketDesc,
-            CcMarketManager,
-            CcDivision,
-            CcDivisionName,
-            CcCompany,
-            CcCompanyName,
-            CcStreetNumber,
-            CcStreetName,
-            CcStreetType,
-            CcSuiteNumber,
-            CcCity,
-            CcCounty,
-            CcState,
-            CcZip,
-            CcCountry,
-            CcGmtOffset,
-            CcAddress,
-            CcTaxPercentage,
-            CcScd,
-            CcNulls,
-        ];
-        VALUES
-    }
-
     /// Get the global column number and seeds per row for this generator column
     /// Values exactly match Java implementation
     fn get_column_info(&self) -> (i32, u32) {
@@ -139,6 +97,47 @@ impl GeneratorColumn for CallCenterGeneratorColumn {
 
     fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
+    }
+
+    fn values() -> &'static [Self] {
+        use CallCenterGeneratorColumn::*;
+        static VALUES: &[CallCenterGeneratorColumn] = &[
+            CcCallCenterSk,
+            CcCallCenterId,
+            CcRecStartDateId,
+            CcRecEndDateId,
+            CcClosedDateId,
+            CcOpenDateId,
+            CcName,
+            CcClass,
+            CcEmployees,
+            CcSqFt,
+            CcHours,
+            CcManager,
+            CcMarketId,
+            CcMarketClass,
+            CcMarketDesc,
+            CcMarketManager,
+            CcDivision,
+            CcDivisionName,
+            CcCompany,
+            CcCompanyName,
+            CcStreetNumber,
+            CcStreetName,
+            CcStreetType,
+            CcSuiteNumber,
+            CcCity,
+            CcCounty,
+            CcState,
+            CcZip,
+            CcCountry,
+            CcGmtOffset,
+            CcAddress,
+            CcTaxPercentage,
+            CcScd,
+            CcNulls,
+        ];
+        VALUES
     }
 }
 

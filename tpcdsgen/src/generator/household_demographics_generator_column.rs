@@ -26,22 +26,6 @@ pub enum HouseholdDemographicsGeneratorColumn {
     HdNulls,
 }
 
-impl HouseholdDemographicsGeneratorColumn {
-    /// Get all generator columns in order (values())
-    pub fn values() -> &'static [HouseholdDemographicsGeneratorColumn] {
-        use HouseholdDemographicsGeneratorColumn::*;
-        static VALUES: &[HouseholdDemographicsGeneratorColumn] = &[
-            HdDemoSk,
-            HdIncomeBandId,
-            HdBuyPotential,
-            HdDepCount,
-            HdVehicleCount,
-            HdNulls,
-        ];
-        VALUES
-    }
-}
-
 impl GeneratorColumn for HouseholdDemographicsGeneratorColumn {
     fn get_global_column_number(&self) -> i32 {
         match self {
@@ -67,5 +51,18 @@ impl GeneratorColumn for HouseholdDemographicsGeneratorColumn {
 
     fn get_table(&self) -> Table {
         Table::HouseholdDemographics
+    }
+
+    fn values() -> &'static [Self] {
+        use HouseholdDemographicsGeneratorColumn::*;
+        static VALUES: &[HouseholdDemographicsGeneratorColumn] = &[
+            HdDemoSk,
+            HdIncomeBandId,
+            HdBuyPotential,
+            HdDepCount,
+            HdVehicleCount,
+            HdNulls,
+        ];
+        VALUES
     }
 }

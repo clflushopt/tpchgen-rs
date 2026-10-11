@@ -115,11 +115,8 @@ impl GeneratorColumn for WebReturnsGeneratorColumn {
             WebReturnsGeneratorColumn::WrNulls => 32,
         }
     }
-}
 
-impl WebReturnsGeneratorColumn {
-    /// Returns all variants in order
-    pub fn all_variants() -> &'static [WebReturnsGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use WebReturnsGeneratorColumn::*;
         &[
             WrReturnedDateSk,

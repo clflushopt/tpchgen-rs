@@ -78,7 +78,7 @@ impl OrderInfo {
 ///
 /// [`WebReturnsRowGenerator`]: crate::row::WebReturnsRowGenerator
 pub struct WebSalesRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<WebSalesGeneratorColumn>,
     item_permutation: Option<Vec<i32>>,
     remaining_line_items: i32,
     order_info: OrderInfo,
@@ -90,7 +90,7 @@ impl WebSalesRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         WebSalesRowGenerator {
-            abstract_generator: AbstractRowGenerator::new(Table::WebSales, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             item_permutation: None,
             remaining_line_items: 0,
             order_info: OrderInfo::default(),

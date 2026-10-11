@@ -16,26 +16,6 @@ pub enum CustomerDemographicsGeneratorColumn {
     CdNulls,
 }
 
-impl CustomerDemographicsGeneratorColumn {
-    /// Get all generator columns in order (values())
-    pub fn values() -> &'static [CustomerDemographicsGeneratorColumn] {
-        use CustomerDemographicsGeneratorColumn::*;
-        static VALUES: &[CustomerDemographicsGeneratorColumn] = &[
-            CdDemoSk,
-            CdGender,
-            CdMaritalStatus,
-            CdEducationStatus,
-            CdPurchaseEstimate,
-            CdCreditRating,
-            CdDepCount,
-            CdDepEmployedCount,
-            CdDepCollegeCount,
-            CdNulls,
-        ];
-        VALUES
-    }
-}
-
 impl GeneratorColumn for CustomerDemographicsGeneratorColumn {
     fn get_global_column_number(&self) -> i32 {
         match self {
@@ -69,5 +49,22 @@ impl GeneratorColumn for CustomerDemographicsGeneratorColumn {
 
     fn get_table(&self) -> Table {
         Table::CustomerDemographics
+    }
+
+    fn values() -> &'static [Self] {
+        use CustomerDemographicsGeneratorColumn::*;
+        static VALUES: &[CustomerDemographicsGeneratorColumn] = &[
+            CdDemoSk,
+            CdGender,
+            CdMaritalStatus,
+            CdEducationStatus,
+            CdPurchaseEstimate,
+            CdCreditRating,
+            CdDepCount,
+            CdDepEmployedCount,
+            CdDepCollegeCount,
+            CdNulls,
+        ];
+        VALUES
     }
 }

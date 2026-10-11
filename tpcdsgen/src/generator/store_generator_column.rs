@@ -137,11 +137,8 @@ impl GeneratorColumn for StoreGeneratorColumn {
             WStoreAddress => 7,
         }
     }
-}
 
-impl StoreGeneratorColumn {
-    /// Get all generator columns in order
-    pub fn all_columns() -> &'static [StoreGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use StoreGeneratorColumn::*;
         &[
             WStoreSk,

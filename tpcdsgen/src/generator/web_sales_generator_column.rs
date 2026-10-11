@@ -151,11 +151,8 @@ impl GeneratorColumn for WebSalesGeneratorColumn {
             WebSalesGeneratorColumn::WsPermutation => 0,
         }
     }
-}
 
-impl WebSalesGeneratorColumn {
-    /// Returns all variants in order
-    pub fn all_variants() -> &'static [WebSalesGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use WebSalesGeneratorColumn::*;
         &[
             WsSoldDateSk,

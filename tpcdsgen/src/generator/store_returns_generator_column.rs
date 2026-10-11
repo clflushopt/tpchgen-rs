@@ -103,11 +103,8 @@ impl GeneratorColumn for StoreReturnsGeneratorColumn {
             StoreReturnsGeneratorColumn::SrNulls => 32,
         }
     }
-}
 
-impl StoreReturnsGeneratorColumn {
-    /// Returns all variants in order
-    pub fn all_variants() -> &'static [StoreReturnsGeneratorColumn] {
+    fn values() -> &'static [Self] {
         use StoreReturnsGeneratorColumn::*;
         &[
             SrReturnedDateSk,

@@ -39,33 +39,6 @@ pub enum PromotionGeneratorColumn {
     PNulls,
 }
 
-impl PromotionGeneratorColumn {
-    pub fn values() -> &'static [PromotionGeneratorColumn] {
-        &[
-            PromotionGeneratorColumn::PPromoSk,
-            PromotionGeneratorColumn::PPromoId,
-            PromotionGeneratorColumn::PStartDateId,
-            PromotionGeneratorColumn::PEndDateId,
-            PromotionGeneratorColumn::PItemSk,
-            PromotionGeneratorColumn::PCost,
-            PromotionGeneratorColumn::PResponseTarget,
-            PromotionGeneratorColumn::PPromoName,
-            PromotionGeneratorColumn::PChannelDmail,
-            PromotionGeneratorColumn::PChannelEmail,
-            PromotionGeneratorColumn::PChannelCatalog,
-            PromotionGeneratorColumn::PChannelTv,
-            PromotionGeneratorColumn::PChannelRadio,
-            PromotionGeneratorColumn::PChannelPress,
-            PromotionGeneratorColumn::PChannelEvent,
-            PromotionGeneratorColumn::PChannelDemo,
-            PromotionGeneratorColumn::PChannelDetails,
-            PromotionGeneratorColumn::PPurpose,
-            PromotionGeneratorColumn::PDiscountActive,
-            PromotionGeneratorColumn::PNulls,
-        ]
-    }
-}
-
 impl GeneratorColumn for PromotionGeneratorColumn {
     fn get_table(&self) -> Table {
         Table::Promotion
@@ -102,6 +75,31 @@ impl GeneratorColumn for PromotionGeneratorColumn {
             PromotionGeneratorColumn::PNulls => 2,
             _ => 1,
         }
+    }
+
+    fn values() -> &'static [Self] {
+        &[
+            PromotionGeneratorColumn::PPromoSk,
+            PromotionGeneratorColumn::PPromoId,
+            PromotionGeneratorColumn::PStartDateId,
+            PromotionGeneratorColumn::PEndDateId,
+            PromotionGeneratorColumn::PItemSk,
+            PromotionGeneratorColumn::PCost,
+            PromotionGeneratorColumn::PResponseTarget,
+            PromotionGeneratorColumn::PPromoName,
+            PromotionGeneratorColumn::PChannelDmail,
+            PromotionGeneratorColumn::PChannelEmail,
+            PromotionGeneratorColumn::PChannelCatalog,
+            PromotionGeneratorColumn::PChannelTv,
+            PromotionGeneratorColumn::PChannelRadio,
+            PromotionGeneratorColumn::PChannelPress,
+            PromotionGeneratorColumn::PChannelEvent,
+            PromotionGeneratorColumn::PChannelDemo,
+            PromotionGeneratorColumn::PChannelDetails,
+            PromotionGeneratorColumn::PPurpose,
+            PromotionGeneratorColumn::PDiscountActive,
+            PromotionGeneratorColumn::PNulls,
+        ]
     }
 }
 

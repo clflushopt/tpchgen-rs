@@ -43,7 +43,7 @@ const GIFT_PERCENTAGE: i32 = 10;
 /// returned.
 pub struct CatalogReturnsRowGenerator {
     sales: CatalogSalesRowGenerator,
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<CatalogReturnsGeneratorColumn>,
 }
 
 impl CatalogReturnsRowGenerator {
@@ -51,7 +51,7 @@ impl CatalogReturnsRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         CatalogReturnsRowGenerator {
             sales: CatalogSalesRowGenerator::new(session, row_count),
-            abstract_generator: AbstractRowGenerator::new(Table::CatalogReturns, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
         }
     }
 

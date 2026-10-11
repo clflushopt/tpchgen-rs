@@ -36,42 +36,6 @@ pub enum DateDimGeneratorColumn {
 }
 
 impl DateDimGeneratorColumn {
-    pub fn values() -> &'static [DateDimGeneratorColumn] {
-        use DateDimGeneratorColumn::*;
-        static VALUES: &[DateDimGeneratorColumn] = &[
-            DDateSk,
-            DDateId,
-            DDate,
-            DMonthSeq,
-            DWeekSeq,
-            DQuarterSeq,
-            DYear,
-            DDow,
-            DMoy,
-            DDom,
-            DQoy,
-            DFyYear,
-            DFyQuarterSeq,
-            DFyWeekSeq,
-            DDayName,
-            DQuarterName,
-            DHoliday,
-            DWeekend,
-            DFollowingHoliday,
-            DFirstDom,
-            DLastDom,
-            DSameDayLy,
-            DSameDayLq,
-            DCurrentDay,
-            DCurrentWeek,
-            DCurrentMonth,
-            DCurrentQuarter,
-            DCurrentYear,
-            DNulls,
-        ];
-        VALUES
-    }
-
     fn get_column_info(&self) -> (i32, u32) {
         use DateDimGeneratorColumn::*;
         match self {
@@ -119,5 +83,41 @@ impl GeneratorColumn for DateDimGeneratorColumn {
 
     fn get_seeds_per_row(&self) -> u32 {
         self.get_column_info().1
+    }
+
+    fn values() -> &'static [Self] {
+        use DateDimGeneratorColumn::*;
+        static VALUES: &[DateDimGeneratorColumn] = &[
+            DDateSk,
+            DDateId,
+            DDate,
+            DMonthSeq,
+            DWeekSeq,
+            DQuarterSeq,
+            DYear,
+            DDow,
+            DMoy,
+            DDom,
+            DQoy,
+            DFyYear,
+            DFyQuarterSeq,
+            DFyWeekSeq,
+            DDayName,
+            DQuarterName,
+            DHoliday,
+            DWeekend,
+            DFollowingHoliday,
+            DFirstDom,
+            DLastDom,
+            DSameDayLy,
+            DSameDayLq,
+            DCurrentDay,
+            DCurrentWeek,
+            DCurrentMonth,
+            DCurrentQuarter,
+            DCurrentYear,
+            DNulls,
+        ];
+        VALUES
     }
 }

@@ -6,7 +6,17 @@ use crate::column::Table;
 /// (because those get derived from other columns).
 ///
 /// GeneratorColumn
-pub trait GeneratorColumn: Send + Sync {
+///
+/// The trait is sealed: [`AbstractRowGenerator`] relies on `values()` listing
+/// every value of the type with contiguous global column numbers.
+///
+/// [`AbstractRowGenerator`]: crate::row::AbstractRowGenerator
+pub trait GeneratorColumn: sealed::Sealed + Send + Sync + 'static {
+    /// All generator columns of the table, in global column number order
+    fn values() -> &'static [Self]
+    where
+        Self: Sized;
+
     /// Get the table this generator column belongs to
     fn get_table(&self) -> Table;
 
@@ -15,6 +25,10 @@ pub trait GeneratorColumn: Send + Sync {
 
     /// Get the number of seeds per row for this generator column  
     fn get_seeds_per_row(&self) -> u32;
+}
+
+pub(crate) mod sealed {
+    pub trait Sealed {}
 }
 
 #[cfg(test)]
@@ -28,7 +42,13 @@ mod tests {
         seeds_per_row: u32,
     }
 
+    impl sealed::Sealed for TestGeneratorColumn {}
+
     impl GeneratorColumn for TestGeneratorColumn {
+        fn values() -> &'static [Self] {
+            &[]
+        }
+
         fn get_table(&self) -> Table {
             self.table
         }

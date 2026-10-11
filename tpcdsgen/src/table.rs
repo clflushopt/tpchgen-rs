@@ -1,14 +1,3 @@
-use crate::generator::{
-    CallCenterGeneratorColumn, CatalogPageGeneratorColumn, CatalogReturnsGeneratorColumn,
-    CatalogSalesGeneratorColumn, CustomerAddressGeneratorColumn,
-    CustomerDemographicsGeneratorColumn, CustomerGeneratorColumn, DateDimGeneratorColumn,
-    DbgenVersionGeneratorColumn, GeneratorColumn, HouseholdDemographicsGeneratorColumn,
-    IncomeBandGeneratorColumn, InventoryGeneratorColumn, ItemGeneratorColumn,
-    PromotionGeneratorColumn, ReasonGeneratorColumn, ShipModeGeneratorColumn, StoreGeneratorColumn,
-    StoreReturnsGeneratorColumn, StoreSalesGeneratorColumn, TimeDimGeneratorColumn,
-    WarehouseGeneratorColumn, WebPageGeneratorColumn, WebReturnsGeneratorColumn,
-    WebSalesGeneratorColumn, WebSiteGeneratorColumn,
-};
 use crate::scaling_info::{ScalingInfo, ScalingModel};
 use crate::table_flags::TableFlags;
 use std::sync::OnceLock;
@@ -460,150 +449,6 @@ impl Table {
         }
     }
 
-    /// Get generator column count for this table
-    pub fn get_generator_column_count(&self) -> usize {
-        match self {
-            Table::CallCenter => CallCenterGeneratorColumn::values().len(),
-            Table::CatalogPage => CatalogPageGeneratorColumn::all_variants().len(),
-            Table::CatalogReturns => CatalogReturnsGeneratorColumn::all_variants().len(),
-            Table::CatalogSales => CatalogSalesGeneratorColumn::all_variants().len(),
-            Table::Warehouse => WarehouseGeneratorColumn::values().len(),
-            Table::ShipMode => ShipModeGeneratorColumn::values().len(),
-            Table::Reason => ReasonGeneratorColumn::values().len(),
-            Table::IncomeBand => IncomeBandGeneratorColumn::values().len(),
-            Table::HouseholdDemographics => HouseholdDemographicsGeneratorColumn::values().len(),
-            Table::CustomerDemographics => CustomerDemographicsGeneratorColumn::values().len(),
-            Table::CustomerAddress => CustomerAddressGeneratorColumn::values().len(),
-            Table::Customer => CustomerGeneratorColumn::values().len(),
-            Table::DateDim => DateDimGeneratorColumn::values().len(),
-            Table::TimeDim => TimeDimGeneratorColumn::values().len(),
-            Table::Item => ItemGeneratorColumn::all_columns().len(),
-            Table::Promotion => PromotionGeneratorColumn::values().len(),
-            Table::Store => StoreGeneratorColumn::all_columns().len(),
-            Table::StoreReturns => StoreReturnsGeneratorColumn::all_variants().len(),
-            Table::StoreSales => StoreSalesGeneratorColumn::all_variants().len(),
-            Table::WebPage => WebPageGeneratorColumn::values().len(),
-            Table::WebReturns => WebReturnsGeneratorColumn::all_variants().len(),
-            Table::WebSales => WebSalesGeneratorColumn::all_variants().len(),
-            Table::WebSite => WebSiteGeneratorColumn::values().len(),
-            Table::DbgenVersion => DbgenVersionGeneratorColumn::values().len(),
-            Table::Inventory => InventoryGeneratorColumn::all_variants().len(),
-            Table::SStore => 0, // Source table
-        }
-    }
-
-    /// Get a specific generator column by index
-    pub fn get_generator_column_by_index(
-        &self,
-        index: usize,
-    ) -> Option<&'static dyn GeneratorColumn> {
-        match self {
-            Table::CallCenter => {
-                let columns = CallCenterGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::CatalogPage => {
-                let columns = CatalogPageGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::CatalogReturns => {
-                let columns = CatalogReturnsGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::CatalogSales => {
-                let columns = CatalogSalesGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::Warehouse => {
-                let columns = WarehouseGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::ShipMode => {
-                let columns = ShipModeGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::Reason => {
-                let columns = ReasonGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::IncomeBand => {
-                let columns = IncomeBandGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::HouseholdDemographics => {
-                let columns = HouseholdDemographicsGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::CustomerDemographics => {
-                let columns = CustomerDemographicsGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::CustomerAddress => {
-                let columns = CustomerAddressGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::Customer => {
-                let columns = CustomerGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::DateDim => {
-                let columns = DateDimGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::TimeDim => {
-                let columns = TimeDimGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::Item => {
-                let columns = ItemGeneratorColumn::all_columns();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::Promotion => {
-                let columns = PromotionGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::Store => {
-                let columns = StoreGeneratorColumn::all_columns();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::StoreReturns => {
-                let columns = StoreReturnsGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::StoreSales => {
-                let columns = StoreSalesGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::WebPage => {
-                static COLUMNS: OnceLock<Vec<WebPageGeneratorColumn>> = OnceLock::new();
-                let columns = COLUMNS.get_or_init(|| WebPageGeneratorColumn::values().to_vec());
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::WebReturns => {
-                let columns = WebReturnsGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::WebSales => {
-                let columns = WebSalesGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::WebSite => {
-                static COLUMNS: OnceLock<Vec<WebSiteGeneratorColumn>> = OnceLock::new();
-                let columns = COLUMNS.get_or_init(|| WebSiteGeneratorColumn::values().to_vec());
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::DbgenVersion => {
-                let columns = DbgenVersionGeneratorColumn::values();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::Inventory => {
-                let columns = InventoryGeneratorColumn::all_variants();
-                columns.get(index).map(|col| col as &dyn GeneratorColumn)
-            }
-            Table::SStore => None, // Source table
-        }
-    }
-
     /// Check if this table keeps history
     pub fn keeps_history(&self) -> bool {
         self.get_table_flags().keeps_history()
@@ -676,19 +521,6 @@ mod tests {
     }
 
     #[test]
-    fn test_get_generator_columns() {
-        let table = Table::CallCenter;
-        assert_eq!(table.get_generator_column_count(), 34);
-
-        // Test first generator column
-        let first_gen_col = table.get_generator_column_by_index(0).unwrap();
-        assert_eq!(first_gen_col.get_global_column_number(), 1);
-
-        let gen_column_table: Table = first_gen_col.get_table();
-        assert_eq!(gen_column_table, Table::CallCenter);
-    }
-
-    #[test]
     fn test_table_flags_methods() {
         let table = Table::CallCenter;
         assert!(table.keeps_history());
@@ -720,7 +552,6 @@ mod tests {
     #[test]
     fn test_generator_vs_regular_column_count() {
         assert_eq!(CallCenterColumn::values().len(), 31); // User-visible columns
-        assert_eq!(Table::CallCenter.get_generator_column_count(), 34); // Generator columns (includes address, scd, nulls)
     }
 
     #[test]

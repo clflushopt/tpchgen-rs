@@ -37,7 +37,7 @@ use crate::types::generate_pricing_for_returns_table;
 /// returned.
 pub struct WebReturnsRowGenerator {
     sales: WebSalesRowGenerator,
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<WebReturnsGeneratorColumn>,
 }
 
 impl WebReturnsRowGenerator {
@@ -45,7 +45,7 @@ impl WebReturnsRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         WebReturnsRowGenerator {
             sales: WebSalesRowGenerator::new(session, row_count),
-            abstract_generator: AbstractRowGenerator::new(Table::WebReturns, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
         }
     }
 

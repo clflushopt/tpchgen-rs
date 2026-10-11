@@ -13,7 +13,7 @@ use crate::types::Date;
 /// Row generator for the WEB_PAGE table (WebPageRowGenerator)
 /// Pattern 2: SCD table with slowly changing dimension logic
 pub struct WebPageRowGenerator {
-    abstract_generator: AbstractRowGenerator,
+    abstract_generator: AbstractRowGenerator<WebPageGeneratorColumn>,
     previous_row: Option<WebPageRow>,
     session: Session,
 }
@@ -24,7 +24,7 @@ impl WebPageRowGenerator {
     /// Generate source rows `1..=row_count`.
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
-            abstract_generator: AbstractRowGenerator::new(Table::WebPage, row_count),
+            abstract_generator: AbstractRowGenerator::new(row_count),
             previous_row: None,
             session,
         }
@@ -273,9 +273,10 @@ impl WebPageRowGenerator {
 }
 
 impl ScdRowGenerator for WebPageRowGenerator {
+    type Column = WebPageGeneratorColumn;
     type Row = WebPageRow;
 
-    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator {
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator<WebPageGeneratorColumn> {
         &mut self.abstract_generator
     }
 

@@ -31,6 +31,7 @@
 //!
 //! See <https://github.com/datafusion-contrib/tpcgen-rs/issues/475>
 use crate::business_key_generator::make_business_key;
+use crate::generator::GeneratorColumn;
 use crate::row::AbstractRowGenerator;
 use crate::table::Table;
 use crate::types::Date;
@@ -184,11 +185,14 @@ pub(crate) fn scd_history(row_number: u64) -> Range<u64> {
 /// Each generator retains the previously generated row, which is used to help generate
 /// the next revision.
 pub(crate) trait ScdRowGenerator {
+    /// The generator columns of this SCD table.
+    type Column: GeneratorColumn;
+
     /// The type of output row produced by this generator.
     type Row;
 
     /// Underlying abstract generator that produces the source rows for this SCD table.
-    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator;
+    fn abstract_generator(&mut self) -> &mut AbstractRowGenerator<Self::Column>;
 
     /// The previously generated row, or `None` after a seek.
     fn previous_row(&self) -> Option<&Self::Row>;
