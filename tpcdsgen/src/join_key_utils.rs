@@ -37,7 +37,9 @@ const CATALOGS_PER_YEAR: i32 = 18;
 
 /// Generates a join key to a table that does not keep history (e.g.
 /// `customer`, `promotion`, `ship_mode`): a key drawn uniformly from
-/// `1..=row_count`. Paired with [`skip_uniform_join_key`].
+/// `1..=row_count`.
+///
+/// See also [`skip_uniform_join_key`].
 pub fn generate_uniform_join_key(
     to_table: Table,
     random_number_stream: &mut RandomNumberStream,
@@ -65,10 +67,12 @@ pub fn skip_uniform_join_key(random_number_stream: &mut RandomNumberStream) {
 }
 
 /// Generates a join key to a slowly changing dimension (SCD) table (e.g.
-/// `store`, `item`, `web_page`). SCD tables keep history, so the key must
-/// match the version of the dimension in effect on `julian_date`. See
-/// [`crate::slowly_changing_dimension_utils`]. Paired with
-/// [`skip_scd_join_key`].
+/// `store`, `item`, `web_page`).
+///
+/// SCD tables keep history, so the key must match the version of the dimension
+/// in effect on `julian_date`. See  [`crate::slowly_changing_dimension_utils`].
+///
+/// See also [`skip_scd_join_key`].
 pub fn generate_scd_join_key(
     to_table: Table,
     random_number_stream: &mut RandomNumberStream,
@@ -113,9 +117,11 @@ pub fn skip_scd_join_key(julian_date: i64, random_number_stream: &mut RandomNumb
 
 /// Generates a join key to the `catalog_page` table.
 ///
-/// Calculates which catalog page based on the date and catalog type (monthly, bi-annual, quarterly).
-/// Each catalog type has a different frequency within the year.
-/// Paired with [`skip_catalog_page_join_key`].
+/// Calculates which catalog page based on the date and catalog type (monthly,
+/// bi-annual, quarterly). Each catalog type has a different frequency within
+/// the year.
+///
+/// See also [`skip_catalog_page_join_key`].
 ///
 /// Based on JoinKeyUtils.java:generateCatalogPageJoinKey
 pub fn generate_catalog_page_join_key(
@@ -200,8 +206,10 @@ pub fn generate_sales_date_join_key(random_number_stream: &mut RandomNumberStrea
     }
 }
 
-/// Generates a `date_dim` join key for a returns table: `sale_date` plus a
-/// lag of `random(min_ship_delay * 2, max_ship_delay * 2)` days.
+/// Generates a date join key for returns tables.
+///
+/// Returns have a lag between the sale date and return date.
+/// The lag is calculated as: random(min*2, max*2) days after the sale.
 ///
 /// Store and catalog returns use [`CS_MIN_SHIP_DELAY`]/[`CS_MAX_SHIP_DELAY`],
 /// web returns use [`WS_MIN_SHIP_DELAY`]/[`WS_MAX_SHIP_DELAY`].
@@ -224,11 +232,12 @@ pub fn generate_returns_date_join_key(
 
 /// Generates `wp_creation_date_sk` for the `web_page` row `row_number`.
 ///
-/// Page creation has to happen outside of the page window, to assure a
+/// Page creation happens outside of the page window, to assure a
 /// constant number of pages, so it occurs in the gap between site creation
-/// and the site's actual activity. For sites that are replaced in the time
-/// span of the data set, this will depend on whether they are the first
-/// version or the second.
+/// and the site's actual activity.
+///
+/// For sites that are replaced in the time span of the data set, this will
+/// depend on whether they are the first version or the second.
 ///
 /// Based on JoinKeyUtils.java:generateWebJoinKey
 pub fn generate_web_page_creation_date_join_key(
