@@ -22,7 +22,7 @@ use crate::distribution::{
     pick_random_size, pick_random_unit, ColorsWeights, IdWeights, SizeWeights,
 };
 use crate::generator::ItemGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
+use crate::join_key_utils::generate_uniform_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::item_row::ItemRow;
@@ -300,11 +300,9 @@ impl ItemRowGenerator {
         // Note: i_promo_sk is generated but not included in output (matches Java behavior)
         // We still need to generate it to consume the random seeds
         let stream = self.abstract_generator.get_random_number_stream(&IPromoSk);
-        let _i_promo_sk = generate_join_key(
-            &IPromoSk,
-            stream,
+        let _i_promo_sk = generate_uniform_join_key(
             crate::config::Table::Promotion,
-            1,
+            stream,
             session.get_scaling(),
         );
         let stream = self.abstract_generator.get_random_number_stream(&IPromoSk);

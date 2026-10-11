@@ -15,8 +15,12 @@
 //! Web returns row generator
 
 use crate::config::Session;
+use crate::distribution::hours_distribution::HoursWeights;
 use crate::generator::WebReturnsGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
+use crate::join_key_utils::{
+    generate_returns_date_join_key, generate_time_join_key, generate_uniform_join_key,
+    WS_MAX_SHIP_DELAY, WS_MIN_SHIP_DELAY,
+};
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::web_returns_row::WebReturnsRow;
@@ -84,70 +88,43 @@ impl WebReturnsRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrReturnedDateSk);
-        let wr_returned_date_sk = generate_join_key(
-            &WrReturnedDateSk,
+        let wr_returned_date_sk = generate_returns_date_join_key(
             stream,
-            crate::config::Table::DateDim,
             sales_row.get_ws_ship_date_sk(),
-            scaling,
+            WS_MIN_SHIP_DELAY,
+            WS_MAX_SHIP_DELAY,
         );
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrReturnedTimeSk);
-        let wr_returned_time_sk = generate_join_key(
-            &WrReturnedTimeSk,
-            stream,
-            crate::config::Table::TimeDim,
-            1,
-            scaling,
-        );
+        let wr_returned_time_sk = generate_time_join_key(HoursWeights::CatalogAndWeb, stream);
 
         // Items are usually returned to the people they were shipped to, but sometimes not
         // Generate new values first
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrRefundedCustomerSk);
-        let mut wr_refunded_customer_sk = generate_join_key(
-            &WrRefundedCustomerSk,
-            stream,
-            crate::config::Table::Customer,
-            1,
-            scaling,
-        );
+        let mut wr_refunded_customer_sk =
+            generate_uniform_join_key(crate::config::Table::Customer, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrRefundedCdemoSk);
-        let mut wr_refunded_cdemo_sk = generate_join_key(
-            &WrRefundedCdemoSk,
-            stream,
-            crate::config::Table::CustomerDemographics,
-            1,
-            scaling,
-        );
+        let mut wr_refunded_cdemo_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrRefundedHdemoSk);
-        let mut wr_refunded_hdemo_sk = generate_join_key(
-            &WrRefundedHdemoSk,
-            stream,
-            crate::config::Table::HouseholdDemographics,
-            1,
-            scaling,
-        );
+        let mut wr_refunded_hdemo_sk =
+            generate_uniform_join_key(crate::config::Table::HouseholdDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrRefundedAddrSk);
-        let mut wr_refunded_addr_sk = generate_join_key(
-            &WrRefundedAddrSk,
-            stream,
-            crate::config::Table::CustomerAddress,
-            1,
-            scaling,
-        );
+        let mut wr_refunded_addr_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerAddress, stream, scaling);
 
         // If below GIFT_PERCENTAGE, use ship info from sales row instead
         let stream = self
@@ -170,13 +147,7 @@ impl WebReturnsRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WrReasonSk);
-        let wr_reason_sk = generate_join_key(
-            &WrReasonSk,
-            stream,
-            crate::config::Table::Reason,
-            1,
-            scaling,
-        );
+        let wr_reason_sk = generate_uniform_join_key(crate::config::Table::Reason, stream, scaling);
 
         // Generate pricing for returns
         let stream = self.abstract_generator.get_random_number_stream(&WrPricing);

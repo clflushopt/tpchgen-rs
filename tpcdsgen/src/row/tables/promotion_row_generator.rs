@@ -16,7 +16,7 @@ use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::config::Table as ConfigTable;
 use crate::generator::PromotionGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
+use crate::join_key_utils::generate_scd_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, PromotionRow};
@@ -92,11 +92,10 @@ impl PromotionRowGenerator {
                     .get_random_number_stream(&PromotionGeneratorColumn::PEndDateId),
             ) as i64;
 
-        let p_item_sk = generate_join_key(
-            &PromotionGeneratorColumn::PItemSk,
+        let p_item_sk = generate_scd_join_key(
+            ConfigTable::Item,
             self.abstract_row_generator
                 .get_random_number_stream(&PromotionGeneratorColumn::PItemSk),
-            ConfigTable::Item,
             1,
             scaling,
         );

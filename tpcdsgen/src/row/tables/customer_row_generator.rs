@@ -20,7 +20,7 @@ use crate::distribution::{
     pick_random_country, FirstNamesWeights, NamesDistributions, SalutationsWeights,
 };
 use crate::generator::CustomerGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
+use crate::join_key_utils::generate_uniform_join_key;
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::customer_row::CustomerRow;
@@ -66,35 +66,20 @@ impl CustomerRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CCurrentHdemoSk);
-        let c_current_hdemo_sk = generate_join_key(
-            &CCurrentHdemoSk,
-            stream,
-            crate::config::Table::HouseholdDemographics,
-            1,
-            scaling,
-        );
+        let c_current_hdemo_sk =
+            generate_uniform_join_key(crate::config::Table::HouseholdDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CCurrentCdemoSk);
-        let c_current_cdemo_sk = generate_join_key(
-            &CCurrentCdemoSk,
-            stream,
-            crate::config::Table::CustomerDemographics,
-            1,
-            scaling,
-        );
+        let c_current_cdemo_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CCurrentAddrSk);
-        let c_current_addr_sk = generate_join_key(
-            &CCurrentAddrSk,
-            stream,
-            crate::config::Table::CustomerAddress,
-            c_customer_sk,
-            scaling,
-        );
+        let c_current_addr_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerAddress, stream, scaling);
 
         // Name generation (matches Java order lines 81-85)
         let stream = self

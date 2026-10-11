@@ -1,7 +1,7 @@
 use crate::config::{Session, Table as ConfigTable};
 use crate::distribution::web_page_use_distribution::WebPageUseDistribution;
 use crate::generator::WebPageGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
+use crate::join_key_utils::{generate_uniform_join_key, generate_web_page_creation_date_join_key};
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, WebPageRow};
 use crate::slowly_changing_dimension_utils::{
@@ -64,11 +64,9 @@ impl WebPageRowGenerator {
             .next_random() as i32;
 
         // wp_creation_date_sk - join to DATE_DIM
-        let mut wp_creation_date_sk = generate_join_key(
-            &WebPageGeneratorColumn::WpCreationDateSk,
+        let mut wp_creation_date_sk = generate_web_page_creation_date_join_key(
             self.abstract_generator
                 .get_random_number_stream(&WebPageGeneratorColumn::WpCreationDateSk),
-            ConfigTable::DateDim,
             row_number_i64,
             session.get_scaling(),
         );
@@ -119,12 +117,10 @@ impl WebPageRowGenerator {
         field_change_flags >>= 1;
 
         // wp_customer_sk - join to CUSTOMER
-        let mut wp_customer_sk = generate_join_key(
-            &WebPageGeneratorColumn::WpCustomerSk,
+        let mut wp_customer_sk = generate_uniform_join_key(
+            ConfigTable::Customer,
             self.abstract_generator
                 .get_random_number_stream(&WebPageGeneratorColumn::WpCustomerSk),
-            ConfigTable::Customer,
-            1,
             session.get_scaling(),
         );
         if let Some(prev) = &self.previous_row {

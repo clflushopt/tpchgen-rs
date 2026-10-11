@@ -15,8 +15,12 @@
 //! Web sales row generator
 
 use crate::config::Session;
+use crate::distribution::hours_distribution::HoursWeights;
 use crate::generator::WebSalesGeneratorColumn;
-use crate::join_key_utils::{generate_join_key, skip_join_key, skip_scd_join_key};
+use crate::join_key_utils::{
+    generate_sales_date_join_key, generate_scd_join_key, generate_time_join_key,
+    generate_uniform_join_key, skip_scd_join_key, skip_uniform_join_key,
+};
 use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
@@ -145,15 +149,15 @@ impl WebSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsShipModeSk);
-        skip_join_key(crate::config::Table::ShipMode, stream);
+        skip_uniform_join_key(stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsWarehouseSk);
-        skip_join_key(crate::config::Table::Warehouse, stream);
+        skip_uniform_join_key(stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
-        skip_join_key(crate::config::Table::Promotion, stream);
+        skip_uniform_join_key(stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
         skip_pricing_for_sales_table(stream);
@@ -179,10 +183,9 @@ impl WebSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsWebPageSk);
-        let ws_web_page_sk = generate_join_key(
-            &WsWebPageSk,
-            stream,
+        let ws_web_page_sk = generate_scd_join_key(
             crate::config::Table::WebPage,
+            stream,
             self.order_info.ws_sold_date_sk,
             scaling,
         );
@@ -190,10 +193,9 @@ impl WebSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsWebSiteSk);
-        let ws_web_site_sk = generate_join_key(
-            &WsWebSiteSk,
-            stream,
+        let ws_web_site_sk = generate_scd_join_key(
             crate::config::Table::WebSite,
+            stream,
             self.order_info.ws_sold_date_sk,
             scaling,
         );
@@ -201,33 +203,18 @@ impl WebSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsShipModeSk);
-        let ws_ship_mode_sk = generate_join_key(
-            &WsShipModeSk,
-            stream,
-            crate::config::Table::ShipMode,
-            1,
-            scaling,
-        );
+        let ws_ship_mode_sk =
+            generate_uniform_join_key(crate::config::Table::ShipMode, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsWarehouseSk);
-        let ws_warehouse_sk = generate_join_key(
-            &WsWarehouseSk,
-            stream,
-            crate::config::Table::Warehouse,
-            1,
-            scaling,
-        );
+        let ws_warehouse_sk =
+            generate_uniform_join_key(crate::config::Table::Warehouse, stream, scaling);
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPromoSk);
-        let ws_promo_sk = generate_join_key(
-            &WsPromoSk,
-            stream,
-            crate::config::Table::Promotion,
-            1,
-            scaling,
-        );
+        let ws_promo_sk =
+            generate_uniform_join_key(crate::config::Table::Promotion, stream, scaling);
 
         let stream = self.abstract_generator.get_random_number_stream(&WsPricing);
         let ws_pricing = generate_pricing_for_sales_table(&get_web_sales_pricing_limits(), stream);
@@ -263,72 +250,40 @@ impl WebSalesRowGenerator {
 
         let scaling = self.session.get_scaling();
 
-        // Web sales uses generate_join_key for date (not date-based iteration like catalog_sales)
+        // Web sales draws its sold date (not date-based iteration like catalog_sales)
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsSoldDateSk);
-        let ws_sold_date_sk = generate_join_key(
-            &WsSoldDateSk,
-            stream,
-            crate::config::Table::DateDim,
-            1,
-            scaling,
-        );
+        let ws_sold_date_sk = generate_sales_date_join_key(stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsSoldTimeSk);
-        let ws_sold_time_sk = generate_join_key(
-            &WsSoldTimeSk,
-            stream,
-            crate::config::Table::TimeDim,
-            1,
-            scaling,
-        );
+        let ws_sold_time_sk = generate_time_join_key(HoursWeights::CatalogAndWeb, stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsBillCustomerSk);
-        let ws_bill_customer_sk = generate_join_key(
-            &WsBillCustomerSk,
-            stream,
-            crate::config::Table::Customer,
-            1,
-            scaling,
-        );
+        let ws_bill_customer_sk =
+            generate_uniform_join_key(crate::config::Table::Customer, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsBillCdemoSk);
-        let ws_bill_cdemo_sk = generate_join_key(
-            &WsBillCdemoSk,
-            stream,
-            crate::config::Table::CustomerDemographics,
-            1,
-            scaling,
-        );
+        let ws_bill_cdemo_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsBillHdemoSk);
-        let ws_bill_hdemo_sk = generate_join_key(
-            &WsBillHdemoSk,
-            stream,
-            crate::config::Table::HouseholdDemographics,
-            1,
-            scaling,
-        );
+        let ws_bill_hdemo_sk =
+            generate_uniform_join_key(crate::config::Table::HouseholdDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WsBillAddrSk);
-        let ws_bill_addr_sk = generate_join_key(
-            &WsBillAddrSk,
-            stream,
-            crate::config::Table::CustomerAddress,
-            1,
-            scaling,
-        );
+        let ws_bill_addr_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerAddress, stream, scaling);
 
         // Usually the billing info and shipping info are the same.
         // If it's a "gift", they'll be different.
@@ -348,46 +303,32 @@ impl WebSalesRowGenerator {
             let stream = self
                 .abstract_generator
                 .get_random_number_stream(&WsShipCustomerSk);
-            ws_ship_customer_sk = generate_join_key(
-                &WsShipCustomerSk,
-                stream,
-                crate::config::Table::Customer,
-                2,
-                scaling,
-            );
+            ws_ship_customer_sk =
+                generate_uniform_join_key(crate::config::Table::Customer, stream, scaling);
 
             let stream = self
                 .abstract_generator
                 .get_random_number_stream(&WsShipCdemoSk);
-            ws_ship_cdemo_sk = generate_join_key(
-                &WsShipCdemoSk,
-                stream,
+            ws_ship_cdemo_sk = generate_uniform_join_key(
                 crate::config::Table::CustomerDemographics,
-                2,
+                stream,
                 scaling,
             );
 
             let stream = self
                 .abstract_generator
                 .get_random_number_stream(&WsShipHdemoSk);
-            ws_ship_hdemo_sk = generate_join_key(
-                &WsShipHdemoSk,
-                stream,
+            ws_ship_hdemo_sk = generate_uniform_join_key(
                 crate::config::Table::HouseholdDemographics,
-                2,
+                stream,
                 scaling,
             );
 
             let stream = self
                 .abstract_generator
                 .get_random_number_stream(&WsShipAddrSk);
-            ws_ship_addr_sk = generate_join_key(
-                &WsShipAddrSk,
-                stream,
-                crate::config::Table::CustomerAddress,
-                2,
-                scaling,
-            );
+            ws_ship_addr_sk =
+                generate_uniform_join_key(crate::config::Table::CustomerAddress, stream, scaling);
         }
 
         let ws_order_number = row_number_i64;

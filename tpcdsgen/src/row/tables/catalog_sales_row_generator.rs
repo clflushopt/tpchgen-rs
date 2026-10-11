@@ -15,8 +15,12 @@
 //! Catalog sales row generator
 
 use crate::config::Session;
+use crate::distribution::hours_distribution::HoursWeights;
 use crate::generator::CatalogSalesGeneratorColumn;
-use crate::join_key_utils::{generate_join_key, skip_catalog_page_join_key, skip_join_key};
+use crate::join_key_utils::{
+    generate_catalog_page_join_key, generate_scd_join_key, generate_time_join_key,
+    generate_uniform_join_key, skip_catalog_page_join_key, skip_uniform_join_key,
+};
 use crate::nulls::{create_null_bit_map, skip_null_bit_map};
 use crate::permutations::{get_permutation_entry, make_permutation};
 use crate::random::RandomValueGenerator;
@@ -149,15 +153,15 @@ impl CatalogSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsShipModeSk);
-        skip_join_key(crate::config::Table::ShipMode, stream);
+        skip_uniform_join_key(stream);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsWarehouseSk);
-        skip_join_key(crate::config::Table::Warehouse, stream);
+        skip_uniform_join_key(stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&CsPromoSk);
-        skip_join_key(crate::config::Table::Promotion, stream);
+        skip_uniform_join_key(stream);
 
         let stream = self.abstract_generator.get_random_number_stream(&CsPricing);
         skip_pricing_for_sales_table(stream);
@@ -194,45 +198,24 @@ impl CatalogSalesRowGenerator {
         let cs_catalog_page_sk = if self.order_info.cs_sold_date_sk == -1 {
             -1
         } else {
-            generate_join_key(
-                &CsCatalogPageSk,
-                stream,
-                crate::config::Table::CatalogPage,
-                self.order_info.cs_sold_date_sk,
-                scaling,
-            )
+            generate_catalog_page_join_key(stream, self.order_info.cs_sold_date_sk, scaling)
         };
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsShipModeSk);
-        let cs_ship_mode_sk = generate_join_key(
-            &CsShipModeSk,
-            stream,
-            crate::config::Table::ShipMode,
-            1,
-            scaling,
-        );
+        let cs_ship_mode_sk =
+            generate_uniform_join_key(crate::config::Table::ShipMode, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsWarehouseSk);
-        let cs_warehouse_sk = generate_join_key(
-            &CsWarehouseSk,
-            stream,
-            crate::config::Table::Warehouse,
-            1,
-            scaling,
-        );
+        let cs_warehouse_sk =
+            generate_uniform_join_key(crate::config::Table::Warehouse, stream, scaling);
 
         let stream = self.abstract_generator.get_random_number_stream(&CsPromoSk);
-        let cs_promo_sk = generate_join_key(
-            &CsPromoSk,
-            stream,
-            crate::config::Table::Promotion,
-            1,
-            scaling,
-        );
+        let cs_promo_sk =
+            generate_uniform_join_key(crate::config::Table::Promotion, stream, scaling);
 
         let stream = self.abstract_generator.get_random_number_stream(&CsPricing);
         let cs_pricing =
@@ -282,13 +265,7 @@ impl CatalogSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsSoldTimeSk);
-        let cs_sold_time_sk = generate_join_key(
-            &CsSoldTimeSk,
-            stream,
-            crate::config::Table::TimeDim,
-            self.order_info.cs_call_center_sk,
-            scaling,
-        );
+        let cs_sold_time_sk = generate_time_join_key(HoursWeights::CatalogAndWeb, stream);
 
         let stream = self
             .abstract_generator
@@ -296,10 +273,9 @@ impl CatalogSalesRowGenerator {
         let cs_call_center_sk = if cs_sold_date_sk == -1 {
             -1
         } else {
-            generate_join_key(
-                &CsCallCenterSk,
-                stream,
+            generate_scd_join_key(
                 crate::config::Table::CallCenter,
+                stream,
                 cs_sold_date_sk,
                 scaling,
             )
@@ -308,46 +284,26 @@ impl CatalogSalesRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsBillCustomerSk);
-        let cs_bill_customer_sk = generate_join_key(
-            &CsBillCustomerSk,
-            stream,
-            crate::config::Table::Customer,
-            1,
-            scaling,
-        );
+        let cs_bill_customer_sk =
+            generate_uniform_join_key(crate::config::Table::Customer, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsBillCdemoSk);
-        let cs_bill_cdemo_sk = generate_join_key(
-            &CsBillCdemoSk,
-            stream,
-            crate::config::Table::CustomerDemographics,
-            1,
-            scaling,
-        );
+        let cs_bill_cdemo_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsBillHdemoSk);
-        let cs_bill_hdemo_sk = generate_join_key(
-            &CsBillHdemoSk,
-            stream,
-            crate::config::Table::HouseholdDemographics,
-            1,
-            scaling,
-        );
+        let cs_bill_hdemo_sk =
+            generate_uniform_join_key(crate::config::Table::HouseholdDemographics, stream, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CsBillAddrSk);
-        let cs_bill_addr_sk = generate_join_key(
-            &CsBillAddrSk,
-            stream,
-            crate::config::Table::CustomerAddress,
-            1,
-            scaling,
-        );
+        let cs_bill_addr_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerAddress, stream, scaling);
 
         // Most orders are for the ordering customer, some are gifts (10%)
         let stream = self
@@ -361,44 +317,33 @@ impl CatalogSalesRowGenerator {
                 let stream = self
                     .abstract_generator
                     .get_random_number_stream(&CsShipCustomerSk);
-                let ship_customer = generate_join_key(
-                    &CsShipCustomerSk,
-                    stream,
-                    crate::config::Table::Customer,
-                    2,
-                    scaling,
-                );
+                let ship_customer =
+                    generate_uniform_join_key(crate::config::Table::Customer, stream, scaling);
 
                 let stream = self
                     .abstract_generator
                     .get_random_number_stream(&CsShipCdemoSk);
-                let ship_cdemo = generate_join_key(
-                    &CsShipCdemoSk,
-                    stream,
+                let ship_cdemo = generate_uniform_join_key(
                     crate::config::Table::CustomerDemographics,
-                    2,
+                    stream,
                     scaling,
                 );
 
                 let stream = self
                     .abstract_generator
                     .get_random_number_stream(&CsShipHdemoSk);
-                let ship_hdemo = generate_join_key(
-                    &CsShipHdemoSk,
-                    stream,
+                let ship_hdemo = generate_uniform_join_key(
                     crate::config::Table::HouseholdDemographics,
-                    2,
+                    stream,
                     scaling,
                 );
 
                 let stream = self
                     .abstract_generator
                     .get_random_number_stream(&CsShipAddrSk);
-                let ship_addr = generate_join_key(
-                    &CsShipAddrSk,
-                    stream,
+                let ship_addr = generate_uniform_join_key(
                     crate::config::Table::CustomerAddress,
-                    2,
+                    stream,
                     scaling,
                 );
 

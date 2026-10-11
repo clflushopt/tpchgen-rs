@@ -20,120 +20,105 @@ use crate::config::{Scaling, Table};
 use crate::distribution::calendar_distribution::{CalendarDistribution, CalendarWeights};
 use crate::distribution::catalog_page_distributions::CatalogPageTypesDistribution;
 use crate::distribution::hours_distribution::{HoursDistribution, HoursWeights};
-use crate::generator::GeneratorColumn;
 use crate::pseudo_table_scaling_infos::PseudoTableScalingInfos;
 use crate::random::{RandomNumberStream, RandomValueGenerator};
 use crate::slowly_changing_dimension_utils;
 use crate::types::Date;
 
-#[allow(dead_code)]
 const WEB_PAGES_PER_SITE: i32 = 123;
-#[allow(dead_code)]
 const WEB_DATE_STAGGER: i64 = 17;
-const CS_MIN_SHIP_DELAY: i32 = 2;
-const CS_MAX_SHIP_DELAY: i32 = 90;
+/// Ship-to-return delay bounds (days) for `store_returns` and `catalog_returns`
+pub const CS_MIN_SHIP_DELAY: i32 = 2;
+pub const CS_MAX_SHIP_DELAY: i32 = 90;
+/// Ship-to-return delay bounds (days) for `web_returns`
+pub const WS_MIN_SHIP_DELAY: i32 = 1;
+pub const WS_MAX_SHIP_DELAY: i32 = 120;
 const CATALOGS_PER_YEAR: i32 = 18;
 
-/// Generates a join key (foreign key) from one table/column to another table.
-///
-/// This is the main entry point for generating foreign keys between TPC-DS tables.
-/// It routes to specialized key generators based on the target table type.
-///
-/// # Arguments
-///
-/// * `from_column` - The column generating the join key
-/// * `random_number_stream` - Random number stream for generation
-/// * `to_table` - The target table being referenced
-/// * `join_count` - Context-dependent value (often a date or row number)
-/// * `scaling` - Scaling information for the dataset
-///
-/// # Returns
-///
-/// The generated join key value, or -1 if no valid key can be generated
-pub fn generate_join_key(
-    from_column: &dyn GeneratorColumn,
-    random_number_stream: &mut RandomNumberStream,
+/// Generates a join key to a table that does not keep history (e.g.
+/// `customer`, `promotion`, `ship_mode`): a key drawn uniformly from
+/// `1..=row_count`. Paired with [`skip_uniform_join_key`].
+pub fn generate_uniform_join_key(
     to_table: Table,
-    join_count: i64,
+    random_number_stream: &mut RandomNumberStream,
     scaling: &Scaling,
 ) -> i64 {
-    // NOTE: to_table is config::Table (for CLI), from_column.get_table() returns
-    // column::Table (now same as table::Table). Different enums for different purposes.
-
-    match to_table {
-        Table::CatalogPage => {
-            generate_catalog_page_join_key(random_number_stream, join_count, scaling)
-        }
-        Table::DateDim => {
-            let year = RandomValueGenerator::generate_uniform_random_int(
-                Date::DATE_MINIMUM.year(),
-                Date::DATE_MAXIMUM.year(),
-                random_number_stream,
-            );
-            generate_date_join_key(random_number_stream, from_column, join_count, year, scaling)
-        }
-        Table::TimeDim => generate_time_join_key(from_column, random_number_stream),
-        _ => {
-            if to_table.keeps_history() {
-                generate_scd_join_key(to_table, random_number_stream, join_count, scaling)
-            } else {
-                RandomValueGenerator::generate_uniform_random_key(
-                    1,
-                    i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64"),
-                    random_number_stream,
-                )
-            }
-        }
-    }
-}
-
-/// Advances `random_number_stream` past the values [`generate_join_key`]
-/// would draw for a key to a table that does not keep history (e.g.
-/// `promotion`, `ship_mode`, `warehouse`), without computing the key.
-///
-/// Must be kept in sync with [`generate_join_key`].
-pub fn skip_join_key(to_table: Table, random_number_stream: &mut RandomNumberStream) {
     debug_assert!(
         !to_table.keeps_history()
             && !matches!(
                 to_table,
                 Table::CatalogPage | Table::DateDim | Table::TimeDim
             ),
-        "skip_join_key does not support {to_table:?}"
+        "generate_uniform_join_key does not support {to_table:?}"
     );
+    RandomValueGenerator::generate_uniform_random_key(
+        1,
+        i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64"),
+        random_number_stream,
+    )
+}
+
+/// Advances `random_number_stream` past the values
+/// [`generate_uniform_join_key`] would draw, without computing the key.
+pub fn skip_uniform_join_key(random_number_stream: &mut RandomNumberStream) {
     random_number_stream.next_random();
 }
 
-/// Advances `random_number_stream` past the values [`generate_join_key`]
-/// would draw for a key to `catalog_page`, without computing the key.
-///
-/// Must be kept in sync with [`generate_catalog_page_join_key`].
-#[allow(rustdoc::private_intra_doc_links)]
-pub fn skip_catalog_page_join_key(random_number_stream: &mut RandomNumberStream) {
-    // catalog page type, then page within catalog
-    random_number_stream.next_random();
-    random_number_stream.next_random();
+/// Generates a join key to a slowly changing dimension (SCD) table (e.g.
+/// `store`, `item`, `web_page`). SCD tables keep history, so the key must
+/// match the version of the dimension in effect on `julian_date`. See
+/// [`crate::slowly_changing_dimension_utils`]. Paired with
+/// [`skip_scd_join_key`].
+pub fn generate_scd_join_key(
+    to_table: Table,
+    random_number_stream: &mut RandomNumberStream,
+    julian_date: i64,
+    scaling: &Scaling,
+) -> i64 {
+    debug_assert!(
+        to_table.keeps_history(),
+        "generate_scd_join_key does not support {to_table:?}"
+    );
+    // Can't have a revision in the future
+    if julian_date > Date::JULIAN_DATA_END_DATE {
+        return -1;
+    }
+
+    let id_count = i64::try_from(scaling.get_id_count(to_table)).expect("ID count fits in i64");
+    let unique_key =
+        RandomValueGenerator::generate_uniform_random_key(1, id_count, random_number_stream);
+
+    // Match the surrogate key based on the julian date for SCD tables
+    let key = slowly_changing_dimension_utils::match_surrogate_key(
+        unique_key,
+        julian_date,
+        to_table,
+        scaling,
+    );
+
+    if key > i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64") {
+        -1
+    } else {
+        key
+    }
 }
 
-/// Advances `random_number_stream` past the values [`generate_join_key`]
-/// would draw for a key to a table that keeps history (e.g. `web_page`,
-/// `web_site`), without computing the key.
-///
-/// Must be kept in sync with [`generate_scd_join_key`].
-#[allow(rustdoc::private_intra_doc_links)]
+/// Advances `random_number_stream` past the values [`generate_scd_join_key`]
+/// would draw, without computing the key.
 pub fn skip_scd_join_key(julian_date: i64, random_number_stream: &mut RandomNumberStream) {
     if julian_date <= Date::JULIAN_DATA_END_DATE {
         random_number_stream.next_random();
     }
 }
 
-/// Generates a join key to the catalog_page table.
+/// Generates a join key to the `catalog_page` table.
 ///
 /// Calculates which catalog page based on the date and catalog type (monthly, bi-annual, quarterly).
 /// Each catalog type has a different frequency within the year.
+/// Paired with [`skip_catalog_page_join_key`].
 ///
 /// Based on JoinKeyUtils.java:generateCatalogPageJoinKey
-fn generate_catalog_page_join_key(
+pub fn generate_catalog_page_join_key(
     random_number_stream: &mut RandomNumberStream,
     julian_date: i64,
     scaling: &Scaling,
@@ -173,42 +158,33 @@ fn generate_catalog_page_join_key(
     (count * pages_per_catalog + page) as i64
 }
 
-/// Generates a join key to the date_dim table.
+/// Advances `random_number_stream` past the values
+/// [`generate_catalog_page_join_key`] would draw, without computing the key.
+pub fn skip_catalog_page_join_key(random_number_stream: &mut RandomNumberStream) {
+    // catalog page type, then page within catalog
+    random_number_stream.next_random();
+    random_number_stream.next_random();
+}
+
+/// Draws the year every `date_dim` join key starts with.
 ///
-/// Different table types use different date selection strategies:
-/// - Sales tables use SALES or SALES_LEAP_YEAR weights
-/// - Returns tables use date returns logic (with lag from sale date)
-/// - Web-related tables use web join key logic
-/// - Other tables use UNIFORM or UNIFORM_LEAP_YEAR weights
+/// The reference implementation draws this before deciding how to pick the
+/// date, so the returns and web variants draw and discard it to keep the
+/// random number stream aligned.
+fn pick_random_date_year(random_number_stream: &mut RandomNumberStream) -> i32 {
+    RandomValueGenerator::generate_uniform_random_int(
+        Date::DATE_MINIMUM.year(),
+        Date::DATE_MAXIMUM.year(),
+        random_number_stream,
+    )
+}
+
+/// Generates a `date_dim` join key for a sales table (`store_sales`,
+/// `web_sales`): a random year, then a day weighted by sales volume.
 ///
-/// Based on JoinKeyUtils.java:generateDateJoinKey (lines 109-142)
-fn generate_date_join_key(
-    random_number_stream: &mut RandomNumberStream,
-    from_column: &dyn GeneratorColumn,
-    join_count: i64,
-    year: i32,
-    scaling: &Scaling,
-) -> i64 {
-    use crate::column::Table as ColumnTable;
-
-    let from_table = from_column.get_table();
-
-    // Check if this is a WEB_SITE or WEB_PAGE table
-    if from_table == ColumnTable::WebPage || from_table == ColumnTable::WebSite {
-        return generate_web_join_key(from_column, random_number_stream, join_count, scaling);
-    }
-
-    // Returns tables: date is computed as sale_date + lag
-    // Based on JoinKeyUtils.java:generateDateReturnsJoinKey (lines 192-211)
-    if from_table == ColumnTable::StoreReturns
-        || from_table == ColumnTable::CatalogReturns
-        || from_table == ColumnTable::WebReturns
-    {
-        return generate_date_returns_join_key(from_table, random_number_stream, join_count);
-    }
-
-    // Sales tables: use SALES weights
-    // Default: use SALES weights (most common case)
+/// Based on JoinKeyUtils.java:generateDateJoinKey
+pub fn generate_sales_date_join_key(random_number_stream: &mut RandomNumberStream) -> i64 {
+    let year = pick_random_date_year(random_number_stream);
     let weights = if Date::is_leap_year(year) {
         CalendarWeights::SalesLeapYear
     } else {
@@ -224,151 +200,103 @@ fn generate_date_join_key(
     }
 }
 
-/// Generates a date join key for returns tables.
+/// Generates a `date_dim` join key for a returns table: `sale_date` plus a
+/// lag of `random(min_ship_delay * 2, max_ship_delay * 2)` days.
 ///
-/// Returns have a lag between the sale date and return date.
-/// The lag is calculated as: random(min*2, max*2) days after the sale.
+/// Store and catalog returns use [`CS_MIN_SHIP_DELAY`]/[`CS_MAX_SHIP_DELAY`],
+/// web returns use [`WS_MIN_SHIP_DELAY`]/[`WS_MAX_SHIP_DELAY`].
 ///
-/// Based on JoinKeyUtils.java:generateDateReturnsJoinKey (lines 192-211)
-fn generate_date_returns_join_key(
-    from_table: crate::column::Table,
+/// Based on JoinKeyUtils.java:generateDateReturnsJoinKey
+pub fn generate_returns_date_join_key(
     random_number_stream: &mut RandomNumberStream,
-    join_count: i64, // This is the sale date (julian days)
+    sale_date: i64,
+    min_ship_delay: i32,
+    max_ship_delay: i32,
 ) -> i64 {
-    use crate::column::Table as ColumnTable;
-
-    let (min, max) = match from_table {
-        ColumnTable::StoreReturns | ColumnTable::CatalogReturns => {
-            (CS_MIN_SHIP_DELAY, CS_MAX_SHIP_DELAY)
-        }
-        ColumnTable::WebReturns => (1, 120), // Web returns have 1-120 day ship lag
-        other => unreachable!("Invalid table for date returns join: {other:?}"),
-    };
-
-    let lag =
-        RandomValueGenerator::generate_uniform_random_int(min * 2, max * 2, random_number_stream);
-    join_count + lag as i64
+    let _year = pick_random_date_year(random_number_stream);
+    let lag = RandomValueGenerator::generate_uniform_random_int(
+        min_ship_delay * 2,
+        max_ship_delay * 2,
+        random_number_stream,
+    );
+    sale_date + lag as i64
 }
 
-/// Generates a join key to the time_dim table.
+/// Generates `wp_creation_date_sk` for the `web_page` row `row_number`.
 ///
-/// Different table types use different hour selection strategies:
-/// - Store sales/returns use STORE weights (typical store hours)
-/// - Catalog/web sales/returns use CATALOG_AND_WEB weights (24/7 operations)
-/// - Other tables use UNIFORM weights
+/// Page creation has to happen outside of the page window, to assure a
+/// constant number of pages, so it occurs in the gap between site creation
+/// and the site's actual activity. For sites that are replaced in the time
+/// span of the data set, this will depend on whether they are the first
+/// version or the second.
 ///
-/// Returns seconds since midnight (0 to 86399).
+/// Based on JoinKeyUtils.java:generateWebJoinKey
+pub fn generate_web_page_creation_date_join_key(
+    random_number_stream: &mut RandomNumberStream,
+    row_number: i64,
+    scaling: &Scaling,
+) -> i64 {
+    let _year = pick_random_date_year(random_number_stream);
+    let site = (row_number / WEB_PAGES_PER_SITE as i64 + 1) as i32;
+    let web_site_duration = get_web_site_duration(scaling);
+    let min_result = Date::JULIAN_DATE_MINIMUM as i64
+        - ((site as i64 * WEB_DATE_STAGGER) % web_site_duration / 2);
+    RandomValueGenerator::generate_uniform_random_int(
+        min_result as i32,
+        Date::JULIAN_DATE_MINIMUM,
+        random_number_stream,
+    ) as i64
+}
+
+/// Generates `web_open_date` for the `web_site` row `row_number`.
 ///
-/// Based on JoinKeyUtils.java:generateTimeJoinKey (lines 213-235)
-fn generate_time_join_key(
-    from_column: &dyn GeneratorColumn,
+/// Based on JoinKeyUtils.java:generateWebJoinKey
+pub fn generate_web_open_date_join_key(
+    random_number_stream: &mut RandomNumberStream,
+    row_number: i64,
+    scaling: &Scaling,
+) -> i64 {
+    let _year = pick_random_date_year(random_number_stream);
+    let web_site_duration = get_web_site_duration(scaling);
+    Date::JULIAN_DATE_MINIMUM as i64 - ((row_number * WEB_DATE_STAGGER) % web_site_duration / 2)
+}
+
+/// Generates `web_close_date` for the `web_site` row `row_number`.
+///
+/// Based on JoinKeyUtils.java:generateWebJoinKey
+pub fn generate_web_close_date_join_key(
+    random_number_stream: &mut RandomNumberStream,
+    row_number: i64,
+    scaling: &Scaling,
+) -> i64 {
+    let _year = pick_random_date_year(random_number_stream);
+    let web_site_duration = get_web_site_duration(scaling);
+    let mut result = Date::JULIAN_DATE_MINIMUM as i64
+        - ((row_number * WEB_DATE_STAGGER) % web_site_duration / 2);
+    result += -web_site_duration; // the -1 here and below are due to undefined values in the C code
+
+    // the site is completely replaced, and this is the first site
+    if is_replaced(row_number) && !is_replacement(row_number) {
+        // the close date of the first site needs to align on a revision boundary
+        result -= -web_site_duration / 2;
+    }
+    result
+}
+
+/// Generates a join key to the `time_dim` table as seconds since midnight
+/// (0 to 86399), picking the hour from `weights`:
+/// - `store_sales`/`store_returns` use [`HoursWeights::Store`]
+/// - catalog and web sales/returns use [`HoursWeights::CatalogAndWeb`]
+///
+/// Based on JoinKeyUtils.java:generateTimeJoinKey
+pub fn generate_time_join_key(
+    weights: HoursWeights,
     random_number_stream: &mut RandomNumberStream,
 ) -> i64 {
-    use crate::column::Table as ColumnTable;
-
-    let from_table = from_column.get_table();
-
-    let weights = match from_table {
-        ColumnTable::StoreSales | ColumnTable::StoreReturns => HoursWeights::Store,
-        ColumnTable::CatalogSales
-        | ColumnTable::CatalogReturns
-        | ColumnTable::WebSales
-        | ColumnTable::WebReturns => HoursWeights::CatalogAndWeb,
-        _ => HoursWeights::Uniform,
-    };
-
     let hour = HoursDistribution::pick_random_hour(weights, random_number_stream);
     let seconds = RandomValueGenerator::generate_uniform_random_int(0, 3599, random_number_stream);
 
     (hour as i64 * 3600) + seconds as i64
-}
-
-/// Generates a join key to a slowly changing dimension (SCD) table.
-///
-/// SCD tables keep history, so the join key must match the appropriate
-/// version of the dimension based on the effective date. See
-/// [`crate::slowly_changing_dimension_utils`].
-fn generate_scd_join_key(
-    to_table: Table,
-    random_number_stream: &mut RandomNumberStream,
-    julian_date: i64,
-    scaling: &Scaling,
-) -> i64 {
-    // Can't have a revision in the future
-    if julian_date > Date::JULIAN_DATA_END_DATE {
-        return -1;
-    }
-
-    let id_count = i64::try_from(scaling.get_id_count(to_table)).expect("ID count fits in i64");
-    let unique_key =
-        RandomValueGenerator::generate_uniform_random_key(1, id_count, random_number_stream);
-
-    // Match the surrogate key based on the julian date for SCD tables
-    let key = slowly_changing_dimension_utils::match_surrogate_key(
-        unique_key,
-        julian_date,
-        to_table,
-        scaling,
-    );
-
-    if key > i64::try_from(scaling.get_row_count(to_table)).expect("row count fits in i64") {
-        -1
-    } else {
-        key
-    }
-}
-
-/// Generates a join key for web-related tables (web_site, web_page).
-///
-/// Web tables have complex date logic involving site creation, open, and close dates.
-/// Based on JoinKeyUtils.java:generateWebJoinKey (lines 144-175)
-fn generate_web_join_key(
-    from_column: &dyn GeneratorColumn,
-    random_number_stream: &mut RandomNumberStream,
-    join_key: i64,
-    scaling: &Scaling,
-) -> i64 {
-    let global_column_number = from_column.get_global_column_number();
-
-    // WP_CREATION_DATE_SK (global column 371)
-    if global_column_number == 371 {
-        // Page creation has to happen outside of the page window, to assure a constant number of pages,
-        // so it occurs in the gap between site creation and the site's actual activity. For sites that are replaced
-        // in the time span of the data set, this will depend on whether they are the first version or the second
-        let site = (join_key / WEB_PAGES_PER_SITE as i64 + 1) as i32;
-        let web_site_duration = get_web_site_duration(scaling);
-        let min_result = Date::JULIAN_DATE_MINIMUM as i64
-            - ((site as i64 * WEB_DATE_STAGGER) % web_site_duration / 2);
-        return RandomValueGenerator::generate_uniform_random_int(
-            min_result as i32,
-            Date::JULIAN_DATE_MINIMUM,
-            random_number_stream,
-        ) as i64;
-    }
-
-    // WEB_OPEN_DATE for WebPage (global column 340) or WebSite (global column 452)
-    if global_column_number == 340 || global_column_number == 452 {
-        let web_site_duration = get_web_site_duration(scaling);
-        return Date::JULIAN_DATE_MINIMUM as i64
-            - ((join_key * WEB_DATE_STAGGER) % web_site_duration / 2);
-    }
-
-    // WEB_CLOSE_DATE for WebPage (global column 341) or WebSite (global column 453)
-    if global_column_number == 341 || global_column_number == 453 {
-        let web_site_duration = get_web_site_duration(scaling);
-        let mut result = Date::JULIAN_DATE_MINIMUM as i64
-            - ((join_key * WEB_DATE_STAGGER) % web_site_duration / 2);
-        result += -web_site_duration; // the -1 here and below are due to undefined values in the C code
-
-        // the site is completely replaced, and this is the first site
-        if is_replaced(join_key) && !is_replacement(join_key) {
-            // the close date of the first site needs to align on a revision boundary
-            result -= -web_site_duration / 2;
-        }
-        return result;
-    }
-
-    panic!("Invalid column for web join: global column {global_column_number}")
 }
 
 /// Calculates the duration of a web site based on concurrent sites.
@@ -419,10 +347,8 @@ mod tests {
 
     #[test]
     fn test_generate_time_join_key() {
-        use crate::generator::StoreSalesGeneratorColumn;
         let mut stream = RandomNumberStream::new(1);
-        let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
-        let result = generate_time_join_key(&column, &mut stream);
+        let result = generate_time_join_key(HoursWeights::Store, &mut stream);
 
         // Time keys should be in range [0, 86400) seconds in a day
         assert!(
@@ -433,13 +359,11 @@ mod tests {
 
     #[test]
     fn test_generate_time_join_key_deterministic() {
-        use crate::generator::StoreSalesGeneratorColumn;
         let mut stream1 = RandomNumberStream::new(1);
         let mut stream2 = RandomNumberStream::new(1);
-        let column = StoreSalesGeneratorColumn::SsSoldTimeSk;
 
-        let result1 = generate_time_join_key(&column, &mut stream1);
-        let result2 = generate_time_join_key(&column, &mut stream2);
+        let result1 = generate_time_join_key(HoursWeights::Store, &mut stream1);
+        let result2 = generate_time_join_key(HoursWeights::Store, &mut stream2);
 
         assert_eq!(result1, result2, "Same seed should produce same time key");
     }
@@ -453,46 +377,34 @@ mod tests {
         assert!(key > 0, "Key should be positive");
     }
 
-    // NOTE: Test disabled until column::Table vs config::Table is resolved
-    // #[test]
-    // fn test_generate_date_returns_join_key() {
-    //     let mut stream = RandomNumberStream::new(1);
-    //     let sale_date = Date::to_julian_days(&Date::new(2003, 1, 1)) as i64;
-    //
-    //     let return_date = _generate_date_returns_join_key(
-    //         Table::StoreReturns,
-    //         &mut stream,
-    //         sale_date,
-    //     )
-    //     .unwrap();
-    //
-    //     // Return should be after sale
-    //     assert!(return_date > sale_date, "Return date should be after sale date");
-    //
-    //     // Lag should be within expected range
-    //     let lag = return_date - sale_date;
-    //     assert!(lag >= (CS_MIN_SHIP_DELAY * 2) as i64 && lag <= (CS_MAX_SHIP_DELAY * 2) as i64);
-    // }
+    #[test]
+    fn test_generate_returns_date_join_key() {
+        let mut stream = RandomNumberStream::new(1);
+        let sale_date = Date::to_julian_days(&Date::new(2003, 1, 1)) as i64;
 
-    /// Two identical streams, one for `generate_join_key` and one for its
-    /// `skip_*` counterpart.
+        let return_date = generate_returns_date_join_key(
+            &mut stream,
+            sale_date,
+            CS_MIN_SHIP_DELAY,
+            CS_MAX_SHIP_DELAY,
+        );
+
+        let lag = return_date - sale_date;
+        assert!(lag >= (CS_MIN_SHIP_DELAY * 2) as i64 && lag <= (CS_MAX_SHIP_DELAY * 2) as i64);
+    }
+
+    /// Two identical streams, one for a `generate_*` function and one for
+    /// its `skip_*` counterpart.
     fn paired_streams() -> (RandomNumberStream, RandomNumberStream) {
         (RandomNumberStream::new(1), RandomNumberStream::new(1))
     }
 
     #[test]
-    fn test_skip_join_key_matches_generate() {
-        use crate::generator::StoreSalesGeneratorColumn;
+    fn test_skip_uniform_join_key_matches_generate() {
         let scaling = Scaling::new(1.0);
         let (mut generated, mut skipped) = paired_streams();
-        generate_join_key(
-            &StoreSalesGeneratorColumn::SsSoldPromoSk,
-            &mut generated,
-            Table::Promotion,
-            1,
-            &scaling,
-        );
-        skip_join_key(Table::Promotion, &mut skipped);
+        generate_uniform_join_key(Table::Promotion, &mut generated, &scaling);
+        skip_uniform_join_key(&mut skipped);
         assert_eq!(generated.next_random(), skipped.next_random());
     }
 

@@ -13,10 +13,9 @@
  */
 
 use crate::config::Session;
-use crate::config::Table as ConfigTable;
 use crate::distribution::{FirstNamesWeights, NamesDistributions};
 use crate::generator::WebSiteGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
+use crate::join_key_utils::{generate_web_close_date_join_key, generate_web_open_date_join_key};
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::{AbstractRowGenerator, WebSiteRow};
@@ -83,20 +82,16 @@ impl WebSiteRowGenerator {
 
         // Generate open/close dates and name for new business keys only
         let (web_open_date, web_close_date, web_name) = if is_new_business_key {
-            let open_date = generate_join_key(
-                &WebSiteGeneratorColumn::WebOpenDate,
+            let open_date = generate_web_open_date_join_key(
                 self.abstract_generator
                     .get_random_number_stream(&WebSiteGeneratorColumn::WebOpenDate),
-                ConfigTable::DateDim,
                 row_number_i64,
                 scaling,
             );
 
-            let close_date = generate_join_key(
-                &WebSiteGeneratorColumn::WebCloseDate,
+            let close_date = generate_web_close_date_join_key(
                 self.abstract_generator
                     .get_random_number_stream(&WebSiteGeneratorColumn::WebCloseDate),
-                ConfigTable::DateDim,
                 row_number_i64,
                 scaling,
             );

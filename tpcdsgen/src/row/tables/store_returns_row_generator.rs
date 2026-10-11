@@ -16,7 +16,10 @@
 
 use crate::config::Session;
 use crate::generator::StoreReturnsGeneratorColumn;
-use crate::join_key_utils::generate_join_key;
+use crate::join_key_utils::{
+    generate_returns_date_join_key, generate_scd_join_key, generate_uniform_join_key,
+    CS_MAX_SHIP_DELAY, CS_MIN_SHIP_DELAY,
+};
 use crate::nulls::create_null_bit_map;
 use crate::random::RandomValueGenerator;
 use crate::row::store_returns_row::StoreReturnsRow;
@@ -86,13 +89,8 @@ impl StoreReturnsRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SrCustomerSk);
-        let mut sr_customer_sk = generate_join_key(
-            &SrCustomerSk,
-            stream,
-            crate::config::Table::Customer,
-            1,
-            scaling,
-        );
+        let mut sr_customer_sk =
+            generate_uniform_join_key(crate::config::Table::Customer, stream, scaling);
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SrTicketNumber);
@@ -105,12 +103,11 @@ impl StoreReturnsRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SrReturnedDateSk);
-        let sr_returned_date_sk = generate_join_key(
-            &SrReturnedDateSk,
+        let sr_returned_date_sk = generate_returns_date_join_key(
             stream,
-            crate::config::Table::DateDim,
             sales_row.get_ss_sold_date_sk(),
-            scaling,
+            CS_MIN_SHIP_DELAY,
+            CS_MAX_SHIP_DELAY,
         );
 
         // Return time is between 8am and 5pm (8*3600-1 to 17*3600-1 seconds)
@@ -122,46 +119,24 @@ impl StoreReturnsRowGenerator {
                 as i64;
 
         let stream = self.abstract_generator.get_random_number_stream(&SrCdemoSk);
-        let sr_cdemo_sk = generate_join_key(
-            &SrCdemoSk,
-            stream,
-            crate::config::Table::CustomerDemographics,
-            1,
-            scaling,
-        );
+        let sr_cdemo_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerDemographics, stream, scaling);
 
         let stream = self.abstract_generator.get_random_number_stream(&SrHdemoSk);
-        let sr_hdemo_sk = generate_join_key(
-            &SrHdemoSk,
-            stream,
-            crate::config::Table::HouseholdDemographics,
-            1,
-            scaling,
-        );
+        let sr_hdemo_sk =
+            generate_uniform_join_key(crate::config::Table::HouseholdDemographics, stream, scaling);
 
         let stream = self.abstract_generator.get_random_number_stream(&SrAddrSk);
-        let sr_addr_sk = generate_join_key(
-            &SrAddrSk,
-            stream,
-            crate::config::Table::CustomerAddress,
-            1,
-            scaling,
-        );
+        let sr_addr_sk =
+            generate_uniform_join_key(crate::config::Table::CustomerAddress, stream, scaling);
 
         let stream = self.abstract_generator.get_random_number_stream(&SrStoreSk);
-        let sr_store_sk =
-            generate_join_key(&SrStoreSk, stream, crate::config::Table::Store, 1, scaling);
+        let sr_store_sk = generate_scd_join_key(crate::config::Table::Store, stream, 1, scaling);
 
         let stream = self
             .abstract_generator
             .get_random_number_stream(&SrReasonSk);
-        let sr_reason_sk = generate_join_key(
-            &SrReasonSk,
-            stream,
-            crate::config::Table::Reason,
-            1,
-            scaling,
-        );
+        let sr_reason_sk = generate_uniform_join_key(crate::config::Table::Reason, stream, scaling);
 
         // Generate return quantity (1 to original sale quantity)
         let sales_pricing = sales_row.get_ss_pricing();

@@ -72,9 +72,9 @@ impl AbstractRowGenerator {
 
     /// Get a random number stream for a generator column
     /// Uses direct array indexing for O(1) access
-    pub fn get_random_number_stream(
+    pub fn get_random_number_stream<C: GeneratorColumn>(
         &mut self,
-        column: &dyn GeneratorColumn,
+        column: &C,
     ) -> &mut RandomNumberStream {
         let global_column_number = column.get_global_column_number();
         let index = (global_column_number - self.base_global_column_number) as usize;
