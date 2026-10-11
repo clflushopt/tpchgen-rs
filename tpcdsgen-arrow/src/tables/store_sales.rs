@@ -10,6 +10,12 @@ use tpcdsgen::row::{StoreSalesRow, StoreSalesRowGenerator};
 use tpcdsgen::types::{Decimal, Pricing};
 
 /// Generate [`StoreSalesRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next. This only pays off if the consumer drops each [`RecordBatch`] before
+/// pulling the next one; a consumer that keeps every batch (e.g. collects them
+/// into a `Vec`) never reclaims a buffer and pays a small cost per batch for the
+/// extra reference.
 pub struct StoreSalesArrow {
     inner: StoreSalesRowGenerator,
     batch_size: usize,

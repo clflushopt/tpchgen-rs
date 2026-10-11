@@ -180,12 +180,13 @@ pub fn integer_sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i32> {
 /// Builds one primitive column per batch, column-at-a-time, reusing the value
 /// and null buffer allocations from the previous batch.
 ///
-/// Keeps a reference to the last array built. On the next build, if the caller
-/// has dropped its copy, the buffers are converted back into `Vec`s and
-/// refilled; otherwise fresh `Vec`s are allocated.
+/// Keeps a reference to the value and null buffers of the last array built. On
+/// the next build, each buffer whose only remaining reference is ours is
+/// converted back into a `Vec` and refilled; otherwise a fresh `Vec` is used.
 #[derive(Debug)]
 pub struct PrimitiveArrayRecycler<T: ArrowPrimitiveType> {
-    array: Option<PrimitiveArray<T>>,
+    values: Option<ScalarBuffer<T::Native>>,
+    nulls: Option<NullBuffer>,
 }
 
 impl<T: ArrowPrimitiveType> Default for PrimitiveArrayRecycler<T> {
@@ -196,7 +197,10 @@ impl<T: ArrowPrimitiveType> Default for PrimitiveArrayRecycler<T> {
 
 impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
     pub fn new() -> Self {
-        Self { array: None }
+        Self {
+            values: None,
+            nulls: None,
+        }
     }
 
     /// Build an array: one pass over `rows` for the values and a second for
@@ -207,30 +211,39 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
         value: impl Fn(&R) -> T::Native,
         valid: impl Fn(&R) -> bool,
     ) -> PrimitiveArray<T> {
-        let (mut values, mut bits) = self.reclaim();
+        let mut values = self.reclaim_values();
         values.reserve(rows.len());
         values.extend(rows.iter().map(value));
+        let mut bits = self.reclaim_bits();
         pack_bits(&mut bits, rows, valid);
+
+        let values = ScalarBuffer::from(values);
         let nulls = NullBuffer::new(BooleanBuffer::new(Buffer::from_vec(bits), 0, rows.len()));
-        let array = PrimitiveArray::new(ScalarBuffer::from(values), Some(nulls));
-        self.array = Some(array.clone());
-        array
+        self.values = Some(values.clone());
+        self.nulls = Some(nulls.clone());
+        PrimitiveArray::new(values, Some(nulls))
     }
 
-    /// Recover the previous array's buffers as empty `Vec`s, or fresh ones if
-    /// they are still referenced elsewhere.
-    fn reclaim(&mut self) -> (Vec<T::Native>, Vec<u64>) {
-        let Some(array) = self.array.take() else {
-            return (Vec::new(), Vec::new());
-        };
-        let (_, values, nulls) = array.into_parts();
-        let mut values = values.into_inner().into_vec().unwrap_or_default();
-        values.clear();
-        let mut bits = nulls
+    /// Previous value buffer as an empty `Vec`, or a fresh one if still shared.
+    fn reclaim_values(&mut self) -> Vec<T::Native> {
+        let mut v = self
+            .values
+            .take()
+            .and_then(|b| b.into_inner().into_vec().ok())
+            .unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    /// Previous null bitmap as an empty `Vec<u64>`, or a fresh one if still shared.
+    fn reclaim_bits(&mut self) -> Vec<u64> {
+        let mut v = self
+            .nulls
+            .take()
             .and_then(|n| n.into_inner().into_inner().into_vec().ok())
             .unwrap_or_default();
-        bits.clear();
-        (values, bits)
+        v.clear();
+        v
     }
 }
 
@@ -476,17 +489,20 @@ mod tests {
         assert_eq!(a.value(1), 1);
         assert_eq!(a.null_count(), 16); // 15 multiples of 7 + row 50
         let ptr = a.values().as_ptr();
+        let null_ptr = a.nulls().unwrap().validity().as_ptr();
         drop(a);
 
-        // Sole reference dropped: the same allocation comes back
+        // Sole reference dropped: the same allocations come back
         let b = rec.int32_sk(&rows[..10], 0, |_| 0, |r| *r);
         assert_eq!(b.values().as_ptr(), ptr);
+        assert_eq!(b.nulls().unwrap().validity().as_ptr(), null_ptr);
         assert_eq!(b.null_count(), 0);
         assert_eq!(b.values(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
         // Still held by the caller: a fresh allocation is used, values are still right
         let c = rec.int32_sk(&rows[..3], 0, |_| 0, |_| -1);
         assert_ne!(c.values().as_ptr(), ptr);
+        assert_ne!(c.nulls().unwrap().validity().as_ptr(), null_ptr);
         assert_eq!(c.null_count(), 3);
         assert_eq!(b.values(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     }
