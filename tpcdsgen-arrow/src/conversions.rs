@@ -203,7 +203,7 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
         }
     }
 
-    /// Build an array: one pass over `rows` for the values and a second for
+    /// Build an array one pass over `rows` for the values and a second for
     /// the validity bitmap (`valid` returns true for non-null rows).
     pub fn build<R>(
         &mut self,
@@ -224,7 +224,7 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
         PrimitiveArray::new(values, Some(nulls))
     }
 
-    /// Previous value buffer as an empty `Vec`, or a fresh one if still shared.
+    /// Returns the previous value buffer as an empty `Vec`, or a new one if still shared.
     fn reclaim_values(&mut self) -> Vec<T::Native> {
         let mut v = self
             .values
@@ -235,7 +235,7 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
         v
     }
 
-    /// Previous null bitmap as an empty `Vec<u64>`, or a fresh one if still shared.
+    /// Returns the previous null bitmap as an empty `Vec<u64>`, or a new one if still shared.
     fn reclaim_bits(&mut self) -> Vec<u64> {
         let mut v = self
             .nulls
