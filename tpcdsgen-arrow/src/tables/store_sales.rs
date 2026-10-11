@@ -126,117 +126,98 @@ impl Iterator for StoreSalesArrow {
         }
 
         let schema = self.schema();
+        let Self {
+            ss_sold_date_sk,
+            ss_sold_time_sk,
+            ss_item_sk,
+            ss_customer_sk,
+            ss_cdemo_sk,
+            ss_hdemo_sk,
+            ss_addr_sk,
+            ss_store_sk,
+            ss_promo_sk,
+            ss_ticket_number,
+            ss_quantity,
+            ss_wholesale_cost,
+            ss_list_price,
+            ss_sales_price,
+            ss_ext_discount_amt,
+            ss_ext_sales_price,
+            ss_ext_wholesale_cost,
+            ss_ext_list_price,
+            ss_ext_tax,
+            ss_coupon_amt,
+            ss_net_paid,
+            ss_net_paid_inc_tax,
+            ss_net_profit,
+            ..
+        } = self;
         let nbm = StoreSalesRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&StoreSalesRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let sk64 =
+            |rec: &mut PrimitiveArrayRecycler<Int64Type>, pos, f: fn(&StoreSalesRow) -> i64| {
+                rec.int64_sk(rows, pos, nbm, f)
+            };
         let dec =
             |rec: &mut PrimitiveArrayRecycler<Decimal128Type>, pos, f: fn(&Pricing) -> Decimal| {
                 rec.decimal_7_2(rows, pos, nbm, |r| f(r.get_ss_pricing()))
             };
 
+        let ss_sold_date_sk = sk32(ss_sold_date_sk, 0, StoreSalesRow::get_ss_sold_date_sk);
+        let ss_sold_time_sk = sk32(ss_sold_time_sk, 1, StoreSalesRow::get_ss_sold_time_sk);
+        let ss_item_sk = sk32(ss_item_sk, 2, StoreSalesRow::get_ss_sold_item_sk);
+        let ss_customer_sk = sk32(ss_customer_sk, 3, StoreSalesRow::get_ss_sold_customer_sk);
+        let ss_cdemo_sk = sk32(ss_cdemo_sk, 4, StoreSalesRow::get_ss_sold_cdemo_sk);
+        let ss_hdemo_sk = sk32(ss_hdemo_sk, 5, StoreSalesRow::get_ss_sold_hdemo_sk);
+        let ss_addr_sk = sk32(ss_addr_sk, 6, StoreSalesRow::get_ss_sold_addr_sk);
+        let ss_store_sk = sk32(ss_store_sk, 7, StoreSalesRow::get_ss_sold_store_sk);
+        let ss_promo_sk = sk32(ss_promo_sk, 8, StoreSalesRow::get_ss_sold_promo_sk);
+        let ss_ticket_number = sk64(ss_ticket_number, 9, StoreSalesRow::get_ss_ticket_number);
+        let ss_quantity = ss_quantity.int32(rows, 10, nbm, |r| r.get_ss_pricing().get_quantity());
+        let ss_wholesale_cost = dec(ss_wholesale_cost, 11, Pricing::get_wholesale_cost);
+        let ss_list_price = dec(ss_list_price, 12, Pricing::get_list_price);
+        let ss_sales_price = dec(ss_sales_price, 13, Pricing::get_sales_price);
+        // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
+        let ss_ext_discount_amt = dec(ss_ext_discount_amt, 14, Pricing::get_coupon_amount);
+        let ss_ext_sales_price = dec(ss_ext_sales_price, 15, Pricing::get_ext_sales_price);
+        let ss_ext_wholesale_cost = dec(ss_ext_wholesale_cost, 16, Pricing::get_ext_wholesale_cost);
+        let ss_ext_list_price = dec(ss_ext_list_price, 17, Pricing::get_ext_list_price);
+        let ss_ext_tax = dec(ss_ext_tax, 18, Pricing::get_ext_tax);
+        // Java bug: coupon_amount appears again at position 19
+        let ss_coupon_amt = dec(ss_coupon_amt, 14, Pricing::get_coupon_amount);
+        let ss_net_paid = dec(ss_net_paid, 19, Pricing::get_net_paid);
+        let ss_net_paid_inc_tax = dec(ss_net_paid_inc_tax, 20, Pricing::get_net_paid_including_tax);
+        let ss_net_profit = dec(ss_net_profit, 21, Pricing::get_net_profit);
+
         let batch = RecordBatch::try_new(
             schema,
             vec![
-                Arc::new(self.ss_sold_date_sk.int32_sk(
-                    rows,
-                    0,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_date_sk,
-                )),
-                Arc::new(self.ss_sold_time_sk.int32_sk(
-                    rows,
-                    1,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_time_sk,
-                )),
-                Arc::new(self.ss_item_sk.int32_sk(
-                    rows,
-                    2,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_item_sk,
-                )),
-                Arc::new(self.ss_customer_sk.int32_sk(
-                    rows,
-                    3,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_customer_sk,
-                )),
-                Arc::new(self.ss_cdemo_sk.int32_sk(
-                    rows,
-                    4,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_cdemo_sk,
-                )),
-                Arc::new(self.ss_hdemo_sk.int32_sk(
-                    rows,
-                    5,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_hdemo_sk,
-                )),
-                Arc::new(self.ss_addr_sk.int32_sk(
-                    rows,
-                    6,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_addr_sk,
-                )),
-                Arc::new(self.ss_store_sk.int32_sk(
-                    rows,
-                    7,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_store_sk,
-                )),
-                Arc::new(self.ss_promo_sk.int32_sk(
-                    rows,
-                    8,
-                    nbm,
-                    StoreSalesRow::get_ss_sold_promo_sk,
-                )),
-                Arc::new(self.ss_ticket_number.int64_sk(
-                    rows,
-                    9,
-                    nbm,
-                    StoreSalesRow::get_ss_ticket_number,
-                )),
-                Arc::new(
-                    self.ss_quantity
-                        .int32(rows, 10, nbm, |r| r.get_ss_pricing().get_quantity()),
-                ),
-                Arc::new(dec(
-                    &mut self.ss_wholesale_cost,
-                    11,
-                    Pricing::get_wholesale_cost,
-                )),
-                Arc::new(dec(&mut self.ss_list_price, 12, Pricing::get_list_price)),
-                Arc::new(dec(&mut self.ss_sales_price, 13, Pricing::get_sales_price)),
-                // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
-                Arc::new(dec(
-                    &mut self.ss_ext_discount_amt,
-                    14,
-                    Pricing::get_coupon_amount,
-                )),
-                Arc::new(dec(
-                    &mut self.ss_ext_sales_price,
-                    15,
-                    Pricing::get_ext_sales_price,
-                )),
-                Arc::new(dec(
-                    &mut self.ss_ext_wholesale_cost,
-                    16,
-                    Pricing::get_ext_wholesale_cost,
-                )),
-                Arc::new(dec(
-                    &mut self.ss_ext_list_price,
-                    17,
-                    Pricing::get_ext_list_price,
-                )),
-                Arc::new(dec(&mut self.ss_ext_tax, 18, Pricing::get_ext_tax)),
-                // Java bug: coupon_amount appears again at position 19
-                Arc::new(dec(&mut self.ss_coupon_amt, 14, Pricing::get_coupon_amount)),
-                Arc::new(dec(&mut self.ss_net_paid, 19, Pricing::get_net_paid)),
-                Arc::new(dec(
-                    &mut self.ss_net_paid_inc_tax,
-                    20,
-                    Pricing::get_net_paid_including_tax,
-                )),
-                Arc::new(dec(&mut self.ss_net_profit, 21, Pricing::get_net_profit)),
+                Arc::new(ss_sold_date_sk),
+                Arc::new(ss_sold_time_sk),
+                Arc::new(ss_item_sk),
+                Arc::new(ss_customer_sk),
+                Arc::new(ss_cdemo_sk),
+                Arc::new(ss_hdemo_sk),
+                Arc::new(ss_addr_sk),
+                Arc::new(ss_store_sk),
+                Arc::new(ss_promo_sk),
+                Arc::new(ss_ticket_number),
+                Arc::new(ss_quantity),
+                Arc::new(ss_wholesale_cost),
+                Arc::new(ss_list_price),
+                Arc::new(ss_sales_price),
+                Arc::new(ss_ext_discount_amt),
+                Arc::new(ss_ext_sales_price),
+                Arc::new(ss_ext_wholesale_cost),
+                Arc::new(ss_ext_list_price),
+                Arc::new(ss_ext_tax),
+                Arc::new(ss_coupon_amt),
+                Arc::new(ss_net_paid),
+                Arc::new(ss_net_paid_inc_tax),
+                Arc::new(ss_net_profit),
             ],
         );
         Some(batch)
