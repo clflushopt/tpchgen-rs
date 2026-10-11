@@ -51,37 +51,3 @@ pub use web_page_generator_column::WebPageGeneratorColumn;
 pub use web_returns_generator_column::WebReturnsGeneratorColumn;
 pub use web_sales_generator_column::WebSalesGeneratorColumn;
 pub use web_site_generator_column::WebSiteGeneratorColumn;
-
-macro_rules! seal {
-    ($($column:ident),* $(,)?) => {
-        $(impl generator_column::sealed::Sealed for $column {})*
-    };
-}
-
-seal!(
-    CallCenterGeneratorColumn,
-    CatalogPageGeneratorColumn,
-    CatalogReturnsGeneratorColumn,
-    CatalogSalesGeneratorColumn,
-    CustomerAddressGeneratorColumn,
-    CustomerDemographicsGeneratorColumn,
-    CustomerGeneratorColumn,
-    DateDimGeneratorColumn,
-    DbgenVersionGeneratorColumn,
-    HouseholdDemographicsGeneratorColumn,
-    IncomeBandGeneratorColumn,
-    InventoryGeneratorColumn,
-    ItemGeneratorColumn,
-    PromotionGeneratorColumn,
-    ReasonGeneratorColumn,
-    ShipModeGeneratorColumn,
-    StoreGeneratorColumn,
-    StoreReturnsGeneratorColumn,
-    StoreSalesGeneratorColumn,
-    TimeDimGeneratorColumn,
-    WarehouseGeneratorColumn,
-    WebPageGeneratorColumn,
-    WebReturnsGeneratorColumn,
-    WebSalesGeneratorColumn,
-    WebSiteGeneratorColumn,
-);

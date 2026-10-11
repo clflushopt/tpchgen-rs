@@ -66,12 +66,7 @@ impl<C: GeneratorColumn> AbstractRowGenerator<C> {
     #[inline]
     pub fn get_random_number_stream(&mut self, column: &C) -> &mut RandomNumberStream {
         let index = (column.get_global_column_number() - self.base_global_column_number) as usize;
-        debug_assert!(index < self.random_number_streams.len());
-        // SAFETY: only columns of type `C` can be passed in. `GeneratorColumn`
-        // is sealed and `new` verified that `C::values()` has contiguous global
-        // column numbers starting at `base_global_column_number`, with one
-        // stream per column, so `index` is always in bounds.
-        unsafe { self.random_number_streams.get_unchecked_mut(index) }
+        &mut self.random_number_streams[index]
     }
 
     /// Consume remaining seeds for all streams (AbstractRowGenerator.consumeRemainingSeedsForRow)
