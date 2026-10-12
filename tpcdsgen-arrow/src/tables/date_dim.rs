@@ -1,9 +1,9 @@
 use crate::conversions::{
-    bool_to_yn, date_to_date32, integer_sk_opt, string_view_array_from_opt_iter,
+    bool_to_yn, date_to_date32, PrimitiveArrayRecycler, StringViewArrayRecycler,
 };
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Date32Array, Int32Array, RecordBatch, StringViewBuilder};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Date32Type, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -11,11 +11,45 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{DateDimRow, DateDimRowGenerator};
 
 /// Generate [`DateDimRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct DateDimArrow {
     inner: DateDimRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<DateDimRow>,
+    d_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    d_date_id: StringViewArrayRecycler,
+    d_date: PrimitiveArrayRecycler<Date32Type>,
+    d_month_seq: PrimitiveArrayRecycler<Int32Type>,
+    d_week_seq: PrimitiveArrayRecycler<Int32Type>,
+    d_quarter_seq: PrimitiveArrayRecycler<Int32Type>,
+    d_year: PrimitiveArrayRecycler<Int32Type>,
+    d_dow: PrimitiveArrayRecycler<Int32Type>,
+    d_moy: PrimitiveArrayRecycler<Int32Type>,
+    d_dom: PrimitiveArrayRecycler<Int32Type>,
+    d_qoy: PrimitiveArrayRecycler<Int32Type>,
+    d_fy_year: PrimitiveArrayRecycler<Int32Type>,
+    d_fy_quarter_seq: PrimitiveArrayRecycler<Int32Type>,
+    d_fy_week_seq: PrimitiveArrayRecycler<Int32Type>,
+    d_day_name: StringViewArrayRecycler,
+    d_quarter_name: StringViewArrayRecycler,
+    d_holiday: StringViewArrayRecycler,
+    d_weekend: StringViewArrayRecycler,
+    d_following_holiday: StringViewArrayRecycler,
+    d_first_dom: PrimitiveArrayRecycler<Int32Type>,
+    d_last_dom: PrimitiveArrayRecycler<Int32Type>,
+    d_same_day_ly: PrimitiveArrayRecycler<Int32Type>,
+    d_same_day_lq: PrimitiveArrayRecycler<Int32Type>,
+    d_current_day: StringViewArrayRecycler,
+    d_current_week: StringViewArrayRecycler,
+    d_current_month: StringViewArrayRecycler,
+    d_current_quarter: StringViewArrayRecycler,
+    d_current_year: StringViewArrayRecycler,
 }
 
 impl DateDimArrow {
@@ -30,6 +64,34 @@ impl DateDimArrow {
             inner: DateDimRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            d_date_sk: PrimitiveArrayRecycler::new(),
+            d_date_id: StringViewArrayRecycler::new(),
+            d_date: PrimitiveArrayRecycler::new(),
+            d_month_seq: PrimitiveArrayRecycler::new(),
+            d_week_seq: PrimitiveArrayRecycler::new(),
+            d_quarter_seq: PrimitiveArrayRecycler::new(),
+            d_year: PrimitiveArrayRecycler::new(),
+            d_dow: PrimitiveArrayRecycler::new(),
+            d_moy: PrimitiveArrayRecycler::new(),
+            d_dom: PrimitiveArrayRecycler::new(),
+            d_qoy: PrimitiveArrayRecycler::new(),
+            d_fy_year: PrimitiveArrayRecycler::new(),
+            d_fy_quarter_seq: PrimitiveArrayRecycler::new(),
+            d_fy_week_seq: PrimitiveArrayRecycler::new(),
+            d_day_name: StringViewArrayRecycler::new(),
+            d_quarter_name: StringViewArrayRecycler::new(),
+            d_holiday: StringViewArrayRecycler::new(),
+            d_weekend: StringViewArrayRecycler::new(),
+            d_following_holiday: StringViewArrayRecycler::new(),
+            d_first_dom: PrimitiveArrayRecycler::new(),
+            d_last_dom: PrimitiveArrayRecycler::new(),
+            d_same_day_ly: PrimitiveArrayRecycler::new(),
+            d_same_day_lq: PrimitiveArrayRecycler::new(),
+            d_current_day: StringViewArrayRecycler::new(),
+            d_current_week: StringViewArrayRecycler::new(),
+            d_current_month: StringViewArrayRecycler::new(),
+            d_current_quarter: StringViewArrayRecycler::new(),
+            d_current_year: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -74,127 +136,107 @@ impl Iterator for DateDimArrow {
             return None;
         }
 
-        let mut d_date_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut d_date_id: Vec<&str> = Vec::with_capacity(rows.len());
-        let mut d_date: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_month_seq: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_week_seq: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_quarter_seq: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_year: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_dow: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_moy: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_dom: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_qoy: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_fy_year: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_fy_quarter_seq: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_fy_week_seq: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_day_name: Vec<&str> = Vec::with_capacity(rows.len());
-        let mut d_quarter_name: Vec<&str> = Vec::with_capacity(rows.len());
-        let mut d_holiday: Vec<&'static str> = Vec::with_capacity(rows.len());
-        let mut d_weekend: Vec<&'static str> = Vec::with_capacity(rows.len());
-        let mut d_following_holiday: Vec<&'static str> = Vec::with_capacity(rows.len());
-        let mut d_first_dom: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_last_dom: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_same_day_ly: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_same_day_lq: Vec<i32> = Vec::with_capacity(rows.len());
-        let mut d_current_day: Vec<&'static str> = Vec::with_capacity(rows.len());
-        let mut d_current_week: Vec<&'static str> = Vec::with_capacity(rows.len());
-        let mut d_current_month: Vec<&'static str> = Vec::with_capacity(rows.len());
-        let mut d_current_quarter: Vec<&'static str> = Vec::with_capacity(rows.len());
-        let mut d_current_year: Vec<&'static str> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            d_date_sk,
+            d_date_id,
+            d_date,
+            d_month_seq,
+            d_week_seq,
+            d_quarter_seq,
+            d_year,
+            d_dow,
+            d_moy,
+            d_dom,
+            d_qoy,
+            d_fy_year,
+            d_fy_quarter_seq,
+            d_fy_week_seq,
+            d_day_name,
+            d_quarter_name,
+            d_holiday,
+            d_weekend,
+            d_following_holiday,
+            d_first_dom,
+            d_last_dom,
+            d_same_day_ly,
+            d_same_day_lq,
+            d_current_day,
+            d_current_week,
+            d_current_month,
+            d_current_quarter,
+            d_current_year,
+            ..
+        } = self;
+        let nbm = DateDimRow::null_bit_map;
+        // Only d_date_sk consults the null bitmap; every other column is non-null.
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>, f: fn(&DateDimRow) -> i32| {
+            rec.build(rows, f, |_| true)
+        };
+        let str = |rec: &mut StringViewArrayRecycler, f: fn(&DateDimRow) -> &str| {
+            rec.build(rows, |r| Some(f(r)))
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            d_date_sk.push(integer_sk_opt(nbm, 0, r.d_date_sk));
-            d_date_id.push(r.d_date_id.as_str());
-            d_date.push(date_to_date32(&r.d_date));
-            d_month_seq.push(r.d_month_seq);
-            d_week_seq.push(r.d_week_seq);
-            d_quarter_seq.push(r.d_quarter_seq);
-            d_year.push(r.d_year);
-            d_dow.push(r.d_dow);
-            d_moy.push(r.d_moy);
-            d_dom.push(r.d_dom);
-            d_qoy.push(r.d_qoy);
-            d_fy_year.push(r.d_fy_year);
-            d_fy_quarter_seq.push(r.d_fy_quarter_seq);
-            d_fy_week_seq.push(r.d_fy_week_seq);
-            d_day_name.push(r.d_day_name.as_str());
-            d_quarter_name.push(r.d_quarter_name.as_str());
-            d_holiday.push(bool_to_yn(r.d_holiday));
-            d_weekend.push(bool_to_yn(r.d_weekend));
-            d_following_holiday.push(bool_to_yn(r.d_following_holiday));
-            d_first_dom.push(r.d_first_dom);
-            d_last_dom.push(r.d_last_dom);
-            d_same_day_ly.push(r.d_same_day_ly);
-            d_same_day_lq.push(r.d_same_day_lq);
-            d_current_day.push(bool_to_yn(r.d_current_day));
-            d_current_week.push(bool_to_yn(r.d_current_week));
-            d_current_month.push(bool_to_yn(r.d_current_month));
-            d_current_quarter.push(bool_to_yn(r.d_current_quarter));
-            d_current_year.push(bool_to_yn(r.d_current_year));
-        }
-
-        let mut id_b = StringViewBuilder::with_capacity(d_date_id.len());
-        for s in &d_date_id {
-            id_b.append_value(s);
-        }
-        let mut day_name_b = StringViewBuilder::with_capacity(d_day_name.len());
-        for s in &d_day_name {
-            day_name_b.append_value(s);
-        }
-        let mut quarter_name_b = StringViewBuilder::with_capacity(d_quarter_name.len());
-        for s in &d_quarter_name {
-            quarter_name_b.append_value(s);
-        }
+        let d_date_sk = d_date_sk.int32_sk(rows, 0, nbm, |r| r.d_date_sk);
+        let d_date_id = str(d_date_id, |r| r.d_date_id.as_str());
+        let d_date = d_date.build(rows, |r| date_to_date32(&r.d_date), |_| true);
+        let d_month_seq = int(d_month_seq, |r| r.d_month_seq);
+        let d_week_seq = int(d_week_seq, |r| r.d_week_seq);
+        let d_quarter_seq = int(d_quarter_seq, |r| r.d_quarter_seq);
+        let d_year = int(d_year, |r| r.d_year);
+        let d_dow = int(d_dow, |r| r.d_dow);
+        let d_moy = int(d_moy, |r| r.d_moy);
+        let d_dom = int(d_dom, |r| r.d_dom);
+        let d_qoy = int(d_qoy, |r| r.d_qoy);
+        let d_fy_year = int(d_fy_year, |r| r.d_fy_year);
+        let d_fy_quarter_seq = int(d_fy_quarter_seq, |r| r.d_fy_quarter_seq);
+        let d_fy_week_seq = int(d_fy_week_seq, |r| r.d_fy_week_seq);
+        let d_day_name = str(d_day_name, |r| r.d_day_name.as_str());
+        let d_quarter_name = str(d_quarter_name, |r| r.d_quarter_name.as_str());
+        let d_holiday = str(d_holiday, |r| bool_to_yn(r.d_holiday));
+        let d_weekend = str(d_weekend, |r| bool_to_yn(r.d_weekend));
+        let d_following_holiday = str(d_following_holiday, |r| bool_to_yn(r.d_following_holiday));
+        let d_first_dom = int(d_first_dom, |r| r.d_first_dom);
+        let d_last_dom = int(d_last_dom, |r| r.d_last_dom);
+        let d_same_day_ly = int(d_same_day_ly, |r| r.d_same_day_ly);
+        let d_same_day_lq = int(d_same_day_lq, |r| r.d_same_day_lq);
+        let d_current_day = str(d_current_day, |r| bool_to_yn(r.d_current_day));
+        let d_current_week = str(d_current_week, |r| bool_to_yn(r.d_current_week));
+        let d_current_month = str(d_current_month, |r| bool_to_yn(r.d_current_month));
+        let d_current_quarter = str(d_current_quarter, |r| bool_to_yn(r.d_current_quarter));
+        let d_current_year = str(d_current_year, |r| bool_to_yn(r.d_current_year));
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(d_date_sk)),
-                Arc::new(id_b.finish()),
-                Arc::new(Date32Array::from_iter_values(d_date)),
-                Arc::new(Int32Array::from_iter_values(d_month_seq)),
-                Arc::new(Int32Array::from_iter_values(d_week_seq)),
-                Arc::new(Int32Array::from_iter_values(d_quarter_seq)),
-                Arc::new(Int32Array::from_iter_values(d_year)),
-                Arc::new(Int32Array::from_iter_values(d_dow)),
-                Arc::new(Int32Array::from_iter_values(d_moy)),
-                Arc::new(Int32Array::from_iter_values(d_dom)),
-                Arc::new(Int32Array::from_iter_values(d_qoy)),
-                Arc::new(Int32Array::from_iter_values(d_fy_year)),
-                Arc::new(Int32Array::from_iter_values(d_fy_quarter_seq)),
-                Arc::new(Int32Array::from_iter_values(d_fy_week_seq)),
-                Arc::new(day_name_b.finish()),
-                Arc::new(quarter_name_b.finish()),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_holiday.iter().map(|s| Some(*s)),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_weekend.iter().map(|s| Some(*s)),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_following_holiday.iter().map(|s| Some(*s)),
-                )),
-                Arc::new(Int32Array::from_iter_values(d_first_dom)),
-                Arc::new(Int32Array::from_iter_values(d_last_dom)),
-                Arc::new(Int32Array::from_iter_values(d_same_day_ly)),
-                Arc::new(Int32Array::from_iter_values(d_same_day_lq)),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_current_day.iter().map(|s| Some(*s)),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_current_week.iter().map(|s| Some(*s)),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_current_month.iter().map(|s| Some(*s)),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_current_quarter.iter().map(|s| Some(*s)),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    d_current_year.iter().map(|s| Some(*s)),
-                )),
+                Arc::new(d_date_sk),
+                Arc::new(d_date_id),
+                Arc::new(d_date),
+                Arc::new(d_month_seq),
+                Arc::new(d_week_seq),
+                Arc::new(d_quarter_seq),
+                Arc::new(d_year),
+                Arc::new(d_dow),
+                Arc::new(d_moy),
+                Arc::new(d_dom),
+                Arc::new(d_qoy),
+                Arc::new(d_fy_year),
+                Arc::new(d_fy_quarter_seq),
+                Arc::new(d_fy_week_seq),
+                Arc::new(d_day_name),
+                Arc::new(d_quarter_name),
+                Arc::new(d_holiday),
+                Arc::new(d_weekend),
+                Arc::new(d_following_holiday),
+                Arc::new(d_first_dom),
+                Arc::new(d_last_dom),
+                Arc::new(d_same_day_ly),
+                Arc::new(d_same_day_lq),
+                Arc::new(d_current_day),
+                Arc::new(d_current_week),
+                Arc::new(d_current_month),
+                Arc::new(d_current_quarter),
+                Arc::new(d_current_year),
             ],
         );
         Some(batch)
