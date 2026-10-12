@@ -212,7 +212,7 @@ impl CallCenterRowGenerator {
             .get_random_number_stream(&CallCenterGeneratorColumn::CcMarketClass);
         let mut cc_market_class =
             self.text
-                .generate_random_text(20, WIDTH_CC_MARKET_CLASS, market_class_stream);
+                .random_text(20, WIDTH_CC_MARKET_CLASS, market_class_stream);
         if let Some(ref prev_row) = self.previous_row {
             cc_market_class = get_value_for_slowly_changing_dimension(
                 field_change_flag,
@@ -228,7 +228,7 @@ impl CallCenterRowGenerator {
             .get_random_number_stream(&CallCenterGeneratorColumn::CcMarketDesc);
         let mut cc_market_desc =
             self.text
-                .generate_random_text(20, WIDTH_CC_MARKET_DESC, market_desc_stream);
+                .random_text(20, WIDTH_CC_MARKET_DESC, market_desc_stream);
         if let Some(ref prev_row) = self.previous_row {
             cc_market_desc = get_value_for_slowly_changing_dimension(
                 field_change_flag,

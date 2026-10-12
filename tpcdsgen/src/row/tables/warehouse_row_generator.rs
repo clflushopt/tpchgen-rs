@@ -48,7 +48,7 @@ impl WarehouseRowGenerator {
         let name_stream = self
             .abstract_generator
             .get_random_number_stream(&WarehouseGeneratorColumn::WWarehouseName);
-        let w_warehouse_name = self.text.generate_random_text(10, 20, name_stream);
+        let w_warehouse_name = self.text.random_text(10, 20, name_stream);
 
         let sq_ft_stream = self
             .abstract_generator

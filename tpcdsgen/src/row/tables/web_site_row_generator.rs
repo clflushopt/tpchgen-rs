@@ -170,7 +170,7 @@ impl WebSiteRowGenerator {
         field_change_flags >>= 1;
 
         // Generate web_market_class
-        let mut web_market_class = self.text.generate_random_text(
+        let mut web_market_class = self.text.random_text(
             20,
             50,
             self.abstract_generator
@@ -187,7 +187,7 @@ impl WebSiteRowGenerator {
         field_change_flags >>= 1;
 
         // Generate web_market_desc
-        let mut web_market_desc = self.text.generate_random_text(
+        let mut web_market_desc = self.text.random_text(
             20,
             100,
             self.abstract_generator

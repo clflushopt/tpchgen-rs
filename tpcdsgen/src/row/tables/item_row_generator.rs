@@ -104,9 +104,7 @@ impl ItemRowGenerator {
 
         // Generate item description
         let stream = self.abstract_generator.get_random_number_stream(&IItemDesc);
-        let mut i_item_desc = self
-            .text
-            .generate_random_text(1, ROW_SIZE_I_ITEM_DESC, stream);
+        let mut i_item_desc = self.text.random_text(1, ROW_SIZE_I_ITEM_DESC, stream);
         if let Some(ref prev_row) = self.previous_row {
             i_item_desc = get_value_for_slowly_changing_dimension(
                 field_change_flags,

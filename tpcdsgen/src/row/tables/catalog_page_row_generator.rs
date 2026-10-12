@@ -100,11 +100,9 @@ impl CatalogPageRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CpDescription);
-        let cp_description = self.text.generate_random_text(
-            WIDTH_CP_DESCRIPTION / 2,
-            WIDTH_CP_DESCRIPTION - 1,
-            stream,
-        );
+        let cp_description =
+            self.text
+                .random_text(WIDTH_CP_DESCRIPTION / 2, WIDTH_CP_DESCRIPTION - 1, stream);
 
         CatalogPageRow::new(
             null_bit_map,

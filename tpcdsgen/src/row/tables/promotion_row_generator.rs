@@ -151,7 +151,7 @@ impl PromotionRowGenerator {
 
         let p_discount_active = (flags & 0x01) != 0;
 
-        let p_channel_details = self.text.generate_random_text(
+        let p_channel_details = self.text.random_text(
             PROMO_DETAIL_LENGTH_MIN,
             PROMO_DETAIL_LENGTH_MAX,
             self.abstract_row_generator

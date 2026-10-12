@@ -231,9 +231,9 @@ impl StoreRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WStoreMarketDesc);
-        let mut market_desc =
-            self.text
-                .generate_random_text(STORE_DESC_MIN, ROW_SIZE_S_MARKET_DESC, stream);
+        let mut market_desc = self
+            .text
+            .random_text(STORE_DESC_MIN, ROW_SIZE_S_MARKET_DESC, stream);
         if let Some(ref prev_row) = self.previous_row {
             market_desc = get_value_for_slowly_changing_dimension(
                 field_change_flags,

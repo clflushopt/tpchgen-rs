@@ -284,7 +284,7 @@ impl RandomTextGenerator {
     }
 
     // Generate random text following Java implementation exactly
-    pub fn generate_random_text(
+    pub fn random_text(
         &self,
         min_length: i32,
         max_length: i32,
@@ -299,7 +299,7 @@ impl RandomTextGenerator {
         );
 
         while target_length > 0 {
-            let mut generated = self.generate_random_sentence(random_number_stream);
+            let mut generated = self.random_sentence(random_number_stream);
             if is_sentence_beginning && !generated.is_empty() {
                 let first_char = generated
                     .chars()
@@ -331,7 +331,7 @@ impl RandomTextGenerator {
     }
 
     // Generate random sentence following Java implementation exactly
-    fn generate_random_sentence(&self, stream: &mut RandomNumberStream) -> String {
+    fn random_sentence(&self, stream: &mut RandomNumberStream) -> String {
         use crate::distribution::*;
 
         let mut verbiage = String::new();
