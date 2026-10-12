@@ -1,10 +1,11 @@
 //! Routines to convert TPC-DS types to Arrow types
 
 use arrow::array::{
-    Decimal128Array, Int32Array, Int64Array, PrimitiveArray, StringViewArray, StringViewBuilder,
+    Date32Array, Decimal128Array, Int32Array, Int64Array, PrimitiveArray, StringViewArray,
+    StringViewBuilder,
 };
 use arrow::buffer::{BooleanBuffer, Buffer, NullBuffer, ScalarBuffer};
-use arrow::datatypes::{ArrowPrimitiveType, Decimal128Type, Int32Type, Int64Type};
+use arrow::datatypes::{ArrowPrimitiveType, Date32Type, Decimal128Type, Int32Type, Int64Type};
 use tpcdsgen::types::{Address, Date, Decimal};
 
 /// Julian day number for the Unix epoch (1970-01-01)
@@ -303,6 +304,23 @@ impl PrimitiveArrayRecycler<Int32Type> {
 }
 
 impl PrimitiveArrayRecycler<Int64Type> {
+    /// Nullable BIGINT column
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `value`: function to get the integer value for a row
+    pub fn int64<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> i64,
+    ) -> Int64Array {
+        self.build(rows, value, |r| !is_null(nbm(r), pos))
+    }
+
     /// Nullable BIGINT surrogate key
     ///
     /// See [`sk_opt`] for details on how nulls and absent keys are handled.
@@ -324,13 +342,43 @@ impl PrimitiveArrayRecycler<Int64Type> {
 }
 
 impl PrimitiveArrayRecycler<Decimal128Type> {
-    /// Nullable DECIMAL(7,2) column
+    /// Nullable DECIMAL(precision, scale) column
     ///
     /// Arguments:
     /// * `rows`: slice of rows to build the array from
     /// * `pos`: bit position in the null bitmap indicating null values
     /// * `nbm`: function to get the null bitmap for a row
-    /// * `value`: function to get the decimal value for a row
+    /// * `value`: function to get the unscaled decimal value for a row
+    pub fn decimal<R>(
+        &mut self,
+        rows: &[R],
+        precision: u8,
+        scale: i8,
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> i128,
+    ) -> Decimal128Array {
+        self.build(rows, value, |r| !is_null(nbm(r), pos))
+            .with_precision_and_scale(precision, scale)
+            .unwrap()
+    }
+
+    /// Nullable DECIMAL(5,2) column
+    ///
+    /// Arguments: as [`Self::decimal`]
+    pub fn decimal_5_2<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> Decimal,
+    ) -> Decimal128Array {
+        self.decimal(rows, 5, 2, pos, nbm, |r| decimal_to_i128(value(r)))
+    }
+
+    /// Nullable DECIMAL(7,2) column
+    ///
+    /// Arguments: as [`Self::decimal`]
     pub fn decimal_7_2<R>(
         &mut self,
         rows: &[R],
@@ -338,13 +386,75 @@ impl PrimitiveArrayRecycler<Decimal128Type> {
         nbm: impl Fn(&R) -> i64,
         value: impl Fn(&R) -> Decimal,
     ) -> Decimal128Array {
+        self.decimal(rows, 7, 2, pos, nbm, |r| decimal_to_i128(value(r)))
+    }
+
+    /// Nullable DECIMAL(15,2) column
+    ///
+    /// Arguments: as [`Self::decimal`]
+    pub fn decimal_15_2<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> Decimal,
+    ) -> Decimal128Array {
+        self.decimal(rows, 15, 2, pos, nbm, |r| decimal_to_i128(value(r)))
+    }
+
+    /// Nullable DECIMAL(5,2) column holding whole-number GMT offsets
+    ///
+    /// Arguments: as [`Self::decimal`], with `value` returning the offset in hours
+    pub fn gmt_offset<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> i32,
+    ) -> Decimal128Array {
+        self.decimal(rows, 5, 2, pos, nbm, |r| i128::from(value(r)) * 100)
+    }
+}
+
+impl PrimitiveArrayRecycler<Date32Type> {
+    /// Nullable DATE column
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `value`: function to get the date for a row
+    pub fn date32<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> Date,
+    ) -> Date32Array {
         self.build(
             rows,
-            |r| decimal_to_i128(value(r)),
+            |r| date_to_date32(&value(r)),
             |r| !is_null(nbm(r), pos),
         )
-        .with_precision_and_scale(7, 2)
-        .unwrap()
+    }
+
+    /// Nullable DATE column from Julian day numbers
+    ///
+    /// See [`julian_to_date32`]: a negative Julian day is treated as NULL.
+    ///
+    /// Arguments: as [`Self::date32`], with `julian` returning the Julian day for a row
+    pub fn date32_julian<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        julian: impl Fn(&R) -> i64,
+    ) -> Date32Array {
+        self.build(
+            rows,
+            |r| julian(r) as i32 - UNIX_EPOCH_JULIAN,
+            |r| !is_null(nbm(r), pos) && julian(r) >= 0,
+        )
     }
 }
 
@@ -549,6 +659,44 @@ mod tests {
         assert_eq!(a.null_count(), 1);
         assert!(a.is_null(64));
         assert_eq!(a.value(129), 12900);
+    }
+
+    #[test]
+    fn test_recycler_int64_keeps_negative_values() {
+        let rows: Vec<i64> = vec![-5, 0, 7];
+        let mut rec = PrimitiveArrayRecycler::<Int64Type>::new();
+        let a = rec.int64(&rows, 0, |r| (*r == 0) as i64, |r| *r);
+        assert_eq!(a.value(0), -5);
+        assert!(a.is_null(1));
+        assert_eq!(a.value(2), 7);
+    }
+
+    #[test]
+    fn test_recycler_decimal_precisions() {
+        let rows: Vec<i64> = vec![150, 250];
+        let mut rec = PrimitiveArrayRecycler::<Decimal128Type>::new();
+        let d = |r: &i64| Decimal::new(*r, 2);
+        let a = rec.decimal_5_2(&rows, 0, |_| 0, d);
+        assert_eq!((a.precision(), a.scale()), (5, 2));
+        let b = rec.decimal_15_2(&rows, 0, |_| 0, d);
+        assert_eq!((b.precision(), b.scale()), (15, 2));
+        assert_eq!(b.value(1), 250);
+        let c = rec.gmt_offset(&rows, 0, |r| (*r == 250) as i64, |r| (*r / 100) as i32);
+        assert_eq!((c.precision(), c.scale()), (5, 2));
+        assert_eq!(c.value(0), 100);
+        assert!(c.is_null(1));
+    }
+
+    #[test]
+    fn test_recycler_date32() {
+        let rows: Vec<i64> = vec![UNIX_EPOCH_JULIAN as i64, -1, UNIX_EPOCH_JULIAN as i64 + 1];
+        let mut rec = PrimitiveArrayRecycler::<Date32Type>::new();
+        let a = rec.date32_julian(&rows, 0, |r| (*r > UNIX_EPOCH_JULIAN as i64) as i64, |r| *r);
+        assert_eq!(a.value(0), 0);
+        assert!(a.is_null(1)); // negative julian
+        assert!(a.is_null(2)); // bitmap bit set
+        let b = rec.date32(&rows[..1], 0, |_| 0, |_| Date::new(1970, 1, 1));
+        assert_eq!(b.value(0), 0);
     }
 
     #[test]
