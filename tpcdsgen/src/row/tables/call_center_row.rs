@@ -407,14 +407,14 @@ mod tests {
     fn test_call_center_row_builder() {
         let address = Address::builder()
             .street_number(123)
-            .street_name("Main St".to_string())
-            .street_type("St".to_string())
-            .suite_number("Suite 100".to_string())
-            .city("Seattle".to_string())
-            .county("King".to_string())
-            .state("WA".to_string())
+            .street_name("Main St")
+            .street_type("St")
+            .suite_number("Suite 100")
+            .city("Seattle")
+            .county("King")
+            .state("WA")
             .zip(98101)
-            .country("United States".to_string())
+            .country("United States")
             .gmt_offset(-8)
             .build();
 

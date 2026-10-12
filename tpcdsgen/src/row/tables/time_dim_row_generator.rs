@@ -53,10 +53,10 @@ impl TimeDimRowGenerator {
 
         // Get hour information for shift and meal time
         let hour_info = HoursDistribution::get_hour_info_for_hour(t_hour);
-        let t_am_pm = hour_info.get_am_pm().to_string();
-        let t_shift = hour_info.get_shift().to_string();
-        let t_sub_shift = hour_info.get_sub_shift().to_string();
-        let t_meal_time = hour_info.get_meal().to_string();
+        let t_am_pm = hour_info.get_am_pm();
+        let t_shift = hour_info.get_shift();
+        let t_sub_shift = hour_info.get_sub_shift();
+        let t_meal_time = hour_info.get_meal();
 
         // Create the row
         TimeDimRow::new(

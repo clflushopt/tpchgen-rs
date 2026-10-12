@@ -240,15 +240,15 @@ mod tests {
     #[test]
     fn test_web_site_row_values_count() {
         let address = Address::new(
-            "Suite 1".to_string(),
+            "Suite 1",
             100,
-            "Main St".to_string(),
-            String::new(),
-            "Avenue".to_string(),
-            "Springfield".to_string(),
-            Some("Sangamon".to_string()),
-            "IL".to_string(),
-            "United States".to_string(),
+            "Main St",
+            "",
+            "Avenue",
+            "Springfield",
+            Some("Sangamon"),
+            "IL",
+            "United States",
             62701,
             -600,
         );

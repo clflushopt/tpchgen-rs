@@ -91,16 +91,16 @@ impl Iterator for TimeDimArrow {
             t_hour.push(opt(nbm, 3, r.t_hour));
             t_minute.push(opt(nbm, 4, r.t_minute));
             t_second.push(opt(nbm, 5, r.t_second));
-            t_am_pm.push(opt(nbm, 6, r.t_am_pm.as_str()));
-            t_shift.push(opt(nbm, 7, r.t_shift.as_str()));
-            t_sub_shift.push(opt(nbm, 8, r.t_sub_shift.as_str()));
+            t_am_pm.push(opt(nbm, 6, r.t_am_pm));
+            t_shift.push(opt(nbm, 7, r.t_shift));
+            t_sub_shift.push(opt(nbm, 8, r.t_sub_shift));
             // t_meal_time is an empty string (not null) for hours with no meal,
             // but the pipe-delimited format can't distinguish empty from null,
             // so we map empty -> None to match the .dat file convention.
             t_meal_time.push(if r.t_meal_time.is_empty() {
                 None
             } else {
-                Some(r.t_meal_time.as_str())
+                Some(r.t_meal_time)
             });
         }
 

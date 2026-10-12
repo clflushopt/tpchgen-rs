@@ -29,14 +29,14 @@ pub struct CustomerRow {
     pub(crate) c_current_addr_sk: i64,
     pub(crate) c_first_shipto_date_id: i32,
     pub(crate) c_first_sales_date_id: i32,
-    pub(crate) c_salutation: String,
-    pub(crate) c_first_name: String,
-    pub(crate) c_last_name: String,
+    pub(crate) c_salutation: &'static str,
+    pub(crate) c_first_name: &'static str,
+    pub(crate) c_last_name: &'static str,
     pub(crate) c_preferred_cust_flag: bool,
     pub(crate) c_birth_day: i32,
     pub(crate) c_birth_month: i32,
     pub(crate) c_birth_year: i32,
-    pub(crate) c_birth_country: String,
+    pub(crate) c_birth_country: &'static str,
     pub(crate) c_login: Option<String>, // always null in the Java implementation
     pub(crate) c_email_address: String,
     pub(crate) c_last_review_date: i32,
@@ -52,14 +52,14 @@ impl CustomerRow {
         c_current_addr_sk: i64,
         c_first_shipto_date_id: i32,
         c_first_sales_date_id: i32,
-        c_salutation: String,
-        c_first_name: String,
-        c_last_name: String,
+        c_salutation: &'static str,
+        c_first_name: &'static str,
+        c_last_name: &'static str,
         c_preferred_cust_flag: bool,
         c_birth_day: i32,
         c_birth_month: i32,
         c_birth_year: i32,
-        c_birth_country: String,
+        c_birth_country: &'static str,
         c_email_address: String,
         c_last_review_date: i32,
         null_bit_map: i64,
@@ -119,16 +119,16 @@ impl CustomerRow {
         self.c_first_sales_date_id
     }
 
-    pub fn get_c_salutation(&self) -> &str {
-        &self.c_salutation
+    pub fn get_c_salutation(&self) -> &'static str {
+        self.c_salutation
     }
 
-    pub fn get_c_first_name(&self) -> &str {
-        &self.c_first_name
+    pub fn get_c_first_name(&self) -> &'static str {
+        self.c_first_name
     }
 
-    pub fn get_c_last_name(&self) -> &str {
-        &self.c_last_name
+    pub fn get_c_last_name(&self) -> &'static str {
+        self.c_last_name
     }
 
     pub fn get_c_preferred_cust_flag(&self) -> bool {
@@ -147,8 +147,8 @@ impl CustomerRow {
         self.c_birth_year
     }
 
-    pub fn get_c_birth_country(&self) -> &str {
-        &self.c_birth_country
+    pub fn get_c_birth_country(&self) -> &'static str {
+        self.c_birth_country
     }
 
     pub fn get_c_login(&self) -> Option<&str> {

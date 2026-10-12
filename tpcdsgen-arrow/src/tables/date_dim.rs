@@ -119,7 +119,7 @@ impl Iterator for DateDimArrow {
             d_fy_year.push(r.d_fy_year);
             d_fy_quarter_seq.push(r.d_fy_quarter_seq);
             d_fy_week_seq.push(r.d_fy_week_seq);
-            d_day_name.push(r.d_day_name.as_str());
+            d_day_name.push(r.d_day_name);
             d_quarter_name.push(r.d_quarter_name.as_str());
             d_holiday.push(bool_to_yn(r.d_holiday));
             d_weekend.push(bool_to_yn(r.d_weekend));
