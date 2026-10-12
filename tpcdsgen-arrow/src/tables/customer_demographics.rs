@@ -1,7 +1,7 @@
-use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
+use crate::conversions::{PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,26 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CustomerDemographicsRow, CustomerDemographicsRowGenerator};
 
 /// Generate [`CustomerDemographicsRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct CustomerDemographicsArrow {
     inner: CustomerDemographicsRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<CustomerDemographicsRow>,
+    cd_demo_sk: PrimitiveArrayRecycler<Int32Type>,
+    cd_gender: StringViewArrayRecycler,
+    cd_marital_status: StringViewArrayRecycler,
+    cd_education_status: StringViewArrayRecycler,
+    cd_purchase_estimate: PrimitiveArrayRecycler<Int32Type>,
+    cd_credit_rating: StringViewArrayRecycler,
+    cd_dep_count: PrimitiveArrayRecycler<Int32Type>,
+    cd_dep_employed_count: PrimitiveArrayRecycler<Int32Type>,
+    cd_dep_college_count: PrimitiveArrayRecycler<Int32Type>,
 }
 
 impl CustomerDemographicsArrow {
@@ -30,6 +45,15 @@ impl CustomerDemographicsArrow {
             inner: CustomerDemographicsRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            cd_demo_sk: PrimitiveArrayRecycler::new(),
+            cd_gender: StringViewArrayRecycler::new(),
+            cd_marital_status: StringViewArrayRecycler::new(),
+            cd_education_status: StringViewArrayRecycler::new(),
+            cd_purchase_estimate: PrimitiveArrayRecycler::new(),
+            cd_credit_rating: StringViewArrayRecycler::new(),
+            cd_dep_count: PrimitiveArrayRecycler::new(),
+            cd_dep_employed_count: PrimitiveArrayRecycler::new(),
+            cd_dep_college_count: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -74,41 +98,80 @@ impl Iterator for CustomerDemographicsArrow {
             return None;
         }
 
-        let mut demo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut gender: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut marital: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut education: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut purchase: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut credit: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut dep_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut dep_emp: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut dep_college: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            cd_demo_sk,
+            cd_gender,
+            cd_marital_status,
+            cd_education_status,
+            cd_purchase_estimate,
+            cd_credit_rating,
+            cd_dep_count,
+            cd_dep_employed_count,
+            cd_dep_college_count,
+            ..
+        } = self;
+        let nbm = CustomerDemographicsRow::null_bit_map;
+        let sk32 = |rec: &mut PrimitiveArrayRecycler<Int32Type>,
+                    pos,
+                    f: fn(&CustomerDemographicsRow) -> i64| {
+            rec.int32_sk(rows, pos, nbm, f)
+        };
+        let int =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>,
+             pos,
+             f: fn(&CustomerDemographicsRow) -> i32| { rec.int32(rows, pos, nbm, f) };
+        let str =
+            |rec: &mut StringViewArrayRecycler, pos, f: fn(&CustomerDemographicsRow) -> &str| {
+                rec.string(rows, pos, nbm, f)
+            };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            demo_sk.push(integer_sk_opt(nbm, 0, r.get_cd_demo_sk()));
-            gender.push(opt(nbm, 1, r.get_cd_gender()));
-            marital.push(opt(nbm, 2, r.get_cd_marital_status()));
-            education.push(opt(nbm, 3, r.get_cd_education_status()));
-            purchase.push(opt(nbm, 4, r.get_cd_purchase_estimate()));
-            credit.push(opt(nbm, 5, r.get_cd_credit_rating()));
-            dep_count.push(opt(nbm, 6, r.get_cd_dep_count()));
-            dep_emp.push(opt(nbm, 7, r.get_cd_dep_employed_count()));
-            dep_college.push(opt(nbm, 8, r.get_cd_dep_college_count()));
-        }
+        let cd_demo_sk = sk32(cd_demo_sk, 0, CustomerDemographicsRow::get_cd_demo_sk);
+        let cd_gender = str(cd_gender, 1, CustomerDemographicsRow::get_cd_gender);
+        let cd_marital_status = str(
+            cd_marital_status,
+            2,
+            CustomerDemographicsRow::get_cd_marital_status,
+        );
+        let cd_education_status = str(
+            cd_education_status,
+            3,
+            CustomerDemographicsRow::get_cd_education_status,
+        );
+        let cd_purchase_estimate = int(
+            cd_purchase_estimate,
+            4,
+            CustomerDemographicsRow::get_cd_purchase_estimate,
+        );
+        let cd_credit_rating = str(
+            cd_credit_rating,
+            5,
+            CustomerDemographicsRow::get_cd_credit_rating,
+        );
+        let cd_dep_count = int(cd_dep_count, 6, CustomerDemographicsRow::get_cd_dep_count);
+        let cd_dep_employed_count = int(
+            cd_dep_employed_count,
+            7,
+            CustomerDemographicsRow::get_cd_dep_employed_count,
+        );
+        let cd_dep_college_count = int(
+            cd_dep_college_count,
+            8,
+            CustomerDemographicsRow::get_cd_dep_college_count,
+        );
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(demo_sk)),
-                Arc::new(string_view_array_from_opt_iter(gender.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(marital.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(education.iter().copied())),
-                Arc::new(Int32Array::from(purchase)),
-                Arc::new(string_view_array_from_opt_iter(credit.iter().copied())),
-                Arc::new(Int32Array::from(dep_count)),
-                Arc::new(Int32Array::from(dep_emp)),
-                Arc::new(Int32Array::from(dep_college)),
+                Arc::new(cd_demo_sk),
+                Arc::new(cd_gender),
+                Arc::new(cd_marital_status),
+                Arc::new(cd_education_status),
+                Arc::new(cd_purchase_estimate),
+                Arc::new(cd_credit_rating),
+                Arc::new(cd_dep_count),
+                Arc::new(cd_dep_employed_count),
+                Arc::new(cd_dep_college_count),
             ],
         );
         Some(batch)
