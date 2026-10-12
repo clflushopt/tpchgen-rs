@@ -4,8 +4,7 @@ use std::sync::OnceLock;
 
 static SYLLABLES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 
-/// Defines a `Copy` handle to a single-column `.dst` word list, resolved
-/// once at construction so `pick` skips the `OnceLock` check on every call.
+/// Defines a `Copy` handle to a single-column `.dst` word list.
 macro_rules! english_distribution {
     ($name:ident, $file:literal) => {
         #[derive(Debug, Clone, Copy)]
