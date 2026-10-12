@@ -1,10 +1,7 @@
-use crate::conversions::{
-    gmt_offset_decimal128_array, integer_sk_opt, is_null, opt, string_view_array_from_opt_iter,
-    string_view_array_from_string_opt_iter,
-};
+use crate::conversions::{AddressArrayRecycler, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch, StringViewBuilder};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -12,11 +9,21 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CustomerAddressRow, CustomerAddressRowGenerator};
 
 /// Generate [`CustomerAddressRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct CustomerAddressArrow {
     inner: CustomerAddressRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<CustomerAddressRow>,
+    ca_address_sk: PrimitiveArrayRecycler<Int32Type>,
+    ca_address_id: StringViewArrayRecycler,
+    ca_address: AddressArrayRecycler,
+    ca_location_type: StringViewArrayRecycler,
 }
 
 impl CustomerAddressArrow {
@@ -31,6 +38,10 @@ impl CustomerAddressArrow {
             inner: CustomerAddressRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            ca_address_sk: PrimitiveArrayRecycler::new(),
+            ca_address_id: StringViewArrayRecycler::new(),
+            ca_address: AddressArrayRecycler::new(),
+            ca_location_type: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -75,97 +86,39 @@ impl Iterator for CustomerAddressArrow {
             return None;
         }
 
-        let mut ca_addr_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ca_addr_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut street_number: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut street_name_b = StringViewBuilder::new();
-        let mut street_type_b = StringViewBuilder::new();
-        let mut suite_number_b = StringViewBuilder::new();
-        let mut city_b = StringViewBuilder::new();
-        let mut county_b = StringViewBuilder::new();
-        let mut state_b = StringViewBuilder::new();
-        let mut zip_b = StringViewBuilder::new();
-        let mut country_b = StringViewBuilder::new();
-        let mut gmt_offset: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut location_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            ca_address_sk,
+            ca_address_id,
+            ca_address,
+            ca_location_type,
+            ..
+        } = self;
+        let nbm = CustomerAddressRow::null_bit_map;
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            let a = r.get_ca_address();
-            ca_addr_sk.push(integer_sk_opt(nbm, 0, r.get_ca_addr_sk()));
-            ca_addr_id.push(opt(nbm, 1, r.get_ca_addr_id()));
-            street_number.push(if is_null(nbm, 2) {
-                None
-            } else {
-                Some(a.get_street_number().to_string())
-            });
-            if is_null(nbm, 3) {
-                street_name_b.append_null();
-            } else {
-                street_name_b.append_value(a.get_street_name());
-            }
-            if is_null(nbm, 4) {
-                street_type_b.append_null();
-            } else {
-                street_type_b.append_value(a.get_street_type());
-            }
-            if is_null(nbm, 5) {
-                suite_number_b.append_null();
-            } else {
-                suite_number_b.append_value(a.get_suite_number());
-            }
-            if is_null(nbm, 6) {
-                city_b.append_null();
-            } else {
-                city_b.append_value(a.get_city());
-            }
-            match a.get_county() {
-                Some(c) if !is_null(nbm, 7) => county_b.append_value(c),
-                _ => county_b.append_null(),
-            }
-            if is_null(nbm, 8) {
-                state_b.append_null();
-            } else {
-                state_b.append_value(a.get_state());
-            }
-            if is_null(nbm, 9) {
-                zip_b.append_null();
-            } else {
-                zip_b.append_value(format!("{:05}", a.get_zip()));
-            }
-            if is_null(nbm, 10) {
-                country_b.append_null();
-            } else {
-                country_b.append_value(a.get_country());
-            }
-            gmt_offset.push(if is_null(nbm, 11) {
-                None
-            } else {
-                Some(a.get_gmt_offset())
-            });
-            location_type.push(opt(nbm, 12, r.get_ca_location_type()));
-        }
+        let ca_address_sk =
+            ca_address_sk.int32_sk(rows, 0, nbm, CustomerAddressRow::get_ca_addr_sk);
+        let ca_address_id = ca_address_id.str(rows, 1, nbm, CustomerAddressRow::get_ca_addr_id);
+        let address = ca_address.build(rows, 2, nbm, CustomerAddressRow::get_ca_address);
+        let ca_location_type =
+            ca_location_type.str(rows, 12, nbm, CustomerAddressRow::get_ca_location_type);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(ca_addr_sk)),
-                Arc::new(string_view_array_from_opt_iter(ca_addr_id.iter().copied())),
-                Arc::new(string_view_array_from_string_opt_iter(
-                    street_number.into_iter(),
-                )),
-                Arc::new(street_name_b.finish()),
-                Arc::new(street_type_b.finish()),
-                Arc::new(suite_number_b.finish()),
-                Arc::new(city_b.finish()),
-                Arc::new(county_b.finish()),
-                Arc::new(state_b.finish()),
-                Arc::new(zip_b.finish()),
-                Arc::new(country_b.finish()),
-                Arc::new(gmt_offset_decimal128_array(gmt_offset)),
-                Arc::new(string_view_array_from_opt_iter(
-                    location_type.iter().copied(),
-                )),
+                Arc::new(ca_address_sk),
+                Arc::new(ca_address_id),
+                Arc::new(address.street_number),
+                Arc::new(address.street_name),
+                Arc::new(address.street_type),
+                Arc::new(address.suite_number),
+                Arc::new(address.city),
+                Arc::new(address.county),
+                Arc::new(address.state),
+                Arc::new(address.zip),
+                Arc::new(address.country),
+                Arc::new(address.gmt_offset),
+                Arc::new(ca_location_type),
             ],
         );
         Some(batch)

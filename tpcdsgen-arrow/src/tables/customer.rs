@@ -145,7 +145,7 @@ impl Iterator for CustomerArrow {
             rec.int32(rows, pos, nbm, f)
         };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&CustomerRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let c_customer_sk = sk32(c_customer_sk, 0, CustomerRow::get_c_customer_sk);
