@@ -1,19 +1,46 @@
-use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt, sk_opt};
+use crate::conversions::PrimitiveArrayRecycler;
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Decimal128Type, Field, Int32Type, Int64Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{StoreReturnsRow, StoreReturnsRowGenerator};
+use tpcdsgen::types::{Decimal, Pricing};
 
 /// Generate [`StoreReturnsRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct StoreReturnsArrow {
     inner: StoreReturnsRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<StoreReturnsRow>,
+    sr_returned_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_returned_time_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_item_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_customer_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_cdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_hdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_addr_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_store_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_reason_sk: PrimitiveArrayRecycler<Int32Type>,
+    sr_ticket_number: PrimitiveArrayRecycler<Int64Type>,
+    sr_return_quantity: PrimitiveArrayRecycler<Int32Type>,
+    sr_return_amt: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_return_tax: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_return_amt_inc_tax: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_fee: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_return_ship_cost: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_refunded_cash: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_reversed_charge: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_store_credit: PrimitiveArrayRecycler<Decimal128Type>,
+    sr_net_loss: PrimitiveArrayRecycler<Decimal128Type>,
 }
 
 impl StoreReturnsArrow {
@@ -28,6 +55,26 @@ impl StoreReturnsArrow {
             inner: StoreReturnsRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            sr_returned_date_sk: PrimitiveArrayRecycler::new(),
+            sr_returned_time_sk: PrimitiveArrayRecycler::new(),
+            sr_item_sk: PrimitiveArrayRecycler::new(),
+            sr_customer_sk: PrimitiveArrayRecycler::new(),
+            sr_cdemo_sk: PrimitiveArrayRecycler::new(),
+            sr_hdemo_sk: PrimitiveArrayRecycler::new(),
+            sr_addr_sk: PrimitiveArrayRecycler::new(),
+            sr_store_sk: PrimitiveArrayRecycler::new(),
+            sr_reason_sk: PrimitiveArrayRecycler::new(),
+            sr_ticket_number: PrimitiveArrayRecycler::new(),
+            sr_return_quantity: PrimitiveArrayRecycler::new(),
+            sr_return_amt: PrimitiveArrayRecycler::new(),
+            sr_return_tax: PrimitiveArrayRecycler::new(),
+            sr_return_amt_inc_tax: PrimitiveArrayRecycler::new(),
+            sr_fee: PrimitiveArrayRecycler::new(),
+            sr_return_ship_cost: PrimitiveArrayRecycler::new(),
+            sr_refunded_cash: PrimitiveArrayRecycler::new(),
+            sr_reversed_charge: PrimitiveArrayRecycler::new(),
+            sr_store_credit: PrimitiveArrayRecycler::new(),
+            sr_net_loss: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,80 +119,98 @@ impl Iterator for StoreReturnsArrow {
             return None;
         }
 
-        let mut sr_returned_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_returned_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_store: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_reason: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_ticket: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut sr_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sr_return_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_return_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_return_amt_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_fee: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_return_ship_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_refunded_cash: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_reversed_charge: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_store_credit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut sr_net_loss: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            sr_returned_date_sk,
+            sr_returned_time_sk,
+            sr_item_sk,
+            sr_customer_sk,
+            sr_cdemo_sk,
+            sr_hdemo_sk,
+            sr_addr_sk,
+            sr_store_sk,
+            sr_reason_sk,
+            sr_ticket_number,
+            sr_return_quantity,
+            sr_return_amt,
+            sr_return_tax,
+            sr_return_amt_inc_tax,
+            sr_fee,
+            sr_return_ship_cost,
+            sr_refunded_cash,
+            sr_reversed_charge,
+            sr_store_credit,
+            sr_net_loss,
+            ..
+        } = self;
+        let nbm = StoreReturnsRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&StoreReturnsRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let dec =
+            |rec: &mut PrimitiveArrayRecycler<Decimal128Type>, pos, f: fn(&Pricing) -> Decimal| {
+                rec.decimal_7_2(rows, pos, nbm, |r| f(r.get_sr_pricing()))
+            };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            let p = r.get_sr_pricing();
-            sr_returned_date.push(integer_sk_opt(nbm, 0, r.get_sr_returned_date_sk()));
-            sr_returned_time.push(integer_sk_opt(nbm, 1, r.get_sr_returned_time_sk()));
-            sr_item.push(integer_sk_opt(nbm, 2, r.get_sr_item_sk()));
-            sr_customer.push(integer_sk_opt(nbm, 3, r.get_sr_customer_sk()));
-            sr_cdemo.push(integer_sk_opt(nbm, 4, r.get_sr_cdemo_sk()));
-            sr_hdemo.push(integer_sk_opt(nbm, 5, r.get_sr_hdemo_sk()));
-            sr_addr.push(integer_sk_opt(nbm, 6, r.get_sr_addr_sk()));
-            sr_store.push(integer_sk_opt(nbm, 7, r.get_sr_store_sk()));
-            sr_reason.push(integer_sk_opt(nbm, 8, r.get_sr_reason_sk()));
-            sr_ticket.push(sk_opt(nbm, 9, r.get_sr_ticket_number()));
-            sr_quantity.push(opt(nbm, 10, p.get_quantity()));
-            sr_return_amt.push(opt(nbm, 11, decimal_to_i128(p.get_net_paid())));
-            sr_return_tax.push(opt(nbm, 12, decimal_to_i128(p.get_ext_tax())));
-            sr_return_amt_inc_tax.push(opt(
-                nbm,
-                13,
-                decimal_to_i128(p.get_net_paid_including_tax()),
-            ));
-            sr_fee.push(opt(nbm, 14, decimal_to_i128(p.get_fee())));
-            sr_return_ship_cost.push(opt(nbm, 15, decimal_to_i128(p.get_ext_ship_cost())));
-            sr_refunded_cash.push(opt(nbm, 16, decimal_to_i128(p.get_refunded_cash())));
-            sr_reversed_charge.push(opt(nbm, 17, decimal_to_i128(p.get_reversed_charge())));
-            sr_store_credit.push(opt(nbm, 18, decimal_to_i128(p.get_store_credit())));
-            sr_net_loss.push(opt(nbm, 19, decimal_to_i128(p.get_net_loss())));
-        }
+        let sr_returned_date_sk = sk32(
+            sr_returned_date_sk,
+            0,
+            StoreReturnsRow::get_sr_returned_date_sk,
+        );
+        let sr_returned_time_sk = sk32(
+            sr_returned_time_sk,
+            1,
+            StoreReturnsRow::get_sr_returned_time_sk,
+        );
+        let sr_item_sk = sk32(sr_item_sk, 2, StoreReturnsRow::get_sr_item_sk);
+        let sr_customer_sk = sk32(sr_customer_sk, 3, StoreReturnsRow::get_sr_customer_sk);
+        let sr_cdemo_sk = sk32(sr_cdemo_sk, 4, StoreReturnsRow::get_sr_cdemo_sk);
+        let sr_hdemo_sk = sk32(sr_hdemo_sk, 5, StoreReturnsRow::get_sr_hdemo_sk);
+        let sr_addr_sk = sk32(sr_addr_sk, 6, StoreReturnsRow::get_sr_addr_sk);
+        let sr_store_sk = sk32(sr_store_sk, 7, StoreReturnsRow::get_sr_store_sk);
+        let sr_reason_sk = sk32(sr_reason_sk, 8, StoreReturnsRow::get_sr_reason_sk);
+        let sr_ticket_number =
+            sr_ticket_number.int64_sk(rows, 9, nbm, StoreReturnsRow::get_sr_ticket_number);
+        let sr_return_quantity =
+            sr_return_quantity.int32(rows, 10, nbm, |r| r.get_sr_pricing().get_quantity());
+        let sr_return_amt = dec(sr_return_amt, 11, Pricing::get_net_paid);
+        let sr_return_tax = dec(sr_return_tax, 12, Pricing::get_ext_tax);
+        let sr_return_amt_inc_tax = dec(
+            sr_return_amt_inc_tax,
+            13,
+            Pricing::get_net_paid_including_tax,
+        );
+        let sr_fee = dec(sr_fee, 14, Pricing::get_fee);
+        let sr_return_ship_cost = dec(sr_return_ship_cost, 15, Pricing::get_ext_ship_cost);
+        let sr_refunded_cash = dec(sr_refunded_cash, 16, Pricing::get_refunded_cash);
+        let sr_reversed_charge = dec(sr_reversed_charge, 17, Pricing::get_reversed_charge);
+        let sr_store_credit = dec(sr_store_credit, 18, Pricing::get_store_credit);
+        let sr_net_loss = dec(sr_net_loss, 19, Pricing::get_net_loss);
 
-        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(sr_returned_date)),
-                Arc::new(Int32Array::from(sr_returned_time)),
-                Arc::new(Int32Array::from(sr_item)),
-                Arc::new(Int32Array::from(sr_customer)),
-                Arc::new(Int32Array::from(sr_cdemo)),
-                Arc::new(Int32Array::from(sr_hdemo)),
-                Arc::new(Int32Array::from(sr_addr)),
-                Arc::new(Int32Array::from(sr_store)),
-                Arc::new(Int32Array::from(sr_reason)),
-                Arc::new(Int64Array::from(sr_ticket)),
-                Arc::new(Int32Array::from(sr_quantity)),
-                Arc::new(dec(sr_return_amt)),
-                Arc::new(dec(sr_return_tax)),
-                Arc::new(dec(sr_return_amt_inc_tax)),
-                Arc::new(dec(sr_fee)),
-                Arc::new(dec(sr_return_ship_cost)),
-                Arc::new(dec(sr_refunded_cash)),
-                Arc::new(dec(sr_reversed_charge)),
-                Arc::new(dec(sr_store_credit)),
-                Arc::new(dec(sr_net_loss)),
+                Arc::new(sr_returned_date_sk),
+                Arc::new(sr_returned_time_sk),
+                Arc::new(sr_item_sk),
+                Arc::new(sr_customer_sk),
+                Arc::new(sr_cdemo_sk),
+                Arc::new(sr_hdemo_sk),
+                Arc::new(sr_addr_sk),
+                Arc::new(sr_store_sk),
+                Arc::new(sr_reason_sk),
+                Arc::new(sr_ticket_number),
+                Arc::new(sr_return_quantity),
+                Arc::new(sr_return_amt),
+                Arc::new(sr_return_tax),
+                Arc::new(sr_return_amt_inc_tax),
+                Arc::new(sr_fee),
+                Arc::new(sr_return_ship_cost),
+                Arc::new(sr_refunded_cash),
+                Arc::new(sr_reversed_charge),
+                Arc::new(sr_store_credit),
+                Arc::new(sr_net_loss),
             ],
         );
         Some(batch)
