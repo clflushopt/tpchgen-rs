@@ -266,9 +266,6 @@ impl RandomValueGenerator {
 }
 
 /// Generates random English text (generateRandomText).
-///
-/// Resolves every word distribution once at construction so the per-word
-/// hot path is a direct weighted lookup.
 #[derive(Debug, Clone, Copy)]
 pub struct RandomTextGenerator {
     sentences: SentencesDistribution,
