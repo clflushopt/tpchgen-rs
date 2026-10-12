@@ -1,10 +1,7 @@
-use crate::conversions::{
-    address_columns, decimal128_5_2_array, decimal_to_i128, integer_opt, integer_sk_opt, is_null,
-    julian_to_date32, opt, string_view_array_from_opt_iter,
-};
+use crate::conversions::{AddressArrayRecycler, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Date32Array, Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Date32Type, Decimal128Type, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -12,11 +9,37 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{StoreRow, StoreRowGenerator};
 
 /// Generate [`StoreRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct StoreArrow {
     inner: StoreRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<StoreRow>,
+    s_store_sk: PrimitiveArrayRecycler<Int32Type>,
+    s_store_id: StringViewArrayRecycler,
+    s_rec_start_date: PrimitiveArrayRecycler<Date32Type>,
+    s_rec_end_date: PrimitiveArrayRecycler<Date32Type>,
+    s_closed_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    s_store_name: StringViewArrayRecycler,
+    s_number_employees: PrimitiveArrayRecycler<Int32Type>,
+    s_floor_space: PrimitiveArrayRecycler<Int32Type>,
+    s_hours: StringViewArrayRecycler,
+    s_manager: StringViewArrayRecycler,
+    s_market_id: PrimitiveArrayRecycler<Int32Type>,
+    s_geography_class: StringViewArrayRecycler,
+    s_market_desc: StringViewArrayRecycler,
+    s_market_manager: StringViewArrayRecycler,
+    s_division_id: PrimitiveArrayRecycler<Int32Type>,
+    s_division_name: StringViewArrayRecycler,
+    s_company_id: PrimitiveArrayRecycler<Int32Type>,
+    s_company_name: StringViewArrayRecycler,
+    address: AddressArrayRecycler,
+    s_tax_precentage: PrimitiveArrayRecycler<Decimal128Type>,
 }
 
 impl StoreArrow {
@@ -31,6 +54,26 @@ impl StoreArrow {
             inner: StoreRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            s_store_sk: PrimitiveArrayRecycler::new(),
+            s_store_id: StringViewArrayRecycler::new(),
+            s_rec_start_date: PrimitiveArrayRecycler::new(),
+            s_rec_end_date: PrimitiveArrayRecycler::new(),
+            s_closed_date_sk: PrimitiveArrayRecycler::new(),
+            s_store_name: StringViewArrayRecycler::new(),
+            s_number_employees: PrimitiveArrayRecycler::new(),
+            s_floor_space: PrimitiveArrayRecycler::new(),
+            s_hours: StringViewArrayRecycler::new(),
+            s_manager: StringViewArrayRecycler::new(),
+            s_market_id: PrimitiveArrayRecycler::new(),
+            s_geography_class: StringViewArrayRecycler::new(),
+            s_market_desc: StringViewArrayRecycler::new(),
+            s_market_manager: StringViewArrayRecycler::new(),
+            s_division_id: PrimitiveArrayRecycler::new(),
+            s_division_name: StringViewArrayRecycler::new(),
+            s_company_id: PrimitiveArrayRecycler::new(),
+            s_company_name: StringViewArrayRecycler::new(),
+            address: AddressArrayRecycler::new(),
+            s_tax_precentage: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -75,116 +118,108 @@ impl Iterator for StoreArrow {
             return None;
         }
 
-        let mut s_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_closed_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_floor_space: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_hours: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_geography_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_market_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_market_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_division_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_division_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut s_company_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut s_company_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
-            Vec::with_capacity(rows.len());
-        let mut s_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            s_store_sk,
+            s_store_id,
+            s_rec_start_date,
+            s_rec_end_date,
+            s_closed_date_sk,
+            s_store_name,
+            s_number_employees,
+            s_floor_space,
+            s_hours,
+            s_manager,
+            s_market_id,
+            s_geography_class,
+            s_market_desc,
+            s_market_manager,
+            s_division_id,
+            s_division_name,
+            s_company_id,
+            s_company_name,
+            address,
+            s_tax_precentage,
+            ..
+        } = self;
+        let nbm = StoreRow::null_bit_map;
+        let sk32 = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&StoreRow) -> i64| {
+            rec.int32_sk(rows, pos, nbm, f)
+        };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&StoreRow) -> i32| {
+            rec.int32(rows, pos, nbm, f)
+        };
+        let int64 = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&StoreRow) -> i64| {
+            rec.int32(rows, pos, nbm, |r| {
+                i32::try_from(f(r)).expect("TPC-DS INTEGER value exceeds i32 range")
+            })
+        };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&StoreRow) -> &str| {
+            rec.str(rows, pos, nbm, f)
+        };
+        let date = |rec: &mut PrimitiveArrayRecycler<Date32Type>, pos, f: fn(&StoreRow) -> i64| {
+            rec.date32_julian(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            s_sk.push(integer_sk_opt(nbm, 0, r.get_store_sk()));
-            s_id.push(opt(nbm, 1, r.get_store_id()));
-            s_rec_start.push(if is_null(nbm, 2) {
-                None
-            } else {
-                julian_to_date32(r.get_rec_start_date_id())
-            });
-            s_rec_end.push(julian_to_date32(r.get_rec_end_date_id()));
-            s_closed_date.push(integer_sk_opt(nbm, 4, r.get_closed_date_id()));
-            s_name.push(opt(nbm, 5, r.get_store_name()));
-            s_employees.push(opt(nbm, 6, r.get_employees()));
-            s_floor_space.push(opt(nbm, 7, r.get_floor_space()));
-            s_hours.push(opt(nbm, 8, r.get_hours()));
-            s_manager.push(opt(nbm, 9, r.get_store_manager()));
-            s_market_id.push(opt(nbm, 10, r.get_market_id()));
-            // Null bits follow the generator column numbering, where the tax
-            // percentage (bit 11) comes before geography class, even though it
-            // is the last output column.
-            s_geography_class.push(opt(nbm, 12, r.get_geography_class()));
-            s_market_desc.push(opt(nbm, 13, r.get_market_desc()));
-            s_market_manager.push(opt(nbm, 14, r.get_market_manager()));
-            s_division_id.push(integer_opt(nbm, 15, r.get_division_id()));
-            s_division_name.push(opt(nbm, 16, r.get_division_name()));
-            s_company_id.push(integer_opt(nbm, 17, r.get_company_id()));
-            s_company_name.push(opt(nbm, 18, r.get_company_name()));
-            addr_rows.push((r.get_address().clone(), nbm, 19));
-            s_tax_pct.push(opt(nbm, 11, decimal_to_i128(r.get_d_tax_percentage())));
-        }
-
-        let (
-            street_number,
-            street_name,
-            street_type,
-            suite_number,
-            city,
-            county,
-            state,
-            zip,
-            country,
-            gmt_offset,
-        ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
-
-        let tax_arr = decimal128_5_2_array(s_tax_pct);
+        let s_store_sk = sk32(s_store_sk, 0, StoreRow::get_store_sk);
+        let s_store_id = str(s_store_id, 1, StoreRow::get_store_id);
+        let s_rec_start_date = date(s_rec_start_date, 2, StoreRow::get_rec_start_date_id);
+        // only the negative-Julian sentinel marks null here, not the bitmap
+        let s_rec_end_date =
+            s_rec_end_date.date32_julian(rows, 3, |_| 0, StoreRow::get_rec_end_date_id);
+        let s_closed_date_sk = sk32(s_closed_date_sk, 4, StoreRow::get_closed_date_id);
+        let s_store_name = str(s_store_name, 5, StoreRow::get_store_name);
+        let s_number_employees = int(s_number_employees, 6, StoreRow::get_employees);
+        let s_floor_space = int(s_floor_space, 7, StoreRow::get_floor_space);
+        let s_hours = str(s_hours, 8, StoreRow::get_hours);
+        let s_manager = str(s_manager, 9, StoreRow::get_store_manager);
+        let s_market_id = int(s_market_id, 10, StoreRow::get_market_id);
+        // Null bits follow the generator column numbering, where the tax
+        // percentage (bit 11) comes before geography class, even though it
+        // is the last output column.
+        let s_geography_class = str(s_geography_class, 12, StoreRow::get_geography_class);
+        let s_market_desc = str(s_market_desc, 13, StoreRow::get_market_desc);
+        let s_market_manager = str(s_market_manager, 14, StoreRow::get_market_manager);
+        let s_division_id = int64(s_division_id, 15, StoreRow::get_division_id);
+        let s_division_name = str(s_division_name, 16, StoreRow::get_division_name);
+        let s_company_id = int64(s_company_id, 17, StoreRow::get_company_id);
+        let s_company_name = str(s_company_name, 18, StoreRow::get_company_name);
+        let address = address.build(rows, 19, nbm, StoreRow::get_address);
+        let s_tax_precentage =
+            s_tax_precentage.decimal_5_2(rows, 11, nbm, StoreRow::get_d_tax_percentage);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(s_sk)),
-                Arc::new(string_view_array_from_opt_iter(s_id.iter().copied())),
-                Arc::new(Date32Array::from(s_rec_start)),
-                Arc::new(Date32Array::from(s_rec_end)),
-                Arc::new(Int32Array::from(s_closed_date)),
-                Arc::new(string_view_array_from_opt_iter(s_name.iter().copied())),
-                Arc::new(Int32Array::from(s_employees)),
-                Arc::new(Int32Array::from(s_floor_space)),
-                Arc::new(string_view_array_from_opt_iter(s_hours.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(s_manager.iter().copied())),
-                Arc::new(Int32Array::from(s_market_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_geography_class.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_market_desc.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_market_manager.iter().copied(),
-                )),
-                Arc::new(Int32Array::from(s_division_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_division_name.iter().copied(),
-                )),
-                Arc::new(Int32Array::from(s_company_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    s_company_name.iter().copied(),
-                )),
-                Arc::new(street_number),
-                Arc::new(street_name),
-                Arc::new(street_type),
-                Arc::new(suite_number),
-                Arc::new(city),
-                Arc::new(county),
-                Arc::new(state),
-                Arc::new(zip),
-                Arc::new(country),
-                Arc::new(gmt_offset),
-                Arc::new(tax_arr),
+                Arc::new(s_store_sk),
+                Arc::new(s_store_id),
+                Arc::new(s_rec_start_date),
+                Arc::new(s_rec_end_date),
+                Arc::new(s_closed_date_sk),
+                Arc::new(s_store_name),
+                Arc::new(s_number_employees),
+                Arc::new(s_floor_space),
+                Arc::new(s_hours),
+                Arc::new(s_manager),
+                Arc::new(s_market_id),
+                Arc::new(s_geography_class),
+                Arc::new(s_market_desc),
+                Arc::new(s_market_manager),
+                Arc::new(s_division_id),
+                Arc::new(s_division_name),
+                Arc::new(s_company_id),
+                Arc::new(s_company_name),
+                Arc::new(address.street_number),
+                Arc::new(address.street_name),
+                Arc::new(address.street_type),
+                Arc::new(address.suite_number),
+                Arc::new(address.city),
+                Arc::new(address.county),
+                Arc::new(address.state),
+                Arc::new(address.zip),
+                Arc::new(address.country),
+                Arc::new(address.gmt_offset),
+                Arc::new(s_tax_precentage),
             ],
         );
         Some(batch)
