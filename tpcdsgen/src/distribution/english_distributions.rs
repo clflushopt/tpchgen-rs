@@ -13,13 +13,31 @@ static SYLLABLES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::ne
 static TERMINATORS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 static VERBS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 
-pub fn pick_random_adjective(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = ADJECTIVES_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("adjectives.dst", 1, 1)
-            .expect("Failed to load adjectives distribution")
-    });
+/// Handle to the adjectives word list, resolved once at construction so
+/// `pick` skips the `OnceLock` check on every call.
+#[derive(Debug, Clone, Copy)]
+pub struct AdjectivesDistribution {
+    inner: &'static StringValuesDistribution,
+}
 
-    dist.pick_random_value(0, 0, stream)
+impl AdjectivesDistribution {
+    pub fn new() -> Self {
+        let inner = ADJECTIVES_DISTRIBUTION.get_or_init(|| {
+            StringValuesDistribution::build_string_values_distribution("adjectives.dst", 1, 1)
+                .expect("Failed to load adjectives distribution")
+        });
+        Self { inner }
+    }
+
+    pub fn pick(&self, stream: &mut RandomNumberStream) -> &'static str {
+        self.inner.pick_random_value(0, 0, stream)
+    }
+}
+
+impl Default for AdjectivesDistribution {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 pub fn pick_random_adverb(stream: &mut RandomNumberStream) -> &'static str {

@@ -18,7 +18,7 @@ use crate::config::Table as ConfigTable;
 use crate::generator::PromotionGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
-use crate::random::RandomValueGenerator;
+use crate::random::{RandomTextGenerator, RandomValueGenerator};
 use crate::row::{AbstractRowGenerator, PromotionRow};
 use crate::table::Table;
 use crate::types::{Date, Decimal};
@@ -33,6 +33,7 @@ const PROMO_DETAIL_LENGTH_MAX: i32 = 60;
 
 pub struct PromotionRowGenerator {
     abstract_row_generator: AbstractRowGenerator,
+    text: RandomTextGenerator,
     session: Session,
 }
 
@@ -41,6 +42,7 @@ impl PromotionRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         PromotionRowGenerator {
             abstract_row_generator: AbstractRowGenerator::new(Table::Promotion, row_count),
+            text: RandomTextGenerator::new(),
             session,
         }
     }
@@ -149,7 +151,7 @@ impl PromotionRowGenerator {
 
         let p_discount_active = (flags & 0x01) != 0;
 
-        let p_channel_details = RandomValueGenerator::generate_random_text(
+        let p_channel_details = self.text.generate_random_text(
             PROMO_DETAIL_LENGTH_MIN,
             PROMO_DETAIL_LENGTH_MAX,
             self.abstract_row_generator

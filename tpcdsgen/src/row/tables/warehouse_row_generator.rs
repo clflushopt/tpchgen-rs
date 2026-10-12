@@ -1,7 +1,7 @@
 use crate::business_key_generator::make_business_key;
 use crate::config::Session;
 use crate::generator::WarehouseGeneratorColumn;
-use crate::random::RandomValueGenerator;
+use crate::random::{RandomTextGenerator, RandomValueGenerator};
 use crate::row::{AbstractRowGenerator, WarehouseRow};
 use crate::table::Table;
 use crate::types::Address;
@@ -9,6 +9,7 @@ use crate::types::Address;
 /// Row generator for the WAREHOUSE table (WarehouseRowGenerator)
 pub struct WarehouseRowGenerator {
     abstract_generator: AbstractRowGenerator,
+    text: RandomTextGenerator,
     session: Session,
 }
 
@@ -17,6 +18,7 @@ impl WarehouseRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::Warehouse, row_count),
+            text: RandomTextGenerator::new(),
             session,
         }
     }
@@ -46,7 +48,7 @@ impl WarehouseRowGenerator {
         let name_stream = self
             .abstract_generator
             .get_random_number_stream(&WarehouseGeneratorColumn::WWarehouseName);
-        let w_warehouse_name = RandomValueGenerator::generate_random_text(10, 20, name_stream);
+        let w_warehouse_name = self.text.generate_random_text(10, 20, name_stream);
 
         let sq_ft_stream = self
             .abstract_generator

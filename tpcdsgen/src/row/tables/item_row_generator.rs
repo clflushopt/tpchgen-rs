@@ -24,7 +24,7 @@ use crate::distribution::{
 use crate::generator::ItemGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
-use crate::random::RandomValueGenerator;
+use crate::random::{RandomTextGenerator, RandomValueGenerator};
 use crate::row::item_row::ItemRow;
 use crate::row::AbstractRowGenerator;
 use crate::slowly_changing_dimension_utils::{
@@ -49,6 +49,7 @@ const I_PROMO_PERCENTAGE: i32 = 20;
 
 pub struct ItemRowGenerator {
     abstract_generator: AbstractRowGenerator,
+    text: RandomTextGenerator,
     previous_row: Option<ItemRow>,
     session: Session,
 }
@@ -58,6 +59,7 @@ impl ItemRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         ItemRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::Item, row_count),
+            text: RandomTextGenerator::new(),
             previous_row: None,
             session,
         }
@@ -102,8 +104,9 @@ impl ItemRowGenerator {
 
         // Generate item description
         let stream = self.abstract_generator.get_random_number_stream(&IItemDesc);
-        let mut i_item_desc =
-            RandomValueGenerator::generate_random_text(1, ROW_SIZE_I_ITEM_DESC, stream);
+        let mut i_item_desc = self
+            .text
+            .generate_random_text(1, ROW_SIZE_I_ITEM_DESC, stream);
         if let Some(ref prev_row) = self.previous_row {
             i_item_desc = get_value_for_slowly_changing_dimension(
                 field_change_flags,

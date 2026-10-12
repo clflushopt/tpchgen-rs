@@ -1,7 +1,7 @@
 use crate::config::Session;
 use crate::distribution::{CallCenterDistributions, FirstNamesWeights, NamesDistributions};
 use crate::generator::CallCenterGeneratorColumn;
-use crate::random::RandomValueGenerator;
+use crate::random::{RandomTextGenerator, RandomValueGenerator};
 use crate::row::{AbstractRowGenerator, CallCenterRow};
 use crate::slowly_changing_dimension_utils::{
     compute_scd_key, get_value_for_slowly_changing_dimension, ScdRowGenerator,
@@ -13,6 +13,7 @@ use crate::types::{Address, Date, Decimal};
 /// Row generator for the CALL_CENTER table (CallCenterRowGenerator)
 pub struct CallCenterRowGenerator {
     abstract_generator: AbstractRowGenerator,
+    text: RandomTextGenerator,
     previous_row: Option<CallCenterRow>,
     session: Session,
 }
@@ -37,6 +38,7 @@ impl CallCenterRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::CallCenter, row_count),
+            text: RandomTextGenerator::new(),
             previous_row: None,
             session,
         }
@@ -208,11 +210,9 @@ impl CallCenterRowGenerator {
         let market_class_stream = self
             .abstract_generator
             .get_random_number_stream(&CallCenterGeneratorColumn::CcMarketClass);
-        let mut cc_market_class = RandomValueGenerator::generate_random_text(
-            20,
-            WIDTH_CC_MARKET_CLASS,
-            market_class_stream,
-        );
+        let mut cc_market_class =
+            self.text
+                .generate_random_text(20, WIDTH_CC_MARKET_CLASS, market_class_stream);
         if let Some(ref prev_row) = self.previous_row {
             cc_market_class = get_value_for_slowly_changing_dimension(
                 field_change_flag,
@@ -226,11 +226,9 @@ impl CallCenterRowGenerator {
         let market_desc_stream = self
             .abstract_generator
             .get_random_number_stream(&CallCenterGeneratorColumn::CcMarketDesc);
-        let mut cc_market_desc = RandomValueGenerator::generate_random_text(
-            20,
-            WIDTH_CC_MARKET_DESC,
-            market_desc_stream,
-        );
+        let mut cc_market_desc =
+            self.text
+                .generate_random_text(20, WIDTH_CC_MARKET_DESC, market_desc_stream);
         if let Some(ref prev_row) = self.previous_row {
             cc_market_desc = get_value_for_slowly_changing_dimension(
                 field_change_flag,

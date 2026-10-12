@@ -1,3 +1,4 @@
+use crate::distribution::AdjectivesDistribution;
 use crate::random::stream::RandomNumberStream;
 use crate::types::{Date, Decimal};
 
@@ -205,19 +206,100 @@ impl RandomValueGenerator {
         weights.len() - 1
     }
 
+    /// Generate a random URL (generateRandomUrl)
+    /// This is what the C code does. No joke. It always returns the same value.
+    pub fn generate_random_url(_random_number_stream: &mut RandomNumberStream) -> String {
+        "http://www.foo.com".to_string()
+    }
+
+    /// Generate a random email address (generateRandomEmail)
+    pub fn generate_random_email(
+        first: &str,
+        last: &str,
+        random_number_stream: &mut RandomNumberStream,
+    ) -> String {
+        use crate::distribution::TopDomainsDistribution;
+
+        let domain = TopDomainsDistribution::pick_random_top_domain(random_number_stream);
+        let company_length =
+            Self::generate_uniform_random_int(10, 20, random_number_stream) as usize;
+        let company =
+            Self::generate_random_charset(Self::ALPHA_NUMERIC, 1, 20, random_number_stream);
+        let company = if company.len() < company_length {
+            company
+        } else {
+            company[..company_length].to_string()
+        };
+
+        format!("{}.{}@{}.{}", first, last, company, domain)
+    }
+
+    /// Generate word based on seed and syllables distribution (exact Java implementation)
+    /// Takes the distribution as parameter to support both SYLLABLES_DISTRIBUTION and
+    /// BRAND_SYLLABLES_DISTRIBUTION
+    pub fn generate_word(
+        seed: i64,
+        max_chars: i32,
+        distribution: &crate::distribution::FileBasedStringValuesDistribution,
+    ) -> String {
+        let size = distribution.get_size() as i64;
+        let mut word = String::new();
+        let mut seed = seed;
+
+        while seed > 0 {
+            let syllable = distribution.get_value_at_index(0, (seed % size) as usize);
+            seed /= size;
+
+            if (word.len() + syllable.len()) <= max_chars as usize {
+                word.push_str(syllable);
+            } else {
+                break;
+            }
+        }
+
+        word
+    }
+}
+
+/// Generates random English text (generateRandomText).
+///
+/// Resolves word distributions once at construction so the per-word hot
+/// path is a direct weighted lookup (adjectives so far).
+#[derive(Debug, Clone, Copy)]
+pub struct RandomTextGenerator {
+    adjectives: AdjectivesDistribution,
+}
+
+impl Default for RandomTextGenerator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl RandomTextGenerator {
+    pub fn new() -> Self {
+        Self {
+            adjectives: AdjectivesDistribution::new(),
+        }
+    }
+
     // Generate random text following Java implementation exactly
     pub fn generate_random_text(
+        &self,
         min_length: i32,
         max_length: i32,
         random_number_stream: &mut RandomNumberStream,
     ) -> String {
         let mut is_sentence_beginning = true;
         let mut text = String::new();
-        let mut target_length =
-            Self::generate_uniform_random_int(min_length, max_length, random_number_stream);
+        let mut target_length = RandomValueGenerator::generate_uniform_random_int(
+            min_length,
+            max_length,
+            random_number_stream,
+        );
 
         while target_length > 0 {
-            let mut generated = Self::generate_random_sentence(random_number_stream);
+            let mut generated = self.generate_random_sentence(random_number_stream);
             if is_sentence_beginning && !generated.is_empty() {
                 let first_char = generated
                     .chars()
@@ -248,82 +330,28 @@ impl RandomValueGenerator {
         text
     }
 
-    /// Generate a random URL (generateRandomUrl)
-    /// This is what the C code does. No joke. It always returns the same value.
-    pub fn generate_random_url(_random_number_stream: &mut RandomNumberStream) -> String {
-        "http://www.foo.com".to_string()
-    }
-
-    /// Generate a random email address (generateRandomEmail)
-    pub fn generate_random_email(
-        first: &str,
-        last: &str,
-        random_number_stream: &mut RandomNumberStream,
-    ) -> String {
-        use crate::distribution::TopDomainsDistribution;
-
-        let domain = TopDomainsDistribution::pick_random_top_domain(random_number_stream);
-        let company_length =
-            Self::generate_uniform_random_int(10, 20, random_number_stream) as usize;
-        let company =
-            Self::generate_random_charset(Self::ALPHA_NUMERIC, 1, 20, random_number_stream);
-        let company = if company.len() < company_length {
-            company
-        } else {
-            company[..company_length].to_string()
-        };
-
-        format!("{}.{}@{}.{}", first, last, company, domain)
-    }
-
     // Generate random sentence following Java implementation exactly
-    fn generate_random_sentence(random_number_stream: &mut RandomNumberStream) -> String {
+    fn generate_random_sentence(&self, stream: &mut RandomNumberStream) -> String {
         use crate::distribution::*;
 
         let mut verbiage = String::new();
-        let syntax = pick_random_sentence(random_number_stream);
+        let syntax = pick_random_sentence(stream);
 
         for ch in syntax.chars() {
             match ch {
-                'N' => verbiage.push_str(pick_random_noun(random_number_stream)),
-                'V' => verbiage.push_str(pick_random_verb(random_number_stream)),
-                'J' => verbiage.push_str(pick_random_adjective(random_number_stream)),
-                'D' => verbiage.push_str(pick_random_adverb(random_number_stream)),
-                'X' => verbiage.push_str(pick_random_auxiliary(random_number_stream)),
-                'P' => verbiage.push_str(pick_random_preposition(random_number_stream)),
-                'A' => verbiage.push_str(pick_random_article(random_number_stream)),
-                'T' => verbiage.push_str(pick_random_terminator(random_number_stream)),
+                'N' => verbiage.push_str(pick_random_noun(stream)),
+                'V' => verbiage.push_str(pick_random_verb(stream)),
+                'J' => verbiage.push_str(self.adjectives.pick(stream)),
+                'D' => verbiage.push_str(pick_random_adverb(stream)),
+                'X' => verbiage.push_str(pick_random_auxiliary(stream)),
+                'P' => verbiage.push_str(pick_random_preposition(stream)),
+                'A' => verbiage.push_str(pick_random_article(stream)),
+                'T' => verbiage.push_str(pick_random_terminator(stream)),
                 _ => verbiage.push(ch), // this is for adding punctuation and white space.
             }
         }
 
         verbiage
-    }
-
-    /// Generate word based on seed and syllables distribution (exact Java implementation)
-    /// Takes the distribution as parameter to support both SYLLABLES_DISTRIBUTION and
-    /// BRAND_SYLLABLES_DISTRIBUTION
-    pub fn generate_word(
-        seed: i64,
-        max_chars: i32,
-        distribution: &crate::distribution::FileBasedStringValuesDistribution,
-    ) -> String {
-        let size = distribution.get_size() as i64;
-        let mut word = String::new();
-        let mut seed = seed;
-
-        while seed > 0 {
-            let syllable = distribution.get_value_at_index(0, (seed % size) as usize);
-            seed /= size;
-
-            if (word.len() + syllable.len()) <= max_chars as usize {
-                word.push_str(syllable);
-            } else {
-                break;
-            }
-        }
-
-        word
     }
 }
 

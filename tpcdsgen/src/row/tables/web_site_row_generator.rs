@@ -18,7 +18,7 @@ use crate::distribution::{FirstNamesWeights, NamesDistributions};
 use crate::generator::WebSiteGeneratorColumn;
 use crate::join_key_utils::generate_join_key;
 use crate::nulls::create_null_bit_map;
-use crate::random::RandomValueGenerator;
+use crate::random::{RandomTextGenerator, RandomValueGenerator};
 use crate::row::{AbstractRowGenerator, WebSiteRow};
 use crate::slowly_changing_dimension_utils::{
     compute_scd_key, get_value_for_slowly_changing_dimension, ScdRowGenerator,
@@ -28,6 +28,7 @@ use crate::types::{Address, Decimal};
 
 pub struct WebSiteRowGenerator {
     abstract_generator: AbstractRowGenerator,
+    text: RandomTextGenerator,
     previous_row: Option<WebSiteRow>,
     session: Session,
 }
@@ -37,6 +38,7 @@ impl WebSiteRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         Self {
             abstract_generator: AbstractRowGenerator::new(Table::WebSite, row_count),
+            text: RandomTextGenerator::new(),
             previous_row: None,
             session,
         }
@@ -168,7 +170,7 @@ impl WebSiteRowGenerator {
         field_change_flags >>= 1;
 
         // Generate web_market_class
-        let mut web_market_class = RandomValueGenerator::generate_random_text(
+        let mut web_market_class = self.text.generate_random_text(
             20,
             50,
             self.abstract_generator
@@ -185,7 +187,7 @@ impl WebSiteRowGenerator {
         field_change_flags >>= 1;
 
         // Generate web_market_desc
-        let mut web_market_desc = RandomValueGenerator::generate_random_text(
+        let mut web_market_desc = self.text.generate_random_text(
             20,
             100,
             self.abstract_generator

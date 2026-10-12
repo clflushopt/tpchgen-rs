@@ -18,7 +18,7 @@ use crate::config::Session;
 use crate::distribution::{CallCenterDistributions, FirstNamesWeights, NamesDistributions};
 use crate::generator::StoreGeneratorColumn;
 use crate::nulls::create_null_bit_map;
-use crate::random::RandomValueGenerator;
+use crate::random::{RandomTextGenerator, RandomValueGenerator};
 use crate::row::store_row::StoreRow;
 use crate::row::AbstractRowGenerator;
 use crate::slowly_changing_dimension_utils::{
@@ -41,6 +41,7 @@ const STORE_DESC_MIN: i32 = 15;
 
 pub struct StoreRowGenerator {
     abstract_generator: AbstractRowGenerator,
+    text: RandomTextGenerator,
     previous_row: Option<StoreRow>,
     session: Session,
 }
@@ -50,6 +51,7 @@ impl StoreRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         StoreRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::Store, row_count),
+            text: RandomTextGenerator::new(),
             previous_row: None,
             session,
         }
@@ -229,11 +231,9 @@ impl StoreRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&WStoreMarketDesc);
-        let mut market_desc = RandomValueGenerator::generate_random_text(
-            STORE_DESC_MIN,
-            ROW_SIZE_S_MARKET_DESC,
-            stream,
-        );
+        let mut market_desc =
+            self.text
+                .generate_random_text(STORE_DESC_MIN, ROW_SIZE_S_MARKET_DESC, stream);
         if let Some(ref prev_row) = self.previous_row {
             market_desc = get_value_for_slowly_changing_dimension(
                 field_change_flags,

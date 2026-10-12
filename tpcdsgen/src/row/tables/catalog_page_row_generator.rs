@@ -17,7 +17,7 @@
 use crate::config::Session;
 use crate::generator::CatalogPageGeneratorColumn;
 use crate::nulls::create_null_bit_map;
-use crate::random::RandomValueGenerator;
+use crate::random::RandomTextGenerator;
 use crate::row::catalog_page_row::CatalogPageRow;
 use crate::row::AbstractRowGenerator;
 use crate::table::Table;
@@ -28,6 +28,7 @@ const WIDTH_CP_DESCRIPTION: i32 = 100;
 
 pub struct CatalogPageRowGenerator {
     abstract_generator: AbstractRowGenerator,
+    text: RandomTextGenerator,
     session: Session,
 }
 
@@ -36,6 +37,7 @@ impl CatalogPageRowGenerator {
     pub fn new(session: Session, row_count: u64) -> Self {
         CatalogPageRowGenerator {
             abstract_generator: AbstractRowGenerator::new(Table::CatalogPage, row_count),
+            text: RandomTextGenerator::new(),
             session,
         }
     }
@@ -98,7 +100,7 @@ impl CatalogPageRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CpDescription);
-        let cp_description = RandomValueGenerator::generate_random_text(
+        let cp_description = self.text.generate_random_text(
             WIDTH_CP_DESCRIPTION / 2,
             WIDTH_CP_DESCRIPTION - 1,
             stream,
