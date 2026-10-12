@@ -3,6 +3,8 @@ name = "tpcgen-cli"
 version = { workspace = true }
 authors = { workspace = true }
 description = "Blazing fast pure Rust TPC-H and TPC-DS data generator command line tool."
+keywords = ["tpch", "tpcds", "benchmark", "data-generator", "parquet"]
+categories = ["command-line-utilities", "database", "development-tools::testing"]
 readme = "README.md"
 edition = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli"

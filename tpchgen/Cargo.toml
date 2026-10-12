@@ -1,7 +1,9 @@
 [package]
 name = "tpchgen"
-authors = ["clflushopt", "alamb"]
+authors = { workspace = true }
 description = "Blazing fast pure Rust zero dependency TPC-H data generation library."
+keywords = ["tpch", "benchmark", "data-generator", "sql", "database"]
+categories = ["database", "development-tools::testing"]
 repository = { workspace = true }
 readme = "README.md"
 version = { workspace = true }
@@ -9,7 +11,7 @@ edition = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen"
 license = { workspace = true }
 
-# Designed to have no depdencies to make it easy to embed in other projects
+# Designed to have no dependencies to make it easy to embed in other projects
 # See ../ARCHITECTURE.md for more details
 [dependencies]
 

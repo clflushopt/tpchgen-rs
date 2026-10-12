@@ -2,8 +2,10 @@
 name = "tpchgen-arrow"
 version = { workspace = true }
 edition = "2024"
-authors = ["clflushopt", "alamb"]
+authors = { workspace = true }
 description = "TPC-H data generator into Apache Arrow format"
+keywords = ["tpch", "arrow", "benchmark", "data-generator", "sql"]
+categories = ["database", "development-tools::testing"]
 repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-arrow"
 readme = "README.md"

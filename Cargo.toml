@@ -1,11 +1,11 @@
 [workspace]
 
-members = [ "tpchgen", "tpcdsgen" , "tpchgen-arrow", "tpchgen-cli", "tpcdsgen-arrow", "tpcgen-cli"]
+members = ["tpchgen", "tpcdsgen", "tpchgen-arrow", "tpchgen-cli", "tpcdsgen-arrow", "tpcgen-cli"]
 
 resolver = "2"
 
 [workspace.package]
-authors = ["clflushopt", "alamb"]
+authors = ["clflushopt", "alamb", "kevinjqliu"]
 edition = "2021"
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs"
 license = "Apache-2.0"
