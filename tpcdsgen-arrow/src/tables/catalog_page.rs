@@ -119,7 +119,7 @@ impl Iterator for CatalogPageArrow {
                 rec.int32(rows, pos, nbm, f)
             };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&CatalogPageRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let cp_catalog_page_sk = sk32(

@@ -106,7 +106,7 @@ impl Iterator for ShipModeArrow {
                 rec.int32_sk(rows, pos, nbm, f)
             };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&ShipModeRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let sm_ship_mode_sk = sk32(sm_ship_mode_sk, 0, ShipModeRow::get_sm_ship_mode_sk);

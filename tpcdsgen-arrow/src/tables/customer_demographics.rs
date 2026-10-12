@@ -123,7 +123,7 @@ impl Iterator for CustomerDemographicsArrow {
              f: fn(&CustomerDemographicsRow) -> i32| { rec.int32(rows, pos, nbm, f) };
         let str =
             |rec: &mut StringViewArrayRecycler, pos, f: fn(&CustomerDemographicsRow) -> &str| {
-                rec.string(rows, pos, nbm, f)
+                rec.str(rows, pos, nbm, f)
             };
 
         let cd_demo_sk = sk32(cd_demo_sk, 0, CustomerDemographicsRow::get_cd_demo_sk);

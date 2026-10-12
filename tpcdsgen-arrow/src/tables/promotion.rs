@@ -148,7 +148,7 @@ impl Iterator for PromotionArrow {
                    pos,
                    f: fn(&PromotionRow) -> i32| { rec.int32(rows, pos, nbm, f) };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&PromotionRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let p_promo_sk = sk32(p_promo_sk, 0, PromotionRow::get_p_promo_sk);
