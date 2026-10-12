@@ -1,10 +1,7 @@
-use crate::conversions::{
-    address_columns, decimal128_5_2_array, decimal_to_i128, integer_sk_opt, is_null,
-    julian_to_date32, opt, string_view_array_from_opt_iter,
-};
+use crate::conversions::{AddressArrayRecycler, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Date32Array, Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Date32Type, Decimal128Type, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -12,11 +9,39 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CallCenterRow, CallCenterRowGenerator};
 
 /// Generate [`CallCenterRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct CallCenterArrow {
     inner: CallCenterRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<CallCenterRow>,
+    cc_call_center_sk: PrimitiveArrayRecycler<Int32Type>,
+    cc_call_center_id: StringViewArrayRecycler,
+    cc_rec_start_date: PrimitiveArrayRecycler<Date32Type>,
+    cc_rec_end_date: PrimitiveArrayRecycler<Date32Type>,
+    cc_closed_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    cc_open_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    cc_name: StringViewArrayRecycler,
+    cc_class: StringViewArrayRecycler,
+    cc_employees: PrimitiveArrayRecycler<Int32Type>,
+    cc_sq_ft: PrimitiveArrayRecycler<Int32Type>,
+    cc_hours: StringViewArrayRecycler,
+    cc_manager: StringViewArrayRecycler,
+    cc_mkt_id: PrimitiveArrayRecycler<Int32Type>,
+    cc_mkt_class: StringViewArrayRecycler,
+    cc_mkt_desc: StringViewArrayRecycler,
+    cc_market_manager: StringViewArrayRecycler,
+    cc_division: PrimitiveArrayRecycler<Int32Type>,
+    cc_division_name: StringViewArrayRecycler,
+    cc_company: PrimitiveArrayRecycler<Int32Type>,
+    cc_company_name: StringViewArrayRecycler,
+    address: AddressArrayRecycler,
+    cc_tax_percentage: PrimitiveArrayRecycler<Decimal128Type>,
 }
 
 impl CallCenterArrow {
@@ -31,6 +56,28 @@ impl CallCenterArrow {
             inner: CallCenterRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            cc_call_center_sk: PrimitiveArrayRecycler::new(),
+            cc_call_center_id: StringViewArrayRecycler::new(),
+            cc_rec_start_date: PrimitiveArrayRecycler::new(),
+            cc_rec_end_date: PrimitiveArrayRecycler::new(),
+            cc_closed_date_sk: PrimitiveArrayRecycler::new(),
+            cc_open_date_sk: PrimitiveArrayRecycler::new(),
+            cc_name: StringViewArrayRecycler::new(),
+            cc_class: StringViewArrayRecycler::new(),
+            cc_employees: PrimitiveArrayRecycler::new(),
+            cc_sq_ft: PrimitiveArrayRecycler::new(),
+            cc_hours: StringViewArrayRecycler::new(),
+            cc_manager: StringViewArrayRecycler::new(),
+            cc_mkt_id: PrimitiveArrayRecycler::new(),
+            cc_mkt_class: StringViewArrayRecycler::new(),
+            cc_mkt_desc: StringViewArrayRecycler::new(),
+            cc_market_manager: StringViewArrayRecycler::new(),
+            cc_division: PrimitiveArrayRecycler::new(),
+            cc_division_name: StringViewArrayRecycler::new(),
+            cc_company: PrimitiveArrayRecycler::new(),
+            cc_company_name: StringViewArrayRecycler::new(),
+            address: AddressArrayRecycler::new(),
+            cc_tax_percentage: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -75,123 +122,110 @@ impl Iterator for CallCenterArrow {
             return None;
         }
 
-        let mut cc_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_closed_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_open_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_employees: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_sq_ft: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_hours: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_market_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_market_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_market_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_division_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_division_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cc_company: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cc_company_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
-            Vec::with_capacity(rows.len());
-        let mut cc_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            cc_call_center_sk,
+            cc_call_center_id,
+            cc_rec_start_date,
+            cc_rec_end_date,
+            cc_closed_date_sk,
+            cc_open_date_sk,
+            cc_name,
+            cc_class,
+            cc_employees,
+            cc_sq_ft,
+            cc_hours,
+            cc_manager,
+            cc_mkt_id,
+            cc_mkt_class,
+            cc_mkt_desc,
+            cc_market_manager,
+            cc_division,
+            cc_division_name,
+            cc_company,
+            cc_company_name,
+            address,
+            cc_tax_percentage,
+            ..
+        } = self;
+        let nbm = CallCenterRow::get_null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&CallCenterRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>,
+                   pos,
+                   f: fn(&CallCenterRow) -> i32| { rec.int32(rows, pos, nbm, f) };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&CallCenterRow) -> &str| {
+            rec.str(rows, pos, nbm, f)
+        };
+        let date =
+            |rec: &mut PrimitiveArrayRecycler<Date32Type>, pos, f: fn(&CallCenterRow) -> i64| {
+                rec.date32_julian(rows, pos, nbm, f)
+            };
 
-        for r in rows {
-            let nbm = r.get_null_bit_map();
-            cc_sk.push(integer_sk_opt(nbm, 0, r.get_cc_call_center_sk()));
-            cc_id.push(opt(nbm, 1, r.get_cc_call_center_id()));
-            cc_rec_start.push(if is_null(nbm, 2) {
-                None
-            } else {
-                julian_to_date32(r.get_cc_rec_start_date_id())
-            });
-            cc_rec_end.push(if is_null(nbm, 3) {
-                None
-            } else {
-                julian_to_date32(r.get_cc_rec_end_date_id())
-            });
-            cc_closed_date.push(integer_sk_opt(nbm, 4, r.get_cc_closed_date_id()));
-            cc_open_date.push(integer_sk_opt(nbm, 5, r.get_cc_open_date_id()));
-            cc_name.push(opt(nbm, 6, r.get_cc_name()));
-            cc_class.push(opt(nbm, 7, r.get_cc_class()));
-            cc_employees.push(opt(nbm, 8, r.get_cc_employees()));
-            cc_sq_ft.push(opt(nbm, 9, r.get_cc_sq_ft()));
-            cc_hours.push(opt(nbm, 10, r.get_cc_hours()));
-            cc_manager.push(opt(nbm, 11, r.get_cc_manager()));
-            cc_market_id.push(opt(nbm, 12, r.get_cc_market_id()));
-            cc_market_class.push(opt(nbm, 13, r.get_cc_market_class()));
-            cc_market_desc.push(opt(nbm, 14, r.get_cc_market_desc()));
-            cc_market_manager.push(opt(nbm, 15, r.get_cc_market_manager()));
-            cc_division_id.push(opt(nbm, 16, r.get_cc_division_id()));
-            cc_division_name.push(opt(nbm, 17, r.get_cc_division_name()));
-            cc_company.push(opt(nbm, 18, r.get_cc_company()));
-            cc_company_name.push(opt(nbm, 19, r.get_cc_company_name()));
-            addr_rows.push((r.get_cc_address().clone(), nbm, 20));
-            cc_tax_pct.push(opt(nbm, 30, decimal_to_i128(*r.get_cc_tax_percentage())));
-        }
-
-        let (
-            street_number,
-            street_name,
-            street_type,
-            suite_number,
-            city,
-            county,
-            state,
-            zip,
-            country,
-            gmt_offset,
-        ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
-
-        let tax_arr = decimal128_5_2_array(cc_tax_pct);
+        let cc_call_center_sk = sk32(cc_call_center_sk, 0, CallCenterRow::get_cc_call_center_sk);
+        let cc_call_center_id = str(cc_call_center_id, 1, CallCenterRow::get_cc_call_center_id);
+        let cc_rec_start_date = date(
+            cc_rec_start_date,
+            2,
+            CallCenterRow::get_cc_rec_start_date_id,
+        );
+        let cc_rec_end_date = date(cc_rec_end_date, 3, CallCenterRow::get_cc_rec_end_date_id);
+        let cc_closed_date_sk = sk32(cc_closed_date_sk, 4, CallCenterRow::get_cc_closed_date_id);
+        let cc_open_date_sk = sk32(cc_open_date_sk, 5, CallCenterRow::get_cc_open_date_id);
+        let cc_name = str(cc_name, 6, CallCenterRow::get_cc_name);
+        let cc_class = str(cc_class, 7, CallCenterRow::get_cc_class);
+        let cc_employees = int(cc_employees, 8, CallCenterRow::get_cc_employees);
+        let cc_sq_ft = int(cc_sq_ft, 9, CallCenterRow::get_cc_sq_ft);
+        let cc_hours = str(cc_hours, 10, CallCenterRow::get_cc_hours);
+        let cc_manager = str(cc_manager, 11, CallCenterRow::get_cc_manager);
+        let cc_mkt_id = int(cc_mkt_id, 12, CallCenterRow::get_cc_market_id);
+        let cc_mkt_class = str(cc_mkt_class, 13, CallCenterRow::get_cc_market_class);
+        let cc_mkt_desc = str(cc_mkt_desc, 14, CallCenterRow::get_cc_market_desc);
+        let cc_market_manager = str(cc_market_manager, 15, CallCenterRow::get_cc_market_manager);
+        let cc_division = int(cc_division, 16, CallCenterRow::get_cc_division_id);
+        let cc_division_name = str(cc_division_name, 17, CallCenterRow::get_cc_division_name);
+        let cc_company = int(cc_company, 18, CallCenterRow::get_cc_company);
+        let cc_company_name = str(cc_company_name, 19, CallCenterRow::get_cc_company_name);
+        let address = address.build(rows, 20, nbm, CallCenterRow::get_cc_address);
+        let cc_tax_percentage =
+            cc_tax_percentage.decimal_5_2(rows, 30, nbm, |r| *r.get_cc_tax_percentage());
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(cc_sk)),
-                Arc::new(string_view_array_from_opt_iter(cc_id.iter().copied())),
-                Arc::new(Date32Array::from(cc_rec_start)),
-                Arc::new(Date32Array::from(cc_rec_end)),
-                Arc::new(Int32Array::from(cc_closed_date)),
-                Arc::new(Int32Array::from(cc_open_date)),
-                Arc::new(string_view_array_from_opt_iter(cc_name.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(cc_class.iter().copied())),
-                Arc::new(Int32Array::from(cc_employees)),
-                Arc::new(Int32Array::from(cc_sq_ft)),
-                Arc::new(string_view_array_from_opt_iter(cc_hours.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(cc_manager.iter().copied())),
-                Arc::new(Int32Array::from(cc_market_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_market_class.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_market_desc.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_market_manager.iter().copied(),
-                )),
-                Arc::new(Int32Array::from(cc_division_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_division_name.iter().copied(),
-                )),
-                Arc::new(Int32Array::from(cc_company)),
-                Arc::new(string_view_array_from_opt_iter(
-                    cc_company_name.iter().copied(),
-                )),
-                Arc::new(street_number),
-                Arc::new(street_name),
-                Arc::new(street_type),
-                Arc::new(suite_number),
-                Arc::new(city),
-                Arc::new(county),
-                Arc::new(state),
-                Arc::new(zip),
-                Arc::new(country),
-                Arc::new(gmt_offset),
-                Arc::new(tax_arr),
+                Arc::new(cc_call_center_sk),
+                Arc::new(cc_call_center_id),
+                Arc::new(cc_rec_start_date),
+                Arc::new(cc_rec_end_date),
+                Arc::new(cc_closed_date_sk),
+                Arc::new(cc_open_date_sk),
+                Arc::new(cc_name),
+                Arc::new(cc_class),
+                Arc::new(cc_employees),
+                Arc::new(cc_sq_ft),
+                Arc::new(cc_hours),
+                Arc::new(cc_manager),
+                Arc::new(cc_mkt_id),
+                Arc::new(cc_mkt_class),
+                Arc::new(cc_mkt_desc),
+                Arc::new(cc_market_manager),
+                Arc::new(cc_division),
+                Arc::new(cc_division_name),
+                Arc::new(cc_company),
+                Arc::new(cc_company_name),
+                Arc::new(address.street_number),
+                Arc::new(address.street_name),
+                Arc::new(address.street_type),
+                Arc::new(address.suite_number),
+                Arc::new(address.city),
+                Arc::new(address.county),
+                Arc::new(address.state),
+                Arc::new(address.zip),
+                Arc::new(address.country),
+                Arc::new(address.gmt_offset),
+                Arc::new(cc_tax_percentage),
             ],
         );
         Some(batch)
