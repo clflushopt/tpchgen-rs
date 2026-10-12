@@ -100,8 +100,7 @@ impl Iterator for CustomerAddressArrow {
             ca_address_sk.int32_sk(rows, 0, nbm, CustomerAddressRow::get_ca_addr_sk);
         let ca_address_id = ca_address_id.str(rows, 1, nbm, CustomerAddressRow::get_ca_addr_id);
         let address = ca_address.build(rows, 2, nbm, CustomerAddressRow::get_ca_address);
-        let ca_location_type =
-            ca_location_type.str(rows, 12, nbm, CustomerAddressRow::get_ca_location_type);
+        let ca_location_type = ca_location_type.str(rows, 12, nbm, |r| r.get_ca_location_type());
 
         let batch = RecordBatch::try_new(
             schema,

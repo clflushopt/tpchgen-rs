@@ -25,7 +25,7 @@ pub struct CustomerAddressRow {
     pub(crate) ca_addr_sk: i64,
     pub(crate) ca_addr_id: String,
     pub(crate) ca_address: Address,
-    pub(crate) ca_location_type: String,
+    pub(crate) ca_location_type: &'static str,
 }
 
 impl CustomerAddressRow {
@@ -34,7 +34,7 @@ impl CustomerAddressRow {
         ca_addr_sk: i64,
         ca_addr_id: String,
         ca_address: Address,
-        ca_location_type: String,
+        ca_location_type: &'static str,
     ) -> Self {
         CustomerAddressRow {
             null_bit_map,
@@ -66,8 +66,8 @@ impl CustomerAddressRow {
         &self.ca_address
     }
 
-    pub fn get_ca_location_type(&self) -> &str {
-        &self.ca_location_type
+    pub fn get_ca_location_type(&self) -> &'static str {
+        self.ca_location_type
     }
 }
 
@@ -99,7 +99,7 @@ impl fmt::Display for CustomerAddressRow {
             DatField::zip(self.ca_address.get_zip(), self.should_be_null(9)),
             self.field(self.ca_address.get_country(), 10),
             self.field(self.ca_address.get_gmt_offset(), 11),
-            self.field(&self.ca_location_type, 12),
+            self.field(self.ca_location_type, 12),
         )
     }
 }

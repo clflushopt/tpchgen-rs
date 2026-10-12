@@ -14,16 +14,21 @@ pub enum HoursWeights {
 }
 
 /// Information about a specific hour (HourInfo)
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct HourInfo {
-    am_pm: String,
-    shift: String,
-    sub_shift: String,
-    meal: String,
+    am_pm: &'static str,
+    shift: &'static str,
+    sub_shift: &'static str,
+    meal: &'static str,
 }
 
 impl HourInfo {
-    pub fn new(am_pm: String, shift: String, sub_shift: String, meal: String) -> Self {
+    pub fn new(
+        am_pm: &'static str,
+        shift: &'static str,
+        sub_shift: &'static str,
+        meal: &'static str,
+    ) -> Self {
         HourInfo {
             am_pm,
             shift,
@@ -32,20 +37,20 @@ impl HourInfo {
         }
     }
 
-    pub fn get_am_pm(&self) -> &str {
-        &self.am_pm
+    pub fn get_am_pm(&self) -> &'static str {
+        self.am_pm
     }
 
-    pub fn get_shift(&self) -> &str {
-        &self.shift
+    pub fn get_shift(&self) -> &'static str {
+        self.shift
     }
 
-    pub fn get_sub_shift(&self) -> &str {
-        &self.sub_shift
+    pub fn get_sub_shift(&self) -> &'static str {
+        self.sub_shift
     }
 
-    pub fn get_meal(&self) -> &str {
-        &self.meal
+    pub fn get_meal(&self) -> &'static str {
+        self.meal
     }
 }
 
@@ -146,10 +151,10 @@ impl HoursDistribution {
     pub fn get_hour_info_for_hour(hour: i32) -> HourInfo {
         let dist = Self::get_instance();
         HourInfo::new(
-            dist.am_pm[hour as usize].clone(),
-            dist.shifts[hour as usize].clone(),
-            dist.sub_shifts[hour as usize].clone(),
-            dist.meals[hour as usize].clone(),
+            &dist.am_pm[hour as usize],
+            &dist.shifts[hour as usize],
+            &dist.sub_shifts[hour as usize],
+            &dist.meals[hour as usize],
         )
     }
 

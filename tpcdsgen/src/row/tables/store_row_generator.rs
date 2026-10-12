@@ -323,15 +323,15 @@ impl StoreRowGenerator {
 
         // Create new address with updated SCD fields
         address = Address::new(
-            address.get_suite_number().to_string(),
+            address.get_suite_number(),
             street_number,
-            address.get_street_name1().to_string(),
-            address.get_street_name2().to_string(),
-            address.get_street_type().to_string(),
-            address.get_city().to_string(),
-            address.get_county().map(|s| s.to_string()),
-            address.get_state().to_string(),
-            address.get_country().to_string(),
+            address.get_street_name1(),
+            address.get_street_name2(),
+            address.get_street_type(),
+            address.get_city(),
+            address.get_county(),
+            address.get_state(),
+            address.get_country(),
             zip,
             gmt_offset,
         );

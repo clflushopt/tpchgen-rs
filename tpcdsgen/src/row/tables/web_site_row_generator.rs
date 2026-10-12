@@ -319,15 +319,15 @@ impl WebSiteRowGenerator {
 
         // Reconstruct address with potentially changed fields
         web_address = Address::new(
-            web_address.get_suite_number().to_string(),
+            web_address.get_suite_number(),
             street_number,
-            web_address.get_street_name1().to_string(),
-            web_address.get_street_name2().to_string(),
-            web_address.get_street_type().to_string(),
-            web_address.get_city().to_string(),
-            web_address.get_county().map(|s| s.to_string()),
-            web_address.get_state().to_string(),
-            web_address.get_country().to_string(),
+            web_address.get_street_name1(),
+            web_address.get_street_name2(),
+            web_address.get_street_type(),
+            web_address.get_city(),
+            web_address.get_county(),
+            web_address.get_state(),
+            web_address.get_country(),
             zip,
             gmt_offset,
         );

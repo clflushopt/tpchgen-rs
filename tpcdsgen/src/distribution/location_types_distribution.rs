@@ -125,7 +125,7 @@ impl LocationTypesDistribution {
     pub fn pick_random_location_type(
         weights: LocationTypeWeights,
         stream: &mut RandomNumberStream,
-    ) -> String {
+    ) -> &'static str {
         let dist = Self::get_instance();
 
         let weights_list = match weights {
@@ -133,7 +133,7 @@ impl LocationTypesDistribution {
             LocationTypeWeights::DistributionFrequency => &dist.weights_list2,
         };
 
-        pick_random_value(&dist.values, weights_list, stream).clone()
+        pick_random_value(&dist.values, weights_list, stream)
     }
 }
 

@@ -22,14 +22,14 @@ pub struct TimeDimRow {
     pub t_second: i32,
 
     // AM/PM indicator
-    pub t_am_pm: String,
+    pub t_am_pm: &'static str,
 
     // Shift information
-    pub t_shift: String,
-    pub t_sub_shift: String,
+    pub t_shift: &'static str,
+    pub t_sub_shift: &'static str,
 
     // Meal time classification
-    pub t_meal_time: String,
+    pub t_meal_time: &'static str,
 }
 
 impl TimeDimRow {
@@ -43,10 +43,10 @@ impl TimeDimRow {
         t_hour: i32,
         t_minute: i32,
         t_second: i32,
-        t_am_pm: String,
-        t_shift: String,
-        t_sub_shift: String,
-        t_meal_time: String,
+        t_am_pm: &'static str,
+        t_shift: &'static str,
+        t_sub_shift: &'static str,
+        t_meal_time: &'static str,
     ) -> Self {
         TimeDimRow {
             null_bit_map,

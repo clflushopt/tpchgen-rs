@@ -158,7 +158,7 @@ impl Iterator for ItemArrow {
             })
         };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&ItemRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let i_item_sk = sk32(i_item_sk, 0, ItemRow::get_i_item_sk);

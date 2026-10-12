@@ -96,7 +96,7 @@ impl Iterator for ReasonArrow {
             rec.int32_sk(rows, pos, nbm, f)
         };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&ReasonRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let r_reason_sk = sk32(r_reason_sk, 0, ReasonRow::get_r_reason_sk);

@@ -35,8 +35,8 @@ pub struct DateDimRow {
     pub d_fy_week_seq: i32,
 
     // Names
-    pub d_day_name: String,     // Monday, Tuesday, etc.
-    pub d_quarter_name: String, // 2024Q1, 2024Q2, etc.
+    pub d_day_name: &'static str, // Monday, Tuesday, etc.
+    pub d_quarter_name: String,   // 2024Q1, 2024Q2, etc.
 
     // Flags
     pub d_holiday: bool,
@@ -78,7 +78,7 @@ impl DateDimRow {
         d_fy_year: i32,
         d_fy_quarter_seq: i32,
         d_fy_week_seq: i32,
-        d_day_name: String,
+        d_day_name: &'static str,
         d_quarter_name: String,
         d_holiday: bool,
         d_weekend: bool,

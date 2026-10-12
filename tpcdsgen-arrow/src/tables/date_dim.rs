@@ -191,7 +191,7 @@ impl Iterator for DateDimArrow {
         let d_fy_year = int(d_fy_year, |r| r.d_fy_year);
         let d_fy_quarter_seq = int(d_fy_quarter_seq, |r| r.d_fy_quarter_seq);
         let d_fy_week_seq = int(d_fy_week_seq, |r| r.d_fy_week_seq);
-        let d_day_name = str(d_day_name, |r| r.d_day_name.as_str());
+        let d_day_name = str(d_day_name, |r| r.d_day_name);
         let d_quarter_name = str(d_quarter_name, |r| r.d_quarter_name.as_str());
         let d_holiday = str(d_holiday, |r| bool_to_yn(r.d_holiday));
         let d_weekend = str(d_weekend, |r| bool_to_yn(r.d_weekend));

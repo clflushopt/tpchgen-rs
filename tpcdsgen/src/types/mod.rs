@@ -3,7 +3,7 @@ pub mod date;
 pub mod decimal;
 pub mod pricing;
 
-pub use address::Address;
+pub use address::{Address, StreetName};
 pub use date::Date;
 pub use decimal::Decimal;
 pub use pricing::{

@@ -21,7 +21,7 @@ use std::fmt;
 pub struct HouseholdDemographicsRow {
     pub(crate) hd_demo_sk: i64,
     pub(crate) hd_income_band_sk: i64,
-    pub(crate) hd_buy_potential: String,
+    pub(crate) hd_buy_potential: &'static str,
     pub(crate) hd_dep_count: i32,
     pub(crate) hd_vehicle_count: i32,
     null_bit_map: i64,
@@ -42,8 +42,8 @@ impl HouseholdDemographicsRow {
         self.hd_income_band_sk
     }
 
-    pub fn get_hd_buy_potential(&self) -> &str {
-        &self.hd_buy_potential
+    pub fn get_hd_buy_potential(&self) -> &'static str {
+        self.hd_buy_potential
     }
 
     pub fn get_hd_dep_count(&self) -> i32 {
@@ -78,7 +78,7 @@ impl fmt::Display for HouseholdDemographicsRow {
             "{}|{}|{}|{}|{}|",
             NullLiteralField::new(self.hd_demo_sk, self.is_null(0)),
             NullLiteralField::new(self.hd_income_band_sk, self.is_null(1)),
-            NullLiteralField::new(&self.hd_buy_potential, self.is_null(2)),
+            NullLiteralField::new(self.hd_buy_potential, self.is_null(2)),
             NullLiteralField::new(self.hd_dep_count, self.is_null(3)),
             NullLiteralField::new(self.hd_vehicle_count, self.is_null(4)),
         )
@@ -90,7 +90,7 @@ impl fmt::Display for HouseholdDemographicsRow {
 pub struct HouseholdDemographicsRowBuilder {
     hd_demo_sk: Option<i64>,
     hd_income_band_sk: Option<i64>,
-    hd_buy_potential: Option<String>,
+    hd_buy_potential: Option<&'static str>,
     hd_dep_count: Option<i32>,
     hd_vehicle_count: Option<i32>,
     null_bit_map: Option<i64>,
@@ -112,7 +112,7 @@ impl HouseholdDemographicsRowBuilder {
         self
     }
 
-    pub fn set_hd_buy_potential(mut self, value: String) -> Self {
+    pub fn set_hd_buy_potential(mut self, value: &'static str) -> Self {
         self.hd_buy_potential = Some(value);
         self
     }
@@ -155,7 +155,7 @@ mod tests {
         let row = HouseholdDemographicsRow::builder()
             .set_hd_demo_sk(1)
             .set_hd_income_band_sk(5)
-            .set_hd_buy_potential("1001-5000".to_string())
+            .set_hd_buy_potential("1001-5000")
             .set_hd_dep_count(3)
             .set_hd_vehicle_count(2)
             .set_null_bit_map(0)
@@ -175,7 +175,7 @@ mod tests {
         let row = HouseholdDemographicsRow::builder()
             .set_hd_demo_sk(1)
             .set_hd_income_band_sk(5)
-            .set_hd_buy_potential("1001-5000".to_string())
+            .set_hd_buy_potential("1001-5000")
             .set_hd_dep_count(3)
             .set_hd_vehicle_count(2)
             .set_null_bit_map(0)
@@ -194,7 +194,7 @@ mod tests {
     fn test_household_demographics_row_clone_and_equality() {
         let row1 = HouseholdDemographicsRow::builder()
             .set_hd_demo_sk(42)
-            .set_hd_buy_potential("501-1000".to_string())
+            .set_hd_buy_potential("501-1000")
             .set_hd_dep_count(1)
             .build();
 
@@ -212,7 +212,7 @@ mod tests {
             .set_hd_demo_sk(100)
             .set_hd_dep_count(0)
             .set_hd_income_band_sk(3)
-            .set_hd_buy_potential("Unknown".to_string())
+            .set_hd_buy_potential("Unknown")
             .build();
 
         assert_eq!(row.get_hd_demo_sk(), 100);
@@ -228,7 +228,7 @@ mod tests {
         let row = HouseholdDemographicsRow::builder()
             .set_hd_demo_sk(1)
             .set_hd_income_band_sk(5)
-            .set_hd_buy_potential("1001-5000".to_string())
+            .set_hd_buy_potential("1001-5000")
             .set_hd_dep_count(3)
             .set_hd_vehicle_count(2)
             .set_null_bit_map(1 << 2) // Make hd_buy_potential null

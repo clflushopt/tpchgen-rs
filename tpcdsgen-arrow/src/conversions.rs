@@ -805,6 +805,7 @@ pub fn address_columns<'a>(
                 Some(a.get_street_number().to_string())
             }
         }));
+    let mut street_name = String::new();
     let mut street_name_b = StringViewBuilder::with_capacity(rows.len());
     let mut street_type_b = StringViewBuilder::with_capacity(rows.len());
     let mut suite_number_b = StringViewBuilder::with_capacity(rows.len());
@@ -820,7 +821,9 @@ pub fn address_columns<'a>(
         if is_null(*nbm, *base + 1) {
             street_name_b.append_null();
         } else {
-            street_name_b.append_value(a.get_street_name());
+            street_name.clear();
+            write!(street_name, "{}", a.get_street_name()).unwrap();
+            street_name_b.append_value(&street_name);
         }
         if is_null(*nbm, *base + 2) {
             street_type_b.append_null();

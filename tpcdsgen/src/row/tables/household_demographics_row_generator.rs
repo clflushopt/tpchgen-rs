@@ -76,7 +76,7 @@ impl HouseholdDemographicsRowGenerator {
         HouseholdDemographicsRow::builder()
             .set_hd_demo_sk(hd_demo_sk)
             .set_hd_income_band_sk(hd_income_band_sk)
-            .set_hd_buy_potential(hd_buy_potential.to_string())
+            .set_hd_buy_potential(hd_buy_potential)
             .set_hd_dep_count(hd_dep_count)
             .set_hd_vehicle_count(hd_vehicle_count)
             .set_null_bit_map(null_bit_map)

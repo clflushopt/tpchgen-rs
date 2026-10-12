@@ -120,7 +120,7 @@ impl Iterator for TimeDimArrow {
             rec.int32(rows, pos, nbm, f)
         };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&TimeDimRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let t_time_sk = sk32(t_time_sk, 0, |r| r.t_time_sk);
@@ -129,14 +129,14 @@ impl Iterator for TimeDimArrow {
         let t_hour = int(t_hour, 3, |r| r.t_hour);
         let t_minute = int(t_minute, 4, |r| r.t_minute);
         let t_second = int(t_second, 5, |r| r.t_second);
-        let t_am_pm = str(t_am_pm, 6, |r| r.t_am_pm.as_str());
-        let t_shift = str(t_shift, 7, |r| r.t_shift.as_str());
-        let t_sub_shift = str(t_sub_shift, 8, |r| r.t_sub_shift.as_str());
+        let t_am_pm = str(t_am_pm, 6, |r| r.t_am_pm);
+        let t_shift = str(t_shift, 7, |r| r.t_shift);
+        let t_sub_shift = str(t_sub_shift, 8, |r| r.t_sub_shift);
         // t_meal_time is an empty string (not null) for hours with no meal,
         // but the pipe-delimited format can't distinguish empty from null,
         // so we map empty -> None to match the .dat file convention.
         let t_meal_time = t_meal_time.build(rows, |r| {
-            (!r.t_meal_time.is_empty()).then_some(r.t_meal_time.as_str())
+            (!r.t_meal_time.is_empty()).then_some(r.t_meal_time)
         });
 
         let batch = RecordBatch::try_new(

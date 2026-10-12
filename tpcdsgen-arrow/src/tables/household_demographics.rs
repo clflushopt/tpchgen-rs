@@ -111,7 +111,7 @@ impl Iterator for HouseholdDemographicsArrow {
              f: fn(&HouseholdDemographicsRow) -> i32| { rec.int32(rows, pos, nbm, f) };
         let str =
             |rec: &mut StringViewArrayRecycler, pos, f: fn(&HouseholdDemographicsRow) -> &str| {
-                rec.string(rows, pos, nbm, f)
+                rec.str(rows, pos, nbm, f)
             };
 
         let hd_demo_sk = sk32(hd_demo_sk, 0, HouseholdDemographicsRow::get_hd_demo_sk);
