@@ -1,7 +1,7 @@
-use crate::conversions::{address_columns, integer_sk_opt, opt, string_view_array_from_opt_iter};
+use crate::conversions::{AddressArrayRecycler, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,22 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{WarehouseRow, WarehouseRowGenerator};
 
 /// Generate [`WarehouseRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct WarehouseArrow {
     inner: WarehouseRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<WarehouseRow>,
+    w_warehouse_sk: PrimitiveArrayRecycler<Int32Type>,
+    w_warehouse_id: StringViewArrayRecycler,
+    w_warehouse_name: StringViewArrayRecycler,
+    w_warehouse_sq_ft: PrimitiveArrayRecycler<Int32Type>,
+    address: AddressArrayRecycler,
 }
 
 impl WarehouseArrow {
@@ -28,6 +39,11 @@ impl WarehouseArrow {
             inner: WarehouseRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            w_warehouse_sk: PrimitiveArrayRecycler::new(),
+            w_warehouse_id: StringViewArrayRecycler::new(),
+            w_warehouse_name: StringViewArrayRecycler::new(),
+            w_warehouse_sq_ft: PrimitiveArrayRecycler::new(),
+            address: AddressArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,52 +88,50 @@ impl Iterator for WarehouseArrow {
             return None;
         }
 
-        let mut w_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut w_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut w_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut w_sq_ft: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
-            Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            w_warehouse_sk,
+            w_warehouse_id,
+            w_warehouse_name,
+            w_warehouse_sq_ft,
+            address,
+            ..
+        } = self;
+        let nbm = WarehouseRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&WarehouseRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>,
+                   pos,
+                   f: fn(&WarehouseRow) -> i32| { rec.int32(rows, pos, nbm, f) };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&WarehouseRow) -> &str| {
+            rec.str(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            w_sk.push(integer_sk_opt(nbm, 0, r.get_w_warehouse_sk()));
-            w_id.push(opt(nbm, 1, r.get_w_warehouse_id()));
-            w_name.push(opt(nbm, 2, r.get_w_warehouse_name()));
-            w_sq_ft.push(opt(nbm, 3, r.get_w_warehouse_sq_ft()));
-            addr_rows.push((r.get_w_address().clone(), nbm, 4));
-        }
-
-        let (
-            street_number,
-            street_name,
-            street_type,
-            suite_number,
-            city,
-            county,
-            state,
-            zip,
-            country,
-            gmt_offset,
-        ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
+        let w_warehouse_sk = sk32(w_warehouse_sk, 0, WarehouseRow::get_w_warehouse_sk);
+        let w_warehouse_id = str(w_warehouse_id, 1, WarehouseRow::get_w_warehouse_id);
+        let w_warehouse_name = str(w_warehouse_name, 2, WarehouseRow::get_w_warehouse_name);
+        let w_warehouse_sq_ft = int(w_warehouse_sq_ft, 3, WarehouseRow::get_w_warehouse_sq_ft);
+        let address = address.build(rows, 4, nbm, WarehouseRow::get_w_address);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(w_sk)),
-                Arc::new(string_view_array_from_opt_iter(w_id.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(w_name.iter().copied())),
-                Arc::new(Int32Array::from(w_sq_ft)),
-                Arc::new(street_number),
-                Arc::new(street_name),
-                Arc::new(street_type),
-                Arc::new(suite_number),
-                Arc::new(city),
-                Arc::new(county),
-                Arc::new(state),
-                Arc::new(zip),
-                Arc::new(country),
-                Arc::new(gmt_offset),
+                Arc::new(w_warehouse_sk),
+                Arc::new(w_warehouse_id),
+                Arc::new(w_warehouse_name),
+                Arc::new(w_warehouse_sq_ft),
+                Arc::new(address.street_number),
+                Arc::new(address.street_name),
+                Arc::new(address.street_type),
+                Arc::new(address.suite_number),
+                Arc::new(address.city),
+                Arc::new(address.county),
+                Arc::new(address.state),
+                Arc::new(address.zip),
+                Arc::new(address.country),
+                Arc::new(address.gmt_offset),
             ],
         );
         Some(batch)
