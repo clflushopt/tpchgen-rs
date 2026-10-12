@@ -1,4 +1,8 @@
-use crate::distribution::AdjectivesDistribution;
+use crate::distribution::{
+    AdjectivesDistribution, AdverbsDistribution, ArticlesDistribution, AuxiliariesDistribution,
+    NounsDistribution, PrepositionsDistribution, SentencesDistribution, TerminatorsDistribution,
+    VerbsDistribution,
+};
 use crate::random::stream::RandomNumberStream;
 use crate::types::{Date, Decimal};
 
@@ -263,11 +267,19 @@ impl RandomValueGenerator {
 
 /// Generates random English text (generateRandomText).
 ///
-/// Resolves word distributions once at construction so the per-word hot
-/// path is a direct weighted lookup (adjectives so far).
+/// Resolves every word distribution once at construction so the per-word
+/// hot path is a direct weighted lookup.
 #[derive(Debug, Clone, Copy)]
 pub struct RandomTextGenerator {
+    sentences: SentencesDistribution,
+    nouns: NounsDistribution,
+    verbs: VerbsDistribution,
     adjectives: AdjectivesDistribution,
+    adverbs: AdverbsDistribution,
+    auxiliaries: AuxiliariesDistribution,
+    prepositions: PrepositionsDistribution,
+    articles: ArticlesDistribution,
+    terminators: TerminatorsDistribution,
 }
 
 impl Default for RandomTextGenerator {
@@ -279,7 +291,15 @@ impl Default for RandomTextGenerator {
 impl RandomTextGenerator {
     pub fn new() -> Self {
         Self {
+            sentences: SentencesDistribution::new(),
+            nouns: NounsDistribution::new(),
+            verbs: VerbsDistribution::new(),
             adjectives: AdjectivesDistribution::new(),
+            adverbs: AdverbsDistribution::new(),
+            auxiliaries: AuxiliariesDistribution::new(),
+            prepositions: PrepositionsDistribution::new(),
+            articles: ArticlesDistribution::new(),
+            terminators: TerminatorsDistribution::new(),
         }
     }
 
@@ -332,21 +352,19 @@ impl RandomTextGenerator {
 
     // Generate random sentence following Java implementation exactly
     fn random_sentence(&self, stream: &mut RandomNumberStream) -> String {
-        use crate::distribution::*;
-
         let mut verbiage = String::new();
-        let syntax = pick_random_sentence(stream);
+        let syntax = self.sentences.pick(stream);
 
         for ch in syntax.chars() {
             match ch {
-                'N' => verbiage.push_str(pick_random_noun(stream)),
-                'V' => verbiage.push_str(pick_random_verb(stream)),
+                'N' => verbiage.push_str(self.nouns.pick(stream)),
+                'V' => verbiage.push_str(self.verbs.pick(stream)),
                 'J' => verbiage.push_str(self.adjectives.pick(stream)),
-                'D' => verbiage.push_str(pick_random_adverb(stream)),
-                'X' => verbiage.push_str(pick_random_auxiliary(stream)),
-                'P' => verbiage.push_str(pick_random_preposition(stream)),
-                'A' => verbiage.push_str(pick_random_article(stream)),
-                'T' => verbiage.push_str(pick_random_terminator(stream)),
+                'D' => verbiage.push_str(self.adverbs.pick(stream)),
+                'X' => verbiage.push_str(self.auxiliaries.pick(stream)),
+                'P' => verbiage.push_str(self.prepositions.pick(stream)),
+                'A' => verbiage.push_str(self.articles.pick(stream)),
+                'T' => verbiage.push_str(self.terminators.pick(stream)),
                 _ => verbiage.push(ch), // this is for adding punctuation and white space.
             }
         }

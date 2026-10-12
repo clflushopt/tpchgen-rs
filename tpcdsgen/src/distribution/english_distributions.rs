@@ -2,115 +2,49 @@ use crate::distribution::string_values_distribution::StringValuesDistribution;
 use crate::random::stream::RandomNumberStream;
 use std::sync::OnceLock;
 
-static ADJECTIVES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static ADVERBS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static ARTICLES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static AUXILIARIES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static PREPOSITIONS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static NOUNS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static SENTENCES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 static SYLLABLES_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static TERMINATORS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
-static VERBS_DISTRIBUTION: OnceLock<StringValuesDistribution> = OnceLock::new();
 
-/// Handle to the adjectives word list, resolved once at construction so
-/// `pick` skips the `OnceLock` check on every call.
-#[derive(Debug, Clone, Copy)]
-pub struct AdjectivesDistribution {
-    inner: &'static StringValuesDistribution,
+/// Defines a `Copy` handle to a single-column `.dst` word list, resolved
+/// once at construction so `pick` skips the `OnceLock` check on every call.
+macro_rules! english_distribution {
+    ($name:ident, $file:literal) => {
+        #[derive(Debug, Clone, Copy)]
+        pub struct $name {
+            inner: &'static StringValuesDistribution,
+        }
+
+        impl $name {
+            pub fn new() -> Self {
+                static DIST: OnceLock<StringValuesDistribution> = OnceLock::new();
+                let inner = DIST.get_or_init(|| {
+                    StringValuesDistribution::build_string_values_distribution($file, 1, 1)
+                        .expect(concat!("Failed to load ", $file))
+                });
+                Self { inner }
+            }
+
+            pub fn pick(&self, stream: &mut RandomNumberStream) -> &'static str {
+                self.inner.pick_random_value(0, 0, stream)
+            }
+        }
+
+        impl Default for $name {
+            fn default() -> Self {
+                Self::new()
+            }
+        }
+    };
 }
 
-impl AdjectivesDistribution {
-    pub fn new() -> Self {
-        let inner = ADJECTIVES_DISTRIBUTION.get_or_init(|| {
-            StringValuesDistribution::build_string_values_distribution("adjectives.dst", 1, 1)
-                .expect("Failed to load adjectives distribution")
-        });
-        Self { inner }
-    }
-
-    pub fn pick(&self, stream: &mut RandomNumberStream) -> &'static str {
-        self.inner.pick_random_value(0, 0, stream)
-    }
-}
-
-impl Default for AdjectivesDistribution {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-pub fn pick_random_adverb(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = ADVERBS_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("adverbs.dst", 1, 1)
-            .expect("Failed to load adverbs distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
-
-pub fn pick_random_article(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = ARTICLES_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("articles.dst", 1, 1)
-            .expect("Failed to load articles distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
-
-pub fn pick_random_auxiliary(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = AUXILIARIES_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("auxiliaries.dst", 1, 1)
-            .expect("Failed to load auxiliaries distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
-
-pub fn pick_random_preposition(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = PREPOSITIONS_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("prepositions.dst", 1, 1)
-            .expect("Failed to load prepositions distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
-
-pub fn pick_random_noun(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = NOUNS_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("nouns.dst", 1, 1)
-            .expect("Failed to load nouns distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
-
-pub fn pick_random_sentence(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = SENTENCES_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("sentences.dst", 1, 1)
-            .expect("Failed to load sentences distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
-
-pub fn pick_random_terminator(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = TERMINATORS_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("terminators.dst", 1, 1)
-            .expect("Failed to load terminators distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
-
-pub fn pick_random_verb(stream: &mut RandomNumberStream) -> &'static str {
-    let dist = VERBS_DISTRIBUTION.get_or_init(|| {
-        StringValuesDistribution::build_string_values_distribution("verbs.dst", 1, 1)
-            .expect("Failed to load verbs distribution")
-    });
-
-    dist.pick_random_value(0, 0, stream)
-}
+english_distribution!(AdjectivesDistribution, "adjectives.dst");
+english_distribution!(AdverbsDistribution, "adverbs.dst");
+english_distribution!(ArticlesDistribution, "articles.dst");
+english_distribution!(AuxiliariesDistribution, "auxiliaries.dst");
+english_distribution!(PrepositionsDistribution, "prepositions.dst");
+english_distribution!(NounsDistribution, "nouns.dst");
+english_distribution!(SentencesDistribution, "sentences.dst");
+english_distribution!(TerminatorsDistribution, "terminators.dst");
+english_distribution!(VerbsDistribution, "verbs.dst");
 
 pub fn get_syllables_distribution() -> &'static StringValuesDistribution {
     SYLLABLES_DISTRIBUTION.get_or_init(|| {
