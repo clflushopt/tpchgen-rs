@@ -1,10 +1,7 @@
-use crate::conversions::{
-    bool_to_yn, decimal128_15_2_array, decimal_to_i128, integer_sk_opt, opt,
-    string_view_array_from_opt_iter,
-};
+use crate::conversions::{bool_to_yn, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Decimal128Type, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -12,11 +9,36 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{PromotionRow, PromotionRowGenerator};
 
 /// Generate [`PromotionRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct PromotionArrow {
     inner: PromotionRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<PromotionRow>,
+    p_promo_sk: PrimitiveArrayRecycler<Int32Type>,
+    p_promo_id: StringViewArrayRecycler,
+    p_start_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    p_end_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    p_item_sk: PrimitiveArrayRecycler<Int32Type>,
+    p_cost: PrimitiveArrayRecycler<Decimal128Type>,
+    p_response_target: PrimitiveArrayRecycler<Int32Type>,
+    p_promo_name: StringViewArrayRecycler,
+    p_channel_dmail: StringViewArrayRecycler,
+    p_channel_email: StringViewArrayRecycler,
+    p_channel_catalog: StringViewArrayRecycler,
+    p_channel_tv: StringViewArrayRecycler,
+    p_channel_radio: StringViewArrayRecycler,
+    p_channel_press: StringViewArrayRecycler,
+    p_channel_event: StringViewArrayRecycler,
+    p_channel_demo: StringViewArrayRecycler,
+    p_channel_details: StringViewArrayRecycler,
+    p_purpose: StringViewArrayRecycler,
+    p_discount_active: StringViewArrayRecycler,
 }
 
 impl PromotionArrow {
@@ -31,6 +53,25 @@ impl PromotionArrow {
             inner: PromotionRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            p_promo_sk: PrimitiveArrayRecycler::new(),
+            p_promo_id: StringViewArrayRecycler::new(),
+            p_start_date_sk: PrimitiveArrayRecycler::new(),
+            p_end_date_sk: PrimitiveArrayRecycler::new(),
+            p_item_sk: PrimitiveArrayRecycler::new(),
+            p_cost: PrimitiveArrayRecycler::new(),
+            p_response_target: PrimitiveArrayRecycler::new(),
+            p_promo_name: StringViewArrayRecycler::new(),
+            p_channel_dmail: StringViewArrayRecycler::new(),
+            p_channel_email: StringViewArrayRecycler::new(),
+            p_channel_catalog: StringViewArrayRecycler::new(),
+            p_channel_tv: StringViewArrayRecycler::new(),
+            p_channel_radio: StringViewArrayRecycler::new(),
+            p_channel_press: StringViewArrayRecycler::new(),
+            p_channel_event: StringViewArrayRecycler::new(),
+            p_channel_demo: StringViewArrayRecycler::new(),
+            p_channel_details: StringViewArrayRecycler::new(),
+            p_purpose: StringViewArrayRecycler::new(),
+            p_discount_active: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -75,72 +116,87 @@ impl Iterator for PromotionArrow {
             return None;
         }
 
-        let mut p_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut p_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut p_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut p_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut p_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut p_response: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut p_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_dmail: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_email: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_catalog: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_tv: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_radio: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_press: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_event: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_demo: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_details: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_purpose: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut p_active: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            p_promo_sk,
+            p_promo_id,
+            p_start_date_sk,
+            p_end_date_sk,
+            p_item_sk,
+            p_cost,
+            p_response_target,
+            p_promo_name,
+            p_channel_dmail,
+            p_channel_email,
+            p_channel_catalog,
+            p_channel_tv,
+            p_channel_radio,
+            p_channel_press,
+            p_channel_event,
+            p_channel_demo,
+            p_channel_details,
+            p_purpose,
+            p_discount_active,
+            ..
+        } = self;
+        let nbm = PromotionRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&PromotionRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>,
+                   pos,
+                   f: fn(&PromotionRow) -> i32| { rec.int32(rows, pos, nbm, f) };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&PromotionRow) -> &str| {
+            rec.string(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            p_sk.push(integer_sk_opt(nbm, 0, r.get_p_promo_sk()));
-            p_id.push(opt(nbm, 1, r.get_p_promo_id()));
-            p_start.push(integer_sk_opt(nbm, 2, r.get_p_start_date_id()));
-            p_end.push(integer_sk_opt(nbm, 3, r.get_p_end_date_id()));
-            p_item.push(integer_sk_opt(nbm, 4, r.get_p_item_sk()));
-            p_cost.push(opt(nbm, 5, decimal_to_i128(r.get_p_cost())));
-            p_response.push(opt(nbm, 6, r.get_p_response_target()));
-            p_name.push(opt(nbm, 7, r.get_p_promo_name()));
-            p_dmail.push(opt(nbm, 8, bool_to_yn(r.get_p_channel_dmail())));
-            p_email.push(opt(nbm, 9, bool_to_yn(r.get_p_channel_email())));
-            p_catalog.push(opt(nbm, 10, bool_to_yn(r.get_p_channel_catalog())));
-            p_tv.push(opt(nbm, 11, bool_to_yn(r.get_p_channel_tv())));
-            p_radio.push(opt(nbm, 12, bool_to_yn(r.get_p_channel_radio())));
-            p_press.push(opt(nbm, 13, bool_to_yn(r.get_p_channel_press())));
-            p_event.push(opt(nbm, 14, bool_to_yn(r.get_p_channel_event())));
-            p_demo.push(opt(nbm, 15, bool_to_yn(r.get_p_channel_demo())));
-            p_details.push(opt(nbm, 16, r.get_p_channel_details()));
-            p_purpose.push(opt(nbm, 17, r.get_p_purpose()));
-            p_active.push(opt(nbm, 18, bool_to_yn(r.get_p_discount_active())));
-        }
+        let p_promo_sk = sk32(p_promo_sk, 0, PromotionRow::get_p_promo_sk);
+        let p_promo_id = str(p_promo_id, 1, PromotionRow::get_p_promo_id);
+        let p_start_date_sk = sk32(p_start_date_sk, 2, PromotionRow::get_p_start_date_id);
+        let p_end_date_sk = sk32(p_end_date_sk, 3, PromotionRow::get_p_end_date_id);
+        let p_item_sk = sk32(p_item_sk, 4, PromotionRow::get_p_item_sk);
+        let p_cost = p_cost.decimal_15_2(rows, 5, nbm, PromotionRow::get_p_cost);
+        let p_response_target = int(p_response_target, 6, PromotionRow::get_p_response_target);
+        let p_promo_name = str(p_promo_name, 7, PromotionRow::get_p_promo_name);
+        let p_channel_dmail = str(p_channel_dmail, 8, |r| bool_to_yn(r.get_p_channel_dmail()));
+        let p_channel_email = str(p_channel_email, 9, |r| bool_to_yn(r.get_p_channel_email()));
+        let p_channel_catalog = str(p_channel_catalog, 10, |r| {
+            bool_to_yn(r.get_p_channel_catalog())
+        });
+        let p_channel_tv = str(p_channel_tv, 11, |r| bool_to_yn(r.get_p_channel_tv()));
+        let p_channel_radio = str(p_channel_radio, 12, |r| bool_to_yn(r.get_p_channel_radio()));
+        let p_channel_press = str(p_channel_press, 13, |r| bool_to_yn(r.get_p_channel_press()));
+        let p_channel_event = str(p_channel_event, 14, |r| bool_to_yn(r.get_p_channel_event()));
+        let p_channel_demo = str(p_channel_demo, 15, |r| bool_to_yn(r.get_p_channel_demo()));
+        let p_channel_details = str(p_channel_details, 16, PromotionRow::get_p_channel_details);
+        let p_purpose = str(p_purpose, 17, PromotionRow::get_p_purpose);
+        let p_discount_active = str(p_discount_active, 18, |r| {
+            bool_to_yn(r.get_p_discount_active())
+        });
 
-        let cost_arr = decimal128_15_2_array(p_cost);
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(p_sk)),
-                Arc::new(string_view_array_from_opt_iter(p_id.iter().copied())),
-                Arc::new(Int32Array::from(p_start)),
-                Arc::new(Int32Array::from(p_end)),
-                Arc::new(Int32Array::from(p_item)),
-                Arc::new(cost_arr),
-                Arc::new(Int32Array::from(p_response)),
-                Arc::new(string_view_array_from_opt_iter(p_name.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_dmail.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_email.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_catalog.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_tv.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_radio.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_press.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_event.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_demo.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_details.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_purpose.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(p_active.iter().copied())),
+                Arc::new(p_promo_sk),
+                Arc::new(p_promo_id),
+                Arc::new(p_start_date_sk),
+                Arc::new(p_end_date_sk),
+                Arc::new(p_item_sk),
+                Arc::new(p_cost),
+                Arc::new(p_response_target),
+                Arc::new(p_promo_name),
+                Arc::new(p_channel_dmail),
+                Arc::new(p_channel_email),
+                Arc::new(p_channel_catalog),
+                Arc::new(p_channel_tv),
+                Arc::new(p_channel_radio),
+                Arc::new(p_channel_press),
+                Arc::new(p_channel_event),
+                Arc::new(p_channel_demo),
+                Arc::new(p_channel_details),
+                Arc::new(p_purpose),
+                Arc::new(p_discount_active),
             ],
         );
         Some(batch)
