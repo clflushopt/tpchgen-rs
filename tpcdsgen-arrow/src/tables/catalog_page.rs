@@ -1,7 +1,7 @@
-use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
+use crate::conversions::{PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,26 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CatalogPageRow, CatalogPageRowGenerator};
 
 /// Generate [`CatalogPageRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct CatalogPageArrow {
     inner: CatalogPageRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<CatalogPageRow>,
+    cp_catalog_page_sk: PrimitiveArrayRecycler<Int32Type>,
+    cp_catalog_page_id: StringViewArrayRecycler,
+    cp_start_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    cp_end_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    cp_department: StringViewArrayRecycler,
+    cp_catalog_number: PrimitiveArrayRecycler<Int32Type>,
+    cp_catalog_page_number: PrimitiveArrayRecycler<Int32Type>,
+    cp_description: StringViewArrayRecycler,
+    cp_type: StringViewArrayRecycler,
 }
 
 impl CatalogPageArrow {
@@ -28,6 +43,15 @@ impl CatalogPageArrow {
             inner: CatalogPageRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            cp_catalog_page_sk: PrimitiveArrayRecycler::new(),
+            cp_catalog_page_id: StringViewArrayRecycler::new(),
+            cp_start_date_sk: PrimitiveArrayRecycler::new(),
+            cp_end_date_sk: PrimitiveArrayRecycler::new(),
+            cp_department: StringViewArrayRecycler::new(),
+            cp_catalog_number: PrimitiveArrayRecycler::new(),
+            cp_catalog_page_number: PrimitiveArrayRecycler::new(),
+            cp_description: StringViewArrayRecycler::new(),
+            cp_type: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,43 +96,68 @@ impl Iterator for CatalogPageArrow {
             return None;
         }
 
-        let mut cp_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cp_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_dept: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cp_num: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_page_num: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cp_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut cp_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            cp_catalog_page_sk,
+            cp_catalog_page_id,
+            cp_start_date_sk,
+            cp_end_date_sk,
+            cp_department,
+            cp_catalog_number,
+            cp_catalog_page_number,
+            cp_description,
+            cp_type,
+            ..
+        } = self;
+        let nbm = CatalogPageRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&CatalogPageRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let int =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&CatalogPageRow) -> i32| {
+                rec.int32(rows, pos, nbm, f)
+            };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&CatalogPageRow) -> &str| {
+            rec.string(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            cp_sk.push(integer_sk_opt(nbm, 0, r.get_cp_catalog_page_sk()));
-            cp_id.push(opt(nbm, 1, r.get_cp_catalog_page_id()));
-            cp_start.push(integer_sk_opt(nbm, 2, r.get_cp_start_date_id()));
-            cp_end.push(integer_sk_opt(nbm, 3, r.get_cp_end_date_id()));
-            // CpPromoId occupies global bit 4 but is not in the output schema,
-            // so output columns shift: CpDepartment=bit5, ..., CpType=bit9.
-            cp_dept.push(opt(nbm, 5, r.get_cp_department()));
-            cp_num.push(opt(nbm, 6, r.get_cp_catalog_number()));
-            cp_page_num.push(opt(nbm, 7, r.get_cp_catalog_page_number()));
-            cp_desc.push(opt(nbm, 8, r.get_cp_description()));
-            cp_type.push(opt(nbm, 9, r.get_cp_type()));
-        }
+        let cp_catalog_page_sk = sk32(
+            cp_catalog_page_sk,
+            0,
+            CatalogPageRow::get_cp_catalog_page_sk,
+        );
+        let cp_catalog_page_id = str(
+            cp_catalog_page_id,
+            1,
+            CatalogPageRow::get_cp_catalog_page_id,
+        );
+        let cp_start_date_sk = sk32(cp_start_date_sk, 2, CatalogPageRow::get_cp_start_date_id);
+        let cp_end_date_sk = sk32(cp_end_date_sk, 3, CatalogPageRow::get_cp_end_date_id);
+        // CpPromoId occupies global bit 4 but is not in the output schema,
+        // so output columns shift: CpDepartment=bit5, ..., CpType=bit9.
+        let cp_department = str(cp_department, 5, CatalogPageRow::get_cp_department);
+        let cp_catalog_number = int(cp_catalog_number, 6, CatalogPageRow::get_cp_catalog_number);
+        let cp_catalog_page_number = int(
+            cp_catalog_page_number,
+            7,
+            CatalogPageRow::get_cp_catalog_page_number,
+        );
+        let cp_description = str(cp_description, 8, CatalogPageRow::get_cp_description);
+        let cp_type = str(cp_type, 9, CatalogPageRow::get_cp_type);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(cp_sk)),
-                Arc::new(string_view_array_from_opt_iter(cp_id.iter().copied())),
-                Arc::new(Int32Array::from(cp_start)),
-                Arc::new(Int32Array::from(cp_end)),
-                Arc::new(string_view_array_from_opt_iter(cp_dept.iter().copied())),
-                Arc::new(Int32Array::from(cp_num)),
-                Arc::new(Int32Array::from(cp_page_num)),
-                Arc::new(string_view_array_from_opt_iter(cp_desc.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(cp_type.iter().copied())),
+                Arc::new(cp_catalog_page_sk),
+                Arc::new(cp_catalog_page_id),
+                Arc::new(cp_start_date_sk),
+                Arc::new(cp_end_date_sk),
+                Arc::new(cp_department),
+                Arc::new(cp_catalog_number),
+                Arc::new(cp_catalog_page_number),
+                Arc::new(cp_description),
+                Arc::new(cp_type),
             ],
         );
         Some(batch)
