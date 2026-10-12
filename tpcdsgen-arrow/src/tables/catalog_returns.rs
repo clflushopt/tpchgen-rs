@@ -1,19 +1,53 @@
-use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt};
+use crate::conversions::PrimitiveArrayRecycler;
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Decimal128Type, Field, Int32Type, Int64Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CatalogReturnsRow, CatalogReturnsRowGenerator};
+use tpcdsgen::types::{Decimal, Pricing};
 
 /// Generate [`CatalogReturnsRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct CatalogReturnsArrow {
     inner: CatalogReturnsRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<CatalogReturnsRow>,
+    cr_returned_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_returned_time_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_item_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_refunded_customer_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_refunded_cdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_refunded_hdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_refunded_addr_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_returning_customer_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_returning_cdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_returning_hdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_returning_addr_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_call_center_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_catalog_page_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_ship_mode_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_warehouse_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_reason_sk: PrimitiveArrayRecycler<Int32Type>,
+    cr_order_number: PrimitiveArrayRecycler<Int64Type>,
+    cr_return_quantity: PrimitiveArrayRecycler<Int32Type>,
+    cr_return_amount: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_return_tax: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_return_amt_inc_tax: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_fee: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_return_ship_cost: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_refunded_cash: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_reversed_charge: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_store_credit: PrimitiveArrayRecycler<Decimal128Type>,
+    cr_net_loss: PrimitiveArrayRecycler<Decimal128Type>,
 }
 
 impl CatalogReturnsArrow {
@@ -28,6 +62,33 @@ impl CatalogReturnsArrow {
             inner: CatalogReturnsRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            cr_returned_date_sk: PrimitiveArrayRecycler::new(),
+            cr_returned_time_sk: PrimitiveArrayRecycler::new(),
+            cr_item_sk: PrimitiveArrayRecycler::new(),
+            cr_refunded_customer_sk: PrimitiveArrayRecycler::new(),
+            cr_refunded_cdemo_sk: PrimitiveArrayRecycler::new(),
+            cr_refunded_hdemo_sk: PrimitiveArrayRecycler::new(),
+            cr_refunded_addr_sk: PrimitiveArrayRecycler::new(),
+            cr_returning_customer_sk: PrimitiveArrayRecycler::new(),
+            cr_returning_cdemo_sk: PrimitiveArrayRecycler::new(),
+            cr_returning_hdemo_sk: PrimitiveArrayRecycler::new(),
+            cr_returning_addr_sk: PrimitiveArrayRecycler::new(),
+            cr_call_center_sk: PrimitiveArrayRecycler::new(),
+            cr_catalog_page_sk: PrimitiveArrayRecycler::new(),
+            cr_ship_mode_sk: PrimitiveArrayRecycler::new(),
+            cr_warehouse_sk: PrimitiveArrayRecycler::new(),
+            cr_reason_sk: PrimitiveArrayRecycler::new(),
+            cr_order_number: PrimitiveArrayRecycler::new(),
+            cr_return_quantity: PrimitiveArrayRecycler::new(),
+            cr_return_amount: PrimitiveArrayRecycler::new(),
+            cr_return_tax: PrimitiveArrayRecycler::new(),
+            cr_return_amt_inc_tax: PrimitiveArrayRecycler::new(),
+            cr_fee: PrimitiveArrayRecycler::new(),
+            cr_return_ship_cost: PrimitiveArrayRecycler::new(),
+            cr_refunded_cash: PrimitiveArrayRecycler::new(),
+            cr_reversed_charge: PrimitiveArrayRecycler::new(),
+            cr_store_credit: PrimitiveArrayRecycler::new(),
+            cr_net_loss: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,101 +133,159 @@ impl Iterator for CatalogReturnsArrow {
             return None;
         }
 
-        let mut cr_returned_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_returned_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_refunded_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_refunded_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_refunded_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_refunded_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_returning_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_returning_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_returning_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_returning_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_call_center: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_catalog_page: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_ship_mode: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_warehouse: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_reason: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_order_number: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut cr_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cr_return_amount: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_return_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_return_amt_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_fee: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_return_ship_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_refunded_cash: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_reversed_charge: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_store_credit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut cr_net_loss: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            cr_returned_date_sk,
+            cr_returned_time_sk,
+            cr_item_sk,
+            cr_refunded_customer_sk,
+            cr_refunded_cdemo_sk,
+            cr_refunded_hdemo_sk,
+            cr_refunded_addr_sk,
+            cr_returning_customer_sk,
+            cr_returning_cdemo_sk,
+            cr_returning_hdemo_sk,
+            cr_returning_addr_sk,
+            cr_call_center_sk,
+            cr_catalog_page_sk,
+            cr_ship_mode_sk,
+            cr_warehouse_sk,
+            cr_reason_sk,
+            cr_order_number,
+            cr_return_quantity,
+            cr_return_amount,
+            cr_return_tax,
+            cr_return_amt_inc_tax,
+            cr_fee,
+            cr_return_ship_cost,
+            cr_refunded_cash,
+            cr_reversed_charge,
+            cr_store_credit,
+            cr_net_loss,
+            ..
+        } = self;
+        let nbm = CatalogReturnsRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&CatalogReturnsRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let dec =
+            |rec: &mut PrimitiveArrayRecycler<Decimal128Type>, pos, f: fn(&Pricing) -> Decimal| {
+                rec.decimal_7_2(rows, pos, nbm, |r| f(r.get_cr_pricing()))
+            };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            let p = r.get_cr_pricing();
-            cr_returned_date.push(integer_sk_opt(nbm, 0, r.get_cr_returned_date_sk()));
-            cr_returned_time.push(integer_sk_opt(nbm, 1, r.get_cr_returned_time_sk()));
-            cr_item.push(integer_sk_opt(nbm, 2, r.get_cr_item_sk()));
-            cr_refunded_customer.push(integer_sk_opt(nbm, 3, r.get_cr_refunded_customer_sk()));
-            cr_refunded_cdemo.push(integer_sk_opt(nbm, 4, r.get_cr_refunded_cdemo_sk()));
-            cr_refunded_hdemo.push(integer_sk_opt(nbm, 5, r.get_cr_refunded_hdemo_sk()));
-            cr_refunded_addr.push(integer_sk_opt(nbm, 6, r.get_cr_refunded_addr_sk()));
-            cr_returning_customer.push(integer_sk_opt(nbm, 7, r.get_cr_returning_customer_sk()));
-            cr_returning_cdemo.push(integer_sk_opt(nbm, 8, r.get_cr_returning_cdemo_sk()));
-            cr_returning_hdemo.push(integer_sk_opt(nbm, 9, r.get_cr_returning_hdemo_sk()));
-            cr_returning_addr.push(integer_sk_opt(nbm, 10, r.get_cr_returning_addr_sk()));
-            cr_call_center.push(integer_sk_opt(nbm, 11, r.get_cr_call_center_sk()));
-            cr_catalog_page.push(integer_sk_opt(nbm, 12, r.get_cr_catalog_page_sk()));
-            cr_ship_mode.push(integer_sk_opt(nbm, 13, r.get_cr_ship_mode_sk()));
-            cr_warehouse.push(integer_sk_opt(nbm, 14, r.get_cr_warehouse_sk()));
-            cr_reason.push(integer_sk_opt(nbm, 15, r.get_cr_reason_sk()));
-            cr_order_number.push(opt(nbm, 16, r.get_cr_order_number()));
-            cr_quantity.push(opt(nbm, 17, p.get_quantity()));
-            cr_return_amount.push(opt(nbm, 18, decimal_to_i128(p.get_net_paid())));
-            cr_return_tax.push(opt(nbm, 19, decimal_to_i128(p.get_ext_tax())));
-            cr_return_amt_inc_tax.push(opt(
-                nbm,
-                20,
-                decimal_to_i128(p.get_net_paid_including_tax()),
-            ));
-            cr_fee.push(opt(nbm, 21, decimal_to_i128(p.get_fee())));
-            cr_return_ship_cost.push(opt(nbm, 22, decimal_to_i128(p.get_ext_ship_cost())));
-            cr_refunded_cash.push(opt(nbm, 23, decimal_to_i128(p.get_refunded_cash())));
-            cr_reversed_charge.push(opt(nbm, 24, decimal_to_i128(p.get_reversed_charge())));
-            cr_store_credit.push(opt(nbm, 25, decimal_to_i128(p.get_store_credit())));
-            cr_net_loss.push(opt(nbm, 26, decimal_to_i128(p.get_net_loss())));
-        }
+        let cr_returned_date_sk = sk32(
+            cr_returned_date_sk,
+            0,
+            CatalogReturnsRow::get_cr_returned_date_sk,
+        );
+        let cr_returned_time_sk = sk32(
+            cr_returned_time_sk,
+            1,
+            CatalogReturnsRow::get_cr_returned_time_sk,
+        );
+        let cr_item_sk = sk32(cr_item_sk, 2, CatalogReturnsRow::get_cr_item_sk);
+        let cr_refunded_customer_sk = sk32(
+            cr_refunded_customer_sk,
+            3,
+            CatalogReturnsRow::get_cr_refunded_customer_sk,
+        );
+        let cr_refunded_cdemo_sk = sk32(
+            cr_refunded_cdemo_sk,
+            4,
+            CatalogReturnsRow::get_cr_refunded_cdemo_sk,
+        );
+        let cr_refunded_hdemo_sk = sk32(
+            cr_refunded_hdemo_sk,
+            5,
+            CatalogReturnsRow::get_cr_refunded_hdemo_sk,
+        );
+        let cr_refunded_addr_sk = sk32(
+            cr_refunded_addr_sk,
+            6,
+            CatalogReturnsRow::get_cr_refunded_addr_sk,
+        );
+        let cr_returning_customer_sk = sk32(
+            cr_returning_customer_sk,
+            7,
+            CatalogReturnsRow::get_cr_returning_customer_sk,
+        );
+        let cr_returning_cdemo_sk = sk32(
+            cr_returning_cdemo_sk,
+            8,
+            CatalogReturnsRow::get_cr_returning_cdemo_sk,
+        );
+        let cr_returning_hdemo_sk = sk32(
+            cr_returning_hdemo_sk,
+            9,
+            CatalogReturnsRow::get_cr_returning_hdemo_sk,
+        );
+        let cr_returning_addr_sk = sk32(
+            cr_returning_addr_sk,
+            10,
+            CatalogReturnsRow::get_cr_returning_addr_sk,
+        );
+        let cr_call_center_sk = sk32(
+            cr_call_center_sk,
+            11,
+            CatalogReturnsRow::get_cr_call_center_sk,
+        );
+        let cr_catalog_page_sk = sk32(
+            cr_catalog_page_sk,
+            12,
+            CatalogReturnsRow::get_cr_catalog_page_sk,
+        );
+        let cr_ship_mode_sk = sk32(cr_ship_mode_sk, 13, CatalogReturnsRow::get_cr_ship_mode_sk);
+        let cr_warehouse_sk = sk32(cr_warehouse_sk, 14, CatalogReturnsRow::get_cr_warehouse_sk);
+        let cr_reason_sk = sk32(cr_reason_sk, 15, CatalogReturnsRow::get_cr_reason_sk);
+        let cr_order_number =
+            cr_order_number.int64(rows, 16, nbm, CatalogReturnsRow::get_cr_order_number);
+        let cr_return_quantity =
+            cr_return_quantity.int32(rows, 17, nbm, |r| r.get_cr_pricing().get_quantity());
+        let cr_return_amount = dec(cr_return_amount, 18, Pricing::get_net_paid);
+        let cr_return_tax = dec(cr_return_tax, 19, Pricing::get_ext_tax);
+        let cr_return_amt_inc_tax = dec(
+            cr_return_amt_inc_tax,
+            20,
+            Pricing::get_net_paid_including_tax,
+        );
+        let cr_fee = dec(cr_fee, 21, Pricing::get_fee);
+        let cr_return_ship_cost = dec(cr_return_ship_cost, 22, Pricing::get_ext_ship_cost);
+        let cr_refunded_cash = dec(cr_refunded_cash, 23, Pricing::get_refunded_cash);
+        let cr_reversed_charge = dec(cr_reversed_charge, 24, Pricing::get_reversed_charge);
+        let cr_store_credit = dec(cr_store_credit, 25, Pricing::get_store_credit);
+        let cr_net_loss = dec(cr_net_loss, 26, Pricing::get_net_loss);
 
-        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(cr_returned_date)),
-                Arc::new(Int32Array::from(cr_returned_time)),
-                Arc::new(Int32Array::from(cr_item)),
-                Arc::new(Int32Array::from(cr_refunded_customer)),
-                Arc::new(Int32Array::from(cr_refunded_cdemo)),
-                Arc::new(Int32Array::from(cr_refunded_hdemo)),
-                Arc::new(Int32Array::from(cr_refunded_addr)),
-                Arc::new(Int32Array::from(cr_returning_customer)),
-                Arc::new(Int32Array::from(cr_returning_cdemo)),
-                Arc::new(Int32Array::from(cr_returning_hdemo)),
-                Arc::new(Int32Array::from(cr_returning_addr)),
-                Arc::new(Int32Array::from(cr_call_center)),
-                Arc::new(Int32Array::from(cr_catalog_page)),
-                Arc::new(Int32Array::from(cr_ship_mode)),
-                Arc::new(Int32Array::from(cr_warehouse)),
-                Arc::new(Int32Array::from(cr_reason)),
-                Arc::new(Int64Array::from(cr_order_number)),
-                Arc::new(Int32Array::from(cr_quantity)),
-                Arc::new(dec(cr_return_amount)),
-                Arc::new(dec(cr_return_tax)),
-                Arc::new(dec(cr_return_amt_inc_tax)),
-                Arc::new(dec(cr_fee)),
-                Arc::new(dec(cr_return_ship_cost)),
-                Arc::new(dec(cr_refunded_cash)),
-                Arc::new(dec(cr_reversed_charge)),
-                Arc::new(dec(cr_store_credit)),
-                Arc::new(dec(cr_net_loss)),
+                Arc::new(cr_returned_date_sk),
+                Arc::new(cr_returned_time_sk),
+                Arc::new(cr_item_sk),
+                Arc::new(cr_refunded_customer_sk),
+                Arc::new(cr_refunded_cdemo_sk),
+                Arc::new(cr_refunded_hdemo_sk),
+                Arc::new(cr_refunded_addr_sk),
+                Arc::new(cr_returning_customer_sk),
+                Arc::new(cr_returning_cdemo_sk),
+                Arc::new(cr_returning_hdemo_sk),
+                Arc::new(cr_returning_addr_sk),
+                Arc::new(cr_call_center_sk),
+                Arc::new(cr_catalog_page_sk),
+                Arc::new(cr_ship_mode_sk),
+                Arc::new(cr_warehouse_sk),
+                Arc::new(cr_reason_sk),
+                Arc::new(cr_order_number),
+                Arc::new(cr_return_quantity),
+                Arc::new(cr_return_amount),
+                Arc::new(cr_return_tax),
+                Arc::new(cr_return_amt_inc_tax),
+                Arc::new(cr_fee),
+                Arc::new(cr_return_ship_cost),
+                Arc::new(cr_refunded_cash),
+                Arc::new(cr_reversed_charge),
+                Arc::new(cr_store_credit),
+                Arc::new(cr_net_loss),
             ],
         );
         Some(batch)
