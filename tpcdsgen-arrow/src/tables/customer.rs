@@ -1,7 +1,7 @@
-use crate::conversions::{bool_to_yn, integer_sk_opt, opt, string_view_array_from_opt_iter};
+use crate::conversions::{bool_to_yn, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,35 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{CustomerRow, CustomerRowGenerator};
 
 /// Generate [`CustomerRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct CustomerArrow {
     inner: CustomerRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<CustomerRow>,
+    c_customer_sk: PrimitiveArrayRecycler<Int32Type>,
+    c_customer_id: StringViewArrayRecycler,
+    c_current_cdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    c_current_hdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    c_current_addr_sk: PrimitiveArrayRecycler<Int32Type>,
+    c_first_shipto_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    c_first_sales_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    c_salutation: StringViewArrayRecycler,
+    c_first_name: StringViewArrayRecycler,
+    c_last_name: StringViewArrayRecycler,
+    c_preferred_cust_flag: StringViewArrayRecycler,
+    c_birth_day: PrimitiveArrayRecycler<Int32Type>,
+    c_birth_month: PrimitiveArrayRecycler<Int32Type>,
+    c_birth_year: PrimitiveArrayRecycler<Int32Type>,
+    c_birth_country: StringViewArrayRecycler,
+    c_login: StringViewArrayRecycler,
+    c_email_address: StringViewArrayRecycler,
+    c_last_review_date_sk: PrimitiveArrayRecycler<Int32Type>,
 }
 
 impl CustomerArrow {
@@ -28,6 +52,24 @@ impl CustomerArrow {
             inner: CustomerRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            c_customer_sk: PrimitiveArrayRecycler::new(),
+            c_customer_id: StringViewArrayRecycler::new(),
+            c_current_cdemo_sk: PrimitiveArrayRecycler::new(),
+            c_current_hdemo_sk: PrimitiveArrayRecycler::new(),
+            c_current_addr_sk: PrimitiveArrayRecycler::new(),
+            c_first_shipto_date_sk: PrimitiveArrayRecycler::new(),
+            c_first_sales_date_sk: PrimitiveArrayRecycler::new(),
+            c_salutation: StringViewArrayRecycler::new(),
+            c_first_name: StringViewArrayRecycler::new(),
+            c_last_name: StringViewArrayRecycler::new(),
+            c_preferred_cust_flag: StringViewArrayRecycler::new(),
+            c_birth_day: PrimitiveArrayRecycler::new(),
+            c_birth_month: PrimitiveArrayRecycler::new(),
+            c_birth_year: PrimitiveArrayRecycler::new(),
+            c_birth_country: StringViewArrayRecycler::new(),
+            c_login: StringViewArrayRecycler::new(),
+            c_email_address: StringViewArrayRecycler::new(),
+            c_last_review_date_sk: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,76 +114,95 @@ impl Iterator for CustomerArrow {
             return None;
         }
 
-        let mut c_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut c_cdemo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_hdemo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_addr_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_shipto_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_sales_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_salutation: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut c_first_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut c_last_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut c_pref_flag: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut c_birth_day: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_birth_month: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_birth_year: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut c_birth_country: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut c_login: Vec<Option<String>> = Vec::with_capacity(rows.len());
-        let mut c_email: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut c_last_review: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            c_customer_sk,
+            c_customer_id,
+            c_current_cdemo_sk,
+            c_current_hdemo_sk,
+            c_current_addr_sk,
+            c_first_shipto_date_sk,
+            c_first_sales_date_sk,
+            c_salutation,
+            c_first_name,
+            c_last_name,
+            c_preferred_cust_flag,
+            c_birth_day,
+            c_birth_month,
+            c_birth_year,
+            c_birth_country,
+            c_login,
+            c_email_address,
+            c_last_review_date_sk,
+            ..
+        } = self;
+        let nbm = CustomerRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&CustomerRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&CustomerRow) -> i32| {
+            rec.int32(rows, pos, nbm, f)
+        };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&CustomerRow) -> &str| {
+            rec.string(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            c_sk.push(integer_sk_opt(nbm, 0, r.get_c_customer_sk()));
-            c_id.push(opt(nbm, 1, r.get_c_customer_id()));
-            c_cdemo_sk.push(integer_sk_opt(nbm, 2, r.get_c_current_cdemo_sk()));
-            c_hdemo_sk.push(integer_sk_opt(nbm, 3, r.get_c_current_hdemo_sk()));
-            c_addr_sk.push(integer_sk_opt(nbm, 4, r.get_c_current_addr_sk()));
-            c_shipto_date.push(opt(nbm, 5, r.get_c_first_shipto_date_id()));
-            c_sales_date.push(opt(nbm, 6, r.get_c_first_sales_date_id()));
-            c_salutation.push(opt(nbm, 7, r.get_c_salutation()));
-            c_first_name.push(opt(nbm, 8, r.get_c_first_name()));
-            c_last_name.push(opt(nbm, 9, r.get_c_last_name()));
-            c_pref_flag.push(opt(nbm, 10, bool_to_yn(r.get_c_preferred_cust_flag())));
-            c_birth_day.push(opt(nbm, 11, r.get_c_birth_day()));
-            c_birth_month.push(opt(nbm, 12, r.get_c_birth_month()));
-            c_birth_year.push(opt(nbm, 13, r.get_c_birth_year()));
-            c_birth_country.push(opt(nbm, 14, r.get_c_birth_country()));
-            c_login.push(None); // always null per TPC-DS spec
-            c_email.push(opt(nbm, 16, r.get_c_email_address()));
-            c_last_review.push(opt(nbm, 17, r.get_c_last_review_date()));
-        }
+        let c_customer_sk = sk32(c_customer_sk, 0, CustomerRow::get_c_customer_sk);
+        let c_customer_id = str(c_customer_id, 1, CustomerRow::get_c_customer_id);
+        let c_current_cdemo_sk = sk32(c_current_cdemo_sk, 2, CustomerRow::get_c_current_cdemo_sk);
+        let c_current_hdemo_sk = sk32(c_current_hdemo_sk, 3, CustomerRow::get_c_current_hdemo_sk);
+        let c_current_addr_sk = sk32(c_current_addr_sk, 4, CustomerRow::get_c_current_addr_sk);
+        let c_first_shipto_date_sk = int(
+            c_first_shipto_date_sk,
+            5,
+            CustomerRow::get_c_first_shipto_date_id,
+        );
+        let c_first_sales_date_sk = int(
+            c_first_sales_date_sk,
+            6,
+            CustomerRow::get_c_first_sales_date_id,
+        );
+        let c_salutation = str(c_salutation, 7, CustomerRow::get_c_salutation);
+        let c_first_name = str(c_first_name, 8, CustomerRow::get_c_first_name);
+        let c_last_name = str(c_last_name, 9, CustomerRow::get_c_last_name);
+        let c_preferred_cust_flag = str(c_preferred_cust_flag, 10, |r| {
+            bool_to_yn(r.get_c_preferred_cust_flag())
+        });
+        let c_birth_day = int(c_birth_day, 11, CustomerRow::get_c_birth_day);
+        let c_birth_month = int(c_birth_month, 12, CustomerRow::get_c_birth_month);
+        let c_birth_year = int(c_birth_year, 13, CustomerRow::get_c_birth_year);
+        let c_birth_country = str(c_birth_country, 14, CustomerRow::get_c_birth_country);
+        // always null per TPC-DS spec
+        let c_login = c_login.build(rows, |_| None);
+        let c_email_address = str(c_email_address, 16, CustomerRow::get_c_email_address);
+        let c_last_review_date_sk = int(
+            c_last_review_date_sk,
+            17,
+            CustomerRow::get_c_last_review_date,
+        );
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(c_sk)),
-                Arc::new(string_view_array_from_opt_iter(c_id.iter().copied())),
-                Arc::new(Int32Array::from(c_cdemo_sk)),
-                Arc::new(Int32Array::from(c_hdemo_sk)),
-                Arc::new(Int32Array::from(c_addr_sk)),
-                Arc::new(Int32Array::from(c_shipto_date)),
-                Arc::new(Int32Array::from(c_sales_date)),
-                Arc::new(string_view_array_from_opt_iter(
-                    c_salutation.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    c_first_name.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(c_last_name.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(c_pref_flag.iter().copied())),
-                Arc::new(Int32Array::from(c_birth_day)),
-                Arc::new(Int32Array::from(c_birth_month)),
-                Arc::new(Int32Array::from(c_birth_year)),
-                Arc::new(string_view_array_from_opt_iter(
-                    c_birth_country.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    c_login.iter().map(|_| None::<&str>),
-                )),
-                Arc::new(string_view_array_from_opt_iter(c_email.iter().copied())),
-                Arc::new(Int32Array::from(c_last_review)),
+                Arc::new(c_customer_sk),
+                Arc::new(c_customer_id),
+                Arc::new(c_current_cdemo_sk),
+                Arc::new(c_current_hdemo_sk),
+                Arc::new(c_current_addr_sk),
+                Arc::new(c_first_shipto_date_sk),
+                Arc::new(c_first_sales_date_sk),
+                Arc::new(c_salutation),
+                Arc::new(c_first_name),
+                Arc::new(c_last_name),
+                Arc::new(c_preferred_cust_flag),
+                Arc::new(c_birth_day),
+                Arc::new(c_birth_month),
+                Arc::new(c_birth_year),
+                Arc::new(c_birth_country),
+                Arc::new(c_login),
+                Arc::new(c_email_address),
+                Arc::new(c_last_review_date_sk),
             ],
         );
         Some(batch)
