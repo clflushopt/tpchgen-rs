@@ -7,7 +7,7 @@ description = "TPC-H data generator into Apache Arrow format"
 repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-arrow"
 readme = "README.md"
-license = "Apache-2.0"
+license = { workspace = true }
 
 [dependencies]
 arrow_59 = { workspace = true, optional = true }
