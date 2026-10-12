@@ -1,6 +1,6 @@
 # TPCH Prepared Test Files
 
-This folder stores test files used to ensure consistency with Apache Trino's and
+This folder stores test files used to ensure consistency with Trino's and
 OLTPBenchmarks outputs.
 
 The files are stored as gzipped tbl files and we plan to potentially add support
