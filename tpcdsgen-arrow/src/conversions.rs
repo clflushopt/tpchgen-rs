@@ -1,6 +1,10 @@
 //! Routines to convert TPC-DS types to Arrow types
 
-use arrow::array::{Decimal128Array, StringViewArray, StringViewBuilder};
+use arrow::array::{
+    Decimal128Array, Int32Array, Int64Array, PrimitiveArray, StringViewArray, StringViewBuilder,
+};
+use arrow::buffer::{BooleanBuffer, Buffer, NullBuffer, ScalarBuffer};
+use arrow::datatypes::{ArrowPrimitiveType, Decimal128Type, Int32Type, Int64Type};
 use tpcdsgen::types::{Address, Date, Decimal};
 
 /// Julian day number for the Unix epoch (1970-01-01)
@@ -173,6 +177,177 @@ pub fn integer_sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i32> {
     }
 }
 
+/// Builds one primitive column per batch, column-at-a-time, reusing the value
+/// and null buffer allocations from the previous batch.
+///
+/// Keeps a reference to the value and null buffers of the last array built. On
+/// the next build, each buffer whose only remaining reference is ours is
+/// converted back into a `Vec` and refilled; otherwise a fresh `Vec` is used.
+#[derive(Debug)]
+pub struct PrimitiveArrayRecycler<T: ArrowPrimitiveType> {
+    values: Option<ScalarBuffer<T::Native>>,
+    nulls: Option<NullBuffer>,
+}
+
+impl<T: ArrowPrimitiveType> Default for PrimitiveArrayRecycler<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
+    pub fn new() -> Self {
+        Self {
+            values: None,
+            nulls: None,
+        }
+    }
+
+    /// Build an array with an entry for each row in `rows`
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `value`: function that returns the value for a row
+    /// * `valid`: function that returns true if the row is non-null
+    pub fn build<R>(
+        &mut self,
+        rows: &[R],
+        value: impl Fn(&R) -> T::Native,
+        valid: impl Fn(&R) -> bool,
+    ) -> PrimitiveArray<T> {
+        let mut values = self.reclaim_values();
+        values.reserve(rows.len());
+        values.extend(rows.iter().map(value));
+        let mut bits = self.reclaim_bits();
+        pack_bits(&mut bits, rows, valid);
+
+        let values = ScalarBuffer::from(values);
+        let nulls = NullBuffer::new(BooleanBuffer::new(Buffer::from_vec(bits), 0, rows.len()));
+        self.values = Some(values.clone());
+        self.nulls = Some(nulls.clone());
+        PrimitiveArray::new(values, Some(nulls))
+    }
+
+    /// Returns the previous value buffer as an empty `Vec`, or a new one if still shared.
+    fn reclaim_values(&mut self) -> Vec<T::Native> {
+        let mut v = self
+            .values
+            .take()
+            .and_then(|b| b.into_inner().into_vec().ok())
+            .unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    /// Returns the previous null bitmap as an empty `Vec<u64>`, or a new one if still shared.
+    fn reclaim_bits(&mut self) -> Vec<u64> {
+        let mut v = self
+            .nulls
+            .take()
+            .and_then(|n| n.into_inner().into_inner().into_vec().ok())
+            .unwrap_or_default();
+        v.clear();
+        v
+    }
+}
+
+/// Pack `valid(row)` for each row into `dst` as little-endian 64-bit words,
+/// lowest bit first (Arrow validity bitmap layout). Trailing bits are zero.
+fn pack_bits<R>(dst: &mut Vec<u64>, rows: &[R], valid: impl Fn(&R) -> bool) {
+    dst.reserve(rows.len().div_ceil(64));
+    for chunk in rows.chunks(64) {
+        let mut packed = 0u64;
+        for (i, r) in chunk.iter().enumerate() {
+            packed |= (valid(r) as u64) << i;
+        }
+        dst.push(packed.to_le());
+    }
+}
+
+impl PrimitiveArrayRecycler<Int32Type> {
+    /// Nullable INTEGER column
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `value`: function to get the integer value for a row
+    pub fn int32<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> i32,
+    ) -> Int32Array {
+        self.build(rows, value, |r| !is_null(nbm(r), pos))
+    }
+
+    /// Nullable INTEGER surrogate key
+    ///
+    /// See [`integer_sk_opt`] for details on how nulls and absent keys are handled.
+    ///
+    /// Arguments: as [`Self::int32`], with `sk` returning the surrogate key for a row
+    pub fn int32_sk<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        sk: impl Fn(&R) -> i64,
+    ) -> Int32Array {
+        self.build(
+            rows,
+            |r| sk(r) as i32,
+            |r| !is_null(nbm(r), pos) && sk(r) >= 0,
+        )
+    }
+}
+
+impl PrimitiveArrayRecycler<Int64Type> {
+    /// Nullable BIGINT surrogate key
+    ///
+    /// See [`sk_opt`] for details on how nulls and absent keys are handled.
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `sk`: function to get the surrogate key for a row
+    pub fn int64_sk<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        sk: impl Fn(&R) -> i64,
+    ) -> Int64Array {
+        self.build(rows, &sk, |r| !is_null(nbm(r), pos) && sk(r) >= 0)
+    }
+}
+
+impl PrimitiveArrayRecycler<Decimal128Type> {
+    /// Nullable DECIMAL(7,2) column
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `value`: function to get the decimal value for a row
+    pub fn decimal_7_2<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> Decimal,
+    ) -> Decimal128Array {
+        self.build(
+            rows,
+            |r| decimal_to_i128(value(r)),
+            |r| !is_null(nbm(r), pos),
+        )
+        .with_precision_and_scale(7, 2)
+        .unwrap()
+    }
+}
+
 /// Expand an [`Address`] into 10 individual column arrays (street_number, street_name,
 /// street_type, suite_number, city, county, state, zip, country, gmt_offset).
 ///
@@ -323,6 +498,57 @@ mod tests {
     #[should_panic(expected = "TPC-DS INTEGER value exceeds i32 range")]
     fn test_integer_opt_rejects_overflow() {
         integer_opt(0, 0, i64::from(i32::MAX) + 1);
+    }
+
+    #[test]
+    fn test_recycler_reuses_buffers_after_drop() {
+        let rows: Vec<i64> = (0..100).collect();
+        let mut rec = PrimitiveArrayRecycler::<Int32Type>::new();
+        let a = rec.int32_sk(
+            &rows,
+            0,
+            |r| (r % 7 == 0) as i64,
+            |r| if *r == 50 { -1 } else { *r },
+        );
+        assert_eq!(a.len(), 100);
+        assert!(a.is_null(0)); // bitmap bit set
+        assert!(a.is_null(50)); // negative sk
+        assert_eq!(a.value(1), 1);
+        assert_eq!(a.null_count(), 16); // 15 multiples of 7 + row 50
+        let ptr = a.values().as_ptr();
+        let null_ptr = a.nulls().unwrap().validity().as_ptr();
+        drop(a);
+
+        // Sole reference dropped: the same allocations come back
+        let b = rec.int32_sk(&rows[..10], 0, |_| 0, |r| *r);
+        assert_eq!(b.values().as_ptr(), ptr);
+        assert_eq!(b.nulls().unwrap().validity().as_ptr(), null_ptr);
+        assert_eq!(b.null_count(), 0);
+        assert_eq!(b.values(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+
+        // Still held by the caller: a fresh allocation is used, values are still right
+        let c = rec.int32_sk(&rows[..3], 0, |_| 0, |_| -1);
+        assert_ne!(c.values().as_ptr(), ptr);
+        assert_ne!(c.nulls().unwrap().validity().as_ptr(), null_ptr);
+        assert_eq!(c.null_count(), 3);
+        assert_eq!(b.values(), &[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+    }
+
+    #[test]
+    fn test_recycler_decimal_bitmap_over_64_rows() {
+        let rows: Vec<i64> = (0..130).collect();
+        let mut rec = PrimitiveArrayRecycler::<Decimal128Type>::new();
+        let a = rec.decimal_7_2(
+            &rows,
+            3,
+            |r| if *r == 64 { 1 << 3 } else { 0 },
+            |r| Decimal::new(*r * 100, 2),
+        );
+        assert_eq!(a.precision(), 7);
+        assert_eq!(a.scale(), 2);
+        assert_eq!(a.null_count(), 1);
+        assert!(a.is_null(64));
+        assert_eq!(a.value(129), 12900);
     }
 
     #[test]

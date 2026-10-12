@@ -1,19 +1,49 @@
-use crate::conversions::{decimal128_7_2_array, decimal_to_i128, integer_sk_opt, opt, sk_opt};
+use crate::conversions::PrimitiveArrayRecycler;
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, Int64Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Decimal128Type, Field, Int32Type, Int64Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
 use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{StoreSalesRow, StoreSalesRowGenerator};
+use tpcdsgen::types::{Decimal, Pricing};
 
 /// Generate [`StoreSalesRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct StoreSalesArrow {
     inner: StoreSalesRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<StoreSalesRow>,
+    ss_sold_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_sold_time_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_item_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_customer_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_cdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_hdemo_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_addr_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_store_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_promo_sk: PrimitiveArrayRecycler<Int32Type>,
+    ss_ticket_number: PrimitiveArrayRecycler<Int64Type>,
+    ss_quantity: PrimitiveArrayRecycler<Int32Type>,
+    ss_wholesale_cost: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_list_price: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_sales_price: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_ext_discount_amt: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_ext_sales_price: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_ext_wholesale_cost: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_ext_list_price: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_ext_tax: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_coupon_amt: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_net_paid: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_net_paid_inc_tax: PrimitiveArrayRecycler<Decimal128Type>,
+    ss_net_profit: PrimitiveArrayRecycler<Decimal128Type>,
 }
 
 impl StoreSalesArrow {
@@ -28,6 +58,29 @@ impl StoreSalesArrow {
             inner: StoreSalesRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            ss_sold_date_sk: PrimitiveArrayRecycler::new(),
+            ss_sold_time_sk: PrimitiveArrayRecycler::new(),
+            ss_item_sk: PrimitiveArrayRecycler::new(),
+            ss_customer_sk: PrimitiveArrayRecycler::new(),
+            ss_cdemo_sk: PrimitiveArrayRecycler::new(),
+            ss_hdemo_sk: PrimitiveArrayRecycler::new(),
+            ss_addr_sk: PrimitiveArrayRecycler::new(),
+            ss_store_sk: PrimitiveArrayRecycler::new(),
+            ss_promo_sk: PrimitiveArrayRecycler::new(),
+            ss_ticket_number: PrimitiveArrayRecycler::new(),
+            ss_quantity: PrimitiveArrayRecycler::new(),
+            ss_wholesale_cost: PrimitiveArrayRecycler::new(),
+            ss_list_price: PrimitiveArrayRecycler::new(),
+            ss_sales_price: PrimitiveArrayRecycler::new(),
+            ss_ext_discount_amt: PrimitiveArrayRecycler::new(),
+            ss_ext_sales_price: PrimitiveArrayRecycler::new(),
+            ss_ext_wholesale_cost: PrimitiveArrayRecycler::new(),
+            ss_ext_list_price: PrimitiveArrayRecycler::new(),
+            ss_ext_tax: PrimitiveArrayRecycler::new(),
+            ss_coupon_amt: PrimitiveArrayRecycler::new(),
+            ss_net_paid: PrimitiveArrayRecycler::new(),
+            ss_net_paid_inc_tax: PrimitiveArrayRecycler::new(),
+            ss_net_profit: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,91 +125,99 @@ impl Iterator for StoreSalesArrow {
             return None;
         }
 
-        let mut ss_sold_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_sold_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_cdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_hdemo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_addr: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_store: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_promo: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_ticket: Vec<Option<i64>> = Vec::with_capacity(rows.len());
-        let mut ss_quantity: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut ss_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_list_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_sales_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_discount_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_sales_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_list_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_ext_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_coupon_amt: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_net_paid: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_net_paid_inc_tax: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut ss_net_profit: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            ss_sold_date_sk,
+            ss_sold_time_sk,
+            ss_item_sk,
+            ss_customer_sk,
+            ss_cdemo_sk,
+            ss_hdemo_sk,
+            ss_addr_sk,
+            ss_store_sk,
+            ss_promo_sk,
+            ss_ticket_number,
+            ss_quantity,
+            ss_wholesale_cost,
+            ss_list_price,
+            ss_sales_price,
+            ss_ext_discount_amt,
+            ss_ext_sales_price,
+            ss_ext_wholesale_cost,
+            ss_ext_list_price,
+            ss_ext_tax,
+            ss_coupon_amt,
+            ss_net_paid,
+            ss_net_paid_inc_tax,
+            ss_net_profit,
+            ..
+        } = self;
+        let nbm = StoreSalesRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&StoreSalesRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let sk64 =
+            |rec: &mut PrimitiveArrayRecycler<Int64Type>, pos, f: fn(&StoreSalesRow) -> i64| {
+                rec.int64_sk(rows, pos, nbm, f)
+            };
+        let dec =
+            |rec: &mut PrimitiveArrayRecycler<Decimal128Type>, pos, f: fn(&Pricing) -> Decimal| {
+                rec.decimal_7_2(rows, pos, nbm, |r| f(r.get_ss_pricing()))
+            };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            let p = r.get_ss_pricing();
-            ss_sold_date.push(integer_sk_opt(nbm, 0, r.get_ss_sold_date_sk()));
-            ss_sold_time.push(integer_sk_opt(nbm, 1, r.get_ss_sold_time_sk()));
-            ss_item.push(integer_sk_opt(nbm, 2, r.get_ss_sold_item_sk()));
-            ss_customer.push(integer_sk_opt(nbm, 3, r.get_ss_sold_customer_sk()));
-            ss_cdemo.push(integer_sk_opt(nbm, 4, r.get_ss_sold_cdemo_sk()));
-            ss_hdemo.push(integer_sk_opt(nbm, 5, r.get_ss_sold_hdemo_sk()));
-            ss_addr.push(integer_sk_opt(nbm, 6, r.get_ss_sold_addr_sk()));
-            ss_store.push(integer_sk_opt(nbm, 7, r.get_ss_sold_store_sk()));
-            ss_promo.push(integer_sk_opt(nbm, 8, r.get_ss_sold_promo_sk()));
-            ss_ticket.push(sk_opt(nbm, 9, r.get_ss_ticket_number()));
-            ss_quantity.push(opt(nbm, 10, p.get_quantity()));
-            ss_wholesale_cost.push(opt(nbm, 11, decimal_to_i128(p.get_wholesale_cost())));
-            ss_list_price.push(opt(nbm, 12, decimal_to_i128(p.get_list_price())));
-            ss_sales_price.push(opt(nbm, 13, decimal_to_i128(p.get_sales_price())));
-            // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
-            ss_ext_discount_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
-            ss_ext_sales_price.push(opt(nbm, 15, decimal_to_i128(p.get_ext_sales_price())));
-            ss_ext_wholesale_cost.push(opt(nbm, 16, decimal_to_i128(p.get_ext_wholesale_cost())));
-            ss_ext_list_price.push(opt(nbm, 17, decimal_to_i128(p.get_ext_list_price())));
-            ss_ext_tax.push(opt(nbm, 18, decimal_to_i128(p.get_ext_tax())));
-            // Java bug: coupon_amount appears again at position 19
-            ss_coupon_amt.push(opt(nbm, 14, decimal_to_i128(p.get_coupon_amount())));
-            ss_net_paid.push(opt(nbm, 19, decimal_to_i128(p.get_net_paid())));
-            ss_net_paid_inc_tax.push(opt(
-                nbm,
-                20,
-                decimal_to_i128(p.get_net_paid_including_tax()),
-            ));
-            ss_net_profit.push(opt(nbm, 21, decimal_to_i128(p.get_net_profit())));
-        }
+        let ss_sold_date_sk = sk32(ss_sold_date_sk, 0, StoreSalesRow::get_ss_sold_date_sk);
+        let ss_sold_time_sk = sk32(ss_sold_time_sk, 1, StoreSalesRow::get_ss_sold_time_sk);
+        let ss_item_sk = sk32(ss_item_sk, 2, StoreSalesRow::get_ss_sold_item_sk);
+        let ss_customer_sk = sk32(ss_customer_sk, 3, StoreSalesRow::get_ss_sold_customer_sk);
+        let ss_cdemo_sk = sk32(ss_cdemo_sk, 4, StoreSalesRow::get_ss_sold_cdemo_sk);
+        let ss_hdemo_sk = sk32(ss_hdemo_sk, 5, StoreSalesRow::get_ss_sold_hdemo_sk);
+        let ss_addr_sk = sk32(ss_addr_sk, 6, StoreSalesRow::get_ss_sold_addr_sk);
+        let ss_store_sk = sk32(ss_store_sk, 7, StoreSalesRow::get_ss_sold_store_sk);
+        let ss_promo_sk = sk32(ss_promo_sk, 8, StoreSalesRow::get_ss_sold_promo_sk);
+        let ss_ticket_number = sk64(ss_ticket_number, 9, StoreSalesRow::get_ss_ticket_number);
+        let ss_quantity = ss_quantity.int32(rows, 10, nbm, |r| r.get_ss_pricing().get_quantity());
+        let ss_wholesale_cost = dec(ss_wholesale_cost, 11, Pricing::get_wholesale_cost);
+        let ss_list_price = dec(ss_list_price, 12, Pricing::get_list_price);
+        let ss_sales_price = dec(ss_sales_price, 13, Pricing::get_sales_price);
+        // Java bug: coupon_amount appears at position 14 instead of ext_discount_amount
+        let ss_ext_discount_amt = dec(ss_ext_discount_amt, 14, Pricing::get_coupon_amount);
+        let ss_ext_sales_price = dec(ss_ext_sales_price, 15, Pricing::get_ext_sales_price);
+        let ss_ext_wholesale_cost = dec(ss_ext_wholesale_cost, 16, Pricing::get_ext_wholesale_cost);
+        let ss_ext_list_price = dec(ss_ext_list_price, 17, Pricing::get_ext_list_price);
+        let ss_ext_tax = dec(ss_ext_tax, 18, Pricing::get_ext_tax);
+        // Java bug: coupon_amount appears again at position 19
+        let ss_coupon_amt = dec(ss_coupon_amt, 14, Pricing::get_coupon_amount);
+        let ss_net_paid = dec(ss_net_paid, 19, Pricing::get_net_paid);
+        let ss_net_paid_inc_tax = dec(ss_net_paid_inc_tax, 20, Pricing::get_net_paid_including_tax);
+        let ss_net_profit = dec(ss_net_profit, 21, Pricing::get_net_profit);
 
-        let dec = decimal128_7_2_array;
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(ss_sold_date)),
-                Arc::new(Int32Array::from(ss_sold_time)),
-                Arc::new(Int32Array::from(ss_item)),
-                Arc::new(Int32Array::from(ss_customer)),
-                Arc::new(Int32Array::from(ss_cdemo)),
-                Arc::new(Int32Array::from(ss_hdemo)),
-                Arc::new(Int32Array::from(ss_addr)),
-                Arc::new(Int32Array::from(ss_store)),
-                Arc::new(Int32Array::from(ss_promo)),
-                Arc::new(Int64Array::from(ss_ticket)),
-                Arc::new(Int32Array::from(ss_quantity)),
-                Arc::new(dec(ss_wholesale_cost)),
-                Arc::new(dec(ss_list_price)),
-                Arc::new(dec(ss_sales_price)),
-                Arc::new(dec(ss_ext_discount_amt)),
-                Arc::new(dec(ss_ext_sales_price)),
-                Arc::new(dec(ss_ext_wholesale_cost)),
-                Arc::new(dec(ss_ext_list_price)),
-                Arc::new(dec(ss_ext_tax)),
-                Arc::new(dec(ss_coupon_amt)),
-                Arc::new(dec(ss_net_paid)),
-                Arc::new(dec(ss_net_paid_inc_tax)),
-                Arc::new(dec(ss_net_profit)),
+                Arc::new(ss_sold_date_sk),
+                Arc::new(ss_sold_time_sk),
+                Arc::new(ss_item_sk),
+                Arc::new(ss_customer_sk),
+                Arc::new(ss_cdemo_sk),
+                Arc::new(ss_hdemo_sk),
+                Arc::new(ss_addr_sk),
+                Arc::new(ss_store_sk),
+                Arc::new(ss_promo_sk),
+                Arc::new(ss_ticket_number),
+                Arc::new(ss_quantity),
+                Arc::new(ss_wholesale_cost),
+                Arc::new(ss_list_price),
+                Arc::new(ss_sales_price),
+                Arc::new(ss_ext_discount_amt),
+                Arc::new(ss_ext_sales_price),
+                Arc::new(ss_ext_wholesale_cost),
+                Arc::new(ss_ext_list_price),
+                Arc::new(ss_ext_tax),
+                Arc::new(ss_coupon_amt),
+                Arc::new(ss_net_paid),
+                Arc::new(ss_net_paid_inc_tax),
+                Arc::new(ss_net_profit),
             ],
         );
         Some(batch)
