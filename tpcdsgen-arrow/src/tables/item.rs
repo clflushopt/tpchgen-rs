@@ -1,10 +1,7 @@
-use crate::conversions::{
-    decimal128_7_2_array, decimal_to_i128, integer_opt, integer_sk_opt, is_null, julian_to_date32,
-    opt, string_view_array_from_opt_iter,
-};
+use crate::conversions::{PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Date32Array, Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Date32Type, Decimal128Type, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -12,11 +9,39 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{ItemRow, ItemRowGenerator};
 
 /// Generate [`ItemRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct ItemArrow {
     inner: ItemRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<ItemRow>,
+    i_item_sk: PrimitiveArrayRecycler<Int32Type>,
+    i_item_id: StringViewArrayRecycler,
+    i_rec_start_date: PrimitiveArrayRecycler<Date32Type>,
+    i_rec_end_date: PrimitiveArrayRecycler<Date32Type>,
+    i_item_desc: StringViewArrayRecycler,
+    i_current_price: PrimitiveArrayRecycler<Decimal128Type>,
+    i_wholesale_cost: PrimitiveArrayRecycler<Decimal128Type>,
+    i_brand_id: PrimitiveArrayRecycler<Int32Type>,
+    i_brand: StringViewArrayRecycler,
+    i_class_id: PrimitiveArrayRecycler<Int32Type>,
+    i_class: StringViewArrayRecycler,
+    i_category_id: PrimitiveArrayRecycler<Int32Type>,
+    i_category: StringViewArrayRecycler,
+    i_manufact_id: PrimitiveArrayRecycler<Int32Type>,
+    i_manufact: StringViewArrayRecycler,
+    i_size: StringViewArrayRecycler,
+    i_formulation: StringViewArrayRecycler,
+    i_color: StringViewArrayRecycler,
+    i_units: StringViewArrayRecycler,
+    i_container: StringViewArrayRecycler,
+    i_manager_id: PrimitiveArrayRecycler<Int32Type>,
+    i_product_name: StringViewArrayRecycler,
 }
 
 impl ItemArrow {
@@ -31,6 +56,28 @@ impl ItemArrow {
             inner: ItemRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            i_item_sk: PrimitiveArrayRecycler::new(),
+            i_item_id: StringViewArrayRecycler::new(),
+            i_rec_start_date: PrimitiveArrayRecycler::new(),
+            i_rec_end_date: PrimitiveArrayRecycler::new(),
+            i_item_desc: StringViewArrayRecycler::new(),
+            i_current_price: PrimitiveArrayRecycler::new(),
+            i_wholesale_cost: PrimitiveArrayRecycler::new(),
+            i_brand_id: PrimitiveArrayRecycler::new(),
+            i_brand: StringViewArrayRecycler::new(),
+            i_class_id: PrimitiveArrayRecycler::new(),
+            i_class: StringViewArrayRecycler::new(),
+            i_category_id: PrimitiveArrayRecycler::new(),
+            i_category: StringViewArrayRecycler::new(),
+            i_manufact_id: PrimitiveArrayRecycler::new(),
+            i_manufact: StringViewArrayRecycler::new(),
+            i_size: StringViewArrayRecycler::new(),
+            i_formulation: StringViewArrayRecycler::new(),
+            i_color: StringViewArrayRecycler::new(),
+            i_units: StringViewArrayRecycler::new(),
+            i_container: StringViewArrayRecycler::new(),
+            i_manager_id: PrimitiveArrayRecycler::new(),
+            i_product_name: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -75,93 +122,100 @@ impl Iterator for ItemArrow {
             return None;
         }
 
-        let mut i_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_current_price: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut i_wholesale_cost: Vec<Option<i128>> = Vec::with_capacity(rows.len());
-        let mut i_brand_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_brand: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_class_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_category_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_category: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_manufact_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_manufact: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_size: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_formulation: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_color: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_units: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_container: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut i_manager_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut i_product_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            i_item_sk,
+            i_item_id,
+            i_rec_start_date,
+            i_rec_end_date,
+            i_item_desc,
+            i_current_price,
+            i_wholesale_cost,
+            i_brand_id,
+            i_brand,
+            i_class_id,
+            i_class,
+            i_category_id,
+            i_category,
+            i_manufact_id,
+            i_manufact,
+            i_size,
+            i_formulation,
+            i_color,
+            i_units,
+            i_container,
+            i_manager_id,
+            i_product_name,
+            ..
+        } = self;
+        let nbm = ItemRow::null_bit_map;
+        let sk32 = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&ItemRow) -> i64| {
+            rec.int32_sk(rows, pos, nbm, f)
+        };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&ItemRow) -> i64| {
+            rec.int32(rows, pos, nbm, |r| {
+                i32::try_from(f(r)).expect("TPC-DS INTEGER value exceeds i32 range")
+            })
+        };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&ItemRow) -> &str| {
+            rec.string(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            i_sk.push(integer_sk_opt(nbm, 0, r.get_i_item_sk()));
-            i_id.push(opt(nbm, 1, r.get_i_item_id()));
-            // IRecStartDateId is at bit 2 which CAN be set (not in not_null_bit_map);
-            // check the null bit first, then apply the julian-day < 0 sentinel.
-            i_rec_start.push(if is_null(nbm, 2) {
-                None
-            } else {
-                julian_to_date32(r.get_i_rec_start_date_id())
-            });
-            i_rec_end.push(julian_to_date32(r.get_i_rec_end_date_id()));
-            i_desc.push(opt(nbm, 4, r.get_i_item_desc()));
-            i_current_price.push(opt(nbm, 5, decimal_to_i128(r.get_i_current_price())));
-            i_wholesale_cost.push(opt(nbm, 6, decimal_to_i128(r.get_i_wholesale_cost())));
-            i_brand_id.push(integer_opt(nbm, 7, r.get_i_brand_id()));
-            i_brand.push(opt(nbm, 8, r.get_i_brand()));
-            i_class_id.push(integer_opt(nbm, 9, r.get_i_class_id()));
-            i_class.push(opt(nbm, 10, r.get_i_class()));
-            i_category_id.push(integer_opt(nbm, 11, r.get_i_category_id()));
-            i_category.push(opt(nbm, 12, r.get_i_category()));
-            i_manufact_id.push(integer_opt(nbm, 13, r.get_i_manufact_id()));
-            i_manufact.push(opt(nbm, 14, r.get_i_manufact()));
-            i_size.push(opt(nbm, 15, r.get_i_size()));
-            i_formulation.push(opt(nbm, 16, r.get_i_formulation()));
-            i_color.push(opt(nbm, 17, r.get_i_color()));
-            i_units.push(opt(nbm, 18, r.get_i_units()));
-            i_container.push(opt(nbm, 19, r.get_i_container()));
-            i_manager_id.push(integer_opt(nbm, 20, r.get_i_manager_id()));
-            i_product_name.push(opt(nbm, 21, r.get_i_product_name()));
-        }
-
-        let price_arr = decimal128_7_2_array(i_current_price);
-        let wholesale_arr = decimal128_7_2_array(i_wholesale_cost);
+        let i_item_sk = sk32(i_item_sk, 0, ItemRow::get_i_item_sk);
+        let i_item_id = str(i_item_id, 1, ItemRow::get_i_item_id);
+        // IRecStartDateId is at bit 2 which CAN be set (not in not_null_bit_map);
+        // check the null bit first, then apply the julian-day < 0 sentinel.
+        let i_rec_start_date =
+            i_rec_start_date.date32_julian(rows, 2, nbm, ItemRow::get_i_rec_start_date_id);
+        // i_rec_end_date ignores the bitmap; only the julian-day < 0 sentinel applies.
+        let i_rec_end_date =
+            i_rec_end_date.date32_julian(rows, 3, |_| 0, ItemRow::get_i_rec_end_date_id);
+        let i_item_desc = str(i_item_desc, 4, ItemRow::get_i_item_desc);
+        let i_current_price =
+            i_current_price.decimal_7_2(rows, 5, nbm, ItemRow::get_i_current_price);
+        let i_wholesale_cost =
+            i_wholesale_cost.decimal_7_2(rows, 6, nbm, ItemRow::get_i_wholesale_cost);
+        let i_brand_id = int(i_brand_id, 7, ItemRow::get_i_brand_id);
+        let i_brand = str(i_brand, 8, ItemRow::get_i_brand);
+        let i_class_id = int(i_class_id, 9, ItemRow::get_i_class_id);
+        let i_class = str(i_class, 10, ItemRow::get_i_class);
+        let i_category_id = int(i_category_id, 11, ItemRow::get_i_category_id);
+        let i_category = str(i_category, 12, ItemRow::get_i_category);
+        let i_manufact_id = int(i_manufact_id, 13, ItemRow::get_i_manufact_id);
+        let i_manufact = str(i_manufact, 14, ItemRow::get_i_manufact);
+        let i_size = str(i_size, 15, ItemRow::get_i_size);
+        let i_formulation = str(i_formulation, 16, ItemRow::get_i_formulation);
+        let i_color = str(i_color, 17, ItemRow::get_i_color);
+        let i_units = str(i_units, 18, ItemRow::get_i_units);
+        let i_container = str(i_container, 19, ItemRow::get_i_container);
+        let i_manager_id = int(i_manager_id, 20, ItemRow::get_i_manager_id);
+        let i_product_name = str(i_product_name, 21, ItemRow::get_i_product_name);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(i_sk)),
-                Arc::new(string_view_array_from_opt_iter(i_id.iter().copied())),
-                Arc::new(Date32Array::from(i_rec_start)),
-                Arc::new(Date32Array::from(i_rec_end)),
-                Arc::new(string_view_array_from_opt_iter(i_desc.iter().copied())),
-                Arc::new(price_arr),
-                Arc::new(wholesale_arr),
-                Arc::new(Int32Array::from(i_brand_id)),
-                Arc::new(string_view_array_from_opt_iter(i_brand.iter().copied())),
-                Arc::new(Int32Array::from(i_class_id)),
-                Arc::new(string_view_array_from_opt_iter(i_class.iter().copied())),
-                Arc::new(Int32Array::from(i_category_id)),
-                Arc::new(string_view_array_from_opt_iter(i_category.iter().copied())),
-                Arc::new(Int32Array::from(i_manufact_id)),
-                Arc::new(string_view_array_from_opt_iter(i_manufact.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(i_size.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_formulation.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(i_color.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(i_units.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(i_container.iter().copied())),
-                Arc::new(Int32Array::from(i_manager_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    i_product_name.iter().copied(),
-                )),
+                Arc::new(i_item_sk),
+                Arc::new(i_item_id),
+                Arc::new(i_rec_start_date),
+                Arc::new(i_rec_end_date),
+                Arc::new(i_item_desc),
+                Arc::new(i_current_price),
+                Arc::new(i_wholesale_cost),
+                Arc::new(i_brand_id),
+                Arc::new(i_brand),
+                Arc::new(i_class_id),
+                Arc::new(i_class),
+                Arc::new(i_category_id),
+                Arc::new(i_category),
+                Arc::new(i_manufact_id),
+                Arc::new(i_manufact),
+                Arc::new(i_size),
+                Arc::new(i_formulation),
+                Arc::new(i_color),
+                Arc::new(i_units),
+                Arc::new(i_container),
+                Arc::new(i_manager_id),
+                Arc::new(i_product_name),
             ],
         );
         Some(batch)
