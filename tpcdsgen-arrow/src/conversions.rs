@@ -7,6 +7,7 @@ use arrow::array::{
 };
 use arrow::buffer::{BooleanBuffer, Buffer, NullBuffer, ScalarBuffer};
 use arrow::datatypes::{ArrowPrimitiveType, Date32Type, Decimal128Type, Int32Type, Int64Type};
+use std::fmt::{Display, Write as _};
 use std::sync::Arc;
 use tpcdsgen::types::{Address, Date, Decimal};
 
@@ -482,6 +483,40 @@ pub struct StringViewArrayRecycler {
     views: Option<ScalarBuffer<u128>>,
     data: Option<Buffer>,
     nulls: NullBufferRecycler,
+    /// Scratch for [`Self::build_fmt`], reused across rows and batches
+    scratch: String,
+}
+
+/// Views and data buffers of the batch being built by
+/// [`StringViewArrayRecycler::build_with`].
+#[derive(Debug)]
+pub struct ViewBuilder {
+    views: Vec<u128>,
+    data: Vec<u8>,
+}
+
+impl ViewBuilder {
+    /// Append a value. Returns `true`: the row is valid.
+    #[inline]
+    pub fn value(&mut self, s: &str) -> bool {
+        let s = s.as_bytes();
+        let offset = if s.len() > 12 {
+            let offset = u32::try_from(self.data.len()).expect("string data exceeds 4GiB");
+            self.data.extend_from_slice(s);
+            offset
+        } else {
+            0
+        };
+        self.views.push(make_view(s, 0, offset));
+        true
+    }
+
+    /// Append a NULL. Returns `false`: the row is not valid.
+    #[inline]
+    pub fn null(&mut self) -> bool {
+        self.views.push(0);
+        false
+    }
 }
 
 impl StringViewArrayRecycler {
@@ -493,36 +528,31 @@ impl StringViewArrayRecycler {
     ///
     /// Arguments:
     /// * `rows`: slice of rows to build the array from
-    /// * `value`: function that returns the string for a row, or `None` for NULL
-    pub fn build<R>(&mut self, rows: &[R], value: impl Fn(&R) -> Option<&str>) -> StringViewArray {
-        let mut views = self.reclaim_views();
-        views.reserve(rows.len());
-        let mut data = self.reclaim_data();
+    /// * `row`: appends exactly one value or null for a row and returns true
+    ///   if the row is valid and false of the row was NULL..
+    pub fn build_with<R>(
+        &mut self,
+        rows: &[R],
+        mut row: impl FnMut(&R, &mut ViewBuilder) -> bool,
+    ) -> StringViewArray {
+        let mut b = ViewBuilder {
+            views: self.reclaim_views(),
+            data: self.reclaim_data(),
+        };
+        b.views.reserve(rows.len());
         let mut bits = self.nulls.reclaim();
         bits.reserve(rows.len().div_ceil(64));
         for chunk in rows.chunks(64) {
             let mut packed = 0u64;
             for (i, r) in chunk.iter().enumerate() {
-                let Some(s) = value(r) else {
-                    views.push(0);
-                    continue;
-                };
-                packed |= 1 << i;
-                let s = s.as_bytes();
-                let offset = if s.len() > 12 {
-                    let offset = u32::try_from(data.len()).expect("string data exceeds 4GiB");
-                    data.extend_from_slice(s);
-                    offset
-                } else {
-                    0
-                };
-                views.push(make_view(s, 0, offset));
+                packed |= (row(r, &mut b) as u64) << i;
             }
             bits.push(packed.to_le());
         }
+        debug_assert_eq!(b.views.len(), rows.len());
 
-        let views = ScalarBuffer::from(views);
-        let data = Buffer::from_vec(data);
+        let views = ScalarBuffer::from(b.views);
+        let data = Buffer::from_vec(b.data);
         let nulls = self.nulls.build(bits, rows.len());
         self.views = Some(views.clone());
         self.data = Some(data.clone());
@@ -537,6 +567,43 @@ impl StringViewArrayRecycler {
         }
     }
 
+    /// Build an array with an entry for each row in `rows`
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `value`: function that returns the string for a row, or `None` for NULL
+    pub fn build<R>(&mut self, rows: &[R], value: impl Fn(&R) -> Option<&str>) -> StringViewArray {
+        self.build_with(rows, |r, b| match value(r) {
+            Some(s) => b.value(s),
+            None => b.null(),
+        })
+    }
+
+    /// Build an array of values formatted into a scratch `String`, without
+    /// allocating per row
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `write`: writes the value for a row into &scratch and returns `true`; For NULL
+    ///   writes nothing and returns `false`;
+    pub fn build_fmt<R>(
+        &mut self,
+        rows: &[R],
+        write: impl Fn(&R, &mut String) -> bool,
+    ) -> StringViewArray {
+        let mut scratch = std::mem::take(&mut self.scratch);
+        let array = self.build_with(rows, |r, b| {
+            scratch.clear();
+            if write(r, &mut scratch) {
+                b.value(&scratch)
+            } else {
+                b.null()
+            }
+        });
+        self.scratch = scratch;
+        array
+    }
+
     /// Nullable CHAR / VARCHAR column
     ///
     /// Arguments:
@@ -544,7 +611,7 @@ impl StringViewArrayRecycler {
     /// * `pos`: bit position in the null bitmap indicating null values
     /// * `nbm`: function to get the null bitmap for a row
     /// * `value`: function to get the string for a row
-    pub fn string<R>(
+    pub fn str<R>(
         &mut self,
         rows: &[R],
         pos: u32,
@@ -556,8 +623,8 @@ impl StringViewArrayRecycler {
 
     /// Nullable CHAR / VARCHAR column whose value may also be absent
     ///
-    /// Arguments: as [`Self::string`], with `value` returning `None` for an absent value
-    pub fn opt_string<R>(
+    /// Arguments: as [`Self::str`], with `value` returning `None` for an absent value
+    pub fn opt_str<R>(
         &mut self,
         rows: &[R],
         pos: u32,
@@ -565,6 +632,26 @@ impl StringViewArrayRecycler {
         value: impl Fn(&R) -> Option<&str>,
     ) -> StringViewArray {
         self.build(rows, |r| if is_null(nbm(r), pos) { None } else { value(r) })
+    }
+
+    /// Nullable CHAR / VARCHAR column holding a formatted [`Display`] value
+    /// (e.g. an integer stored as CHAR)
+    ///
+    /// Arguments: The same as [`Self::str`], with `value` returning the value to format
+    pub fn display<R, D: Display>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> D,
+    ) -> StringViewArray {
+        self.build_fmt(rows, |r, buf| {
+            if is_null(nbm(r), pos) {
+                return false;
+            }
+            write!(buf, "{}", value(r)).unwrap();
+            true
+        })
     }
 
     /// Returns the previous views buffer as an empty `Vec`, or a new one if still shared.
@@ -587,6 +674,107 @@ impl StringViewArrayRecycler {
             .unwrap_or_default();
         v.clear();
         v
+    }
+}
+
+/// The 10 Arrow columns of an [`Address`], built by [`AddressArrayRecycler`]
+#[derive(Debug)]
+pub struct AddressArrays {
+    pub street_number: StringViewArray,
+    pub street_name: StringViewArray,
+    pub street_type: StringViewArray,
+    pub suite_number: StringViewArray,
+    pub city: StringViewArray,
+    pub county: StringViewArray,
+    pub state: StringViewArray,
+    pub zip: StringViewArray,
+    pub country: StringViewArray,
+    pub gmt_offset: Decimal128Array,
+}
+
+/// Builds the 10 [`Address`] columns per batch, recycling each column's
+/// buffers. See [`PrimitiveArrayRecycler`].
+#[derive(Debug, Default)]
+pub struct AddressArrayRecycler {
+    street_number: StringViewArrayRecycler,
+    street_name: StringViewArrayRecycler,
+    street_type: StringViewArrayRecycler,
+    suite_number: StringViewArrayRecycler,
+    city: StringViewArrayRecycler,
+    county: StringViewArrayRecycler,
+    state: StringViewArrayRecycler,
+    zip: StringViewArrayRecycler,
+    country: StringViewArrayRecycler,
+    gmt_offset: PrimitiveArrayRecycler<Decimal128Type>,
+}
+
+impl AddressArrayRecycler {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Build the address columns for each row in `rows`
+    ///
+    /// Each sub-field has its own null bit at `base + offset` (0 = street_number,
+    /// 1 = street_name, ..., 9 = gmt_offset), matching the per-column
+    /// null_bit_map layout.
+    ///
+    /// Arguments:
+    /// * `rows`: rows to build the arrays from
+    /// * `base`: bit position of street_number in the null bitmap
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `address`: function to get the address for a row
+    pub fn build<R>(
+        &mut self,
+        rows: &[R],
+        base: u32,
+        nbm: impl Fn(&R) -> i64,
+        address: impl Fn(&R) -> &Address,
+    ) -> AddressArrays {
+        let nbm = &nbm;
+        let address = &address;
+        AddressArrays {
+            street_number: self
+                .street_number
+                .display(rows, base, nbm, |r| address(r).get_street_number()),
+            street_name: self.street_name.build_fmt(rows, |r, buf| {
+                if is_null(nbm(r), base + 1) {
+                    return false;
+                }
+                // as Address::get_street_name, without allocating
+                let a = address(r);
+                write!(buf, "{} {}", a.get_street_name1(), a.get_street_name2()).unwrap();
+                true
+            }),
+            street_type: self
+                .street_type
+                .str(rows, base + 2, nbm, |r| address(r).get_street_type()),
+            suite_number: self
+                .suite_number
+                .str(rows, base + 3, nbm, |r| address(r).get_suite_number()),
+            city: self
+                .city
+                .str(rows, base + 4, nbm, |r| address(r).get_city()),
+            county: self
+                .county
+                .opt_str(rows, base + 5, nbm, |r| address(r).get_county()),
+            state: self
+                .state
+                .str(rows, base + 6, nbm, |r| address(r).get_state()),
+            zip: self.zip.build_fmt(rows, |r, buf| {
+                if is_null(nbm(r), base + 7) {
+                    return false;
+                }
+                write!(buf, "{:05}", address(r).get_zip()).unwrap();
+                true
+            }),
+            country: self
+                .country
+                .str(rows, base + 8, nbm, |r| address(r).get_country()),
+            gmt_offset: self
+                .gmt_offset
+                .gmt_offset(rows, base + 9, nbm, |r| address(r).get_gmt_offset()),
+        }
     }
 }
 
@@ -877,16 +1065,33 @@ mod tests {
             (0, Some("a long string here")),
         ];
         let mut rec = StringViewArrayRecycler::new();
-        let a = rec.string(&rows, 0, |r| r.0, |r| r.1.unwrap_or("-"));
+        let a = rec.str(&rows, 0, |r| r.0, |r| r.1.unwrap_or("-"));
         assert_eq!(a.value(0), "a");
         assert!(a.is_null(1));
         assert_eq!(a.value(2), "-");
         assert_eq!(a.value(3), "a long string here");
-        let b = rec.opt_string(&rows, 0, |r| r.0, |r| r.1);
+        let b = rec.opt_str(&rows, 0, |r| r.0, |r| r.1);
         assert_eq!(b.value(0), "a");
         assert!(b.is_null(1));
         assert!(b.is_null(2));
         assert_eq!(b.value(3), "a long string here");
+    }
+
+    #[test]
+    fn test_string_recycler_display_and_fmt() {
+        let rows: Vec<(i64, i64)> = vec![(0, 7), (1, 8), (0, 1234567890123)];
+        let mut rec = StringViewArrayRecycler::new();
+        let a = rec.display(&rows, 0, |r| r.0, |r| r.1);
+        assert_eq!(a.value(0), "7");
+        assert!(a.is_null(1));
+        assert_eq!(a.value(2), "1234567890123"); // > 12 bytes: out of line
+        let b = rec.build_fmt(&rows, |r, buf| {
+            write!(buf, "{:05}", r.1).unwrap();
+            r.1 != 8
+        });
+        assert_eq!(b.value(0), "00007");
+        assert!(b.is_null(1));
+        assert_eq!(b.value(2), "1234567890123");
     }
 
     #[test]
