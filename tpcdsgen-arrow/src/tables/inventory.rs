@@ -1,7 +1,7 @@
-use crate::conversions::{integer_sk_opt, opt};
+use crate::conversions::PrimitiveArrayRecycler;
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,21 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{InventoryRow, InventoryRowGenerator};
 
 /// Generate [`InventoryRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct InventoryArrow {
     inner: InventoryRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<InventoryRow>,
+    inv_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    inv_item_sk: PrimitiveArrayRecycler<Int32Type>,
+    inv_warehouse_sk: PrimitiveArrayRecycler<Int32Type>,
+    inv_quantity_on_hand: PrimitiveArrayRecycler<Int32Type>,
 }
 
 impl InventoryArrow {
@@ -28,6 +38,10 @@ impl InventoryArrow {
             inner: InventoryRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            inv_date_sk: PrimitiveArrayRecycler::new(),
+            inv_item_sk: PrimitiveArrayRecycler::new(),
+            inv_warehouse_sk: PrimitiveArrayRecycler::new(),
+            inv_quantity_on_hand: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,26 +86,33 @@ impl Iterator for InventoryArrow {
             return None;
         }
 
-        let mut inv_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut inv_item: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut inv_warehouse: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut inv_qty: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            inv_date_sk,
+            inv_item_sk,
+            inv_warehouse_sk,
+            inv_quantity_on_hand,
+            ..
+        } = self;
+        let nbm = InventoryRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&InventoryRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            inv_date.push(integer_sk_opt(nbm, 0, r.get_inv_date_sk()));
-            inv_item.push(integer_sk_opt(nbm, 1, r.get_inv_item_sk()));
-            inv_warehouse.push(integer_sk_opt(nbm, 2, r.get_inv_warehouse_sk()));
-            inv_qty.push(opt(nbm, 3, r.get_inv_quantity_on_hand()));
-        }
+        let inv_date_sk = sk32(inv_date_sk, 0, InventoryRow::get_inv_date_sk);
+        let inv_item_sk = sk32(inv_item_sk, 1, InventoryRow::get_inv_item_sk);
+        let inv_warehouse_sk = sk32(inv_warehouse_sk, 2, InventoryRow::get_inv_warehouse_sk);
+        let inv_quantity_on_hand =
+            inv_quantity_on_hand.int32(rows, 3, nbm, InventoryRow::get_inv_quantity_on_hand);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(inv_date)),
-                Arc::new(Int32Array::from(inv_item)),
-                Arc::new(Int32Array::from(inv_warehouse)),
-                Arc::new(Int32Array::from(inv_qty)),
+                Arc::new(inv_date_sk),
+                Arc::new(inv_item_sk),
+                Arc::new(inv_warehouse_sk),
+                Arc::new(inv_quantity_on_hand),
             ],
         );
         Some(batch)
