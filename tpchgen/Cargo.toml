@@ -1,14 +1,14 @@
 [package]
 name = "tpchgen"
-authors = { workspace = true }
-description = "Blazing fast pure Rust zero dependency TPC-H data generation library."
-keywords = ["tpch", "benchmark", "data-generator", "sql", "database"]
-categories = ["database", "development-tools::testing"]
-repository = { workspace = true }
-readme = "README.md"
 version = { workspace = true }
 edition = { workspace = true }
+authors = { workspace = true }
+description = "Blazing fast pure Rust zero dependency TPC-H data generation library."
+keywords = ["tpch", "benchmark", "data-generator", "dbgen", "olap"]
+categories = ["database", "development-tools::profiling", "development-tools::testing"]
+repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen"
+readme = "README.md"
 license = { workspace = true }
 
 # Designed to have no dependencies to make it easy to embed in other projects

@@ -4,12 +4,12 @@ version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
 description = "TPC-DS data generator into Apache Arrow format"
-keywords = ["tpcds", "arrow", "benchmark", "data-generator", "sql"]
-categories = ["database", "development-tools::testing"]
+keywords = ["tpcds", "benchmark", "data-generator", "arrow", "olap"]
+categories = ["database", "development-tools::profiling", "development-tools::testing"]
 repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcdsgen-arrow"
 readme = "README.md"
-license = "Apache-2.0"
+license = { workspace = true }
 
 [dependencies]
 arrow_59 = { workspace = true, optional = true }
