@@ -1,7 +1,7 @@
-use crate::conversions::opt;
+use crate::conversions::PrimitiveArrayRecycler;
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,20 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{IncomeBandRow, IncomeBandRowGenerator};
 
 /// Generate [`IncomeBandRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct IncomeBandArrow {
     inner: IncomeBandRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<IncomeBandRow>,
+    ib_income_band_sk: PrimitiveArrayRecycler<Int32Type>,
+    ib_lower_bound: PrimitiveArrayRecycler<Int32Type>,
+    ib_upper_bound: PrimitiveArrayRecycler<Int32Type>,
 }
 
 impl IncomeBandArrow {
@@ -28,6 +37,9 @@ impl IncomeBandArrow {
             inner: IncomeBandRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            ib_income_band_sk: PrimitiveArrayRecycler::new(),
+            ib_lower_bound: PrimitiveArrayRecycler::new(),
+            ib_upper_bound: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,23 +84,26 @@ impl Iterator for IncomeBandArrow {
             return None;
         }
 
-        let mut band_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut lower: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut upper: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            ib_income_band_sk,
+            ib_lower_bound,
+            ib_upper_bound,
+            ..
+        } = self;
+        let nbm = IncomeBandRow::null_bit_map;
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            band_sk.push(opt(nbm, 0, r.get_ib_income_band_sk()));
-            lower.push(opt(nbm, 1, r.get_ib_lower_bound()));
-            upper.push(opt(nbm, 2, r.get_ib_upper_bound()));
-        }
+        let ib_income_band_sk =
+            ib_income_band_sk.int32(rows, 0, nbm, IncomeBandRow::get_ib_income_band_sk);
+        let ib_lower_bound = ib_lower_bound.int32(rows, 1, nbm, IncomeBandRow::get_ib_lower_bound);
+        let ib_upper_bound = ib_upper_bound.int32(rows, 2, nbm, IncomeBandRow::get_ib_upper_bound);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(band_sk)),
-                Arc::new(Int32Array::from(lower)),
-                Arc::new(Int32Array::from(upper)),
+                Arc::new(ib_income_band_sk),
+                Arc::new(ib_lower_bound),
+                Arc::new(ib_upper_bound),
             ],
         );
         Some(batch)
