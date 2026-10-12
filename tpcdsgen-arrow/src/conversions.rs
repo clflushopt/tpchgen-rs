@@ -1,11 +1,13 @@
 //! Routines to convert TPC-DS types to Arrow types
 
+use arrow::array::builder::make_view;
 use arrow::array::{
     Date32Array, Decimal128Array, Int32Array, Int64Array, PrimitiveArray, StringViewArray,
     StringViewBuilder,
 };
 use arrow::buffer::{BooleanBuffer, Buffer, NullBuffer, ScalarBuffer};
 use arrow::datatypes::{ArrowPrimitiveType, Date32Type, Decimal128Type, Int32Type, Int64Type};
+use std::sync::Arc;
 use tpcdsgen::types::{Address, Date, Decimal};
 
 /// Julian day number for the Unix epoch (1970-01-01)
@@ -187,7 +189,7 @@ pub fn integer_sk_opt(nbm: i64, pos: u32, sk: i64) -> Option<i32> {
 #[derive(Debug)]
 pub struct PrimitiveArrayRecycler<T: ArrowPrimitiveType> {
     values: Option<ScalarBuffer<T::Native>>,
-    nulls: Option<NullBuffer>,
+    nulls: NullBufferRecycler,
 }
 
 impl<T: ArrowPrimitiveType> Default for PrimitiveArrayRecycler<T> {
@@ -200,7 +202,7 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
     pub fn new() -> Self {
         Self {
             values: None,
-            nulls: None,
+            nulls: NullBufferRecycler::default(),
         }
     }
 
@@ -219,13 +221,12 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
         let mut values = self.reclaim_values();
         values.reserve(rows.len());
         values.extend(rows.iter().map(value));
-        let mut bits = self.reclaim_bits();
+        let mut bits = self.nulls.reclaim();
         pack_bits(&mut bits, rows, valid);
 
         let values = ScalarBuffer::from(values);
-        let nulls = NullBuffer::new(BooleanBuffer::new(Buffer::from_vec(bits), 0, rows.len()));
+        let nulls = self.nulls.build(bits, rows.len());
         self.values = Some(values.clone());
-        self.nulls = Some(nulls.clone());
         PrimitiveArray::new(values, Some(nulls))
     }
 
@@ -239,16 +240,29 @@ impl<T: ArrowPrimitiveType> PrimitiveArrayRecycler<T> {
         v.clear();
         v
     }
+}
 
+/// Recycles the null bitmap allocation across batches. See [`PrimitiveArrayRecycler`].
+#[derive(Debug, Default)]
+struct NullBufferRecycler(Option<NullBuffer>);
+
+impl NullBufferRecycler {
     /// Returns the previous null bitmap as an empty `Vec<u64>`, or a new one if still shared.
-    fn reclaim_bits(&mut self) -> Vec<u64> {
+    fn reclaim(&mut self) -> Vec<u64> {
         let mut v = self
-            .nulls
+            .0
             .take()
             .and_then(|n| n.into_inner().into_inner().into_vec().ok())
             .unwrap_or_default();
         v.clear();
         v
+    }
+
+    /// Wrap packed bits (see [`pack_bits`]) for `len` rows, keeping a reference for reuse.
+    fn build(&mut self, bits: Vec<u64>, len: usize) -> NullBuffer {
+        let nulls = NullBuffer::new(BooleanBuffer::new(Buffer::from_vec(bits), 0, len));
+        self.0 = Some(nulls.clone());
+        nulls
     }
 }
 
@@ -455,6 +469,124 @@ impl PrimitiveArrayRecycler<Date32Type> {
             |r| julian(r) as i32 - UNIX_EPOCH_JULIAN,
             |r| !is_null(nbm(r), pos) && julian(r) >= 0,
         )
+    }
+}
+
+/// Builds one `Utf8View` column per batch, reusing the view, data and null
+/// buffer allocations from the previous batch. See [`PrimitiveArrayRecycler`].
+///
+/// Strings longer than 12 bytes are appended to a single data buffer per
+/// batch; shorter strings are inlined in the view.
+#[derive(Debug, Default)]
+pub struct StringViewArrayRecycler {
+    views: Option<ScalarBuffer<u128>>,
+    data: Option<Buffer>,
+    nulls: NullBufferRecycler,
+}
+
+impl StringViewArrayRecycler {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Build an array with an entry for each row in `rows`
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `value`: function that returns the string for a row, or `None` for NULL
+    pub fn build<R>(&mut self, rows: &[R], value: impl Fn(&R) -> Option<&str>) -> StringViewArray {
+        let mut views = self.reclaim_views();
+        views.reserve(rows.len());
+        let mut data = self.reclaim_data();
+        let mut bits = self.nulls.reclaim();
+        bits.reserve(rows.len().div_ceil(64));
+        for chunk in rows.chunks(64) {
+            let mut packed = 0u64;
+            for (i, r) in chunk.iter().enumerate() {
+                let Some(s) = value(r) else {
+                    views.push(0);
+                    continue;
+                };
+                packed |= 1 << i;
+                let s = s.as_bytes();
+                let offset = if s.len() > 12 {
+                    let offset = u32::try_from(data.len()).expect("string data exceeds 4GiB");
+                    data.extend_from_slice(s);
+                    offset
+                } else {
+                    0
+                };
+                views.push(make_view(s, 0, offset));
+            }
+            bits.push(packed.to_le());
+        }
+
+        let views = ScalarBuffer::from(views);
+        let data = Buffer::from_vec(data);
+        let nulls = self.nulls.build(bits, rows.len());
+        self.views = Some(views.clone());
+        self.data = Some(data.clone());
+        let buffers: Arc<[Buffer]> = Arc::from([data]);
+        if cfg!(debug_assertions) {
+            StringViewArray::try_new(views, buffers, Some(nulls)).expect("valid by construction")
+        } else {
+            // SAFETY: every view was made by `make_view` from UTF-8 bytes that
+            // are either inlined or at that offset of buffer 0, and the null
+            // buffer has one bit per row.
+            unsafe { StringViewArray::new_unchecked(views, buffers, Some(nulls)) }
+        }
+    }
+
+    /// Nullable CHAR / VARCHAR column
+    ///
+    /// Arguments:
+    /// * `rows`: slice of rows to build the array from
+    /// * `pos`: bit position in the null bitmap indicating null values
+    /// * `nbm`: function to get the null bitmap for a row
+    /// * `value`: function to get the string for a row
+    pub fn string<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> &str,
+    ) -> StringViewArray {
+        self.build(rows, |r| (!is_null(nbm(r), pos)).then(|| value(r)))
+    }
+
+    /// Nullable CHAR / VARCHAR column whose value may also be absent
+    ///
+    /// Arguments: as [`Self::string`], with `value` returning `None` for an absent value
+    pub fn opt_string<R>(
+        &mut self,
+        rows: &[R],
+        pos: u32,
+        nbm: impl Fn(&R) -> i64,
+        value: impl Fn(&R) -> Option<&str>,
+    ) -> StringViewArray {
+        self.build(rows, |r| if is_null(nbm(r), pos) { None } else { value(r) })
+    }
+
+    /// Returns the previous views buffer as an empty `Vec`, or a new one if still shared.
+    fn reclaim_views(&mut self) -> Vec<u128> {
+        let mut v = self
+            .views
+            .take()
+            .and_then(|b| b.into_inner().into_vec().ok())
+            .unwrap_or_default();
+        v.clear();
+        v
+    }
+
+    /// Returns the previous data buffer as an empty `Vec`, or a new one if still shared.
+    fn reclaim_data(&mut self) -> Vec<u8> {
+        let mut v = self
+            .data
+            .take()
+            .and_then(|b| b.into_vec().ok())
+            .unwrap_or_default();
+        v.clear();
+        v
     }
 }
 
@@ -697,6 +829,64 @@ mod tests {
         assert!(a.is_null(2)); // bitmap bit set
         let b = rec.date32(&rows[..1], 0, |_| 0, |_| Date::new(1970, 1, 1));
         assert_eq!(b.value(0), 0);
+    }
+
+    #[test]
+    fn test_string_recycler_reuses_buffers_after_drop() {
+        // mix of inlined (<= 12 bytes) and out-of-line strings
+        let rows: Vec<String> = (0..70).map(|i| "x".repeat(i % 20)).collect();
+        let mut rec = StringViewArrayRecycler::new();
+        let a = rec.build(&rows, |r| (r.len() != 7).then_some(r.as_str()));
+        assert_eq!(a.len(), 70);
+        assert_eq!(a.null_count(), 4); // lengths cycle every 20 rows
+        for (i, r) in rows.iter().enumerate() {
+            if r.len() == 7 {
+                assert!(a.is_null(i));
+            } else {
+                assert_eq!(a.value(i), r.as_str(), "row {i}");
+            }
+        }
+        assert_eq!(a.data_buffers().len(), 1);
+        let views_ptr = a.views().as_ptr();
+        let data_ptr = a.data_buffers()[0].as_ptr();
+        let null_ptr = a.nulls().unwrap().validity().as_ptr();
+        drop(a);
+
+        // Sole reference dropped: the same allocations come back
+        let b = rec.build(&rows[..20], |r| Some(r.as_str()));
+        assert_eq!(b.views().as_ptr(), views_ptr);
+        assert_eq!(b.data_buffers()[0].as_ptr(), data_ptr);
+        assert_eq!(b.nulls().unwrap().validity().as_ptr(), null_ptr);
+        assert_eq!(b.null_count(), 0);
+        assert_eq!(b.value(7), "xxxxxxx");
+        assert_eq!(b.value(19), "x".repeat(19));
+
+        // Still held by the caller: fresh allocations are used
+        let c = rec.build(&rows[..2], |_| None);
+        assert_ne!(c.views().as_ptr(), views_ptr);
+        assert_eq!(c.null_count(), 2);
+        assert_eq!(b.value(19), "x".repeat(19));
+    }
+
+    #[test]
+    fn test_string_recycler_bitmap_and_option() {
+        let rows: Vec<(i64, Option<&str>)> = vec![
+            (0, Some("a")),
+            (1, Some("b")),
+            (0, None),
+            (0, Some("a long string here")),
+        ];
+        let mut rec = StringViewArrayRecycler::new();
+        let a = rec.string(&rows, 0, |r| r.0, |r| r.1.unwrap_or("-"));
+        assert_eq!(a.value(0), "a");
+        assert!(a.is_null(1));
+        assert_eq!(a.value(2), "-");
+        assert_eq!(a.value(3), "a long string here");
+        let b = rec.opt_string(&rows, 0, |r| r.0, |r| r.1);
+        assert_eq!(b.value(0), "a");
+        assert!(b.is_null(1));
+        assert!(b.is_null(2));
+        assert_eq!(b.value(3), "a long string here");
     }
 
     #[test]
