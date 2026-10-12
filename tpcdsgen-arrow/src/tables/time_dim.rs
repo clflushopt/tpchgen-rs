@@ -1,7 +1,7 @@
-use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
+use crate::conversions::{PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,27 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{TimeDimRow, TimeDimRowGenerator};
 
 /// Generate [`TimeDimRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct TimeDimArrow {
     inner: TimeDimRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<TimeDimRow>,
+    t_time_sk: PrimitiveArrayRecycler<Int32Type>,
+    t_time_id: StringViewArrayRecycler,
+    t_time: PrimitiveArrayRecycler<Int32Type>,
+    t_hour: PrimitiveArrayRecycler<Int32Type>,
+    t_minute: PrimitiveArrayRecycler<Int32Type>,
+    t_second: PrimitiveArrayRecycler<Int32Type>,
+    t_am_pm: StringViewArrayRecycler,
+    t_shift: StringViewArrayRecycler,
+    t_sub_shift: StringViewArrayRecycler,
+    t_meal_time: StringViewArrayRecycler,
 }
 
 impl TimeDimArrow {
@@ -28,6 +44,16 @@ impl TimeDimArrow {
             inner: TimeDimRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            t_time_sk: PrimitiveArrayRecycler::new(),
+            t_time_id: StringViewArrayRecycler::new(),
+            t_time: PrimitiveArrayRecycler::new(),
+            t_hour: PrimitiveArrayRecycler::new(),
+            t_minute: PrimitiveArrayRecycler::new(),
+            t_second: PrimitiveArrayRecycler::new(),
+            t_am_pm: StringViewArrayRecycler::new(),
+            t_shift: StringViewArrayRecycler::new(),
+            t_sub_shift: StringViewArrayRecycler::new(),
+            t_meal_time: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,51 +98,60 @@ impl Iterator for TimeDimArrow {
             return None;
         }
 
-        let mut t_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut t_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut t_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut t_hour: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut t_minute: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut t_second: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut t_am_pm: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut t_shift: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut t_sub_shift: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut t_meal_time: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            t_time_sk,
+            t_time_id,
+            t_time,
+            t_hour,
+            t_minute,
+            t_second,
+            t_am_pm,
+            t_shift,
+            t_sub_shift,
+            t_meal_time,
+            ..
+        } = self;
+        let nbm = TimeDimRow::null_bit_map;
+        let sk32 = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&TimeDimRow) -> i64| {
+            rec.int32_sk(rows, pos, nbm, f)
+        };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&TimeDimRow) -> i32| {
+            rec.int32(rows, pos, nbm, f)
+        };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&TimeDimRow) -> &str| {
+            rec.string(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            t_sk.push(integer_sk_opt(nbm, 0, r.t_time_sk));
-            t_id.push(opt(nbm, 1, r.t_time_id.as_str()));
-            t_time.push(opt(nbm, 2, r.t_time));
-            t_hour.push(opt(nbm, 3, r.t_hour));
-            t_minute.push(opt(nbm, 4, r.t_minute));
-            t_second.push(opt(nbm, 5, r.t_second));
-            t_am_pm.push(opt(nbm, 6, r.t_am_pm.as_str()));
-            t_shift.push(opt(nbm, 7, r.t_shift.as_str()));
-            t_sub_shift.push(opt(nbm, 8, r.t_sub_shift.as_str()));
-            // t_meal_time is an empty string (not null) for hours with no meal,
-            // but the pipe-delimited format can't distinguish empty from null,
-            // so we map empty -> None to match the .dat file convention.
-            t_meal_time.push(if r.t_meal_time.is_empty() {
-                None
-            } else {
-                Some(r.t_meal_time.as_str())
-            });
-        }
+        let t_time_sk = sk32(t_time_sk, 0, |r| r.t_time_sk);
+        let t_time_id = str(t_time_id, 1, |r| r.t_time_id.as_str());
+        let t_time = int(t_time, 2, |r| r.t_time);
+        let t_hour = int(t_hour, 3, |r| r.t_hour);
+        let t_minute = int(t_minute, 4, |r| r.t_minute);
+        let t_second = int(t_second, 5, |r| r.t_second);
+        let t_am_pm = str(t_am_pm, 6, |r| r.t_am_pm.as_str());
+        let t_shift = str(t_shift, 7, |r| r.t_shift.as_str());
+        let t_sub_shift = str(t_sub_shift, 8, |r| r.t_sub_shift.as_str());
+        // t_meal_time is an empty string (not null) for hours with no meal,
+        // but the pipe-delimited format can't distinguish empty from null,
+        // so we map empty -> None to match the .dat file convention.
+        let t_meal_time = t_meal_time.build(rows, |r| {
+            (!r.t_meal_time.is_empty()).then_some(r.t_meal_time.as_str())
+        });
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(t_sk)),
-                Arc::new(string_view_array_from_opt_iter(t_id.iter().copied())),
-                Arc::new(Int32Array::from(t_time)),
-                Arc::new(Int32Array::from(t_hour)),
-                Arc::new(Int32Array::from(t_minute)),
-                Arc::new(Int32Array::from(t_second)),
-                Arc::new(string_view_array_from_opt_iter(t_am_pm.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(t_shift.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(t_sub_shift.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(t_meal_time.iter().copied())),
+                Arc::new(t_time_sk),
+                Arc::new(t_time_id),
+                Arc::new(t_time),
+                Arc::new(t_hour),
+                Arc::new(t_minute),
+                Arc::new(t_second),
+                Arc::new(t_am_pm),
+                Arc::new(t_shift),
+                Arc::new(t_sub_shift),
+                Arc::new(t_meal_time),
             ],
         );
         Some(batch)
