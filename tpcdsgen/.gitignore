@@ -1,13 +1,3 @@
 /target
 *.dat
 *.txt
-
-# Patches and Java tree changes.
-/patches/
-
-# Test fixtures (generated).
-#/tests/fixtures/
-
-# Stuff I need to remember
-NEXT_STEPS.md
-ISSUES.md
