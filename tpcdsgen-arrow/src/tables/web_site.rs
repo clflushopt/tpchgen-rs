@@ -1,10 +1,7 @@
-use crate::conversions::{
-    address_columns, decimal128_5_2_array, decimal_to_i128, integer_sk_opt, is_null,
-    julian_to_date32, opt, string_view_array_from_opt_iter,
-};
+use crate::conversions::{AddressArrayRecycler, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Date32Array, Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Date32Type, Decimal128Type, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -12,11 +9,34 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{WebSiteRow, WebSiteRowGenerator};
 
 /// Generate [`WebSiteRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct WebSiteArrow {
     inner: WebSiteRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<WebSiteRow>,
+    web_site_sk: PrimitiveArrayRecycler<Int32Type>,
+    web_site_id: StringViewArrayRecycler,
+    web_rec_start_date: PrimitiveArrayRecycler<Date32Type>,
+    web_rec_end_date: PrimitiveArrayRecycler<Date32Type>,
+    web_name: StringViewArrayRecycler,
+    web_open_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    web_close_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    web_class: StringViewArrayRecycler,
+    web_manager: StringViewArrayRecycler,
+    web_mkt_id: PrimitiveArrayRecycler<Int32Type>,
+    web_mkt_class: StringViewArrayRecycler,
+    web_mkt_desc: StringViewArrayRecycler,
+    web_market_manager: StringViewArrayRecycler,
+    web_company_id: PrimitiveArrayRecycler<Int32Type>,
+    web_company_name: StringViewArrayRecycler,
+    address: AddressArrayRecycler,
+    web_tax_percentage: PrimitiveArrayRecycler<Decimal128Type>,
 }
 
 impl WebSiteArrow {
@@ -31,6 +51,23 @@ impl WebSiteArrow {
             inner: WebSiteRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            web_site_sk: PrimitiveArrayRecycler::new(),
+            web_site_id: StringViewArrayRecycler::new(),
+            web_rec_start_date: PrimitiveArrayRecycler::new(),
+            web_rec_end_date: PrimitiveArrayRecycler::new(),
+            web_name: StringViewArrayRecycler::new(),
+            web_open_date_sk: PrimitiveArrayRecycler::new(),
+            web_close_date_sk: PrimitiveArrayRecycler::new(),
+            web_class: StringViewArrayRecycler::new(),
+            web_manager: StringViewArrayRecycler::new(),
+            web_mkt_id: PrimitiveArrayRecycler::new(),
+            web_mkt_class: StringViewArrayRecycler::new(),
+            web_mkt_desc: StringViewArrayRecycler::new(),
+            web_market_manager: StringViewArrayRecycler::new(),
+            web_company_id: PrimitiveArrayRecycler::new(),
+            web_company_name: StringViewArrayRecycler::new(),
+            address: AddressArrayRecycler::new(),
+            web_tax_percentage: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -75,102 +112,92 @@ impl Iterator for WebSiteArrow {
             return None;
         }
 
-        let mut web_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut web_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut web_open_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_close_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut web_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut web_market_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_market_class: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut web_market_desc: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut web_market_manager: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut web_company_id: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut web_company_name: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut addr_rows: Vec<(tpcdsgen::types::Address, i64, u32)> =
-            Vec::with_capacity(rows.len());
-        let mut web_tax_pct: Vec<Option<i128>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            web_site_sk,
+            web_site_id,
+            web_rec_start_date,
+            web_rec_end_date,
+            web_name,
+            web_open_date_sk,
+            web_close_date_sk,
+            web_class,
+            web_manager,
+            web_mkt_id,
+            web_mkt_class,
+            web_mkt_desc,
+            web_market_manager,
+            web_company_id,
+            web_company_name,
+            address,
+            web_tax_percentage,
+            ..
+        } = self;
+        let nbm = WebSiteRow::null_bit_map;
+        let sk32 = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&WebSiteRow) -> i64| {
+            rec.int32_sk(rows, pos, nbm, f)
+        };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&WebSiteRow) -> i32| {
+            rec.int32(rows, pos, nbm, f)
+        };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&WebSiteRow) -> &str| {
+            rec.str(rows, pos, nbm, f)
+        };
+        let date =
+            |rec: &mut PrimitiveArrayRecycler<Date32Type>, pos, f: fn(&WebSiteRow) -> i64| {
+                rec.date32_julian(rows, pos, nbm, f)
+            };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            web_sk.push(integer_sk_opt(nbm, 0, r.get_web_site_sk()));
-            web_id.push(opt(nbm, 1, r.get_web_site_id()));
-            web_rec_start.push(if is_null(nbm, 2) {
-                None
-            } else {
-                julian_to_date32(r.get_web_rec_start_date_id())
-            });
-            web_rec_end.push(julian_to_date32(r.get_web_rec_end_date_id()));
-            web_name.push(opt(nbm, 4, r.web_name()));
-            web_open_date.push(integer_sk_opt(nbm, 5, r.web_open_date()));
-            web_close_date.push(integer_sk_opt(nbm, 6, r.web_close_date()));
-            web_class.push(opt(nbm, 7, r.web_class()));
-            web_manager.push(opt(nbm, 8, r.web_manager()));
-            web_market_id.push(opt(nbm, 9, r.web_market_id()));
-            web_market_class.push(opt(nbm, 10, r.web_market_class()));
-            web_market_desc.push(opt(nbm, 11, r.web_market_desc()));
-            web_market_manager.push(opt(nbm, 12, r.web_market_manager()));
-            web_company_id.push(opt(nbm, 13, r.web_company_id()));
-            web_company_name.push(opt(nbm, 14, r.web_company_name()));
-            addr_rows.push((r.web_address().clone(), nbm, 15));
-            web_tax_pct.push(opt(nbm, 25, decimal_to_i128(*r.web_tax_percentage())));
-        }
-
-        let (
-            street_number,
-            street_name,
-            street_type,
-            suite_number,
-            city,
-            county,
-            state,
-            zip,
-            country,
-            gmt_offset,
-        ) = address_columns(addr_rows.iter().map(|(a, nbm, base)| (a, *nbm, *base)));
-
-        let tax_arr = decimal128_5_2_array(web_tax_pct);
+        let web_site_sk = sk32(web_site_sk, 0, WebSiteRow::get_web_site_sk);
+        let web_site_id = str(web_site_id, 1, WebSiteRow::get_web_site_id);
+        let web_rec_start_date = date(web_rec_start_date, 2, WebSiteRow::get_web_rec_start_date_id);
+        // only the negative-Julian sentinel marks null here, not the bitmap
+        let web_rec_end_date =
+            web_rec_end_date.date32_julian(rows, 3, |_| 0, WebSiteRow::get_web_rec_end_date_id);
+        let web_name = str(web_name, 4, WebSiteRow::web_name);
+        let web_open_date_sk = sk32(web_open_date_sk, 5, WebSiteRow::web_open_date);
+        let web_close_date_sk = sk32(web_close_date_sk, 6, WebSiteRow::web_close_date);
+        let web_class = str(web_class, 7, WebSiteRow::web_class);
+        let web_manager = str(web_manager, 8, WebSiteRow::web_manager);
+        let web_mkt_id = int(web_mkt_id, 9, WebSiteRow::web_market_id);
+        let web_mkt_class = str(web_mkt_class, 10, WebSiteRow::web_market_class);
+        let web_mkt_desc = str(web_mkt_desc, 11, WebSiteRow::web_market_desc);
+        let web_market_manager = str(web_market_manager, 12, WebSiteRow::web_market_manager);
+        let web_company_id = int(web_company_id, 13, WebSiteRow::web_company_id);
+        let web_company_name = str(web_company_name, 14, WebSiteRow::web_company_name);
+        let address = address.build(rows, 15, nbm, WebSiteRow::web_address);
+        let web_tax_percentage =
+            web_tax_percentage.decimal_5_2(rows, 25, nbm, |r| *r.web_tax_percentage());
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(web_sk)),
-                Arc::new(string_view_array_from_opt_iter(web_id.iter().copied())),
-                Arc::new(Date32Array::from(web_rec_start)),
-                Arc::new(Date32Array::from(web_rec_end)),
-                Arc::new(string_view_array_from_opt_iter(web_name.iter().copied())),
-                Arc::new(Int32Array::from(web_open_date)),
-                Arc::new(Int32Array::from(web_close_date)),
-                Arc::new(string_view_array_from_opt_iter(web_class.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(web_manager.iter().copied())),
-                Arc::new(Int32Array::from(web_market_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_market_class.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_market_desc.iter().copied(),
-                )),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_market_manager.iter().copied(),
-                )),
-                Arc::new(Int32Array::from(web_company_id)),
-                Arc::new(string_view_array_from_opt_iter(
-                    web_company_name.iter().copied(),
-                )),
-                Arc::new(street_number),
-                Arc::new(street_name),
-                Arc::new(street_type),
-                Arc::new(suite_number),
-                Arc::new(city),
-                Arc::new(county),
-                Arc::new(state),
-                Arc::new(zip),
-                Arc::new(country),
-                Arc::new(gmt_offset),
-                Arc::new(tax_arr),
+                Arc::new(web_site_sk),
+                Arc::new(web_site_id),
+                Arc::new(web_rec_start_date),
+                Arc::new(web_rec_end_date),
+                Arc::new(web_name),
+                Arc::new(web_open_date_sk),
+                Arc::new(web_close_date_sk),
+                Arc::new(web_class),
+                Arc::new(web_manager),
+                Arc::new(web_mkt_id),
+                Arc::new(web_mkt_class),
+                Arc::new(web_mkt_desc),
+                Arc::new(web_market_manager),
+                Arc::new(web_company_id),
+                Arc::new(web_company_name),
+                Arc::new(address.street_number),
+                Arc::new(address.street_name),
+                Arc::new(address.street_type),
+                Arc::new(address.suite_number),
+                Arc::new(address.city),
+                Arc::new(address.county),
+                Arc::new(address.state),
+                Arc::new(address.zip),
+                Arc::new(address.country),
+                Arc::new(address.gmt_offset),
+                Arc::new(web_tax_percentage),
             ],
         );
         Some(batch)
