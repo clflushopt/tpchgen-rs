@@ -37,8 +37,8 @@ jobs:
       - name: Check tpcgen-cli without default features
         run: cargo check --locked -p tpcgen-cli --all-targets --no-default-features
 
-  # Check the workspace builds with the minimum supported Rust version
-  # (`rust-version` in Cargo.toml)
+  # Check the workspace builds with the minimum supported Rust version (MSRV),
+  # set by `rust-version` in Cargo.toml
   msrv:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -46,16 +46,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - name: Install MSRV toolchain
-        run: |
-          MSRV=$(sed -n 's/^rust-version = "\(.*\)"/\1/p' Cargo.toml)
-          rustup toolchain install "$MSRV" --profile minimal
-          echo "MSRV=$MSRV" >> "$GITHUB_ENV"
-      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-      - name: Check
-        run: cargo "+$MSRV" check --locked --workspace --all-targets
+          tool: cargo-hack@0.6.45
+      - name: Check MSRV
+        run: cargo hack check --locked --rust-version --workspace --all-targets
 
   # Documentation examples tests
   test-doc-examples:
