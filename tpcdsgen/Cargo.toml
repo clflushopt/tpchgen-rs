@@ -1,6 +1,7 @@
 [package]
 name = "tpcdsgen"
 version = { workspace = true }
+rust-version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
 description = "Blazing fast pure Rust zero dependency TPC-DS data generation library."

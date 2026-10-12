@@ -101,4 +101,4 @@ is structured.
 
 ## License
 
-The project is licensed under the [APACHE 2.0](LICENSE) license.
+The project is licensed under the [Apache License 2.0](LICENSE).

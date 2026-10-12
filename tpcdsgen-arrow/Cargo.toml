@@ -1,6 +1,7 @@
 [package]
 name = "tpcdsgen-arrow"
 version = { workspace = true }
+rust-version = { workspace = true }
 edition = { workspace = true }
 authors = { workspace = true }
 description = "TPC-DS data generator into Apache Arrow format"

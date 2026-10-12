@@ -1,6 +1,6 @@
 //! Implementation of text pool and text generation.
 //!
-//! Most of this code has been ported from the Apache Trino TPC-H generator
+//! Most of this code has been ported from the Trino TPC-H generator
 //! implementation. The original code can be found in the following link:
 //!
 //! <https://github.com/trinodb/tpch/blob/master/src/main/java/io/trino/tpch/TextPool.java>

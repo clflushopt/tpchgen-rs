@@ -37,6 +37,21 @@ jobs:
       - name: Check tpcgen-cli without default features
         run: cargo check --locked -p tpcgen-cli --all-targets --no-default-features
 
+  # Check the workspace builds with the minimum supported Rust version (MSRV),
+  # set by `rust-version` in Cargo.toml
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+        with:
+          tool: cargo-hack@0.6.45
+      - name: Check MSRV
+        run: cargo hack check --locked --rust-version --workspace --all-targets
+
   # Documentation examples tests
   test-doc-examples:
     runs-on: ubuntu-latest
@@ -58,7 +73,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
-      - uses: taiki-e/install-action@83ac0ad63c0167e6f06796fab0fce28db1bf3db0 # v2.87.22
+      - uses: taiki-e/install-action@ab6895351a88b908e96a4697860d4ffea5e57dbe # v2.87.27
         with:
           tool: nextest@0.9.140
       # nextest runs lib, bins and test targets by default (doc tests are
@@ -106,6 +121,7 @@ jobs:
     if: ${{ always() }}
     needs:
       - lint
+      - msrv
       - test-doc-examples
       - test-workspace
       - docs
@@ -116,6 +132,7 @@ jobs:
       - name: Verify all Rust jobs passed
         env:
           LINT_RESULT: ${{ needs.lint.result }}
+          MSRV_RESULT: ${{ needs.msrv.result }}
           DOC_TEST_RESULT: ${{ needs.test-doc-examples.result }}
           WORKSPACE_TEST_RESULT: ${{ needs.test-workspace.result }}
           DOCS_RESULT: ${{ needs.docs.result }}
@@ -125,6 +142,7 @@ jobs:
         run: |
           set -e
           test "$LINT_RESULT" = success
+          test "$MSRV_RESULT" = success
           test "$DOC_TEST_RESULT" = success
           test "$WORKSPACE_TEST_RESULT" = success
           test "$DOCS_RESULT" = success

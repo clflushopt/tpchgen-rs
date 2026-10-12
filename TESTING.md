@@ -27,10 +27,10 @@ checked, directly or transitively, against that text output.
 using [`compare-all-tables.sh`](tpcgen-cli/scripts/tpch/compare-all-tables.sh)
 (TPC-H) and
 [`compare-all-tables.sh`](tpcgen-cli/scripts/tpcds/compare-all-tables.sh)
-(TPC-DS).  
-To improve efficiency, precomputed MD5 sums (see [tpcds-data](https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md))
-and stored `tpcgen-cli/tests/fixtures/` https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md
-to check correctness without needing the (slow) reference implementation.
+(TPC-DS). To improve efficiency, the scripts use precomputed MD5 sums (see
+[tpcds-data](https://github.com/alamb/tpcds-data/blob/main/MD5SUMS.md)) and
+fixtures stored in `tpcgen-cli/tests/fixtures/` to check correctness without
+needing the (slow) reference implementation.
 
 Please see the comparison scripts for more details:
 

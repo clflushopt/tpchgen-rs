@@ -84,7 +84,7 @@ impl StringValuesDistribution {
         weight_list_index: usize,
         stream: &mut RandomNumberStream,
     ) -> &str {
-        pick_random_value(
+        pick_random_value::<String>(
             &self.values_lists[value_list_index],
             &self.weights_lists[weight_list_index],
             stream,
@@ -93,7 +93,7 @@ impl StringValuesDistribution {
 
     /// Get a value by index modulo the size of the list
     pub fn get_value_for_index_mod_size(&self, index: i64, value_list_index: usize) -> &str {
-        get_value_for_index_mod_size(index, &self.values_lists[value_list_index])
+        get_value_for_index_mod_size::<String>(index, &self.values_lists[value_list_index])
     }
 
     /// Pick a random index from the specified weight list

@@ -6,7 +6,7 @@ use std::fmt;
 ///
 /// For example `TPCHDecimal(1234)` represents `12.34`.
 ///
-/// A 'decimal' column should be able to fit any values in the the range
+/// A 'decimal' column should be able to fit any values in the range
 /// [-9_999_999_999.99, +9_999_999_999.99] in increments of 0.01.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TPCHDecimal(pub i64);
