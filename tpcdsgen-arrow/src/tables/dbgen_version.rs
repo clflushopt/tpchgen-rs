@@ -1,7 +1,9 @@
-use crate::conversions::{date_to_date32, opt, string_view_array_from_opt_iter};
+use crate::conversions::{is_null, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Date32Array, RecordBatch, Time32SecondArray};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef, TimeUnit};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{
+    DataType, Date32Type, Field, Schema, SchemaRef, Time32SecondType, TimeUnit,
+};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -12,8 +14,12 @@ use tpcdsgen::row::{DbgenVersionRow, DbgenVersionRowGenerator};
 pub struct DbgenVersionArrow {
     inner: DbgenVersionRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<DbgenVersionRow>,
+    dv_version: StringViewArrayRecycler,
+    dv_create_date: PrimitiveArrayRecycler<Date32Type>,
+    dv_create_time: PrimitiveArrayRecycler<Time32SecondType>,
+    dv_cmdline_args: StringViewArrayRecycler,
 }
 
 impl DbgenVersionArrow {
@@ -28,6 +34,10 @@ impl DbgenVersionArrow {
             inner: DbgenVersionRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            dv_version: StringViewArrayRecycler::new(),
+            dv_create_date: PrimitiveArrayRecycler::new(),
+            dv_create_time: PrimitiveArrayRecycler::new(),
+            dv_cmdline_args: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,26 +82,31 @@ impl Iterator for DbgenVersionArrow {
             return None;
         }
 
-        let mut version: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut create_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut create_time: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut cmdline: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            dv_version,
+            dv_create_date,
+            dv_create_time,
+            dv_cmdline_args,
+            ..
+        } = self;
+        let nbm = DbgenVersionRow::null_bit_map;
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            version.push(opt(nbm, 0, r.get_dv_version()));
-            create_date.push(opt(nbm, 1, date_to_date32(r.get_dv_create_date())));
-            create_time.push(opt(nbm, 2, r.get_dv_create_time()));
-            cmdline.push(opt(nbm, 3, r.get_dv_cmdline_args()));
-        }
+        let dv_version = dv_version.str(rows, 0, nbm, DbgenVersionRow::get_dv_version);
+        let dv_create_date = dv_create_date.date32(rows, 1, nbm, |r| *r.get_dv_create_date());
+        let dv_create_time = dv_create_time.build(rows, DbgenVersionRow::get_dv_create_time, |r| {
+            !is_null(nbm(r), 2)
+        });
+        let dv_cmdline_args =
+            dv_cmdline_args.str(rows, 3, nbm, DbgenVersionRow::get_dv_cmdline_args);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(string_view_array_from_opt_iter(version.iter().copied())),
-                Arc::new(Date32Array::from(create_date)),
-                Arc::new(Time32SecondArray::from(create_time)),
-                Arc::new(string_view_array_from_opt_iter(cmdline.iter().copied())),
+                Arc::new(dv_version),
+                Arc::new(dv_create_date),
+                Arc::new(dv_create_time),
+                Arc::new(dv_cmdline_args),
             ],
         );
         Some(batch)
