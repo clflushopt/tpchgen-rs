@@ -492,22 +492,13 @@ impl CommonArgs {
 }
 
 fn parse_table(table: &str) -> Result<Table> {
-    let parsed = table.parse::<Table>().map_err(|_| {
+    table.parse::<Table>().map_err(|_| {
         TpcdsError::new(&format!(
             "unknown table '{table}'. Expected one of: {}",
             expected_table_names()
         ))
-    })?;
-
-    if parsed.is_main_table() {
-        Ok(parsed)
-    } else {
-        Err(TpcdsError::new(&format!(
-            "unknown table '{table}'. Expected one of: {}",
-            expected_table_names()
-        ))
-        .into())
-    }
+        .into()
+    })
 }
 
 /// Parses a TPC-DS table name, and supplies the list of table names (with
@@ -572,8 +563,6 @@ fn table_help(table: Table) -> &'static str {
         Table::WebSales => "Web sales fact",
         Table::WebSite => "Web site dimension",
         Table::DbgenVersion => "Metadata about the generator run",
-        // source tables are not selectable on the command line
-        _ => "",
     }
 }
 

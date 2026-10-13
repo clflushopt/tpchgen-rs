@@ -484,6 +484,5 @@ pub(super) fn expected_schema(table: Table) -> Schema {
             Field::new("web_gmt_offset", DataType::Decimal128(5, 2), true),
             Field::new("web_tax_percentage", DataType::Decimal128(5, 2), true),
         ]),
-        _ => unreachable!("expected schema is only defined for main TPC-DS tables"),
     }
 }

@@ -201,8 +201,6 @@ fn estimated_parquet_bytes_per_source_row(table: Table) -> f64 {
         Table::WebReturns => 86.53,
         Table::WebSales => 798.89,
         Table::WebSite => 231.21,
-        // Not a main table; never generated as Parquet output
-        _ => unreachable!("Parquet generation plans are only defined for main TPC-DS tables"),
     }
 }
 
@@ -258,8 +256,6 @@ fn estimated_dat_bytes_per_source_row(table: Table) -> f64 {
         Table::WebReturns => 175.59,
         Table::WebSales => 2577.25,
         Table::WebSite => 286.42,
-        // Not a main table; never generated as DAT output
-        _ => unreachable!("DAT generation plans are only defined for main TPC-DS tables"),
     }
 }
 
@@ -298,8 +294,6 @@ fn estimated_csv_bytes_per_source_row(table: Table) -> f64 {
         Table::WebReturns => 174.39,
         Table::WebSales => 2565.25,
         Table::WebSite => 304.67,
-        // Not a main table; never generated as CSV output
-        _ => unreachable!("CSV generation plans are only defined for main TPC-DS tables"),
     }
 }
 

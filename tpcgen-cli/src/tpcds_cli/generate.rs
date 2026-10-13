@@ -128,8 +128,6 @@ async fn run_plan(
         Table::WebReturns => run_web_returns(format, planned, num_threads).await,
         Table::WebSales => run_web_sales(format, planned, num_threads).await,
         Table::WebSite => run_web_site(format, planned, num_threads).await,
-        // Source tables - skip
-        _ => Ok(()),
     }
 }
 

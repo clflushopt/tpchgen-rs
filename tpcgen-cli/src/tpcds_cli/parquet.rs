@@ -48,7 +48,6 @@ fn table_schema(table: Table) -> SchemaRef {
         Table::WebReturns => WebReturnsArrow::schema_ref(),
         Table::WebSales => WebSalesArrow::schema_ref(),
         Table::WebSite => WebSiteArrow::schema_ref(),
-        _ => unreachable!("table_schema is only called for main TPC-DS tables"),
     }
 }
 

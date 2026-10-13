@@ -716,7 +716,6 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_sales_returns_selection_semantics() {
 /// Test each TPC-DS DAT table can be selected individually and creates output.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_individual_table_selection_outputs_requested_table() {
-    // The CLI accepts only main tables; source/internal tables are rejected by parse_table.
     for table in Table::main_tables() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
 

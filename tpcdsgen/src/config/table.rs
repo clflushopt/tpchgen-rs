@@ -4,7 +4,6 @@ use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Table {
-    // Main TPC-DS tables
     CallCenter,
     CatalogPage,
     CatalogReturns,
@@ -30,23 +29,6 @@ pub enum Table {
     WebSales,
     WebSite,
     DbgenVersion,
-
-    // Source tables (for updates - simplified for now)
-    SBrand,
-    SCustomerAddress,
-    SCallCenter,
-    SCatalog,
-    SCatalogOrder,
-    SCatalogOrderLineitem,
-    SCatalogPage,
-    SCatalogPromotionalItem,
-    SCatalogReturns,
-    SCategory,
-    SClass,
-    SCompany,
-    SCustomer,
-    SInventory,
-    // TODO(clflushopt): Add remaining tables
 }
 
 impl Table {
@@ -78,24 +60,10 @@ impl Table {
             Table::WebSales => "web_sales",
             Table::WebSite => "web_site",
             Table::DbgenVersion => "dbgen_version",
-            Table::SBrand => "s_brand",
-            Table::SCustomerAddress => "s_customer_address",
-            Table::SCallCenter => "s_call_center",
-            Table::SCatalog => "s_catalog",
-            Table::SCatalogOrder => "s_catalog_order",
-            Table::SCatalogOrderLineitem => "s_catalog_order_lineitem",
-            Table::SCatalogPage => "s_catalog_page",
-            Table::SCatalogPromotionalItem => "s_catalog_promotional_item",
-            Table::SCatalogReturns => "s_catalog_returns",
-            Table::SCategory => "s_category",
-            Table::SClass => "s_class",
-            Table::SCompany => "s_company",
-            Table::SCustomer => "s_customer",
-            Table::SInventory => "s_inventory",
         }
     }
 
-    /// Get all main tables (non-source tables)
+    /// Get all TPC-DS tables
     pub fn main_tables() -> Vec<Table> {
         vec![
             Table::CallCenter,
@@ -126,27 +94,6 @@ impl Table {
         ]
     }
 
-    /// Check if this is a main table (not a source table)
-    pub fn is_main_table(&self) -> bool {
-        !matches!(
-            self,
-            Table::SBrand
-                | Table::SCustomerAddress
-                | Table::SCallCenter
-                | Table::SCatalog
-                | Table::SCatalogOrder
-                | Table::SCatalogOrderLineitem
-                | Table::SCatalogPage
-                | Table::SCatalogPromotionalItem
-                | Table::SCatalogReturns
-                | Table::SCategory
-                | Table::SClass
-                | Table::SCompany
-                | Table::SCustomer
-                | Table::SInventory
-        )
-    }
-
     /// Return the table whose source rows drive generation of this table.
     ///
     /// The returns tables are generated row by row from their corresponding
@@ -154,9 +101,6 @@ impl Table {
     /// (for example parallel Parquet generation) must use the sales table's
     /// row counts; the returns tables' own scaling row counts would miss or
     /// duplicate return rows. Every other table generates from its own rows.
-    ///
-    /// Note this is unrelated to the `S*` source schema tables (see
-    /// [`Self::is_main_table`]).
     pub fn source_table(&self) -> Table {
         match self {
             Table::StoreReturns => Table::StoreSales,
@@ -166,28 +110,11 @@ impl Table {
         }
     }
 
-    /// Basic properties for now - will be expanded later
-    pub fn is_small(&self) -> bool {
-        // Simplified - these tables have small row counts
-        matches!(
-            self,
-            Table::CallCenter | Table::Store | Table::Warehouse | Table::WebSite
-        )
-    }
-
     pub fn keeps_history(&self) -> bool {
         // Tables that maintain historical data
         matches!(
             self,
             Table::CallCenter | Table::Item | Table::Store | Table::WebPage | Table::WebSite
-        )
-    }
-
-    pub fn is_date_based(&self) -> bool {
-        // Tables where data generation is based on dates
-        matches!(
-            self,
-            Table::CatalogSales | Table::StoreSales | Table::WebSales | Table::Inventory
         )
     }
 }
@@ -223,20 +150,6 @@ impl FromStr for Table {
             "WEB_SALES" => Ok(Table::WebSales),
             "WEB_SITE" => Ok(Table::WebSite),
             "DBGEN_VERSION" => Ok(Table::DbgenVersion),
-            "S_BRAND" => Ok(Table::SBrand),
-            "S_CUSTOMER_ADDRESS" => Ok(Table::SCustomerAddress),
-            "S_CALL_CENTER" => Ok(Table::SCallCenter),
-            "S_CATALOG" => Ok(Table::SCatalog),
-            "S_CATALOG_ORDER" => Ok(Table::SCatalogOrder),
-            "S_CATALOG_ORDER_LINEITEM" => Ok(Table::SCatalogOrderLineitem),
-            "S_CATALOG_PAGE" => Ok(Table::SCatalogPage),
-            "S_CATALOG_PROMOTIONAL_ITEM" => Ok(Table::SCatalogPromotionalItem),
-            "S_CATALOG_RETURNS" => Ok(Table::SCatalogReturns),
-            "S_CATEGORY" => Ok(Table::SCategory),
-            "S_CLASS" => Ok(Table::SClass),
-            "S_COMPANY" => Ok(Table::SCompany),
-            "S_CUSTOMER" => Ok(Table::SCustomer),
-            "S_INVENTORY" => Ok(Table::SInventory),
             _ => Err(TpcdsError::new(&format!("Invalid table name: {}", s))),
         }
     }
@@ -278,20 +191,13 @@ mod tests {
         let main_tables = Table::main_tables();
         assert!(main_tables.contains(&Table::CatalogSales));
         assert!(main_tables.contains(&Table::StoreSales));
-        assert!(!main_tables.contains(&Table::SBrand));
+        assert_eq!(main_tables.len(), 25);
     }
 
     #[test]
-    fn test_table_properties() {
-        assert!(Table::CallCenter.is_small());
+    fn test_keeps_history() {
         assert!(Table::CallCenter.keeps_history());
-        assert!(!Table::CallCenter.is_date_based());
-
-        assert!(Table::CatalogSales.is_date_based());
-        assert!(!Table::CatalogSales.is_small());
-
-        assert!(Table::StoreSales.is_main_table());
-        assert!(!Table::SBrand.is_main_table());
+        assert!(!Table::CatalogSales.keeps_history());
     }
 
     #[test]
@@ -306,6 +212,5 @@ mod tests {
     #[test]
     fn test_display() {
         assert_eq!(format!("{}", Table::CatalogSales), "catalog_sales");
-        assert_eq!(format!("{}", Table::SBrand), "s_brand");
     }
 }

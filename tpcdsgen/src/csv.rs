@@ -1969,9 +1969,8 @@ impl Display for WebSiteCsv<'_> {
     }
 }
 
-/// Returns the CSV header line for `table` with the given delimiter, or
-/// `None` for source tables, which have no CSV output.
-pub fn csv_header(table: Table, delimiter: char) -> Option<String> {
+/// Returns the CSV header line for `table` with the given delimiter.
+pub fn csv_header(table: Table, delimiter: char) -> String {
     let header = match table {
         Table::CallCenter => CallCenterCsv::header(),
         Table::CatalogPage => CatalogPageCsv::header(),
@@ -1998,9 +1997,8 @@ pub fn csv_header(table: Table, delimiter: char) -> Option<String> {
         Table::WebReturns => WebReturnsCsv::header(),
         Table::WebSales => WebSalesCsv::header(),
         Table::WebSite => WebSiteCsv::header(),
-        _ => return None,
     };
-    Some(join_header(header, delimiter))
+    join_header(header, delimiter)
 }
 
 /// Join the comma-separated column names of `header` with `delimiter`,
