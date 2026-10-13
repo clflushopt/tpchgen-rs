@@ -84,9 +84,18 @@ impl SlowlyChangingDimensionKey {
 }
 
 pub fn compute_scd_key(table: Table, row_number: u64) -> SlowlyChangingDimensionKey {
+    // Use Java ordinal, not Rust enum discriminant
+    compute_scd_key_for_table_number(table.get_ordinal(), row_number)
+}
+
+/// Like [`compute_scd_key`], but offsets the dates by `table_number`
+/// directly instead of a [`Table`] ordinal.
+pub(crate) fn compute_scd_key_for_table_number(
+    table_number: i64,
+    row_number: u64,
+) -> SlowlyChangingDimensionKey {
     assert!(row_number > 0, "row number must be 1-based");
     let modulo = (row_number % 6) as i32;
-    let table_number = table.get_ordinal(); // Use Java ordinal, not Rust enum discriminant
 
     let (business_key, start_date, mut end_date, is_new_key) = match modulo {
         1 => {

@@ -22,10 +22,17 @@ use crate::random::{RandomTextGenerator, RandomValueGenerator};
 use crate::row::store_row::StoreRow;
 use crate::row::AbstractRowGenerator;
 use crate::slowly_changing_dimension_utils::{
-    compute_scd_key, get_value_for_slowly_changing_dimension, ScdRowGenerator,
+    compute_scd_key_for_table_number, get_value_for_slowly_changing_dimension, ScdRowGenerator,
 };
 use crate::table::Table;
 use crate::types::{Address, Date, Decimal};
+
+/// Table number for `store`'s SCD dates. Matches the C `dsdgen` [1] and
+/// Trino [2], which use the source schema's `S_STORE` table instead of `store`.
+///
+/// [1]: https://github.com/gregrahn/tpcds-kit/blob/5a3a81796992b725c2a8b216767e142609966752/tools/w_store.c#L122
+/// [2]: https://github.com/trinodb/tpcds/blob/b594136818cc95bd6b34a352327611b329017281/src/main/java/io/trino/tpcds/row/generator/StoreRowGenerator.java#L83
+const STORE_SCD_TABLE_NUMBER: i64 = 49;
 
 const ROW_SIZE_S_MARKET_DESC: i32 = 100;
 fn store_min_tax_percentage() -> Decimal {
@@ -71,8 +78,8 @@ impl StoreRowGenerator {
 
         let store_sk = row_number_i64;
 
-        // Compute SCD key using S_STORE table
-        let scd_key = compute_scd_key(Table::SStore, row_number);
+        // Compute SCD key
+        let scd_key = compute_scd_key_for_table_number(STORE_SCD_TABLE_NUMBER, row_number);
         let store_id = scd_key.get_business_key().to_string();
         let rec_start_date_id = scd_key.get_start_date();
         let rec_end_date_id = scd_key.get_end_date();

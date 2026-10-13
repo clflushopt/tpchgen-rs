@@ -30,8 +30,6 @@ pub enum Table {
     WebSite,
     DbgenVersion,
     Inventory,
-    // Source tables (for SCD key computation)
-    SStore,
 }
 
 impl Table {
@@ -63,7 +61,6 @@ impl Table {
             Table::WebSite => "web_site",
             Table::DbgenVersion => "dbgen_version",
             Table::Inventory => "inventory",
-            Table::SStore => "s_store",
         }
     }
 
@@ -98,8 +95,6 @@ impl Table {
             Table::WebSales => 22,
             Table::WebSite => 23,
             Table::DbgenVersion => 24,
-            // Source tables (after the 25 base tables)
-            Table::SStore => 49,
         }
     }
 
@@ -107,8 +102,8 @@ impl Table {
     /// Format: TableFlags::new(keeps_history, is_small, is_date_based)
     pub fn get_table_flags(&self) -> &'static TableFlags {
         // Const static array indexed by enum variant order (not Java ordinal)
-        // Order matches enum definition: CallCenter, CatalogPage, ..., SStore
-        static TABLE_FLAGS: [TableFlags; 26] = [
+        // Order matches enum definition: CallCenter, CatalogPage, ..., Inventory
+        static TABLE_FLAGS: [TableFlags; 25] = [
             TableFlags::new(true, true, false), // CallCenter: keeps_history, is_small
             TableFlags::new(false, false, false), // CatalogPage: default
             TableFlags::new(false, false, false), // CatalogReturns: default
@@ -134,7 +129,6 @@ impl Table {
             TableFlags::new(true, true, false), // WebSite: keeps_history, is_small
             TableFlags::new(false, false, false), // DbgenVersion: default
             TableFlags::new(false, false, true), // Inventory: is_date_based
-            TableFlags::new(false, false, false), // SStore: default
         ];
 
         &TABLE_FLAGS[*self as usize]
@@ -143,7 +137,7 @@ impl Table {
     /// Get null basis points for this table
     pub fn get_null_basis_points(&self) -> i32 {
         // Const array indexed by enum variant order
-        const NULL_BASIS_POINTS: [i32; 26] = [
+        const NULL_BASIS_POINTS: [i32; 25] = [
             100,  // CallCenter
             200,  // CatalogPage
             400,  // CatalogReturns
@@ -169,7 +163,6 @@ impl Table {
             100,  // WebSite
             0,    // DbgenVersion
             1000, // Inventory
-            0,    // SStore
         ];
         NULL_BASIS_POINTS[*self as usize]
     }
@@ -177,7 +170,7 @@ impl Table {
     /// Get not-null bitmap for this table
     pub fn get_not_null_bit_map(&self) -> i64 {
         // Const array indexed by enum variant order
-        const NOT_NULL_BIT_MAP: [i64; 26] = [
+        const NOT_NULL_BIT_MAP: [i64; 25] = [
             0xB,     // CallCenter
             0x3,     // CatalogPage
             0x10007, // CatalogReturns
@@ -203,7 +196,6 @@ impl Table {
             0xB,     // WebSite
             0x0,     // DbgenVersion
             0x07,    // Inventory
-            0x0,     // SStore
         ];
         NOT_NULL_BIT_MAP[*self as usize]
     }
@@ -435,15 +427,6 @@ impl Table {
                     let row_counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
                     ScalingInfo::new(0, ScalingModel::Static, &row_counts, 0)
                         .expect("Inventory ScalingInfo creation should not fail")
-                })
-            }
-            Table::SStore => {
-                // Source table - no scaling info, use static 0
-                static SCALING: OnceLock<ScalingInfo> = OnceLock::new();
-                SCALING.get_or_init(|| {
-                    let row_counts = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-                    ScalingInfo::new(0, ScalingModel::Static, &row_counts, 0)
-                        .expect("SStore ScalingInfo creation should not fail")
                 })
             }
         }
