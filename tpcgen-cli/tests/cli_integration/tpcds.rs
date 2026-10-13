@@ -247,7 +247,7 @@ fn test_tpcgen_cli_tpcds_parquet_default_options_generate_all_outputs() {
 
     assert_eq!(
         actual_files, expected_files,
-        "Expected default TPC-DS Parquet generation to produce every main table"
+        "Expected default TPC-DS Parquet generation to produce every table"
     );
 }
 
@@ -716,7 +716,7 @@ fn test_tpcgen_cli_tpcds_parquet_preserves_sales_returns_selection_semantics() {
 /// Test each TPC-DS DAT table can be selected individually and creates output.
 #[test]
 fn test_tpcgen_cli_tpcds_dat_individual_table_selection_outputs_requested_table() {
-    for table in Table::main_tables() {
+    for &table in Table::values() {
         let temp_dir = tempdir().expect("Failed to create temporary directory");
 
         cargo_bin_cmd!("tpcgen-cli")
@@ -800,7 +800,7 @@ fn test_tpcgen_tpcds_dat_dbgen_version_command_line() {
     );
 }
 
-/// Test that default DAT output options generate every main TPC-DS output file.
+/// Test that default DAT output options generate every TPC-DS output file.
 ///
 /// This overrides only scale factor and output directory: scale factor 0 keeps
 /// the integration test fast, while output directory isolates generated files.
@@ -826,7 +826,7 @@ fn test_tpcgen_cli_tpcds_dat_default_options_generate_all_outputs() {
             .expect("Failed to read generated output directory")
             .count(),
         25,
-        "Expected default TPC-DS DAT generation to produce every main table"
+        "Expected default TPC-DS DAT generation to produce every table"
     );
 }
 
@@ -910,7 +910,7 @@ fn test_tpcgen_cli_tpcds_csv_verbose_logs_settings() {
     );
 }
 
-/// Test that default CSV output options generate every main TPC-DS output file.
+/// Test that default CSV output options generate every TPC-DS output file.
 #[test]
 fn test_tpcgen_cli_tpcds_csv_default_options_generate_all_outputs() {
     let temp_dir = tempdir().expect("Failed to create temporary directory");
@@ -968,7 +968,7 @@ fn test_tpcgen_cli_tpcds_csv_default_options_generate_all_outputs() {
 
     assert_eq!(
         actual_files, expected_files,
-        "Expected default TPC-DS CSV generation to produce every main table"
+        "Expected default TPC-DS CSV generation to produce every table"
     );
 }
 
@@ -1177,7 +1177,7 @@ fn test_tpcgen_cli_tpcds_help_lists_tables() {
         .success();
 
     let stdout = String::from_utf8_lossy(&assert.get_output().stdout);
-    for table in Table::main_tables() {
+    for &table in Table::values() {
         assert!(
             stdout.contains(&format!("- {}:", table.get_name())),
             "Expected `tpcds --help` to list {table}, got stdout: {stdout}"

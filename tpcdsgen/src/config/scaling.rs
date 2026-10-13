@@ -39,7 +39,7 @@ impl Scaling {
             compat_mode,
             row_counts: [0; CACHED_TABLE_COUNT],
         };
-        for table in Table::main_tables() {
+        for &table in Table::values() {
             // Inventory derives from the Item and Warehouse entries, so it
             // is filled once the rest of the cache is populated.
             if table != Table::Inventory {
@@ -303,7 +303,7 @@ mod tests {
         let mut previous = Scaling::new(100_000.0);
         for scale in SCALES {
             let current = Scaling::new(scale);
-            for table in Table::main_tables() {
+            for &table in Table::values() {
                 // Unlike the other tables, catalog_page drops in row count above SF100000.
                 if table == Table::CatalogPage {
                     continue;
@@ -321,7 +321,7 @@ mod tests {
     fn test_cached_row_counts_match_direct_computation() {
         for scale in [0.1, 1.0, 10.0] {
             let scaling = Scaling::new(scale);
-            for table in Table::main_tables() {
+            for &table in Table::values() {
                 let expected = if table == Table::Inventory {
                     scaling.scale_inventory()
                 } else {

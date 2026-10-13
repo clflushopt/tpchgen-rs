@@ -63,9 +63,9 @@ impl Table {
         }
     }
 
-    /// Get all TPC-DS tables
-    pub fn main_tables() -> Vec<Table> {
-        vec![
+    /// All TPC-DS tables
+    pub fn values() -> &'static [Table] {
+        &[
             Table::CallCenter,
             Table::CatalogPage,
             Table::CatalogReturns,
@@ -187,11 +187,11 @@ mod tests {
     }
 
     #[test]
-    fn test_main_tables() {
-        let main_tables = Table::main_tables();
-        assert!(main_tables.contains(&Table::CatalogSales));
-        assert!(main_tables.contains(&Table::StoreSales));
-        assert_eq!(main_tables.len(), 25);
+    fn test_values() {
+        let tables = Table::values();
+        assert!(tables.contains(&Table::CatalogSales));
+        assert!(tables.contains(&Table::StoreSales));
+        assert_eq!(tables.len(), 25);
     }
 
     #[test]
