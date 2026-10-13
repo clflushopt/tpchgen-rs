@@ -1,30 +1,44 @@
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct Address {
-    suite_number: String,
+    suite_number: &'static str,
     street_number: i32,
-    street_name1: String,
-    street_name2: String,
-    street_type: String,
-    city: String,
-    county: Option<String>,
-    state: String,
-    country: String,
+    street_name1: &'static str,
+    street_name2: &'static str,
+    street_type: &'static str,
+    city: &'static str,
+    county: Option<&'static str>,
+    state: &'static str,
+    country: &'static str,
     zip: i32,
     gmt_offset: i32,
+}
+
+/// `street_name1 + " " + street_name2`, formatted on demand to avoid a per-row
+/// allocation.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct StreetName {
+    name1: &'static str,
+    name2: &'static str,
+}
+
+impl std::fmt::Display for StreetName {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {}", self.name1, self.name2)
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
 impl Address {
     pub fn new(
-        suite_number: String,
+        suite_number: &'static str,
         street_number: i32,
-        street_name1: String,
-        street_name2: String,
-        street_type: String,
-        city: String,
-        county: Option<String>,
-        state: String,
-        country: String,
+        street_name1: &'static str,
+        street_name2: &'static str,
+        street_type: &'static str,
+        city: &'static str,
+        county: Option<&'static str>,
+        state: &'static str,
+        country: &'static str,
         zip: i32,
         gmt_offset: i32,
     ) -> Self {
@@ -53,48 +67,51 @@ impl Address {
         self.street_number
     }
 
-    pub fn get_street_name(&self) -> String {
-        format!("{} {}", self.street_name1, self.street_name2)
+    pub fn get_street_name(&self) -> StreetName {
+        StreetName {
+            name1: self.street_name1,
+            name2: self.street_name2,
+        }
     }
 
-    pub fn get_suite_number(&self) -> &str {
-        &self.suite_number
+    pub fn get_suite_number(&self) -> &'static str {
+        self.suite_number
     }
 
-    pub fn get_street_type(&self) -> &str {
-        &self.street_type
+    pub fn get_street_type(&self) -> &'static str {
+        self.street_type
     }
 
-    pub fn get_city(&self) -> &str {
-        &self.city
+    pub fn get_city(&self) -> &'static str {
+        self.city
     }
 
-    pub fn get_county(&self) -> Option<&str> {
-        self.county.as_deref()
+    pub fn get_county(&self) -> Option<&'static str> {
+        self.county
     }
 
-    pub fn get_state(&self) -> &str {
-        &self.state
+    pub fn get_state(&self) -> &'static str {
+        self.state
     }
 
     pub fn get_zip(&self) -> i32 {
         self.zip
     }
 
-    pub fn get_country(&self) -> &str {
-        &self.country
+    pub fn get_country(&self) -> &'static str {
+        self.country
     }
 
     pub fn get_gmt_offset(&self) -> i32 {
         self.gmt_offset
     }
 
-    pub fn get_street_name1(&self) -> &str {
-        &self.street_name1
+    pub fn get_street_name1(&self) -> &'static str {
+        self.street_name1
     }
 
-    pub fn get_street_name2(&self) -> &str {
-        &self.street_name2
+    pub fn get_street_name2(&self) -> &'static str {
+        self.street_name2
     }
 
     /// Create a new AddressBuilder
@@ -136,22 +153,12 @@ impl Address {
         use crate::random::RandomValueGenerator;
 
         let street_number = RandomValueGenerator::generate_uniform_random_int(1, 1000, stream);
-        let street_name1 = pick_random_street_name(StreetNamesWeights::Default, stream).to_string();
-        let street_name2 =
-            pick_random_street_name(StreetNamesWeights::HalfEmpty, stream).to_string();
-        let street_type = pick_random_street_type(stream).to_string();
+        let street_name1 = pick_random_street_name(StreetNamesWeights::Default, stream);
+        let street_name2 = pick_random_street_name(StreetNamesWeights::HalfEmpty, stream);
+        let street_type = pick_random_street_type(stream);
 
         let random_int = RandomValueGenerator::generate_uniform_random_int(1, 100, stream);
-        let suite_number = if random_int % 2 == 1 {
-            // if i is odd, suiteNumber is a number
-            format!("Suite {}", (random_int / 2) * 10)
-        } else {
-            // if i is even, suiteNumber is a letter
-            format!(
-                "Suite {}",
-                ((random_int / 2) % 25 + ('A' as i32)) as u8 as char
-            )
-        };
+        let suite_number = suite_number_for(random_int);
 
         let config_table = match table {
             crate::table::Table::CallCenter => crate::config::table::Table::CallCenter,
@@ -178,9 +185,9 @@ impl Address {
                 },
                 stream,
             );
-            get_city_at_index(random_int as usize).to_string()
+            get_city_at_index(random_int as usize)
         } else {
-            pick_random_city(CitiesWeights::UnifiedStepFunction, stream).to_string()
+            pick_random_city(CitiesWeights::UnifiedStepFunction, stream)
         };
 
         // county is picked from a distribution, based on population and keys the rest
@@ -215,7 +222,7 @@ impl Address {
         let state = FipsCountyDistribution::get_state_abbreviation_at_index(region_number);
 
         // match the zip prefix with the selected region/county
-        let mut zip = Self::compute_city_hash(&city);
+        let mut zip = Self::compute_city_hash(city);
 
         // 00000 - 00600 are unused. Avoid them
         let zip_prefix = FipsCountyDistribution::get_zip_prefix_at_index(region_number);
@@ -234,27 +241,97 @@ impl Address {
             street_name2,
             street_type,
             city,
-            Some(county.to_string()),
-            state.to_string(),
-            country.to_string(),
+            Some(county),
+            state,
+            country,
             zip,
             gmt_offset,
         )
     }
 }
 
+/// Precomputed `Suite {n}` strings: odd `i` yields `Suite {(i/2)*10}`, even `i`
+/// yields `Suite {letter}` with `letter = (i/2) % 25 + 'A'` (i in 1..=100).
+fn suite_number_for(i: i32) -> &'static str {
+    if i % 2 == 1 {
+        SUITE_NUMBERS[(i / 2) as usize]
+    } else {
+        SUITE_LETTERS[((i / 2) % 25) as usize]
+    }
+}
+
+const SUITE_NUMBERS: [&str; 50] = [
+    "Suite 0",
+    "Suite 10",
+    "Suite 20",
+    "Suite 30",
+    "Suite 40",
+    "Suite 50",
+    "Suite 60",
+    "Suite 70",
+    "Suite 80",
+    "Suite 90",
+    "Suite 100",
+    "Suite 110",
+    "Suite 120",
+    "Suite 130",
+    "Suite 140",
+    "Suite 150",
+    "Suite 160",
+    "Suite 170",
+    "Suite 180",
+    "Suite 190",
+    "Suite 200",
+    "Suite 210",
+    "Suite 220",
+    "Suite 230",
+    "Suite 240",
+    "Suite 250",
+    "Suite 260",
+    "Suite 270",
+    "Suite 280",
+    "Suite 290",
+    "Suite 300",
+    "Suite 310",
+    "Suite 320",
+    "Suite 330",
+    "Suite 340",
+    "Suite 350",
+    "Suite 360",
+    "Suite 370",
+    "Suite 380",
+    "Suite 390",
+    "Suite 400",
+    "Suite 410",
+    "Suite 420",
+    "Suite 430",
+    "Suite 440",
+    "Suite 450",
+    "Suite 460",
+    "Suite 470",
+    "Suite 480",
+    "Suite 490",
+];
+
+const SUITE_LETTERS: [&str; 25] = [
+    "Suite A", "Suite B", "Suite C", "Suite D", "Suite E", "Suite F", "Suite G", "Suite H",
+    "Suite I", "Suite J", "Suite K", "Suite L", "Suite M", "Suite N", "Suite O", "Suite P",
+    "Suite Q", "Suite R", "Suite S", "Suite T", "Suite U", "Suite V", "Suite W", "Suite X",
+    "Suite Y",
+];
+
 /// Builder for Address
 #[derive(Debug, Default)]
 pub struct AddressBuilder {
-    suite_number: Option<String>,
+    suite_number: Option<&'static str>,
     street_number: Option<i32>,
-    street_name1: Option<String>,
-    street_name2: Option<String>,
-    street_type: Option<String>,
-    city: Option<String>,
-    county: Option<String>,
-    state: Option<String>,
-    country: Option<String>,
+    street_name1: Option<&'static str>,
+    street_name2: Option<&'static str>,
+    street_type: Option<&'static str>,
+    city: Option<&'static str>,
+    county: Option<&'static str>,
+    state: Option<&'static str>,
+    country: Option<&'static str>,
     zip: Option<i32>,
     gmt_offset: Option<i32>,
 }
@@ -264,7 +341,7 @@ impl AddressBuilder {
         Self::default()
     }
 
-    pub fn suite_number(mut self, value: String) -> Self {
+    pub fn suite_number(mut self, value: &'static str) -> Self {
         self.suite_number = Some(value);
         self
     }
@@ -274,42 +351,42 @@ impl AddressBuilder {
         self
     }
 
-    pub fn street_name(mut self, value: String) -> Self {
+    pub fn street_name(mut self, value: &'static str) -> Self {
         self.street_name1 = Some(value);
         self
     }
 
-    pub fn street_name1(mut self, value: String) -> Self {
+    pub fn street_name1(mut self, value: &'static str) -> Self {
         self.street_name1 = Some(value);
         self
     }
 
-    pub fn street_name2(mut self, value: String) -> Self {
+    pub fn street_name2(mut self, value: &'static str) -> Self {
         self.street_name2 = Some(value);
         self
     }
 
-    pub fn street_type(mut self, value: String) -> Self {
+    pub fn street_type(mut self, value: &'static str) -> Self {
         self.street_type = Some(value);
         self
     }
 
-    pub fn city(mut self, value: String) -> Self {
+    pub fn city(mut self, value: &'static str) -> Self {
         self.city = Some(value);
         self
     }
 
-    pub fn county(mut self, value: String) -> Self {
+    pub fn county(mut self, value: &'static str) -> Self {
         self.county = Some(value);
         self
     }
 
-    pub fn state(mut self, value: String) -> Self {
+    pub fn state(mut self, value: &'static str) -> Self {
         self.state = Some(value);
         self
     }
 
-    pub fn country(mut self, value: String) -> Self {
+    pub fn country(mut self, value: &'static str) -> Self {
         self.country = Some(value);
         self
     }
@@ -348,23 +425,35 @@ mod tests {
     #[test]
     fn test_address_creation() {
         let address = Address::new(
-            "Suite 100".to_string(),
+            "Suite 100",
             123,
-            "Main".to_string(),
-            "Street".to_string(),
-            "St".to_string(),
-            "Anytown".to_string(),
-            Some("AnyCounty".to_string()),
-            "CA".to_string(),
-            "United States".to_string(),
+            "Main",
+            "Street",
+            "St",
+            "Anytown",
+            Some("AnyCounty"),
+            "CA",
+            "United States",
             12345,
             -8,
         );
 
         assert_eq!(address.get_street_number(), 123);
-        assert_eq!(address.get_street_name(), "Main Street");
+        assert_eq!(address.get_street_name().to_string(), "Main Street");
         assert_eq!(address.get_city(), "Anytown");
         assert_eq!(address.get_zip(), 12345);
+    }
+
+    #[test]
+    fn test_suite_number_table() {
+        for i in 1..=100 {
+            let expected = if i % 2 == 1 {
+                format!("Suite {}", (i / 2) * 10)
+            } else {
+                format!("Suite {}", ((i / 2) % 25 + ('A' as i32)) as u8 as char)
+            };
+            assert_eq!(suite_number_for(i), expected);
+        }
     }
 
     #[test]
@@ -377,7 +466,7 @@ mod tests {
     fn test_address_builder() {
         let address = Address::builder()
             .street_number(456)
-            .city("TestCity".to_string())
+            .city("TestCity")
             .zip(54321)
             .build();
 

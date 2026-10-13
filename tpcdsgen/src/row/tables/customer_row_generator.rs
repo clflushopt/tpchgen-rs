@@ -102,10 +102,10 @@ impl CustomerRowGenerator {
             .get_random_number_stream(&CFirstName);
         let name_index =
             NamesDistributions::pick_random_index(FirstNamesWeights::GeneralFrequency, stream);
-        let c_first_name = NamesDistributions::get_first_name_from_index(name_index).to_string();
+        let c_first_name = NamesDistributions::get_first_name_from_index(name_index);
 
         let stream = self.abstract_generator.get_random_number_stream(&CLastName);
-        let c_last_name = NamesDistributions::pick_random_last_name(stream).to_string();
+        let c_last_name = NamesDistributions::pick_random_last_name(stream);
 
         // Salutation based on gender frequency
         let female_name_weight = NamesDistributions::get_weight_for_index(
@@ -120,8 +120,7 @@ impl CustomerRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CSalutation);
-        let c_salutation =
-            NamesDistributions::pick_random_salutation(salutation_weight, stream).to_string();
+        let c_salutation = NamesDistributions::pick_random_salutation(salutation_weight, stream);
 
         // Birthday generation (matches Java order lines 87-95)
         let max_birthday = Date::new(1992, 12, 31);
@@ -142,7 +141,7 @@ impl CustomerRowGenerator {
             .abstract_generator
             .get_random_number_stream(&CEmailAddress);
         let c_email_address =
-            RandomValueGenerator::generate_random_email(&c_first_name, &c_last_name, stream);
+            RandomValueGenerator::generate_random_email(c_first_name, c_last_name, stream);
 
         // Last review date (matches Java order lines 98-99)
         let stream = self
@@ -165,7 +164,7 @@ impl CustomerRowGenerator {
         let stream = self
             .abstract_generator
             .get_random_number_stream(&CBirthCountry);
-        let c_birth_country = pick_random_country(stream).to_string();
+        let c_birth_country = pick_random_country(stream);
 
         // Generate null bit map (matches Java order line 123)
         let stream = self.abstract_generator.get_random_number_stream(&CNulls);

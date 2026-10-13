@@ -86,7 +86,7 @@ impl DateDimRowGenerator {
         let d_fy_week_seq = d_week_seq;
 
         // Get day name
-        let d_day_name = WEEKDAY_NAMES[d_dow as usize].to_string();
+        let d_day_name = WEEKDAY_NAMES[d_dow as usize];
 
         // Calculate quarter name (e.g., "2024Q1")
         let d_quarter_name = format!("{}Q{}", d_year, d_qoy);
