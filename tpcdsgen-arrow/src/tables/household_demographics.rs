@@ -1,7 +1,7 @@
-use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
+use crate::conversions::{PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,22 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{HouseholdDemographicsRow, HouseholdDemographicsRowGenerator};
 
 /// Generate [`HouseholdDemographicsRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct HouseholdDemographicsArrow {
     inner: HouseholdDemographicsRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<HouseholdDemographicsRow>,
+    hd_demo_sk: PrimitiveArrayRecycler<Int32Type>,
+    hd_income_band_sk: PrimitiveArrayRecycler<Int32Type>,
+    hd_buy_potential: StringViewArrayRecycler,
+    hd_dep_count: PrimitiveArrayRecycler<Int32Type>,
+    hd_vehicle_count: PrimitiveArrayRecycler<Int32Type>,
 }
 
 impl HouseholdDemographicsArrow {
@@ -30,6 +41,11 @@ impl HouseholdDemographicsArrow {
             inner: HouseholdDemographicsRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            hd_demo_sk: PrimitiveArrayRecycler::new(),
+            hd_income_band_sk: PrimitiveArrayRecycler::new(),
+            hd_buy_potential: StringViewArrayRecycler::new(),
+            hd_dep_count: PrimitiveArrayRecycler::new(),
+            hd_vehicle_count: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -74,31 +90,56 @@ impl Iterator for HouseholdDemographicsArrow {
             return None;
         }
 
-        let mut demo_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut income_band_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut buy_potential: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut dep_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut vehicle_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            hd_demo_sk,
+            hd_income_band_sk,
+            hd_buy_potential,
+            hd_dep_count,
+            hd_vehicle_count,
+            ..
+        } = self;
+        let nbm = HouseholdDemographicsRow::null_bit_map;
+        let sk32 = |rec: &mut PrimitiveArrayRecycler<Int32Type>,
+                    pos,
+                    f: fn(&HouseholdDemographicsRow) -> i64| {
+            rec.int32_sk(rows, pos, nbm, f)
+        };
+        let int =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>,
+             pos,
+             f: fn(&HouseholdDemographicsRow) -> i32| { rec.int32(rows, pos, nbm, f) };
+        let str =
+            |rec: &mut StringViewArrayRecycler, pos, f: fn(&HouseholdDemographicsRow) -> &str| {
+                rec.string(rows, pos, nbm, f)
+            };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            demo_sk.push(integer_sk_opt(nbm, 0, r.get_hd_demo_sk()));
-            income_band_sk.push(integer_sk_opt(nbm, 1, r.get_hd_income_band_sk()));
-            buy_potential.push(opt(nbm, 2, r.get_hd_buy_potential()));
-            dep_count.push(opt(nbm, 3, r.get_hd_dep_count()));
-            vehicle_count.push(opt(nbm, 4, r.get_hd_vehicle_count()));
-        }
+        let hd_demo_sk = sk32(hd_demo_sk, 0, HouseholdDemographicsRow::get_hd_demo_sk);
+        let hd_income_band_sk = sk32(
+            hd_income_band_sk,
+            1,
+            HouseholdDemographicsRow::get_hd_income_band_sk,
+        );
+        let hd_buy_potential = str(
+            hd_buy_potential,
+            2,
+            HouseholdDemographicsRow::get_hd_buy_potential,
+        );
+        let hd_dep_count = int(hd_dep_count, 3, HouseholdDemographicsRow::get_hd_dep_count);
+        let hd_vehicle_count = int(
+            hd_vehicle_count,
+            4,
+            HouseholdDemographicsRow::get_hd_vehicle_count,
+        );
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(demo_sk)),
-                Arc::new(Int32Array::from(income_band_sk)),
-                Arc::new(string_view_array_from_opt_iter(
-                    buy_potential.iter().copied(),
-                )),
-                Arc::new(Int32Array::from(dep_count)),
-                Arc::new(Int32Array::from(vehicle_count)),
+                Arc::new(hd_demo_sk),
+                Arc::new(hd_income_band_sk),
+                Arc::new(hd_buy_potential),
+                Arc::new(hd_dep_count),
+                Arc::new(hd_vehicle_count),
             ],
         );
         Some(batch)

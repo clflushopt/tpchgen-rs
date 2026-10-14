@@ -1,7 +1,7 @@
-use crate::conversions::{integer_sk_opt, opt, string_view_array_from_opt_iter};
+use crate::conversions::{PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -9,11 +9,23 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{ShipModeRow, ShipModeRowGenerator};
 
 /// Generate [`ShipModeRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct ShipModeArrow {
     inner: ShipModeRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<ShipModeRow>,
+    sm_ship_mode_sk: PrimitiveArrayRecycler<Int32Type>,
+    sm_ship_mode_id: StringViewArrayRecycler,
+    sm_type: StringViewArrayRecycler,
+    sm_code: StringViewArrayRecycler,
+    sm_carrier: StringViewArrayRecycler,
+    sm_contract: StringViewArrayRecycler,
 }
 
 impl ShipModeArrow {
@@ -28,6 +40,12 @@ impl ShipModeArrow {
             inner: ShipModeRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            sm_ship_mode_sk: PrimitiveArrayRecycler::new(),
+            sm_ship_mode_id: StringViewArrayRecycler::new(),
+            sm_type: StringViewArrayRecycler::new(),
+            sm_code: StringViewArrayRecycler::new(),
+            sm_carrier: StringViewArrayRecycler::new(),
+            sm_contract: StringViewArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -72,32 +90,41 @@ impl Iterator for ShipModeArrow {
             return None;
         }
 
-        let mut sm_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut sm_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut sm_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut sm_code: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut sm_carrier: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut sm_contract: Vec<Option<&str>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            sm_ship_mode_sk,
+            sm_ship_mode_id,
+            sm_type,
+            sm_code,
+            sm_carrier,
+            sm_contract,
+            ..
+        } = self;
+        let nbm = ShipModeRow::null_bit_map;
+        let sk32 =
+            |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&ShipModeRow) -> i64| {
+                rec.int32_sk(rows, pos, nbm, f)
+            };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&ShipModeRow) -> &str| {
+            rec.string(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            sm_sk.push(integer_sk_opt(nbm, 0, r.get_sm_ship_mode_sk()));
-            sm_id.push(opt(nbm, 1, r.get_sm_ship_mode_id()));
-            sm_type.push(opt(nbm, 2, r.get_sm_type()));
-            sm_code.push(opt(nbm, 3, r.get_sm_code()));
-            sm_carrier.push(opt(nbm, 4, r.get_sm_carrier()));
-            sm_contract.push(opt(nbm, 5, r.get_sm_contract()));
-        }
+        let sm_ship_mode_sk = sk32(sm_ship_mode_sk, 0, ShipModeRow::get_sm_ship_mode_sk);
+        let sm_ship_mode_id = str(sm_ship_mode_id, 1, ShipModeRow::get_sm_ship_mode_id);
+        let sm_type = str(sm_type, 2, ShipModeRow::get_sm_type);
+        let sm_code = str(sm_code, 3, ShipModeRow::get_sm_code);
+        let sm_carrier = str(sm_carrier, 4, ShipModeRow::get_sm_carrier);
+        let sm_contract = str(sm_contract, 5, ShipModeRow::get_sm_contract);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(sm_sk)),
-                Arc::new(string_view_array_from_opt_iter(sm_id.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(sm_type.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(sm_code.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(sm_carrier.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(sm_contract.iter().copied())),
+                Arc::new(sm_ship_mode_sk),
+                Arc::new(sm_ship_mode_id),
+                Arc::new(sm_type),
+                Arc::new(sm_code),
+                Arc::new(sm_carrier),
+                Arc::new(sm_contract),
             ],
         );
         Some(batch)

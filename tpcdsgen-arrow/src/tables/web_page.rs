@@ -1,9 +1,7 @@
-use crate::conversions::{
-    bool_to_yn, integer_sk_opt, is_null, julian_to_date32, opt, string_view_array_from_opt_iter,
-};
+use crate::conversions::{bool_to_yn, PrimitiveArrayRecycler, StringViewArrayRecycler};
 use crate::DEFAULT_BATCH_SIZE;
-use arrow::array::{Date32Array, Int32Array, RecordBatch};
-use arrow::datatypes::{DataType, Field, Schema, SchemaRef};
+use arrow::array::RecordBatch;
+use arrow::datatypes::{DataType, Date32Type, Field, Int32Type, Schema, SchemaRef};
 use arrow::error::ArrowError;
 use arrow::record_batch::RecordBatchReader;
 use std::sync::{Arc, LazyLock};
@@ -11,11 +9,31 @@ use tpcdsgen::config::{Session, Table};
 use tpcdsgen::row::{WebPageRow, WebPageRowGenerator};
 
 /// Generate [`WebPageRow`]s in [`RecordBatch`] format
+///
+/// Each column's value and null buffers are recycled from one batch to the
+/// next if possible.
+///
+/// Buffers can be recycled if the consumer drops each [`RecordBatch`] before
+/// generating the next one.
 pub struct WebPageArrow {
     inner: WebPageRowGenerator,
     batch_size: usize,
-    // reused allocation across batches
+    // reused allocations across batches
     scratch: Vec<WebPageRow>,
+    wp_web_page_sk: PrimitiveArrayRecycler<Int32Type>,
+    wp_web_page_id: StringViewArrayRecycler,
+    wp_rec_start_date: PrimitiveArrayRecycler<Date32Type>,
+    wp_rec_end_date: PrimitiveArrayRecycler<Date32Type>,
+    wp_creation_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    wp_access_date_sk: PrimitiveArrayRecycler<Int32Type>,
+    wp_autogen_flag: StringViewArrayRecycler,
+    wp_customer_sk: PrimitiveArrayRecycler<Int32Type>,
+    wp_url: StringViewArrayRecycler,
+    wp_type: StringViewArrayRecycler,
+    wp_char_count: PrimitiveArrayRecycler<Int32Type>,
+    wp_link_count: PrimitiveArrayRecycler<Int32Type>,
+    wp_image_count: PrimitiveArrayRecycler<Int32Type>,
+    wp_max_ad_count: PrimitiveArrayRecycler<Int32Type>,
 }
 
 impl WebPageArrow {
@@ -30,6 +48,20 @@ impl WebPageArrow {
             inner: WebPageRowGenerator::new(session, row_count),
             batch_size: DEFAULT_BATCH_SIZE,
             scratch: Vec::with_capacity(DEFAULT_BATCH_SIZE),
+            wp_web_page_sk: PrimitiveArrayRecycler::new(),
+            wp_web_page_id: StringViewArrayRecycler::new(),
+            wp_rec_start_date: PrimitiveArrayRecycler::new(),
+            wp_rec_end_date: PrimitiveArrayRecycler::new(),
+            wp_creation_date_sk: PrimitiveArrayRecycler::new(),
+            wp_access_date_sk: PrimitiveArrayRecycler::new(),
+            wp_autogen_flag: StringViewArrayRecycler::new(),
+            wp_customer_sk: PrimitiveArrayRecycler::new(),
+            wp_url: StringViewArrayRecycler::new(),
+            wp_type: StringViewArrayRecycler::new(),
+            wp_char_count: PrimitiveArrayRecycler::new(),
+            wp_link_count: PrimitiveArrayRecycler::new(),
+            wp_image_count: PrimitiveArrayRecycler::new(),
+            wp_max_ad_count: PrimitiveArrayRecycler::new(),
         }
     }
     pub fn skip_rows_until_starting_row_number(&mut self, starting_row_number: u64) {
@@ -74,60 +106,70 @@ impl Iterator for WebPageArrow {
             return None;
         }
 
-        let mut wp_sk: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_id: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut wp_rec_start: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_rec_end: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_creation_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_access_date: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_autogen: Vec<Option<&'static str>> = Vec::with_capacity(rows.len());
-        let mut wp_customer: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_url: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut wp_type: Vec<Option<&str>> = Vec::with_capacity(rows.len());
-        let mut wp_char_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_link_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_image_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
-        let mut wp_max_ad_count: Vec<Option<i32>> = Vec::with_capacity(rows.len());
+        let schema = self.schema();
+        let Self {
+            wp_web_page_sk,
+            wp_web_page_id,
+            wp_rec_start_date,
+            wp_rec_end_date,
+            wp_creation_date_sk,
+            wp_access_date_sk,
+            wp_autogen_flag,
+            wp_customer_sk,
+            wp_url,
+            wp_type,
+            wp_char_count,
+            wp_link_count,
+            wp_image_count,
+            wp_max_ad_count,
+            ..
+        } = self;
+        let nbm = WebPageRow::null_bit_map;
+        let sk32 = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&WebPageRow) -> i64| {
+            rec.int32_sk(rows, pos, nbm, f)
+        };
+        let int = |rec: &mut PrimitiveArrayRecycler<Int32Type>, pos, f: fn(&WebPageRow) -> i32| {
+            rec.int32(rows, pos, nbm, f)
+        };
+        let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&WebPageRow) -> &str| {
+            rec.string(rows, pos, nbm, f)
+        };
 
-        for r in rows {
-            let nbm = r.null_bit_map();
-            wp_sk.push(integer_sk_opt(nbm, 0, r.get_wp_page_sk()));
-            wp_id.push(opt(nbm, 1, r.get_wp_page_id()));
-            wp_rec_start.push(if is_null(nbm, 2) {
-                None
-            } else {
-                julian_to_date32(r.get_wp_rec_start_date_id())
-            });
-            wp_rec_end.push(julian_to_date32(r.get_wp_rec_end_date_id()));
-            wp_creation_date.push(integer_sk_opt(nbm, 4, r.get_wp_creation_date_sk()));
-            wp_access_date.push(integer_sk_opt(nbm, 5, r.get_wp_access_date_sk()));
-            wp_autogen.push(opt(nbm, 6, bool_to_yn(r.get_wp_autogen_flag())));
-            wp_customer.push(integer_sk_opt(nbm, 7, r.get_wp_customer_sk()));
-            wp_url.push(opt(nbm, 8, r.get_wp_url()));
-            wp_type.push(opt(nbm, 9, r.get_wp_type()));
-            wp_char_count.push(opt(nbm, 10, r.get_wp_char_count()));
-            wp_link_count.push(opt(nbm, 11, r.get_wp_link_count()));
-            wp_image_count.push(opt(nbm, 12, r.get_wp_image_count()));
-            wp_max_ad_count.push(opt(nbm, 13, r.get_wp_max_ad_count()));
-        }
+        let wp_web_page_sk = sk32(wp_web_page_sk, 0, WebPageRow::get_wp_page_sk);
+        let wp_web_page_id = str(wp_web_page_id, 1, WebPageRow::get_wp_page_id);
+        let wp_rec_start_date =
+            wp_rec_start_date.date32_julian(rows, 2, nbm, WebPageRow::get_wp_rec_start_date_id);
+        // wp_rec_end_date ignores the null bitmap; only the negative-Julian sentinel is NULL
+        let wp_rec_end_date =
+            wp_rec_end_date.date32_julian(rows, 3, |_| 0, WebPageRow::get_wp_rec_end_date_id);
+        let wp_creation_date_sk = sk32(wp_creation_date_sk, 4, WebPageRow::get_wp_creation_date_sk);
+        let wp_access_date_sk = sk32(wp_access_date_sk, 5, WebPageRow::get_wp_access_date_sk);
+        let wp_autogen_flag = str(wp_autogen_flag, 6, |r| bool_to_yn(r.get_wp_autogen_flag()));
+        let wp_customer_sk = sk32(wp_customer_sk, 7, WebPageRow::get_wp_customer_sk);
+        let wp_url = str(wp_url, 8, WebPageRow::get_wp_url);
+        let wp_type = str(wp_type, 9, WebPageRow::get_wp_type);
+        let wp_char_count = int(wp_char_count, 10, WebPageRow::get_wp_char_count);
+        let wp_link_count = int(wp_link_count, 11, WebPageRow::get_wp_link_count);
+        let wp_image_count = int(wp_image_count, 12, WebPageRow::get_wp_image_count);
+        let wp_max_ad_count = int(wp_max_ad_count, 13, WebPageRow::get_wp_max_ad_count);
 
         let batch = RecordBatch::try_new(
-            self.schema(),
+            schema,
             vec![
-                Arc::new(Int32Array::from(wp_sk)),
-                Arc::new(string_view_array_from_opt_iter(wp_id.iter().copied())),
-                Arc::new(Date32Array::from(wp_rec_start)),
-                Arc::new(Date32Array::from(wp_rec_end)),
-                Arc::new(Int32Array::from(wp_creation_date)),
-                Arc::new(Int32Array::from(wp_access_date)),
-                Arc::new(string_view_array_from_opt_iter(wp_autogen.iter().copied())),
-                Arc::new(Int32Array::from(wp_customer)),
-                Arc::new(string_view_array_from_opt_iter(wp_url.iter().copied())),
-                Arc::new(string_view_array_from_opt_iter(wp_type.iter().copied())),
-                Arc::new(Int32Array::from(wp_char_count)),
-                Arc::new(Int32Array::from(wp_link_count)),
-                Arc::new(Int32Array::from(wp_image_count)),
-                Arc::new(Int32Array::from(wp_max_ad_count)),
+                Arc::new(wp_web_page_sk),
+                Arc::new(wp_web_page_id),
+                Arc::new(wp_rec_start_date),
+                Arc::new(wp_rec_end_date),
+                Arc::new(wp_creation_date_sk),
+                Arc::new(wp_access_date_sk),
+                Arc::new(wp_autogen_flag),
+                Arc::new(wp_customer_sk),
+                Arc::new(wp_url),
+                Arc::new(wp_type),
+                Arc::new(wp_char_count),
+                Arc::new(wp_link_count),
+                Arc::new(wp_image_count),
+                Arc::new(wp_max_ad_count),
             ],
         );
         Some(batch)
