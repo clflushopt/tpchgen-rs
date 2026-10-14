@@ -132,7 +132,7 @@ impl Iterator for WebPageArrow {
             rec.int32(rows, pos, nbm, f)
         };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&WebPageRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let wp_web_page_sk = sk32(wp_web_page_sk, 0, WebPageRow::get_wp_page_sk);

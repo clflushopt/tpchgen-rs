@@ -120,7 +120,7 @@ impl Iterator for TimeDimArrow {
             rec.int32(rows, pos, nbm, f)
         };
         let str = |rec: &mut StringViewArrayRecycler, pos, f: fn(&TimeDimRow) -> &str| {
-            rec.string(rows, pos, nbm, f)
+            rec.str(rows, pos, nbm, f)
         };
 
         let t_time_sk = sk32(t_time_sk, 0, |r| r.t_time_sk);
