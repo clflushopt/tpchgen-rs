@@ -167,7 +167,7 @@ impl PrimitiveArrayRecycler<Int32Type> {
 
     /// Nullable INTEGER surrogate key
     ///
-    /// See [`integer_sk_opt`] for details on how nulls and absent keys are handled.
+    /// A negative surrogate key is treated as NULL.
     ///
     /// Arguments: as [`Self::int32`], with `sk` returning the surrogate key for a row
     pub fn int32_sk<R>(
@@ -205,7 +205,7 @@ impl PrimitiveArrayRecycler<Int64Type> {
 
     /// Nullable BIGINT surrogate key
     ///
-    /// See [`sk_opt`] for details on how nulls and absent keys are handled.
+    /// A negative surrogate key is treated as NULL.
     ///
     /// Arguments:
     /// * `rows`: slice of rows to build the array from
