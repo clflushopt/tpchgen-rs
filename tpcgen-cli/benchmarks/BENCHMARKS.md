@@ -1,30 +1,32 @@
 # TPC-DS Generator Benchmarks
 
-This document describes how we  benchmarked TPC-DS data generation.
+This document contains a benchmarking results and methodology for TPC-DS data
+generation.
 
-Performance(mutli-core) 
-(TODO RESULTS)
+Performance (default, all 8 cores)
 
-Performance (single-core) *
+![TPC-DS tbl generation time](tpcds-tbl-performance.png)
 
+![TPC-DS Parquet generation time](tpcds-parquet-performance.png)
 
-Note that `trino`, `dsdgen` and `duckdb` use a single core for data generation
-(despite CLI args that imply they use multiple threads). `tpcgen-cli` uses all
-available cores by default, but can be limited with `--num-threads N`, so we
-also report single core performance.
+Performance (1-core) *
+
+(TODO IMAGE)
 
 # Experimental Setup:
 
-All measurements were gathered using an AWS `c8gn.2xlarge` instance (8 vCPU,
-16GB RAM, aarch64 / Graviton):
+All measurements were gathered on a `c8gn.2xlarge` instance (8 vCPU, 16GB RAM,
+aarch64 / Graviton) from AWS. For storage, I used 2 gp3 EBS 1100 GB volumes,
+configured in RAID0, with 2000 mb/s provisioned throughput with 4000 IOPS.
 
-`/data` is 2 1100 GB gp3 volumes in RAID0, each configured with 2000 mb/s
-provisioned throughput with 4000 iops (the minimum allowed for gp3). 
+Note that the storage configuration is critical. `tpcgen-cli` generates data
+around 1.2 GB/s on a `c8gn.2xlarge`, well above the default throughput limit of
+250MB/sec on `gp3`. I had to use two volumes because even a single volume
+configured at "2000 mb/s" still left the CPUs stalled on I/O.
 
-The storage configuration is critical because `tpcgen-cli` generates data
-at over 1.2GB/s, well above the default 250MB/sec gp3 default.
+The volumes were attached as `/dev/sdb` and `/dev/sdc` and formatted as a RAID0
+array with `mdadm` and an ext4 filesystem:
 
-The data is written to `/data`, a RAID0 of 2 gp3 volumes, ext4 filesystem:
 ```shell
 sudo mdadm --create --verbose /dev/md0 --level=0 --raid-devices=2 /dev/sdb /dev/sdc
 sudo mkfs -t ext4 /data
@@ -63,3 +65,9 @@ Here are the commands used to run each generator:
 | tbl     | `trino`      | `java -jar tpcds.jar --parallelism N`                        |
 | parquet | `tpcgen-cli` | `tpcgen-cli tpcds parquet --num-threads N`                   |
 | parquet | `duckdb`     | `CALL dsdgen(sf)` into a `.duckdb` file, then `EXPORT DATABASE (FORMAT parquet)` |
+
+
+Generate the plots with
+```shell
+uv run plot_tpcds_benchmark.py tpcds_benchmark.csv --subtitle "AWS c8gn.2xlarge (8 vCPU, 16 GB RAM)"
+```
