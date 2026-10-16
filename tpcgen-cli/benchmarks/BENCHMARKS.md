@@ -12,14 +12,15 @@
 
 ## Experimental Setup
 
-All measurements were gathered on a [`c8gn.2xlarge`] instance (8 vCPU, 16 GB RAM,
-aarch64 / Graviton) from AWS. For storage, we used two 1100 GB gp3 EBS volumes
-configured as RAID 0, each with 2000 MB/s provisioned throughput and 4000 IOPS.
+All measurements were gathered on a [`c8gn.2xlarge`] instance (8 vCPU, 16 GB
+RAM, aarch64 / Graviton) from AWS. For storage, we used two 1100 GB [gp3] EBS
+volumes configured as RAID 0, each with 2000 MiB/s of provisioned throughput
+and 4000 IOPS.
 
 Note that the storage configuration is critical. `tpcgen-cli` generates data at
-around 1.2 GB/s on a `c8gn.2xlarge`, well above the default gp3 throughput limit
-of 250 MB/s. We had to use two volumes because even a single volume configured
-for 2000 MB/s still left the CPUs stalled on I/O.
+around 1.2 GB/s on a `c8gn.2xlarge`, well above the gp3 baseline of 125 MiB/s.
+Even with gp3 provisioned at 2000 MiB/s per volume (the max), a single volume
+still left the CPUs stalled on I/O, so we used two volumes.
 
 The volumes were attached as `/dev/sdb` and `/dev/sdc`, combined into a RAID 0
 array with `mdadm`, and formatted with ext4:
@@ -63,6 +64,7 @@ uv run plot_tpcds_benchmark.py tpcds_benchmark.csv --subtitle "AWS c8gn.2xlarge 
 ```
 
 [`c8gn.2xlarge`]: https://aws.amazon.com/ec2/instance-types/c8g/
+[gp3]: https://docs.aws.amazon.com/ebs/latest/userguide/general-purpose.html
 [`dsdgen`]: https://www.tpc.org/tpcds/
 [`trino`]: https://github.com/trinodb/tpcds
 [`duckdb`]: https://duckdb.org/docs/stable/core_extensions/tpcds
