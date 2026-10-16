@@ -3,8 +3,8 @@
 `tpcgen-cli` is a high-performance, parallel command line interface for
 generating [TPC-H] and [TPC-DS] data.
 
-> **Note:** See [`tpcgen-cli`] to create both TPC-H and TPC-DS data and the
-> [tpcgen-rs project] for the full project details.
+It generates data in multiple formats including [Apache Parquet], CSV, and pipe-delimited (`tbl`).
+
 
 [TPC-H]: https://www.tpc.org/tpch/
 [TPC-DS]: https://www.tpc.org/tpcds/
@@ -55,3 +55,24 @@ tpcgen-cli tpch parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA
 # Note: `tpcgen-cli tpcds` with no format writes `dat` (pipe-delimited) files
 tpcgen-cli tpcds csv -s 1 --output-dir /tmp/tpcds
 ```
+
+## Performance
+
+![TPC-DS Parquet generation time](./benchmarks/tpcds-parquet-performance.png)
+
+Times to create TPC-DS tables in Parquet format using `tpcgen-cli` and `duckdb`
+for various scale factors on an 8 core AWS `c8gn.2xlarge`. See
+[BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for details.
+
+| Scale Factor | `tpcgen-cli`  | DuckDB       | DuckDB (proprietary) |
+| ------------ | ------------- | ------------ | -------------------- |
+| 1            | `0:01.77`     | `0:18.04`    | `0:17.27`            |
+| 10           | `0:12.00`     | `2:33.04`    | `2:26.48`            |
+| 100          | `1:42.13`     | N/A (OOM)    | `19:42.43`           |
+| 300          | `4:57.89`     | N/A (OOM)    | `56:19.89`           |
+
+- DuckDB (proprietary) is the time required to create TPC-DS data in the
+  proprietary DuckDB format (`CALL dsdgen()`). DuckDB is that time plus
+  `EXPORT DATABASE (FORMAT parquet)`.
+- At Scale Factors 100 and 300 the DuckDB export to Parquet failed on this
+  16 GB machine, so only the proprietary format time is reported.
