@@ -1,0 +1,10 @@
+timestamp,host,format,tool,version,step,scale_factor,threads,run,wall_sec,user_sec,sys_sec,peak_rss_mb,output_mb,status
+2026-10-16T13:17:52Z,ip-172-31-58-244,tbl,tpcgen-cli,4.0.0-rc.1,generate,1,8,1,1.24,7.73,0.29,272,1196,ok
+2026-10-16T13:18:25Z,ip-172-31-58-244,tbl,dsdgen,4.0.0,generate,1,8,1,33.20,37.58,6.70,3,1196,ok
+2026-10-16T13:19:50Z,ip-172-31-58-244,tbl,trino,1.5-SNAPSHOT,generate,1,8,1,84.99,105.77,1.20,1101,1196,ok
+2026-10-16T13:19:52Z,ip-172-31-58-244,parquet,tpcgen-cli,4.0.0-rc.1,generate,1,8,1,1.77,9.30,0.39,392,399,ok
+2026-10-16T13:20:09Z,ip-172-31-58-244,parquet,duckdb,v1.5.6,generate,1,8,1,17.27,16.78,0.42,1014,315,ok
+2026-10-16T13:20:10Z,ip-172-31-58-244,parquet,duckdb,v1.5.6,convert,1,8,1,0.77,4.69,0.48,1397,371,ok
+2026-10-16T13:20:10Z,ip-172-31-58-244,parquet,duckdb,v1.5.6,total,1,8,1,18.04,21.47,0.90,1397,371,ok
+2026-10-16T13:20:20Z,ip-172-31-58-244,tbl,tpcgen-cli,4.0.0-rc.1,generate,10,8,1,10.07,73.07,1.52,365,11630,ok
+2026-10-16T13:22:01Z,ip-172-31-58-244,tbl,dsdgen,4.0.0,generate,10,8,1,100.22,354.29,66.95,3,11631,ok

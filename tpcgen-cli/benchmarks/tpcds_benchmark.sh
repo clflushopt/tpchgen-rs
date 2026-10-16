@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# tpcds_benchmark.sh — time TPC-DS data generation with tpcgen-cli, the C
-# reference dsdgen, the Trino Java port and DuckDB. Appends one CSV row per
-# timed step, ready to chart (e.g. in Google Sheets).
+# time TPC-DS data generation, outputs CSV row per
+#
+# Generators: tpcgen-cli, dsdgen, the Trino Java port and DuckDB.
 #
 # Usage: tpcds_benchmark.sh [OPTIONS]
 #
@@ -25,9 +25,9 @@
 #               (default: the jar built by scripts/tpcds/bootstrap-trino.sh)
 #   DUCKDB      duckdb binary                             (default: on PATH)
 #
-# What runs, per scale factor and format:
+# What runs, per scale factor and format (N processes):
 #   tbl     tpcgen-cli  tpcgen-cli tpcds dat --num-threads N
-#           dsdgen      N processes: dsdgen -PARALLEL N -CHILD i (i = 1..N)
+#           dsdgen      dsdgen -PARALLEL N -CHILD i (i = 1..N)
 #           trino       java -jar tpcds.jar --parallelism N
 #   parquet tpcgen-cli  tpcgen-cli tpcds parquet --num-threads N
 #           duckdb      generate: CALL dsdgen(sf) into a .duckdb file

@@ -54,6 +54,7 @@ We compared 4 generators:
 * `trino` (Java) -- the Trino port of the TPC-DS generator (version 1.5-SNAPSHOT)
 * `duckdb` (C++) -- the DuckDB port of the TPC-DS generator (version 1.5.6)
 
+Here are the commands used to run each generator:
 
 | Format  | Tool         | Command                                                      |
 |---------|--------------|--------------------------------------------------------------|
@@ -62,9 +63,3 @@ We compared 4 generators:
 | tbl     | `trino`      | `java -jar tpcds.jar --parallelism N`                        |
 | parquet | `tpcgen-cli` | `tpcgen-cli tpcds parquet --num-threads N`                   |
 | parquet | `duckdb`     | `CALL dsdgen(sf)` into a `.duckdb` file, then `EXPORT DATABASE (FORMAT parquet)` |
-
-
-## Running
-
-- `peak_rss_mb` is the maximum resident set size reported by
-  `/usr/bin/time`. 
