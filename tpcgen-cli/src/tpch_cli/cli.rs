@@ -255,8 +255,7 @@ struct ParquetArgs {
     /// ZSTD, GZIP, and BROTLI require a compression level as a number in
     /// parentheses, e.g. `ZSTD(1)`. Levels: ZSTD 1-22, GZIP 0-9, BROTLI 0-11.
     ///
-    /// Using `ZSTD` generally results in the smallest files, but is slower to
-    /// write than SNAPPY or UNCOMPRESSED.
+    /// Using `ZSTD` gives better compression than SNAPPY, but is slower to write.
     #[arg(
         short = 'c',
         long,
