@@ -11,6 +11,8 @@ repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen-cli"
 readme = "README.md"
 license = { workspace = true }
+# README media use absolute URLs; benchmarks are dev-only
+exclude = ["/*.gif", "/benchmarks"]
 
 [[bin]]
 name = "tpchgen-cli"

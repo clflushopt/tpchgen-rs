@@ -11,6 +11,8 @@ repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpchgen"
 readme = "README.md"
 license = { workspace = true }
+# Reference data is only used by the integration tests
+exclude = ["/data", "/tests"]
 
 # Designed to have no dependencies to make it easy to embed in other projects
 # See ../ARCHITECTURE.md for more details
