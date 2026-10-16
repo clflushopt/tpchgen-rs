@@ -5,13 +5,11 @@ generating [TPC-H] and [TPC-DS] data.
 
 It generates data in multiple formats including [Apache Parquet], CSV, and pipe-delimited (`tbl`).
 
-
-[TPC-H]: https://www.tpc.org/tpch/
-[TPC-DS]: https://www.tpc.org/tpcds/
-[`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/README.md
-[tpcgen-rs project]: https://github.com/datafusion-contrib/tpcgen-rs
-`tpcgen-cli` is a high performance, parallel command line interface for generating TPC-H
-and TPC-DS benchmark data.
+This tool is more than 10x faster than the next fastest TPC-DS generator we know
+of (`duckdb`), 4x-27x faster than the official C `dsdgen`, and 12x-69x faster
+than the Java port used by Trino. On an 8 core AWS instance it generates data at
+over 1 GB/s, faster than a single EBS volume can write. See [BENCHMARKS.md] for
+more details on performance and benchmarking.
 
 ## Try with `uvx`
 
@@ -76,3 +74,10 @@ for various scale factors on an 8 core AWS `c8gn.2xlarge`. See
   `EXPORT DATABASE (FORMAT parquet)`.
 - At Scale Factors 100 and 300 the DuckDB export to Parquet failed on this
   16 GB machine, so only the proprietary format time is reported.
+
+[TPC-H]: https://www.tpc.org/tpch/
+[TPC-DS]: https://www.tpc.org/tpcds/
+[Apache Parquet]: https://parquet.apache.org/
+[`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/README.md
+[tpcgen-rs project]: https://github.com/datafusion-contrib/tpcgen-rs
+[BENCHMARKS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/benchmarks/BENCHMARKS.md
