@@ -16,9 +16,6 @@
 #   --output-dir DIR Scratch directory for generated data
 #                    (default: ./tpcds-bench-data).
 #   --results FILE   CSV file to append to (default: ./tpcds_benchmark.csv).
-#   --keep           Keep generated data instead of deleting it after each run.
-#   --drop-caches    sync and drop the page cache before each run (Linux, sudo).
-#   --dry-run        Print the commands that would run and exit.
 #   --help           Show this message.
 #
 # Environment:
@@ -56,9 +53,6 @@ THREADS=""
 RUNS=1
 OUTPUT_DIR="./tpcds-bench-data"
 RESULTS="./tpcds_benchmark.csv"
-KEEP=false
-DROP_CACHES=false
-DRY_RUN=false
 
 TPCGEN_CLI="${TPCGEN_CLI:-tpcgen-cli}"
 DSDGEN_DIR="${DSDGEN_DIR:-}"
@@ -76,9 +70,6 @@ while [[ $# -gt 0 ]]; do
         --runs) RUNS=$2; shift 2 ;;
         --output-dir) OUTPUT_DIR=$2; shift 2 ;;
         --results) RESULTS=$2; shift 2 ;;
-        --keep) KEEP=true; shift ;;
-        --drop-caches) DROP_CACHES=true; shift ;;
-        --dry-run) DRY_RUN=true; shift ;;
         --help|-h) usage ;;
         *) echo "Unknown option: $1" >&2; usage 1 ;;
     esac
@@ -120,13 +111,6 @@ dir_mb() { [[ -e $1 ]] && du -sm "$1" | cut -f1 || echo 0; }
 fsum() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", a + b }'; }
 imax() { (( $1 > $2 )) && echo "$1" || echo "$2"; }
 
-drop_caches() {
-    $DROP_CACHES || return 0
-    sync
-    [[ -w /proc/sys/vm/drop_caches ]] && echo 3 > /proc/sys/vm/drop_caches && return 0
-    [[ -e /proc/sys/vm/drop_caches ]] && sudo sh -c 'echo 3 > /proc/sys/vm/drop_caches'
-}
-
 record() {
     # format tool version step sf run wall user sys rss_mb out_mb status
     printf '%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n' \
@@ -138,13 +122,7 @@ record() {
 # Times CMD, measures OUT_PATH, appends a CSV row.
 run_step() {
     local fmt=$1 tool=$2 version=$3 step=$4 sf=$5 run=$6 out=$7 cmd=$8
-    if $DRY_RUN; then
-        echo "[$fmt/$tool/$step sf=$sf] $cmd"
-        WALL=0; USER=0; SYS=0; RSS_MB=0; STATUS=dry-run; OUT_MB=0
-        return 0
-    fi
     log "START $fmt/$tool/$step sf=$sf run=$run threads=$THREADS"
-    drop_caches
     time_cmd "$cmd"
     OUT_MB=$(dir_mb "$out")
     log "DONE  $fmt/$tool/$step sf=$sf wall=${WALL}s rss=${RSS_MB}MB out=${OUT_MB}MB status=$STATUS"
@@ -152,7 +130,6 @@ run_step() {
 }
 
 fresh_dir() { rm -rf "$1"; mkdir -p "$1"; }
-cleanup_dir() { $KEEP || rm -rf "$1"; }
 
 # ---------------------------------------------------------------------------
 # Tool discovery
@@ -180,7 +157,7 @@ fi
 if has "$TOOLS" duckdb && has "$FORMATS" parquet; then
     command -v "$DUCKDB" >/dev/null || die "duckdb not found (set DUCKDB)"
     DUCKDB_VERSION=$("$DUCKDB" --version | awk '{print $1}')
-    $DRY_RUN || "$DUCKDB" -c "INSTALL tpcds;" >/dev/null
+    "$DUCKDB" -c "INSTALL tpcds;" >/dev/null
 fi
 
 mkdir -p "$OUTPUT_DIR"
@@ -201,7 +178,7 @@ bench_tbl_tpcgen() {
     fresh_dir "$out"
     run_step tbl tpcgen-cli "$TPCGEN_VERSION" generate "$sf" "$run" "$out" \
         "'$TPCGEN_CLI' tpcds dat --scale-factor $sf --num-threads $THREADS --output-dir '$out' --no-progress"
-    cleanup_dir "$out"
+    rm -rf "$out"
 }
 
 bench_tbl_dsdgen() {
@@ -218,7 +195,7 @@ bench_tbl_dsdgen() {
         cmd="cd '$out' && '$DSDGEN_DIR/dsdgen' -SCALE $sf -DIR . -FORCE Y -QUIET Y"
     fi
     run_step tbl dsdgen "$DSDGEN_VERSION" generate "$sf" "$run" "$out" "$cmd"
-    cleanup_dir "$out"
+    rm -rf "$out"
 }
 
 bench_tbl_trino() {
@@ -226,7 +203,7 @@ bench_tbl_trino() {
     fresh_dir "$out"
     run_step tbl trino "$TRINO_VERSION" generate "$sf" "$run" "$out" \
         "java -jar '$TRINO_JAR' --scale $sf --parallelism $THREADS --directory '$out' --overwrite"
-    cleanup_dir "$out"
+    rm -rf "$out"
 }
 
 bench_parquet_tpcgen() {
@@ -234,7 +211,7 @@ bench_parquet_tpcgen() {
     fresh_dir "$out"
     run_step parquet tpcgen-cli "$TPCGEN_VERSION" generate "$sf" "$run" "$out" \
         "'$TPCGEN_CLI' tpcds parquet --scale-factor $sf --num-threads $THREADS --output-dir '$out' --no-progress"
-    cleanup_dir "$out"
+    rm -rf "$out"
 }
 
 bench_parquet_duckdb() {
@@ -255,7 +232,7 @@ bench_parquet_duckdb() {
     record parquet duckdb "$DUCKDB_VERSION" total "$sf" "$run" \
         "$(fsum "$g_wall" "$WALL")" "$(fsum "$g_user" "$USER")" "$(fsum "$g_sys" "$SYS")" \
         "$(imax "$g_rss" "$RSS_MB")" "$OUT_MB" "$STATUS"
-    cleanup_dir "$out"
+    rm -rf "$out"
 }
 
 for sf in $SCALE_FACTORS; do

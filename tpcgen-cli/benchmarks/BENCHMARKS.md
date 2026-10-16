@@ -34,17 +34,14 @@ parallelism. DuckDB is reported as three rows: `generate`, `convert` and
 ```shell
 # Everything, SF 1/10/100/300, on a scratch disk
 DSDGEN_DIR=~/DSGen-software-code-4.0.0/tools \
-  ./tpcgen-cli/benchmarks/tpcds_benchmark.sh --output-dir /data/bench --drop-caches
+  ./tpcgen-cli/benchmarks/tpcds_benchmark.sh --output-dir /data/bench
 
 # Only the parquet comparison at SF 1 and 10, three runs each
 ./tpcgen-cli/benchmarks/tpcds_benchmark.sh --formats parquet --scale-factors "1 10" --runs 3
-
-# Show the commands without running them
-./tpcgen-cli/benchmarks/tpcds_benchmark.sh --dry-run
 ```
 
-Generated data is deleted after each run unless `--keep` is given; SF 300
-needs roughly 300 GB of free disk for the `tbl` runs.
+Generated data is deleted after each run; SF 300 needs roughly 300 GB of
+free disk for the `tbl` runs.
 
 ## Output
 
