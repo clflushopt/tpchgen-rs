@@ -90,7 +90,7 @@ struct CommonArgs {
     #[arg(short, long, default_value_t = 1., value_parser = parse_scale_factor)]
     scale_factor: f64,
 
-    /// Output directory for generated files (default: current directory)
+    /// Output directory for generated files
     #[arg(short, long, default_value = ".")]
     output_dir: PathBuf,
 
@@ -234,7 +234,7 @@ struct CsvArgs {
     #[command(flatten)]
     common: CommonArgs,
 
-    /// CSV delimiter character (default: ',')
+    /// CSV delimiter character
     ///
     /// Specifies the delimiter character to use when generating CSV files.
     ///
