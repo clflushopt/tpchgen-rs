@@ -248,23 +248,18 @@ struct ParquetArgs {
     #[command(flatten)]
     common: CommonArgs,
 
-    /// Parquet block compression format
+    /// Parquet block compression format.
     ///
     /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP(N), BROTLI(N), LZ4_RAW, LZ4
     ///
     /// ZSTD, GZIP, and BROTLI require a compression level as a number in
     /// parentheses, e.g. `ZSTD(1)`. Levels: ZSTD 1-22, GZIP 0-9, BROTLI 0-11.
     ///
-    /// Using `ZSTD` results in the best compression, but is about 2x slower than
-    /// UNCOMPRESSED. For example, for the lineitem table at SF=10:
-    ///
-    ///   ZSTD(1):      1.9G  (0.52 GB/sec)
-    ///   SNAPPY:       2.4G  (0.75 GB/sec)
-    ///   UNCOMPRESSED: 3.8G  (1.41 GB/sec)
+    /// Using `ZSTD` generally results in the smallest files, but is slower to
+    /// write than SNAPPY or UNCOMPRESSED.
     #[arg(
         short = 'c',
         long,
-        verbatim_doc_comment,
         default_value = "SNAPPY",
         help_heading = "Parquet Options"
     )]
