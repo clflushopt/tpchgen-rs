@@ -56,11 +56,11 @@ tpcgen-cli tpcds csv -s 1 --output-dir /tmp/tpcds
 
 ## Performance
 
-![TPC-DS Parquet generation time](./benchmarks/tpcds-parquet-performance.png)
+![TPC-DS Parquet generation time](https://raw.githubusercontent.com/datafusion-contrib/tpcgen-rs/main/tpcgen-cli/benchmarks/tpcds-parquet-performance.png)
 
 Times to create TPC-DS tables in Parquet format using `tpcgen-cli` and `duckdb`
-for various scale factors on an 8 core AWS `c8gn.2xlarge`. See
-[BENCHMARKS.md](./benchmarks/BENCHMARKS.md) for details.
+for various scale factors on an 8 core AWS `c8gn.2xlarge`. See [BENCHMARKS.md]
+for details.
 
 | Scale Factor | `tpcgen-cli`  | DuckDB       | DuckDB (proprietary) |
 | ------------ | ------------- | ------------ | -------------------- |
@@ -78,6 +78,4 @@ for various scale factors on an 8 core AWS `c8gn.2xlarge`. See
 [TPC-H]: https://www.tpc.org/tpch/
 [TPC-DS]: https://www.tpc.org/tpcds/
 [Apache Parquet]: https://parquet.apache.org/
-[`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/README.md
-[tpcgen-rs project]: https://github.com/datafusion-contrib/tpcgen-rs
 [BENCHMARKS.md]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/benchmarks/BENCHMARKS.md
