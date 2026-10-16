@@ -11,3 +11,4 @@ repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcdsgen"
 readme = "README.md"
 license = { workspace = true }
+exclude = [".gitignore"]
