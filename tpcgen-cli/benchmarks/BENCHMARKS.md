@@ -6,10 +6,6 @@
 
 ![TPC-DS tbl generation time](tpcds-tbl-performance.png)
 
-## Single Core
-
-(TODO IMAGE)
-
 ## Experimental Setup
 
 All measurements were gathered on a [`c8gn.2xlarge`] instance (8 vCPU, 16 GB
@@ -35,11 +31,6 @@ sudo mount /dev/md0 /data
 We ran the benchmark script with the following command:
 ```shell
 DSDGEN_DIR=/home/ec2-user/DSGen-software-code-4.0.0/tools/ ./tpcds_benchmark.sh --output-dir /data/bench-data
-```
-
-Single-core performance was measured with:
-```shell
-DSDGEN_DIR=/home/ec2-user/DSGen-software-code-4.0.0/tools/ ./tpcds_benchmark.sh --output-dir /data/bench-data --threads 1
 ```
 
 We compared four generators:
