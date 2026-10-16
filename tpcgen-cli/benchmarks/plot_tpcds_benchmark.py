@@ -47,7 +47,7 @@ def load(path):
 
 
 def new_figure(title, subtitle):
-    fig, ax = plt.subplots(figsize=(10, 5.5), dpi=150)
+    fig, ax = plt.subplots(figsize=(13, 6.5), dpi=150)
     fig.subplots_adjust(top=0.80, bottom=0.14, left=0.09, right=0.98)
     fig.text(0.09, 0.95, title, fontsize=15, color=INK, ha="left", va="top")
     fig.text(0.09, 0.895, subtitle, fontsize=9.5, color=MUTED, ha="left", va="top")
@@ -63,21 +63,31 @@ def new_figure(title, subtitle):
     return fig, ax
 
 
+def vs_fastest(y, best):
+    """'\n(3.2x longer)' relative to the fastest bar in the group; '' for the fastest."""
+    if not y or not best or y <= best:
+        return ""
+    r = y / best
+    return f"\n({r:.1f}x longer)" if r < 9.95 else f"\n({r:.0f}x longer)"
+
+
 def label(ax, x, y, text, color=INK):
     ax.annotate(text, (x, y), xytext=(0, 3), textcoords="offset points",
-                ha="center", va="bottom", fontsize=8.5, color=color)
+                ha="center", va="bottom", fontsize=8, linespacing=1.1, color=color)
 
 
 def plot_tbl(times, sfs, subtitle, out):
     tools = [("tpcgen-cli", "tpcgen-cli", BLUE), ("dsdgen", "dsdgen (C)", ORANGE), ("trino", "Trino (Java)", AQUA)]
     fig, ax = new_figure("TPC-DS tbl generation time", subtitle)
-    width = 0.26
+    width = 0.3
+    ys_by_tool = {tool: [times.get(("tbl", tool, "generate", sf), 0) for sf in sfs] for tool, _, _ in tools}
+    best = [min((ys[j] for ys in ys_by_tool.values() if ys[j]), default=0) for j in range(len(sfs))]
     for i, (tool, name, color) in enumerate(tools):
         xs = [j + (i - 1) * width for j in range(len(sfs))]
-        ys = [times.get(("tbl", tool, "generate", sf), 0) for sf in sfs]
+        ys = ys_by_tool[tool]
         ax.bar(xs, ys, width - 0.02, color=color, label=name)
-        for x, y in zip(xs, ys):
-            label(ax, x, y, fmt_secs(y) if y else "n/a", INK if y else MUTED)
+        for j, (x, y) in enumerate(zip(xs, ys)):
+            label(ax, x, y, fmt_secs(y) + vs_fastest(y, best[j]) if y else "n/a", INK if y else MUTED)
     finish(fig, ax, sfs, out)
 
 
@@ -93,15 +103,17 @@ def plot_parquet(times, sfs, subtitle, out):
     ax.bar(xs_d, d_gen, width - 0.02, color=ORANGE, label="DuckDB: CALL dsdgen()")
     ax.bar(xs_d, [c or 0 for c in d_conv], width - 0.02, bottom=d_gen, color=AQUA,
            edgecolor="white", linewidth=1, label="DuckDB: EXPORT DATABASE (parquet)")
+    d_tot = [g + (c or 0) for g, c in zip(d_gen, d_conv)]
+    best = [min((v for v in (t, d) if v), default=0) for t, d in zip(gen, d_tot)]
     failed = False
-    for x, y in zip(xs_t, gen):
-        label(ax, x, y, fmt_secs(y) if y else "n/a", INK if y else MUTED)
-    for x, g, c in zip(xs_d, d_gen, d_conv):
+    for x, y, b in zip(xs_t, gen, best):
+        label(ax, x, y, fmt_secs(y) + vs_fastest(y, b) if y else "n/a", INK if y else MUTED)
+    for x, g, c, t, b in zip(xs_d, d_gen, d_conv, d_tot, best):
         if c is None:
             failed = True
-            label(ax, x, g, fmt_secs(g) + "*" if g else "n/a", INK if g else MUTED)
+            label(ax, x, g, fmt_secs(g) + "*" + vs_fastest(g, b) if g else "n/a", INK if g else MUTED)
         else:
-            label(ax, x, g + c, fmt_secs(g + c))
+            label(ax, x, t, fmt_secs(t) + vs_fastest(t, b))
     if failed:
         fig.text(0.09, 0.02, "* EXPORT DATABASE failed; bar shows CALL dsdgen() only",
                  fontsize=8.5, color=MUTED, ha="left", va="bottom")
