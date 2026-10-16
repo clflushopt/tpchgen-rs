@@ -64,11 +64,11 @@ def new_figure(title, subtitle):
 
 
 def vs_fastest(y, best):
-    """'\n(3.2x longer)' relative to the fastest bar in the group; '' for the fastest."""
+    """'\n(3.2x)' relative to the fastest bar in the group; '' for the fastest."""
     if not y or not best or y <= best:
         return ""
     r = y / best
-    return f"\n({r:.1f}x longer)" if r < 9.95 else f"\n({r:.0f}x longer)"
+    return f"\n({r:.1f}x)" if r < 9.95 else f"\n({r:.0f}x)"
 
 
 def label(ax, x, y, text, color=INK):
