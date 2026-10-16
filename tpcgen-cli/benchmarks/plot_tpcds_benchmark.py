@@ -102,21 +102,18 @@ def plot_parquet(times, sfs, subtitle, out):
     ax.bar(xs_t, gen, width - 0.02, color=BLUE, label="tpcgen-cli")
     ax.bar(xs_d, d_gen, width - 0.02, color=ORANGE, label="DuckDB: CALL dsdgen()")
     ax.bar(xs_d, [c or 0 for c in d_conv], width - 0.02, bottom=d_gen, color=AQUA,
-           edgecolor="white", linewidth=1, label="DuckDB: EXPORT DATABASE (parquet)")
+           label="DuckDB: EXPORT DATABASE (parquet)")
     d_tot = [g + (c or 0) for g, c in zip(d_gen, d_conv)]
     best = [min((v for v in (t, d) if v), default=0) for t, d in zip(gen, d_tot)]
-    failed = False
     for x, y, b in zip(xs_t, gen, best):
         label(ax, x, y, fmt_secs(y) + vs_fastest(y, b) if y else "n/a", INK if y else MUTED)
     for x, g, c, t, b in zip(xs_d, d_gen, d_conv, d_tot, best):
-        if c is None:
-            failed = True
-            label(ax, x, g, fmt_secs(g) + "*" + vs_fastest(g, b) if g else "n/a", INK if g else MUTED)
+        if not g:
+            label(ax, x, 0, "n/a", MUTED)
+        elif c is None:
+            label(ax, x, g, fmt_secs(g) + vs_fastest(g, b) + "\nexport failed")
         else:
-            label(ax, x, t, fmt_secs(t) + vs_fastest(t, b))
-    if failed:
-        fig.text(0.09, 0.02, "* EXPORT DATABASE failed; bar shows CALL dsdgen() only",
-                 fontsize=8.5, color=MUTED, ha="left", va="bottom")
+            label(ax, x, t, fmt_secs(t) + vs_fastest(t, b) + f"\nexport {fmt_secs(c)}")
     finish(fig, ax, sfs, out)
 
 
