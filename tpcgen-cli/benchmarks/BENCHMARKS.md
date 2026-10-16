@@ -2,9 +2,9 @@
 
 ## Default (8 cores)
 
-![TPC-DS tbl generation time](tpcds-tbl-performance.png)
-
 ![TPC-DS Parquet generation time](tpcds-parquet-performance.png)
+
+![TPC-DS tbl generation time](tpcds-tbl-performance.png)
 
 ## Single Core
 
