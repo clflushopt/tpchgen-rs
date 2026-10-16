@@ -67,7 +67,7 @@ Examples
 
 {bin} parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
 
-# Generate scale factor one in current directory, seeing debug output
+# Generate scale factor one in /tmp/tpch, seeing debug output
 
 RUST_LOG=debug {bin} -s 1 --output-dir=/tmp/tpch
 "#
