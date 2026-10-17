@@ -33,3 +33,32 @@ impl QueryAndAnswer {
         self.1
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn answers_are_well_formed_tbl() {
+        for num in 1..=22 {
+            let qa = QueryAndAnswer::new(num, 1.0).unwrap();
+            assert!(qa.query().contains("select"), "Q{num} query malformed");
+            let mut lines = qa.answer().lines().filter(|l| !l.trim().is_empty());
+            let columns = lines.next().unwrap().split('|').count();
+            for line in lines {
+                assert_eq!(
+                    line.split('|').count(),
+                    columns,
+                    "Q{num} row has wrong column count: {line}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn invalid_inputs_are_rejected() {
+        assert!(QueryAndAnswer::new(0, 1.0).is_err());
+        assert!(QueryAndAnswer::new(23, 1.0).is_err());
+        assert!(QueryAndAnswer::new(1, 10.0).is_err());
+    }
+}
