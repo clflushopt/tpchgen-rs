@@ -3,7 +3,8 @@
 `tpcgen-cli` is a high-performance, parallel command line interface for
 generating [TPC-H] and [TPC-DS] data.
 
-It generates data in multiple formats including [Apache Parquet], CSV, and pipe-delimited (`tbl`).
+It generates data in multiple formats including [Apache Parquet], CSV, and
+pipe-delimited (`tbl` for TPC-H, `dat` for TPC-DS).
 
 This tool is more than 10x faster than the next fastest TPC-DS generator we know
 of (`duckdb`), 4x-27x faster than the official C `dsdgen`, and 12x-69x faster
