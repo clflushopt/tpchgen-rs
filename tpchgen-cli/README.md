@@ -10,7 +10,7 @@ generating [TPC-H] data.
 [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/blob/main/tpcgen-cli/README.md
 [tpcgen-rs project]: https://github.com/datafusion-contrib/tpcgen-rs
 
-This tool is more than 10x faster than the next fastest TPCH generator we know
+This tool is more than 10x faster than the next fastest TPC-H generator we know
 of (`duckdb`). On a 2023 Mac M3 Max laptop, it easily generates data faster than
 can be written to SSD. See [BENCHMARKS.md] for more details on performance and
 benchmarking.
@@ -88,7 +88,7 @@ is not a terminal, e.g. in CI logs).
 
 ## Performance
 
-Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
+Times to create TPC-H tables in Parquet format using `tpchgen-cli` and `duckdb` for various scale factors.
 
 | Scale Factor | `tpchgen-cli` | DuckDB     | DuckDB (proprietary) |
 | ------------ | ------------- | ---------- | -------------------- |
@@ -97,7 +97,7 @@ Times to create TPCH tables in Parquet format using `tpchgen-cli` and `duckdb` f
 | 100          | `1:14.22`     | `17:48.27` | `16:40.88`           |
 | 1000         | `10:26.26`    | N/A (OOM)  | N/A (OOM)            |
 
-- DuckDB (proprietary) is the time required to create TPCH data using the
+- DuckDB (proprietary) is the time required to create TPC-H data using the
   proprietary DuckDB format
 - Creating Scale Factor 1000 using DuckDB [required 647 GB of memory](https://duckdb.org/docs/lts/core_extensions/tpch#resource-usage-of-the-data-generator),
   which is why it is not included in the table above.

@@ -1,4 +1,4 @@
-//! TPCH data generation CLI and library API.
+//! TPC-H data generation CLI and library API.
 
 mod cli;
 mod generator;
