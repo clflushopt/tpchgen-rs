@@ -1,4 +1,4 @@
-//! Routines to convert TPC-H types to Arrow types
+//! Routines to convert TPCH types to Arrow types
 
 use arrow::array::{StringViewArray, StringViewBuilder};
 use std::fmt::Write;

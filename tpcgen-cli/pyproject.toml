@@ -4,10 +4,9 @@ build-backend = "maturin"
 
 [project]
 name = "tpcgen-cli"
-dynamic = ["version", "description", "readme", "license", "authors"]
+dynamic = ["version", "description", "readme", "license", "authors", "keywords"]
 requires-python = ">=3.8"
 license-files = ["LICENSE"]
-keywords = ["tpch", "tpcds", "benchmark", "data-generator", "parquet"]
 classifiers = [
     "Environment :: Console",
     "Intended Audience :: Developers",
