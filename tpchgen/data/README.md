@@ -1,4 +1,4 @@
-# TPCH Prepared Test Files
+# TPC-H Prepared Test Files
 
 This folder stores test files used to ensure consistency with Trino's and
 OLTPBenchmarks outputs.
@@ -12,23 +12,23 @@ The folders follow the `sf-{scale-factor}` pattern.
 
 | Folder   | Description                             |
 | -------- | --------------------------------------- |
-| sf-0.01  | TPCH dataset of a scale factor of 0.01  |
-| sf-0.001 | TPCH dataset of a scale factor of 0.001 |
+| sf-0.01  | TPC-H dataset of a scale factor of 0.01  |
+| sf-0.001 | TPC-H dataset of a scale factor of 0.001 |
 
 The tbl files are all named after the tables they represent.
 
 | File         | Description         |
 | ------------ | ------------------- |
-| part.tbl     | TPCH part table     |
-| customer.tbl | TPCH customer table |
-| lineitem.tbl | TPCH lineitem table |
-| nation.tbl   | TPCH nation table   |
-| orders.tbl   | TPCH orders table   |
-| partsupp.tbl | TPCH partsupp table |
-| region.tbl   | TPCH region table   |
-| supplier.tbl | TPCH supplier table |
+| part.tbl     | TPC-H part table     |
+| customer.tbl | TPC-H customer table |
+| lineitem.tbl | TPC-H lineitem table |
+| nation.tbl   | TPC-H nation table   |
+| orders.tbl   | TPC-H orders table   |
+| partsupp.tbl | TPC-H partsupp table |
+| region.tbl   | TPC-H region table   |
+| supplier.tbl | TPC-H supplier table |
 
-## The TPCH schema
+## The TPC-H schema
 
 ```
 +-----------------+        +-------------------+       +--------------------+       +-------------------+
@@ -72,7 +72,7 @@ The tbl files are all named after the tables they represent.
 +-----------------+
 ```
 
-# Comparing with other TPCH dbgen programs
+# Comparing with other TPC-H dbgen programs
 
 The classic TPC-H data generator is written in a older dialect of C. However
 it is important that this data generator produces the same output.

@@ -1,4 +1,4 @@
-//! This library contains both the TPCH and TPCDS command line clients.
+//! This library contains both the TPC-H and TPC-DS command line clients.
 mod args;
 pub mod generate;
 mod logging;

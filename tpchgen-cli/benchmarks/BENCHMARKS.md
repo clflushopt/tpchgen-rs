@@ -1,10 +1,10 @@
 # Benchmarking Methodology
 
-This directory contains a set of scripts to generate TPCH data at various scale factors:
+This directory contains a set of scripts to generate TPC-H data at various scale factors:
 
 # IO Throughput Limitations
 
-[`tpchgen-cli`](../README.md) is the fastest TPCH generator we know of
+[`tpchgen-cli`](../README.md) is the fastest TPC-H generator we know of
 at the time of this writing. On a 2023 Mac M3 Max laptop, it easily generates
 data faster than can be written to SSD (which tops out about 1GB/s).
 
@@ -61,16 +61,16 @@ tpchgen-cli parquet -s 10
 This script uses duckdb to produce a single parquet file per table, with snappy
 page compression.
 
-Since the [TPCH data generator included in DuckDB] writes into the DuckDB
+Since the [TPC-H data generator included in DuckDB] writes into the DuckDB
 proprietary format, creating Parquet files requires a second step to export each
 table to Parquet format.
 
-Note: As described in the documentation, DuckDB's TPCH generator consumes
+Note: As described in the documentation, DuckDB's TPC-H generator consumes
 significant amounts of memory. For example, to create Scale Factor 1000 requires
 a machine with at least 647GB of RAM. Our benchmark machine did not have enough
-ram to create the TPCH data for Scale Factor 1000 using DuckDB.
+ram to create the TPC-H data for Scale Factor 1000 using DuckDB.
 
-[TPCH data generator included in DuckDB]: https://duckdb.org/docs/lts/core_extensions/tpch
+[TPC-H data generator included in DuckDB]: https://duckdb.org/docs/lts/core_extensions/tpch
 
 Example command to create Scale Factor 10
 
@@ -88,11 +88,11 @@ EXPORT DATABASE 'tpch' (FORMAT parquet);
 
 ## `duckdb_duckdb.sh`
 
-This script creates TPCH data using the DuckDB's built-in TPCH generator to the
+This script creates TPC-H data using the DuckDB's built-in TPC-H generator to the
 DuckDB proprietary format.
 
 Since creating Parquet data with DuckDB requires two steps, we also report
-the time taken for DuckDB to create TPCH data in its own format for comparison.
+the time taken for DuckDB to create TPC-H data in its own format for comparison.
 
 Example command to create Scale Factor 10
 
@@ -111,7 +111,7 @@ CALL dbgen(sf = 10);
 
 The classic `dbgen` program produces data in a format known as
 `TBL` (or `tbl`), which is a simple text format delimited by `|` characters.
-Prior to the advent of open columnar formats like Parquet, running TPCH required
+Prior to the advent of open columnar formats like Parquet, running TPC-H required
 generating TBL formatted data and [loading into a database or data processing engine] before queries
 could be executed. This format is still useful for benchmarking and comparison.
 
@@ -159,7 +159,7 @@ tpchgen-cli -s 10 --num-threads=1
 
 ## `tbl_dbgen.sh`
 
-`dbgen` is the classic TPCH data generator program. This script uses an
+`dbgen` is the classic TPC-H data generator program. This script uses an
 unmodified copy of `dbgen` from
 [electrum/tpch-dbgen](https://github.com/electrum/tpch-dbgen)
 

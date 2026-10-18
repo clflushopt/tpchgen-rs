@@ -8,7 +8,7 @@ use tpchgen::generators::{
     CustomerGenerator, OrderGenerator, PartGenerator, PartSuppGenerator, SupplierGenerator,
 };
 
-/// A list of generator "parts" (data generator chunks, not TPCH parts) for a
+/// A list of generator "parts" (data generator chunks, not TPC-H parts) for a
 /// single output file.
 ///
 /// Controls the parallelization and layout of Parquet files.

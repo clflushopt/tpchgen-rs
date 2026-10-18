@@ -1,4 +1,4 @@
-//! Routines to convert TPCH types to Arrow types
+//! Routines to convert TPC-H types to Arrow types
 
 use arrow::array::{StringViewArray, StringViewBuilder};
 use std::fmt::Write;
@@ -13,7 +13,7 @@ pub fn to_arrow_decimal(value: TPCHDecimal) -> i128 {
     value.into_inner() as i128
 }
 
-/// Convert a TPCH date to an Arrow Date32.
+/// Convert a TPC-H date to an Arrow Date32.
 ///
 /// * Arrow `Date32` are days since the epoch (1970-01-01)
 /// * [`TPCHDate`]s are days since MIN_GENERATE_DATE (1992-01-01)
@@ -33,7 +33,7 @@ pub fn to_arrow_date32(value: TPCHDate) -> i32 {
     value.to_unix_epoch()
 }
 
-/// Converts an iterator of TPCH decimals to an Arrow Decimal128Array
+/// Converts an iterator of TPC-H decimals to an Arrow Decimal128Array
 pub fn decimal128_array_from_iter<I>(values: I) -> arrow::array::Decimal128Array
 where
     I: Iterator<Item = TPCHDecimal>,

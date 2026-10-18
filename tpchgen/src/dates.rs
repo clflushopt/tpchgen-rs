@@ -97,7 +97,7 @@ impl Display for TPCHDate {
 }
 
 impl TPCHDate {
-    /// Number of days that must be added to a TPCH date to get a Unix epoch
+    /// Number of days that must be added to a TPC-H date to get a Unix epoch
     /// relative date.
     ///
     /// * Unix epoch relative dates are days since the epoch (1970-01-01)

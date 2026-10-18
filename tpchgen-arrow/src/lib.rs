@@ -1,6 +1,6 @@
-//! Generate TPCH data as Arrow RecordBatches
+//! Generate TPC-H data as Arrow RecordBatches
 //!
-//! This crate provides generators for TPCH tables that directly produces
+//! This crate provides generators for TPC-H tables that directly produce
 //! Arrow [`RecordBatch`](arrow::array::RecordBatch)es. This is significantly faster than generating TBL or CSV
 //! files and then parsing them into Arrow.
 //!

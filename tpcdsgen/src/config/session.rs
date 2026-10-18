@@ -157,7 +157,7 @@ impl Session {
     /// Return the 1-based, inclusive range of `table`'s source rows generated
     /// by this session.
     ///
-    /// Note there is a 1M row minimum for TPCDS so smaller tables may have only
+    /// Note there is a 1M row minimum for TPC-DS so smaller tables may have only
     /// a single chunk.
     ///
     /// A chunk with no work returns an empty range, so callers must check
