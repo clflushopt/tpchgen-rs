@@ -112,7 +112,7 @@ struct CsvArgs {
     #[command(flatten)]
     common: CommonArgs,
 
-    /// CSV delimiter character (default: ',')
+    /// CSV delimiter character
     ///
     /// Specifies the delimiter character to use when generating CSV files.
     ///
@@ -133,12 +133,7 @@ struct ParquetArgs {
     /// ZSTD, GZIP, and BROTLI require a compression level as a number in
     /// parentheses, e.g. `ZSTD(1)`. Levels: ZSTD 1-22, GZIP 0-9, BROTLI 0-11.
     ///
-    /// Using `ZSTD` results in the best compression, but is about 2x slower than
-    /// UNCOMPRESSED. For example, for the lineitem table at SF=10
-    ///
-    ///   ZSTD(1):      1.9G  (0.52 GB/sec)
-    ///   SNAPPY:       2.4G  (0.75 GB/sec)
-    ///   UNCOMPRESSED: 3.8G  (1.41 GB/sec)
+    /// Using `ZSTD` gives better compression than SNAPPY, but is slower to write.
     #[arg(
         short = 'c',
         long,
@@ -202,7 +197,7 @@ pub struct CommonArgs {
     #[arg(short, long, default_value_t = 1., value_parser = parse_scale_factor)]
     scale_factor: f64,
 
-    /// Output directory for generated files (default: current directory)
+    /// Output directory for generated files
     #[arg(short, long, default_value = ".")]
     output_dir: PathBuf,
 
@@ -210,8 +205,12 @@ pub struct CommonArgs {
     #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
     tables: Option<Vec<Table>>,
 
-    /// Reference implementation to match (default: trino)
-    #[arg(long, default_value_t = CompatMode::Trino)]
+    /// Reference implementation to match: c or trino
+    ///
+    /// c: the original C dsdgen; dat output is UTF-8
+    ///
+    /// trino: the Trino Java port; dat output is ISO-8859-1 (Latin-1)
+    #[arg(long, default_value_t = CompatMode::C)]
     compat: CompatMode,
 
     /// Number of part(itions) to generate. If not specified creates a single file per table

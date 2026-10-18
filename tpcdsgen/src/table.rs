@@ -1,5 +1,7 @@
 use crate::scaling_info::{ScalingInfo, ScalingModel};
 use crate::table_flags::TableFlags;
+use crate::TpcdsError;
+use std::str::FromStr;
 use std::sync::OnceLock;
 
 /// Table enum representing all TPC-DS tables with complete metadata (Table)
@@ -33,6 +35,37 @@ pub enum Table {
 }
 
 impl Table {
+    /// All TPC-DS tables
+    pub fn values() -> &'static [Table] {
+        &[
+            Table::CallCenter,
+            Table::CatalogPage,
+            Table::CatalogReturns,
+            Table::CatalogSales,
+            Table::Customer,
+            Table::CustomerAddress,
+            Table::CustomerDemographics,
+            Table::DateDim,
+            Table::HouseholdDemographics,
+            Table::IncomeBand,
+            Table::Inventory,
+            Table::Item,
+            Table::Promotion,
+            Table::Reason,
+            Table::ShipMode,
+            Table::Store,
+            Table::StoreReturns,
+            Table::StoreSales,
+            Table::TimeDim,
+            Table::Warehouse,
+            Table::WebPage,
+            Table::WebReturns,
+            Table::WebSales,
+            Table::WebSite,
+            Table::DbgenVersion,
+        ]
+    }
+
     /// Get the lowercase table name (getName())
     pub fn get_name(&self) -> &'static str {
         match self {
@@ -454,6 +487,19 @@ impl std::fmt::Display for Table {
     }
 }
 
+impl FromStr for Table {
+    type Err = TpcdsError;
+
+    /// Parse a table name, ignoring ASCII case.
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Table::values()
+            .iter()
+            .copied()
+            .find(|table| table.get_name().eq_ignore_ascii_case(s))
+            .ok_or_else(|| TpcdsError::new(&format!("Invalid table name: {}", s)))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -463,6 +509,42 @@ mod tests {
     fn test_table_name() {
         assert_eq!(Table::CallCenter.get_name(), "call_center");
         assert_eq!(format!("{}", Table::CallCenter), "call_center");
+    }
+
+    #[test]
+    fn test_table_from_str() {
+        assert_eq!(
+            "CATALOG_SALES".parse::<Table>().unwrap(),
+            Table::CatalogSales
+        );
+        assert_eq!(
+            "catalog_sales".parse::<Table>().unwrap(),
+            Table::CatalogSales
+        );
+        assert_eq!("STORE_SALES".parse::<Table>().unwrap(), Table::StoreSales);
+
+        assert!("INVALID_TABLE".parse::<Table>().is_err());
+
+        for &table in Table::values() {
+            assert_eq!(table.get_name().parse::<Table>().unwrap(), table);
+        }
+    }
+
+    #[test]
+    fn test_values_are_in_table_number_order() {
+        let tables = Table::values();
+        assert_eq!(tables.len(), 25);
+        for (i, table) in tables.iter().enumerate() {
+            assert_eq!(table.get_ordinal(), i as i64, "{table}");
+        }
+        // These numbers offset SCD dates, so they must match the reference
+        // generator.
+        assert_eq!(Table::CallCenter.get_ordinal(), 0);
+        assert_eq!(Table::Item.get_ordinal(), 11);
+        assert_eq!(Table::Store.get_ordinal(), 15);
+        assert_eq!(Table::WebPage.get_ordinal(), 20);
+        assert_eq!(Table::WebSite.get_ordinal(), 23);
+        assert_eq!(Table::DbgenVersion.get_ordinal(), 24);
     }
 
     #[test]
