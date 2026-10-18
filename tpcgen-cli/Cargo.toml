@@ -11,7 +11,7 @@ repository = { workspace = true }
 homepage = "https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli"
 readme = "README.md"
 license = { workspace = true }
-exclude = ["*.gif", "*.png", "/scripts", "/benchmarks", "/tests/fixtures"]
+exclude = ["*.gif", "*.png", "/scripts", "/benchmarks", "/tests"]
 
 [lib]
 name = "tpcgen_cli"

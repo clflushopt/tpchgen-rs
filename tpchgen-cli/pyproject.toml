@@ -4,8 +4,7 @@ build-backend = "maturin"
 
 [project]
 name = "tpchgen-cli"
-dynamic = ["version", "readme", "license", "authors"]
-description = "Python CLI for TPC-H data generator"
+dynamic = ["version", "description", "readme", "license", "authors"]
 requires-python = ">=3.8"
 license-files = ["LICENSE"]
 keywords = ["tpch", "benchmark", "data-generator", "parquet"]
