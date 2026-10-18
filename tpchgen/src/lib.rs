@@ -1,4 +1,4 @@
-//! Rust TPCH Data Generator
+//! Rust TPC-H Data Generator
 //!
 //! This crate provides a native Rust implementation of the [TPC-H] benchmark
 //! dataset data generator in several popular formats.
@@ -14,7 +14,7 @@
 //! let num_parts = 1;
 //! let generator = LineItemGenerator::new(scale_factor, part, num_parts);
 //!
-//! // Output the first 3 rows in classic TPCH TBL format
+//! // Output the first 3 rows in classic TPC-H TBL format
 //! // (the generators are normal rust iterators and combine well with the Rust ecosystem)
 //! let lines: Vec<_> = generator.iter()
 //!    .take(3)
@@ -38,7 +38,7 @@
 //!
 //! This crate currently supports the following output formats:
 //!
-//! - TBL: The `Display` impl of the row structs produces the TPCH TBL format.
+//! - TBL: The `Display` impl of the row structs produces the TPC-H TBL format.
 //! - CSV: the [`csv`] module has formatters for CSV output (e.g. [`LineItemCsv`]).
 //!
 //! [`LineItem`]: generators::LineItem
@@ -54,7 +54,7 @@
 //!
 //! [`tpcgen-cli`]: https://github.com/datafusion-contrib/tpcgen-rs/tree/main/tpcgen-cli
 //!
-//! # TPCH Answers
+//! # TPC-H Answers
 //!
 //! The [`q_and_a`] module provides answers for queries 1 to 22 and for a scale
 //! factor of 1. The answers exposed were derived from the [TPC-H

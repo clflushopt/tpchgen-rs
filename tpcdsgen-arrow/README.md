@@ -1,6 +1,6 @@
 # TPC-DS Data Generator in Arrow format
 
-Generate TPC-DS data directly into [Apache Arrow] format using the [tpcdsgen] and [arrow] crate.
+Generate TPC-DS data directly into [Apache Arrow] format using the [tpcdsgen] and [arrow] crates.
 
 [Apache Arrow]: https://arrow.apache.org/
 [tpcdsgen]: https://crates.io/crates/tpcdsgen
@@ -15,11 +15,11 @@ tpcdsgen-arrow = "..."
 tpcdsgen-arrow = { version = "...", default-features = false, features = ["arrow_59"] }
 ```
 
-# Example usage:
+## Example usage
 
 See [docs.rs page](https://docs.rs/tpcdsgen-arrow/latest/tpcdsgen_arrow/)
 
-# Testing:
+## Testing
 
 This crate ensures correct results using two methods.
 
@@ -27,7 +27,7 @@ This crate ensures correct results using two methods.
 2. The `reparse` integration test ensures that the Arrow generators
    produce the same results as parsing the original DAT format (`cargo test --locked -p tpcdsgen-arrow --test reparse`)
 
-# Contributing:
+## Contributing
 
 Please see [CONTRIBUTING.md] for more information on how to contribute to this project.
 
