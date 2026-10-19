@@ -48,39 +48,41 @@ By default each table is written to a single file named <output_dir>/<table>.<fo
 If `--parts` option is specified, each table is written to a subdirectory in
 multiple files named <output_dir>/<table>/<table>.<part>.<format>
 
-Examples
+Examples:
+  # Generate all tables at scale factor 1 (1GB) in TBL format (default) to /tmp/tpch directory:
+  {bin} -s 1 --output-dir=/tmp/tpch
 
-# Generate all tables at scale factor 1 (1GB) in TBL format (default) to /tmp/tpch directory:
+  # Generate all tables in CSV format:
+  {bin} csv -s 1 --output-dir=/tmp/tpch
 
-{bin} -s 1 --output-dir=/tmp/tpch
+  # Generate the lineitem table at scale factor 100 in 10 Apache Parquet files to
+  # /tmp/tpch/lineitem:
+  {bin} parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
 
-# Generate all tables in CSV format:
+  # Generate only part 1 of those 10 files (e.g. to split work across machines):
+  {bin} parquet -s 100 --tables=lineitem --parts=10 --part=1 --output-dir=/tmp/tpch
 
-{bin} csv -s 1 --output-dir=/tmp/tpch
-
-# Generate scale factor one in CSV format with tab delimiter:
-
-{bin} csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch
-
-# Generate the lineitem table at scale factor 100 in 10 Apache Parquet files to
-# /tmp/tpch/lineitem:
-
-{bin} parquet -s 100 --tables=lineitem --parts=10 --output-dir=/tmp/tpch
-
-# Generate scale factor one in /tmp/tpch, seeing debug output
-
-RUST_LOG=debug {bin} -s 1 --output-dir=/tmp/tpch
-"#
+Each format has additional options, see '{bin} <COMMAND> --help'."#
     )
 }
 
 #[derive(clap::Subcommand)]
 enum Commands {
-    /// Generate TBL (pipe-delimited) output
+    /// Generate TBL (pipe-delimited) output (default format)
     Tbl(TblArgs),
-    /// Generate CSV output with CSV-specific options
+    /// Generate CSV output
+    #[command(long_about = r#"Generate CSV output
+
+Examples:
+  # Generate scale factor one in CSV format with tab delimiter:
+  tpcgen-cli tpch csv -s 1 --delimiter='\t' --output-dir=/tmp/tpch"#)]
     Csv(CsvArgs),
-    /// Generate Apache Parquet output with Parquet-specific options
+    /// Generate Apache Parquet output
+    #[command(long_about = r#"Generate Apache Parquet output
+
+Examples:
+  # Generate all tables in Apache Parquet format with ZSTD compression and 128 MB row groups:
+  tpcgen-cli tpch parquet --compression='ZSTD(1)' --row-group-bytes=128MB --output-dir=/tmp/tpch"#)]
     Parquet(ParquetArgs),
 }
 
@@ -94,39 +96,41 @@ struct CommonArgs {
     #[arg(short, long, default_value = ".")]
     output_dir: PathBuf,
 
-    /// Which tables to generate (default: all)
+    /// Which tables to generate [default: all]
     #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
     tables: Option<Vec<Table>>,
 
-    /// Number of part(itions) to generate. If not specified creates a single file per table
-    #[arg(short, long)]
+    /// Split each table into N files (parts)
+    ///
+    /// If not specified, each table is written to a single file.
+    #[arg(short, long, value_name = "N")]
     parts: Option<i32>,
 
-    /// Which part(ition) to generate (1-based). If not specified, generates all parts
-    #[arg(long)]
+    /// Generate only part N of --parts (1-based)
+    ///
+    /// If not specified, all parts are generated.
+    #[arg(long, value_name = "N")]
     part: Option<i32>,
 
-    /// The number of threads for parallel generation, defaults to the number of CPUs
+    /// Number of threads to use [default: number of CPUs]
     #[arg(
         short,
         long,
         default_value_t = default_num_threads(),
+        hide_default_value = true,
         value_parser = clap::builder::RangedU64ValueParser::<usize>::new().range(1..)
     )]
     num_threads: usize,
 
-    /// Verbose output
-    ///
-    /// When specified, sets the log level to `info` and ignores the `RUST_LOG`
-    /// environment variable. When not specified, uses `RUST_LOG`
+    /// Log at info level (overrides RUST_LOG)
     #[arg(short, long, default_value_t = false, conflicts_with = "quiet")]
     verbose: bool,
 
-    /// Quiet mode - only show error-level logs
+    /// Only log errors
     #[arg(short, long, default_value_t = false, conflicts_with = "verbose")]
     quiet: bool,
 
-    /// Write output to stdout instead of a file.
+    /// Write output to stdout instead of a file
     ///
     /// Multiple tables or parts may interleave in any order.
     #[arg(long, default_value_t = false)]
@@ -136,7 +140,7 @@ struct CommonArgs {
     #[arg(long, default_value_t = false)]
     overwrite: bool,
 
-    /// Disable progress bars during data generation.
+    /// Disable progress bars during data generation
     ///
     /// Bars are also auto-suppressed by `--quiet`, `--stdout`, or when
     /// stderr is not a terminal.
@@ -234,11 +238,7 @@ struct CsvArgs {
     #[command(flatten)]
     common: CommonArgs,
 
-    /// CSV delimiter character
-    ///
-    /// Specifies the delimiter character to use when generating CSV files.
-    ///
-    /// Supported delimiters: ',' (comma), '|' (pipe), '\t' (tab), ';' (semicolon).
+    /// CSV delimiter: ',' (comma), '|' (pipe), '\t' (tab), or ';' (semicolon)
     #[arg(long, default_value = ",", value_parser = parse_delimiter, help_heading = "CSV Options")]
     delimiter: char,
 }
@@ -248,7 +248,7 @@ struct ParquetArgs {
     #[command(flatten)]
     common: CommonArgs,
 
-    /// Parquet block compression format.
+    /// Parquet block compression format
     ///
     /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP(N), BROTLI(N), LZ4_RAW, LZ4
     ///
@@ -277,7 +277,7 @@ struct ParquetArgs {
     )]
     row_group_bytes: i64,
 
-    /// Per-column Parquet encodings (overrides writer defaults).
+    /// Per-column Parquet encodings (overrides writer defaults)
     ///
     /// Format: `COLUMN=ENCODING[,COLUMN=ENCODING...]`
     ///
@@ -293,13 +293,14 @@ struct ParquetArgs {
     /// through this flag, and BIT_PACKED is not supported for writing.
     #[arg(
         long,
+        value_name = "COLUMN=ENCODING",
         value_delimiter = ',',
         value_parser = parse_column_encoding_pair,
         help_heading = "Parquet Options"
     )]
     column_encoding: Option<Vec<(String, Encoding)>>,
 
-    /// Write Parquet field IDs (true or false).
+    /// Write Parquet field IDs (true or false)
     ///
     /// When true, each column gets a field ID equal to its 1-based position.
     #[arg(

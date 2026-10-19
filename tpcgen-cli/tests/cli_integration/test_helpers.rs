@@ -305,6 +305,8 @@ pub(crate) fn assert_overwrites_existing_file(benchmark: &str, format: &str, tab
 
 /// Assert that `help` lists each of `flags` only under the `heading` section.
 pub fn assert_flags_under_help_heading(help: &str, heading: &str, flags: &[&str]) {
+    // Skip the description and examples before `Usage:`.
+    let help = help.split_once("Usage:").map_or(help, |(_, rest)| rest);
     let (before, section) = help
         .split_once(&format!("\n{heading}:\n"))
         .unwrap_or_else(|| panic!("Expected `{heading}:` heading in help output: {help}"));
