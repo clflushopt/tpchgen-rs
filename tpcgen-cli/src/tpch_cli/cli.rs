@@ -86,7 +86,9 @@ Examples:
     Parquet(ParquetArgs),
 }
 
+// Shared options. `--help` lists them in field order, most commonly used first.
 #[derive(clap::Args)]
+#[command(next_help_heading = "Common Options")]
 struct CommonArgs {
     /// Scale factor to create
     #[arg(short, long, default_value_t = 1., value_parser = parse_scale_factor)]
@@ -95,6 +97,16 @@ struct CommonArgs {
     /// Output directory for generated files
     #[arg(short, long, default_value = ".")]
     output_dir: PathBuf,
+
+    /// Overwrite output files that already exist.
+    #[arg(long, default_value_t = false)]
+    overwrite: bool,
+
+    /// Write output to stdout instead of a file
+    ///
+    /// Multiple tables or parts may interleave in any order.
+    #[arg(long, default_value_t = false)]
+    stdout: bool,
 
     /// Which tables to generate [default: all]
     #[arg(short = 'T', long = "tables", value_delimiter = ',', value_parser = TableValueParser)]
@@ -129,16 +141,6 @@ struct CommonArgs {
     /// Only log errors
     #[arg(short, long, default_value_t = false, conflicts_with = "verbose")]
     quiet: bool,
-
-    /// Write output to stdout instead of a file
-    ///
-    /// Multiple tables or parts may interleave in any order.
-    #[arg(long, default_value_t = false)]
-    stdout: bool,
-
-    /// Overwrite output files that already exist.
-    #[arg(long, default_value_t = false)]
-    overwrite: bool,
 
     /// Disable progress bars during data generation
     ///
@@ -234,20 +236,19 @@ struct TblArgs {
 }
 
 #[derive(clap::Args)]
+#[command(next_help_heading = "CSV Options")]
 struct CsvArgs {
+    /// CSV delimiter: ',' (comma), '|' (pipe), '\t' (tab), or ';' (semicolon)
+    #[arg(long, default_value = ",", value_parser = parse_delimiter)]
+    delimiter: char,
+
     #[command(flatten)]
     common: CommonArgs,
-
-    /// CSV delimiter: ',' (comma), '|' (pipe), '\t' (tab), or ';' (semicolon)
-    #[arg(long, default_value = ",", value_parser = parse_delimiter, help_heading = "CSV Options")]
-    delimiter: char,
 }
 
 #[derive(clap::Args)]
+#[command(next_help_heading = "Parquet Options")]
 struct ParquetArgs {
-    #[command(flatten)]
-    common: CommonArgs,
-
     /// Parquet block compression format
     ///
     /// Supported values: UNCOMPRESSED, ZSTD(N), SNAPPY, GZIP(N), BROTLI(N), LZ4_RAW, LZ4
@@ -256,12 +257,7 @@ struct ParquetArgs {
     /// parentheses, e.g. `ZSTD(1)`. Levels: ZSTD 1-22, GZIP 0-9, BROTLI 0-11.
     ///
     /// Using `ZSTD` gives better compression than SNAPPY, but is slower to write.
-    #[arg(
-        short = 'c',
-        long,
-        default_value = "SNAPPY",
-        help_heading = "Parquet Options"
-    )]
+    #[arg(short = 'c', long, default_value = "SNAPPY")]
     compression: Compression,
 
     /// Approximate uncompressed size of each row group (e.g. 8000000, 8MB, 512KB)
@@ -273,7 +269,6 @@ struct ParquetArgs {
         long,
         default_value = "7MiB", // DEFAULT_PARQUET_ROW_GROUP_BYTES
         value_parser = parse_row_group_bytes,
-        help_heading = "Parquet Options"
     )]
     row_group_bytes: i64,
 
@@ -296,7 +291,6 @@ struct ParquetArgs {
         value_name = "COLUMN=ENCODING",
         value_delimiter = ',',
         value_parser = parse_column_encoding_pair,
-        help_heading = "Parquet Options"
     )]
     column_encoding: Option<Vec<(String, Encoding)>>,
 
@@ -309,9 +303,11 @@ struct ParquetArgs {
         action = ArgAction::Set,
         value_name = "BOOL",
         hide_possible_values = true,
-        help_heading = "Parquet Options"
     )]
     field_ids: bool,
+
+    #[command(flatten)]
+    common: CommonArgs,
 }
 
 // TableValueParser is CLI-specific and uses the Table type from the library
@@ -439,15 +435,15 @@ mod tests {
 
     #[test]
     fn format_specific_options_are_grouped_in_help() {
-        use clap::{Args, Subcommand};
+        use clap::Args;
         crate::args::assert_format_options_grouped(
-            Commands::augment_subcommands(clap::Command::new("tpch")),
+            Cli::augment_args(clap::Command::new("tpch")),
             CommonArgs::augment_args(clap::Command::new("common")),
             |format| match format {
                 "tbl" => "TBL Options",
                 "csv" => "CSV Options",
                 "parquet" => "Parquet Options",
-                other => panic!("add a help heading for the `{other}` subcommand"),
+                other => panic!("add a help heading for `{other}` options"),
             },
         );
     }
