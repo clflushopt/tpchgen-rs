@@ -6,7 +6,7 @@ pub use crate::output_location::OutputLocation;
 
 use crate::tpch_cli::plan::GenerationPlan;
 use crate::tpch_cli::{OutputFormat, Table};
-use log::debug;
+use log::{debug, info};
 use parquet::basic::{Compression, Encoding};
 use std::collections::HashSet;
 use std::fmt::{Display, Formatter};
@@ -182,15 +182,9 @@ impl OutputPlanGenerator {
         // If the user specified only a part count, automatically create all
         // partitions for the table
         if let (None, Some(part_count)) = (cli_part, cli_part_count) {
-            if GenerationPlan::partitioned_table(table) {
-                debug!("Generating all partitions for table {table} with part count {part_count}");
-                for part in 1..=part_count {
-                    self.generate_plan_inner(table, Some(part), Some(part_count))?;
-                }
-            } else {
-                // there is only one partition for this table (e.g nation or region)
-                debug!("Generating single partition for table {table}");
-                self.generate_plan_inner(table, Some(1), Some(1))?;
+            debug!("Generating all partitions for table {table} with part count {part_count}");
+            for part in 1..=part_count {
+                self.generate_plan_inner(table, Some(part), Some(part_count))?;
             }
         } else {
             self.generate_plan_inner(table, cli_part, cli_part_count)?;
@@ -213,6 +207,16 @@ impl OutputPlanGenerator {
             self.parquet_row_group_bytes,
         )
         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+
+        // Skip a --part with no rows (e.g. nation and region for --part > 1)
+        if let (Some(part), Some(part_count)) = (cli_part, cli_part_count) {
+            if generation_plan.chunk_count() == 0 {
+                info!(
+                    "Skipping table {table} (part {part}/{part_count}): no rows in this partition"
+                );
+                return Ok(());
+            }
+        }
 
         let output_location = self.output_location(table, cli_part)?;
 

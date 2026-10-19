@@ -697,6 +697,27 @@ fn test_tpcgen_cli_tpch_parts_explicit() {
     verify_table(temp_dir.path(), "orders", num_parts, "0.001");
 }
 
+/// Nation and region are only written by `--part 1`
+#[test]
+fn test_tpcgen_cli_tpch_parts_explicit_nation_region() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    for part in ["1", "2", "3"] {
+        cargo_bin_cmd!("tpcgen-cli")
+            .args(["tpch", "-s", "0.001", "-T", "nation,region", "--parts", "3"])
+            .args(["--part", part, "--output-dir"])
+            .arg(temp_dir.path())
+            .assert()
+            .success();
+    }
+    for table in ["nation", "region"] {
+        verify_table(temp_dir.path(), table, 1, "0.001");
+        assert_eq!(
+            fs::read_dir(temp_dir.path().join(table)).unwrap().count(),
+            1
+        );
+    }
+}
+
 /// Create all tables using --parts option and verify the output layouts
 #[test]
 fn test_tpcgen_cli_tpch_parts_all_tables() {

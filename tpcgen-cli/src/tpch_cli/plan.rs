@@ -142,11 +142,12 @@ impl GenerationPlan {
         }
 
         // These tables are so small they are not parameterized by part count,
-        // so only a single part.
+        // so only part 1 generates them (later parts get an empty plan).
         if !Self::partitioned_table(table) {
+            let num_chunks = if cli_part == 1 { 1 } else { 0 };
             return Ok(Self {
                 part_count: 1,
-                part_list: 1..=1,
+                part_list: 1..=num_chunks,
             });
         }
 
