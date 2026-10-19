@@ -11,17 +11,17 @@ homepage = "https://github.com/datafusion-contrib/tpcgen-rs"
 license = "Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/datafusion-contrib/tpcgen-rs"
-version = "4.0.0-rc.1"
+version = "4.0.0"
 # Minimum supported Rust version (MSRV).
 # Enforced by the `msrv` job in .github/workflows/rust.yml.
 rust-version = "1.88"
 
 [workspace.dependencies]
-tpcdsgen = { path = "tpcdsgen", version = "4.0.0-rc.1" }
-tpcdsgen-arrow = { path = "tpcdsgen-arrow", version = "4.0.0-rc.1" }
-tpcgen-cli = { path = "tpcgen-cli", version = "4.0.0-rc.1", default-features = false }
-tpchgen = { path = "tpchgen", version = "4.0.0-rc.1" }
-tpchgen-arrow = { path = "tpchgen-arrow", version = "4.0.0-rc.1" }
+tpcdsgen = { path = "tpcdsgen", version = "4.0.0" }
+tpcdsgen-arrow = { path = "tpcdsgen-arrow", version = "4.0.0" }
+tpcgen-cli = { path = "tpcgen-cli", version = "4.0.0", default-features = false }
+tpchgen = { path = "tpchgen", version = "4.0.0" }
+tpchgen-arrow = { path = "tpchgen-arrow", version = "4.0.0" }
 
 arrow = { version = "60", default-features = false }
 parquet = "60"
