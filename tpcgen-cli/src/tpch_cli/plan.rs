@@ -224,6 +224,17 @@ impl Display for GenerationPlan {
     }
 }
 
+/// Return the number of chunks in which `row_count` rows of `table` are
+/// generated in TBL format, such as the rows of an update set
+pub(crate) fn tbl_chunk_count(table: Table, row_count: i64) -> i32 {
+    // The parquet row group size does not matter for TBL
+    OutputSize {
+        row_count,
+        ..OutputSize::new(table, 1.0, OutputFormat::Tbl, 0)
+    }
+    .part_count()
+}
+
 /// output size of a table
 #[derive(Debug)]
 struct OutputSize {

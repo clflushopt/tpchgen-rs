@@ -2,6 +2,7 @@
 
 mod cli;
 mod generator;
+mod updates;
 
 pub mod csv;
 pub mod output_plan;

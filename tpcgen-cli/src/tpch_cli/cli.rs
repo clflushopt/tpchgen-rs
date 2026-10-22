@@ -1,3 +1,4 @@
+use super::updates::UpdatesArgs;
 use super::{Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder};
 use crate::args::{
     default_num_threads, log_if_unapproved_scale_factor, parse_delimiter, parse_row_group_bytes,
@@ -84,6 +85,17 @@ Examples:
   # Generate all tables in Apache Parquet format with ZSTD compression and 128 MB row groups:
   tpcgen-cli tpch parquet --compression='ZSTD(1)' --row-group-bytes=128MB --output-dir=/tmp/tpch"#)]
     Parquet(ParquetArgs),
+    /// Generate refresh function update sets (like dbgen -U)
+    #[command(long_about = r#"Generate refresh function update sets (like dbgen -U)
+
+Update set N consists of the orders and line items inserted by refresh
+function RF1 (orders.tbl.uN and lineitem.tbl.uN) and the keys of the orders
+deleted by refresh function RF2 (delete.N), in TBL format.
+
+Examples:
+  # Two update sets for scale factor 10:
+  tpcgen-cli tpch updates -s 10 --sets 2 --output-dir=/tmp/tpch"#)]
+    Updates(UpdatesArgs),
 }
 
 // Shared options. `--help` lists them in field order, most commonly used first.
@@ -371,6 +383,7 @@ impl Cli {
             Some(Commands::Tbl(args)) => args.run().await,
             Some(Commands::Csv(args)) => args.run().await,
             Some(Commands::Parquet(args)) => args.run().await,
+            Some(Commands::Updates(args)) => args.run().await,
             None => self.run_default().await,
         }
     }

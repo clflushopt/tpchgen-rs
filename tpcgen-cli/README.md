@@ -50,6 +50,9 @@ tpcgen-cli tpcds parquet -s 100 --tables store_sales --parts 10 --output-dir /tm
 # (overrides Parquet writer defaults for named columns)
 tpcgen-cli tpch parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LENGTH_BYTE_ARRAY --output-dir /tmp/tpch
 
+# TPC-H refresh function update sets 1 and 2 for Scale Factor 10 (like `dbgen -s 10 -U 2`)
+tpcgen-cli tpch updates -s 10 --sets 2 --output-dir /tmp/tpch
+
 # TPC-DS Scale Factor 1, all tables, in CSV format in the `/tmp/tpcds` directory
 # Note: `tpcgen-cli tpcds` with no format writes `dat` (pipe-delimited) files
 tpcgen-cli tpcds csv -s 1 --output-dir /tmp/tpcds

@@ -45,14 +45,7 @@ impl GenerateUtils {
         part_count: i32,
     ) -> i64 {
         let total_row_count = (scale_base as f64 * scale_factor) as i64;
-        let mut row_count = total_row_count / part_count as i64;
-
-        if part == part_count {
-            // for the last part, add the remainder rows
-            row_count += total_row_count % part_count as i64;
-        }
-
-        row_count
+        Self::part_row_count(total_row_count, part, part_count)
     }
 
     /// Calculates start index for a specific part of the data
@@ -63,6 +56,23 @@ impl GenerateUtils {
         part_count: i32,
     ) -> i64 {
         let total_row_count = (scale_base as f64 * scale_factor) as i64;
+        Self::part_start_index(total_row_count, part, part_count)
+    }
+
+    /// Row count of a specific part of `total_row_count` rows
+    pub fn part_row_count(total_row_count: i64, part: i32, part_count: i32) -> i64 {
+        let mut row_count = total_row_count / part_count as i64;
+
+        if part == part_count {
+            // for the last part, add the remainder rows
+            row_count += total_row_count % part_count as i64;
+        }
+
+        row_count
+    }
+
+    /// Start index of a specific part of `total_row_count` rows
+    pub fn part_start_index(total_row_count: i64, part: i32, part_count: i32) -> i64 {
         let rows_per_part = total_row_count / part_count as i64;
         rows_per_part * (part as i64 - 1)
     }

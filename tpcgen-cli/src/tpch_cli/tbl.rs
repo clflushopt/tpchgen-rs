@@ -3,8 +3,8 @@
 use crate::generate::Source;
 use std::io::Write;
 use tpchgen::generators::{
-    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
-    PartSuppGenerator, RegionGenerator, SupplierGenerator,
+    CustomerGenerator, DeleteGenerator, LineItemGenerator, NationGenerator, OrderGenerator,
+    PartGenerator, PartSuppGenerator, RegionGenerator, SupplierGenerator,
 };
 
 /// Define a Source that writes the table in TBL format
@@ -46,3 +46,4 @@ define_tbl_source!(PartSuppTblSource, PartSuppGenerator<'static>);
 define_tbl_source!(CustomerTblSource, CustomerGenerator<'static>);
 define_tbl_source!(OrderTblSource, OrderGenerator<'static>);
 define_tbl_source!(LineItemTblSource, LineItemGenerator<'static>);
+define_tbl_source!(DeleteTblSource, DeleteGenerator);

@@ -1486,6 +1486,7 @@ pub struct OrderGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
+    update_set: Option<i32>,
     distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
@@ -1535,6 +1536,55 @@ impl<'a> OrderGenerator<'a> {
             scale_factor,
             part,
             part_count,
+            update_set: None,
+            distributions,
+            text_pool,
+        }
+    }
+
+    /// Creates an OrderGenerator for the orders inserted by refresh function
+    /// RF1 in update set `update_set` (1-based), like `dbgen -U`
+    /// (`orders.tbl.u<update_set>`).
+    ///
+    /// Like the base data, the update set can be split into `part_count`
+    /// parts, of which this generates part `part` (1-based). See
+    /// [`UpdateSet`] for details.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `update_set` is smaller than 1.
+    pub fn update_set(
+        scale_factor: f64,
+        update_set: i32,
+        part: i32,
+        part_count: i32,
+    ) -> OrderGenerator<'static> {
+        Self::update_set_with_distributions_and_text_pool(
+            scale_factor,
+            update_set,
+            part,
+            part_count,
+            Distributions::static_default(),
+            TextPool::get_or_init_default(),
+        )
+    }
+
+    /// Creates an update set OrderGenerator with specified distributions and
+    /// text pool. See [`Self::update_set`].
+    pub fn update_set_with_distributions_and_text_pool<'b>(
+        scale_factor: f64,
+        update_set: i32,
+        part: i32,
+        part_count: i32,
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> OrderGenerator<'b> {
+        assert!(update_set >= 1, "update sets are numbered from 1");
+        OrderGenerator {
+            scale_factor,
+            part,
+            part_count,
+            update_set: Some(update_set),
             distributions,
             text_pool,
         }
@@ -1551,13 +1601,12 @@ impl<'a> OrderGenerator<'a> {
             self.distributions,
             self.text_pool,
             self.scale_factor,
-            GenerateUtils::calculate_start_index(
-                Self::SCALE_BASE,
+            OrderRows::new(
                 self.scale_factor,
                 self.part,
                 self.part_count,
+                self.update_set,
             ),
-            Self::calculate_row_count(self.scale_factor, self.part, self.part_count),
         )
     }
 
@@ -1573,15 +1622,79 @@ impl<'a> OrderGenerator<'a> {
 
     /// Creates an order key from an index
     pub fn make_order_key(order_index: i64) -> i64 {
+        Self::make_sparse_order_key(order_index, 0)
+    }
+
+    /// Creates an order key from an index and a sparse key slot (`mk_sparse`
+    /// in dbgen).
+    ///
+    /// Only the first 8 of every 32 order keys are used by a slot. The base
+    /// data uses slot 0, the orders inserted by update sets use slot
+    /// `1 + (update_set % 10000) / 1000`, see [`UpdateSet`].
+    pub fn make_sparse_order_key(order_index: i64, slot: i64) -> i64 {
         let low_bits = order_index & ((1 << Self::ORDER_KEY_SPARSE_KEEP) - 1);
 
         let mut ok = order_index;
         ok >>= Self::ORDER_KEY_SPARSE_KEEP;
         ok <<= Self::ORDER_KEY_SPARSE_BITS;
+        ok += slot;
         ok <<= Self::ORDER_KEY_SPARSE_KEEP;
         ok += low_bits;
 
         ok
+    }
+}
+
+/// The range of orders an order or line item generator produces.
+///
+/// The random number streams are positioned at `start_index`, while the order
+/// keys are derived from `key_start_index` and the sparse key `key_slot`. The
+/// two only differ for update sets, whose random streams continue after the
+/// base data but whose keys reuse the base data indexes in another key slot.
+#[derive(Debug, Clone, Copy)]
+struct OrderRows {
+    start_index: i64,
+    row_count: i64,
+    key_start_index: i64,
+    key_slot: i64,
+}
+
+impl OrderRows {
+    fn new(scale_factor: f64, part: i32, part_count: i32, update_set: Option<i32>) -> Self {
+        match update_set {
+            None => {
+                let start_index = GenerateUtils::calculate_start_index(
+                    OrderGenerator::SCALE_BASE,
+                    scale_factor,
+                    part,
+                    part_count,
+                );
+                OrderRows {
+                    start_index,
+                    row_count: OrderGenerator::calculate_row_count(scale_factor, part, part_count),
+                    key_start_index: start_index,
+                    key_slot: 0,
+                }
+            }
+            Some(update_set) => {
+                // Split the update set into parts like the base data
+                let total_row_count = UpdateSet::row_count(scale_factor);
+                let key_start_index = (update_set as i64 - 1) * total_row_count
+                    + GenerateUtils::part_start_index(total_row_count, part, part_count);
+                OrderRows {
+                    start_index: OrderGenerator::calculate_row_count(scale_factor, 1, 1)
+                        + key_start_index,
+                    row_count: GenerateUtils::part_row_count(total_row_count, part, part_count),
+                    key_start_index,
+                    key_slot: UpdateSet::insert_key_slot(update_set),
+                }
+            }
+        }
+    }
+
+    /// The order key of the `index`-th (0-based) row
+    fn order_key(&self, index: i64) -> i64 {
+        OrderGenerator::make_sparse_order_key(self.key_start_index + index + 1, self.key_slot)
     }
 }
 
@@ -1611,8 +1724,7 @@ pub struct OrderGeneratorIterator<'a> {
     line_part_key_random: RandomBoundedLong,
     line_ship_date_random: RandomBoundedInt,
 
-    start_index: i64,
-    row_count: i64,
+    rows: OrderRows,
     max_customer_key: i64,
 
     index: i64,
@@ -1622,9 +1734,9 @@ impl<'a> OrderGeneratorIterator<'a> {
         distributions: &'a Distributions,
         text_pool: &'a TextPool,
         scale_factor: f64,
-        start_index: i64,
-        row_count: i64,
+        rows: OrderRows,
     ) -> Self {
+        let start_index = rows.start_index;
         let mut order_date_random = OrderGenerator::create_order_date_random();
         let mut line_count_random = OrderGenerator::create_line_count_random();
 
@@ -1679,17 +1791,14 @@ impl<'a> OrderGeneratorIterator<'a> {
             line_tax_random,
             line_part_key_random,
             line_ship_date_random,
-            start_index,
-            row_count,
+            rows,
             max_customer_key,
             index: 0,
         }
     }
 
-    /// Creates an order with the given index
-    fn make_order(&mut self, index: i64) -> Order<'a> {
-        let order_key = OrderGenerator::make_order_key(index);
-
+    /// Creates an order with the given key
+    fn make_order(&mut self, order_key: i64) -> Order<'a> {
         let order_date = self.order_date_random.next_value();
 
         // generate customer key, taking into account customer mortality rate
@@ -1752,11 +1861,11 @@ impl<'a> Iterator for OrderGeneratorIterator<'a> {
     type Item = Order<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.row_count {
+        if self.index >= self.rows.row_count {
             return None;
         }
 
-        let order = self.make_order(self.start_index + self.index + 1);
+        let order = self.make_order(self.rows.order_key(self.index));
 
         self.order_date_random.row_finished();
         self.line_count_random.row_finished();
@@ -1855,6 +1964,7 @@ pub struct LineItemGenerator<'a> {
     scale_factor: f64,
     part: i32,
     part_count: i32,
+    update_set: Option<i32>,
     distributions: &'a Distributions,
     text_pool: &'a TextPool,
 }
@@ -1906,6 +2016,55 @@ impl<'a> LineItemGenerator<'a> {
             scale_factor,
             part,
             part_count,
+            update_set: None,
+            distributions,
+            text_pool,
+        }
+    }
+
+    /// Creates a LineItemGenerator for the line items inserted by refresh
+    /// function RF1 in update set `update_set` (1-based), like `dbgen -U`
+    /// (`lineitem.tbl.u<update_set>`).
+    ///
+    /// Like the base data, the update set can be split into `part_count`
+    /// parts, of which this generates part `part` (1-based). See
+    /// [`UpdateSet`] for details.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `update_set` is smaller than 1.
+    pub fn update_set(
+        scale_factor: f64,
+        update_set: i32,
+        part: i32,
+        part_count: i32,
+    ) -> LineItemGenerator<'static> {
+        Self::update_set_with_distributions_and_text_pool(
+            scale_factor,
+            update_set,
+            part,
+            part_count,
+            Distributions::static_default(),
+            TextPool::get_or_init_default(),
+        )
+    }
+
+    /// Creates an update set LineItemGenerator with specified distributions
+    /// and text pool. See [`Self::update_set`].
+    pub fn update_set_with_distributions_and_text_pool<'b>(
+        scale_factor: f64,
+        update_set: i32,
+        part: i32,
+        part_count: i32,
+        distributions: &'b Distributions,
+        text_pool: &'b TextPool,
+    ) -> LineItemGenerator<'b> {
+        assert!(update_set >= 1, "update sets are numbered from 1");
+        LineItemGenerator {
+            scale_factor,
+            part,
+            part_count,
+            update_set: Some(update_set),
             distributions,
             text_pool,
         }
@@ -1917,17 +2076,11 @@ impl<'a> LineItemGenerator<'a> {
             self.distributions,
             self.text_pool,
             self.scale_factor,
-            GenerateUtils::calculate_start_index(
-                OrderGenerator::SCALE_BASE,
+            OrderRows::new(
                 self.scale_factor,
                 self.part,
                 self.part_count,
-            ),
-            GenerateUtils::calculate_row_count(
-                OrderGenerator::SCALE_BASE,
-                self.scale_factor,
-                self.part,
-                self.part_count,
+                self.update_set,
             ),
         )
     }
@@ -2020,8 +2173,7 @@ pub struct LineItemGeneratorIterator<'a> {
     comment_random: RandomText<'a>,
 
     scale_factor: f64,
-    start_index: i64,
-    row_count: i64,
+    rows: OrderRows,
 
     index: i64,
     order_date: i32,
@@ -2034,9 +2186,9 @@ impl<'a> LineItemGeneratorIterator<'a> {
         distributions: &'a Distributions,
         text_pool: &'a TextPool,
         scale_factor: f64,
-        start_index: i64,
-        row_count: i64,
+        rows: OrderRows,
     ) -> Self {
+        let start_index = rows.start_index;
         let mut order_date_random = OrderGenerator::create_order_date_random();
         let mut line_count_random = OrderGenerator::create_line_count_random();
 
@@ -2131,8 +2283,7 @@ impl<'a> LineItemGeneratorIterator<'a> {
             ship_mode_random,
             comment_random,
             scale_factor,
-            start_index,
-            row_count,
+            rows,
             index: 0,
             order_date,
             line_count,
@@ -2140,10 +2291,8 @@ impl<'a> LineItemGeneratorIterator<'a> {
         }
     }
 
-    /// Creates a line item with the given order index
-    fn make_line_item(&mut self, order_index: i64) -> LineItem<'a> {
-        let order_key = OrderGenerator::make_order_key(order_index);
-
+    /// Creates a line item with the given order key
+    fn make_line_item(&mut self, order_key: i64) -> LineItem<'a> {
         let quantity = self.quantity_random.next_value();
         let discount = self.discount_random.next_value();
         let tax = self.tax_random.next_value();
@@ -2208,11 +2357,11 @@ impl<'a> Iterator for LineItemGeneratorIterator<'a> {
     type Item = LineItem<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index >= self.row_count {
+        if self.index >= self.rows.row_count {
             return None;
         }
 
-        let line_item = self.make_line_item(self.start_index + self.index + 1);
+        let line_item = self.make_line_item(self.rows.order_key(self.index));
         self.line_number += 1;
 
         // advance next row only when all lines for the order have been produced
@@ -2246,6 +2395,152 @@ impl<'a> Iterator for LineItemGeneratorIterator<'a> {
         }
 
         Some(line_item)
+    }
+}
+
+/// TPC-H refresh (update) sets, as generated by `dbgen -U`.
+///
+/// The refresh functions of the TPC-H throughput test insert new orders
+/// (RF1) and delete old orders (RF2). Update set `n` (1-based) consists of:
+///
+/// * the orders and line items RF1 inserts, generated by
+///   [`OrderGenerator::update_set`] and [`LineItemGenerator::update_set`]
+///   (dbgen's `orders.tbl.u<n>` and `lineitem.tbl.u<n>`), and
+/// * the keys of the orders RF2 deletes, generated by [`DeleteGenerator`]
+///   (dbgen's `delete.<n>`).
+///
+/// Each update set has [`UpdateSet::row_count`] orders, 0.1% of the orders
+/// table. The random streams of the inserted rows continue after the base
+/// data, while their keys use the base data indexes in a different sparse key
+/// slot (see [`OrderGenerator::make_sparse_order_key`]), so they never collide
+/// with existing orders. Update set `n` deletes the base data orders with the
+/// same indexes as the orders it inserts.
+///
+/// This only holds while the indexes stay within the base data, which is at
+/// least the first 1000 update sets. Like dbgen, later sets delete orders that
+/// are not in the base data, and from set 3000 on their insert keys overflow
+/// the sparse key slot and collide with existing orders.
+///
+/// # Example
+/// ```
+/// # use tpchgen::generators::{DeleteGenerator, OrderGenerator, UpdateSet};
+/// assert_eq!(UpdateSet::row_count(1.0), 1500);
+/// let order = OrderGenerator::update_set(1.0, 1, 1, 1).iter().next().unwrap();
+/// assert_eq!(order.to_string(), "9|12658|O|129872.68|1998-07-06|4-NOT SPECIFIED|\
+///     Clerk#000000248|0| blithely final packages cajole. regular waters are final requests. regular ac|");
+/// let delete = DeleteGenerator::new(1.0, 1).iter().next().unwrap();
+/// assert_eq!(delete.to_string(), "1|");
+/// ```
+#[derive(Debug, Clone, Copy)]
+pub struct UpdateSet;
+
+impl UpdateSet {
+    /// Percentage of the orders inserted and deleted per update set, in
+    /// units of 0.01% (`UPD_PCT` in dbgen).
+    const UPDATE_PERCENTAGE: i64 = 10;
+
+    /// Returns the number of orders inserted and deleted per update set.
+    ///
+    /// This is `scale_factor * 1500`, but like dbgen the number of base data
+    /// orders is first rounded down to a multiple of 10,000, so scale factors
+    /// below 0.01 have empty update sets.
+    pub fn row_count(scale_factor: f64) -> i64 {
+        OrderGenerator::calculate_row_count(scale_factor, 1, 1) / 10_000 * Self::UPDATE_PERCENTAGE
+    }
+
+    /// The sparse key slot of the orders inserted by update set `update_set`
+    fn insert_key_slot(update_set: i32) -> i64 {
+        1 + (update_set as i64 % 10_000) / (10_000 / Self::UPDATE_PERCENTAGE)
+    }
+
+    /// The sparse key slot of the orders deleted by update set `update_set`.
+    ///
+    /// dbgen masks the slot to its two bits here, but not for inserts.
+    fn delete_key_slot(update_set: i32) -> i64 {
+        (update_set as i64 / (10_000 / Self::UPDATE_PERCENTAGE)) & 0x3
+    }
+}
+
+/// An order deleted by refresh function RF2.
+///
+/// The Display trait formats the key like the lines of dbgen's `delete.<n>`
+/// files.
+///
+/// Example
+/// ```text
+/// 1|
+/// 2|
+/// ```
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Delete {
+    /// Key of the deleted order and its line items
+    pub orderkey: i64,
+}
+
+impl fmt::Display for Delete {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}|", self.orderkey)
+    }
+}
+
+/// Generator for the orders deleted by update set `update_set` (dbgen's
+/// `delete.<update_set>`). See [`UpdateSet`].
+#[derive(Debug, Clone)]
+pub struct DeleteGenerator {
+    rows: OrderRows,
+}
+
+impl DeleteGenerator {
+    /// Creates a DeleteGenerator for update set `update_set` (1-based)
+    ///
+    /// # Panics
+    ///
+    /// Panics if `update_set` is smaller than 1.
+    pub fn new(scale_factor: f64, update_set: i32) -> Self {
+        assert!(update_set >= 1, "update sets are numbered from 1");
+        // The same rows as the inserted orders, but in the delete key slot
+        let rows = OrderRows {
+            key_slot: UpdateSet::delete_key_slot(update_set),
+            ..OrderRows::new(scale_factor, 1, 1, Some(update_set))
+        };
+        DeleteGenerator { rows }
+    }
+
+    /// Returns an iterator over the deleted orders
+    pub fn iter(&self) -> DeleteGeneratorIterator {
+        DeleteGeneratorIterator {
+            rows: self.rows,
+            index: 0,
+        }
+    }
+}
+
+impl IntoIterator for DeleteGenerator {
+    type Item = Delete;
+    type IntoIter = DeleteGeneratorIterator;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
+    }
+}
+
+/// Iterator that generates Delete rows
+#[derive(Debug)]
+pub struct DeleteGeneratorIterator {
+    rows: OrderRows,
+    index: i64,
+}
+
+impl Iterator for DeleteGeneratorIterator {
+    type Item = Delete;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.rows.row_count {
+            return None;
+        }
+        let orderkey = self.rows.order_key(self.index);
+        self.index += 1;
+        Some(Delete { orderkey })
     }
 }
 

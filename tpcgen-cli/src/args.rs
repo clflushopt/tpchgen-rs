@@ -18,6 +18,18 @@ pub(crate) const TPCDS_SCALE_FACTORS: &[f64] =
 /// Largest scale factor defined by the TPC-H and TPC-DS specifications.
 pub(crate) const MAX_BENCHMARK_SCALE_FACTOR: f64 = TPCH_SCALE_FACTORS[TPCH_SCALE_FACTORS.len() - 1];
 
+/// Warns if `scale_factor` exceeds [`MAX_BENCHMARK_SCALE_FACTOR`], and
+/// otherwise logs at INFO level if it is not one of the `approved` sizes.
+pub(crate) fn check_scale_factor(benchmark: &str, scale_factor: f64, approved: &[f64]) {
+    if scale_factor > MAX_BENCHMARK_SCALE_FACTOR {
+        log::warn!(
+            "Scale factor {scale_factor} exceeds the {benchmark} maximum of {MAX_BENCHMARK_SCALE_FACTOR}; generated data may not be valid"
+        );
+    } else {
+        log_if_unapproved_scale_factor(benchmark, scale_factor, approved);
+    }
+}
+
 /// Logs at INFO level if `scale_factor` is not one of the `approved` sizes.
 pub(crate) fn log_if_unapproved_scale_factor(benchmark: &str, scale_factor: f64, approved: &[f64]) {
     if !approved.contains(&scale_factor) {
@@ -134,6 +146,11 @@ pub(crate) fn parse_row_group_bytes(value: &str) -> Result<i64, String> {
         .ok_or_else(|| "byte value is too large".to_string())
 }
 
+/// Subcommands that do not generate table data in some format, and so have
+/// neither the common options nor format-specific options
+#[cfg(test)]
+const NON_FORMAT_SUBCOMMANDS: &[&str] = &["updates"];
+
 /// Asserts that each format subcommand of `cli` lists its format-specific
 /// options under the heading returned by `heading_for` (e.g. "Parquet Options"),
 /// and that `cli` and its subcommands list options shared via `common` under
@@ -147,7 +164,10 @@ pub(crate) fn assert_format_options_grouped(
     let common_ids: std::collections::HashSet<_> =
         common.get_arguments().map(|arg| arg.get_id()).collect();
 
-    for cmd in std::iter::once(&cli).chain(cli.get_subcommands()) {
+    for cmd in std::iter::once(&cli).chain(
+        cli.get_subcommands()
+            .filter(|cmd| !NON_FORMAT_SUBCOMMANDS.contains(&cmd.get_name())),
+    ) {
         let name = cmd.get_name();
         for arg in cmd.get_arguments() {
             let id = arg.get_id();
@@ -183,7 +203,10 @@ pub(crate) fn assert_format_options_have_logging_policy(
         .map(|arg| arg.get_id().as_str())
         .collect();
 
-    for subcommand in commands.get_subcommands() {
+    for subcommand in commands
+        .get_subcommands()
+        .filter(|cmd| !NON_FORMAT_SUBCOMMANDS.contains(&cmd.get_name()))
+    {
         let name = subcommand.get_name();
         let (logged, omitted): (&[&str], &[&str]) = match name {
             "tbl" | "dat" => (&[], &[]),
