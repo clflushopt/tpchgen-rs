@@ -5,8 +5,8 @@ use std::fs::File;
 use std::io::{BufRead, BufReader};
 use std::path::{Path, PathBuf};
 use tpchgen::generators::{
-    CustomerGenerator, LineItemGenerator, NationGenerator, OrderGenerator, PartGenerator,
-    PartSuppGenerator, RegionGenerator, SupplierGenerator,
+    CustomerGenerator, DeleteGenerator, LineItemGenerator, NationGenerator, OrderGenerator,
+    PartGenerator, PartSuppGenerator, RegionGenerator, SupplierGenerator, UpdateSet,
 };
 
 fn read_tbl_gz<P: AsRef<Path>>(path: P) -> Vec<String> {
@@ -203,6 +203,109 @@ fn test_lineitem_sf_0_01() {
     test_generator(generator.iter(), "data/sf-0.01/lineitem.tbl.gz", |item| {
         item.to_string()
     })
+}
+
+/// Compares update set `update_set` (`dbgen -s <sf> -U <update_set>`)
+fn test_update_set(sf: f64, update_set: i32, reference_dir: &str) {
+    test_generator(
+        OrderGenerator::update_set(sf, update_set, 1, 1).iter(),
+        &format!("{reference_dir}/orders.tbl.u{update_set}.gz"),
+        |order| order.to_string(),
+    );
+    test_generator(
+        LineItemGenerator::update_set(sf, update_set, 1, 1).iter(),
+        &format!("{reference_dir}/lineitem.tbl.u{update_set}.gz"),
+        |item| item.to_string(),
+    );
+    test_generator(
+        DeleteGenerator::new(sf, update_set).iter(),
+        &format!("{reference_dir}/delete.{update_set}.gz"),
+        |delete| delete.to_string(),
+    );
+}
+
+#[test]
+fn test_update_sets_sf_0_1() {
+    test_update_set(0.1, 1, "data/updates/sf-0.1");
+    test_update_set(0.1, 2, "data/updates/sf-0.1");
+}
+
+/// Update sets from 1000 on use the next sparse key slot
+#[test]
+fn test_update_set_1001_sf_0_01() {
+    test_update_set(0.01, 1001, "data/updates/sf-0.01");
+}
+
+/// The parts of an update set concatenate to the whole update set
+#[test]
+fn test_update_set_parts() {
+    let sf = 0.1;
+    for update_set in [1, 1001] {
+        let orders: Vec<_> = (1..=3)
+            .flat_map(|part| OrderGenerator::update_set(sf, update_set, part, 3).iter())
+            .map(|order| order.to_string())
+            .collect();
+        let whole: Vec<_> = OrderGenerator::update_set(sf, update_set, 1, 1)
+            .iter()
+            .map(|order| order.to_string())
+            .collect();
+        assert_eq!(orders, whole);
+
+        let items: Vec<_> = (1..=3)
+            .flat_map(|part| LineItemGenerator::update_set(sf, update_set, part, 3).iter())
+            .map(|item| item.to_string())
+            .collect();
+        let whole: Vec<_> = LineItemGenerator::update_set(sf, update_set, 1, 1)
+            .iter()
+            .map(|item| item.to_string())
+            .collect();
+        assert_eq!(items, whole);
+    }
+}
+
+#[test]
+fn test_update_set_row_count() {
+    assert_eq!(UpdateSet::row_count(1.0), 1500);
+    assert_eq!(UpdateSet::row_count(100.0), 150_000);
+    assert_eq!(UpdateSet::row_count(0.1), 150);
+    // dbgen rounds the number of orders down to a multiple of 10,000 first
+    assert_eq!(UpdateSet::row_count(0.05), 70);
+    assert_eq!(UpdateSet::row_count(0.01), 10);
+    assert_eq!(UpdateSet::row_count(0.001), 0);
+    assert_eq!(OrderGenerator::update_set(0.001, 1, 1, 1).iter().count(), 0);
+    assert_eq!(
+        LineItemGenerator::update_set(0.001, 1, 1, 1).iter().count(),
+        0
+    );
+    assert_eq!(DeleteGenerator::new(0.001, 1).iter().count(), 0);
+}
+
+/// Update sets continue the random streams of the base data
+#[test]
+fn test_update_set_continues_base_data() {
+    let sf = 0.01;
+    let base_rows = OrderGenerator::calculate_row_count(sf, 1, 1);
+    let rows = UpdateSet::row_count(sf);
+    let comments = |orders: Vec<_>| -> Vec<String> {
+        orders
+            .into_iter()
+            .map(|o: tpchgen::generators::Order| o.o_comment.to_string())
+            .collect()
+    };
+    // A base data generator for twice the scale factor generates the same
+    // random values after the base data, but with different keys
+    let continued = comments(
+        OrderGenerator::new(2.0 * sf, 1, 1)
+            .iter()
+            .skip(base_rows as usize)
+            .take(2 * rows as usize)
+            .collect(),
+    );
+    let mut updates = comments(OrderGenerator::update_set(sf, 1, 1, 1).iter().collect());
+    updates.extend(comments(
+        OrderGenerator::update_set(sf, 2, 1, 1).iter().collect(),
+    ));
+    assert_eq!(continued, updates);
 }
 
 struct TestIntoIterator<G>

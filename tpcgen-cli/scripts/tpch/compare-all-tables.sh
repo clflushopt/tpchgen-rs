@@ -12,8 +12,9 @@ print_usage() {
 compare-all-tables.sh — Run the TPC-H conformance suite for one scale factor.
 
 Builds the Rust generator in release mode, generates all 8 TPC-H tables
-with `tpcgen-cli tpch tbl`, and compares them against the C dbgen
-reference. Exits non-zero if any table differs.
+with `tpcgen-cli tpch tbl` and two refresh function update sets with
+`tpcgen-cli tpch updates`, and compares them against the C dbgen
+reference (`dbgen -U 2`). Exits non-zero if any file differs.
 
 By default, comparisons only check each table's MD5 against the expected
 hash in tests/fixtures/tpch/scale-N/MD5SUMS (which ships with the repo,
@@ -50,6 +51,7 @@ SCALE_FACTOR=1
 FULL=0
 
 TABLES=(nation region part supplier partsupp customer orders lineitem)
+UPDATE_SETS=2
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -125,47 +127,68 @@ main() {
     log_info "Generating TPC-H data at scale ${SCALE_FACTOR}..."
     "$generator" tpch tbl --scale-factor "$SCALE_FACTOR" --output-dir "$out_dir"
 
+    local files=()
+    for table in "${TABLES[@]}"; do
+        files+=("${table}.tbl")
+    done
+
+    # The update set files listed in MD5SUMS. Fixtures generated before
+    # update sets were added have none, so only generate update sets if
+    # there is something to compare them against.
+    local update_files
+    update_files=$(awk '$2 ~ /\.tbl\.u[0-9]+$|^delete\.[0-9]+$/ {print $2}' "$FIXTURE_DIR/MD5SUMS")
+    if [[ -z "$update_files" ]]; then
+        log_info "No update sets in $FIXTURE_DIR/MD5SUMS, skipping them"
+    else
+        log_info "Generating ${UPDATE_SETS} update sets at scale ${SCALE_FACTOR}..."
+        "$generator" tpch updates --scale-factor "$SCALE_FACTOR" --sets "$UPDATE_SETS" --output-dir "$out_dir"
+        local file
+        while IFS= read -r file; do
+            files+=("$file")
+        done <<< "$update_files"
+    fi
+
     local failed=()
     local start_time
     start_time=$(date +%s)
 
-    for table in "${TABLES[@]}"; do
-        local rust_file="$out_dir/${table}.tbl"
+    for file in "${files[@]}"; do
+        local rust_file="$out_dir/${file}"
         if [[ ! -f "$rust_file" ]]; then
-            log_error "  ✗ ${table}: Rust generator did not produce ${table}.tbl"
-            failed+=("$table")
+            log_error "  ✗ ${file}: Rust generator did not produce ${file}"
+            failed+=("$file")
             continue
         fi
 
         if [[ $FULL -eq 1 ]]; then
-            local ref_file="$FIXTURE_DIR/${table}.tbl"
+            local ref_file="$FIXTURE_DIR/${file}"
             if [[ ! -f "$ref_file" ]]; then
-                log_error "  ✗ ${table}: missing fixture ${ref_file}"
+                log_error "  ✗ ${file}: missing fixture ${ref_file}"
                 log_error "    Populate fixtures with: ./scripts/tpch/generate-fixtures.sh --scale ${SCALE_FACTOR}"
-                failed+=("$table")
+                failed+=("$file")
                 continue
             fi
             if diff -q "$rust_file" "$ref_file" > /dev/null; then
-                log_success "  ✓ ${table}"
+                log_success "  ✓ ${file}"
             else
-                log_error "  ✗ ${table}: output differs from C dbgen; first differences:"
+                log_error "  ✗ ${file}: output differs from C dbgen; first differences:"
                 diff "$rust_file" "$ref_file" | head -n 10 | sed 's/^/    /' || true
-                failed+=("$table")
+                failed+=("$file")
             fi
         else
             local expected actual
-            expected=$(grep " ${table}.tbl\$" "$FIXTURE_DIR/MD5SUMS" | awk '{print $1}')
+            expected=$(grep " ${file}\$" "$FIXTURE_DIR/MD5SUMS" | awk '{print $1}')
             if [[ -z "$expected" ]]; then
-                log_error "  ✗ ${table}: no entry in $FIXTURE_DIR/MD5SUMS"
-                failed+=("$table")
+                log_error "  ✗ ${file}: no entry in $FIXTURE_DIR/MD5SUMS"
+                failed+=("$file")
                 continue
             fi
             actual=$(md5sum "$rust_file" | awk '{print $1}')
             if [[ "$actual" == "$expected" ]]; then
-                log_success "  ✓ ${table} ($actual)"
+                log_success "  ✓ ${file} ($actual)"
             else
-                log_error "  ✗ ${table}: MD5 mismatch (expected ${expected}, got ${actual})"
-                failed+=("$table")
+                log_error "  ✗ ${file}: MD5 mismatch (expected ${expected}, got ${actual})"
+                failed+=("$file")
             fi
         fi
     done
@@ -173,9 +196,9 @@ main() {
     local elapsed=$(( $(date +%s) - start_time ))
     log_info "========================================="
     if [[ ${#failed[@]} -eq 0 ]]; then
-        log_success "All ${#TABLES[@]} tables match C dbgen at scale ${SCALE_FACTOR} (${elapsed}s)"
+        log_success "All ${#files[@]} files match C dbgen at scale ${SCALE_FACTOR} (${elapsed}s)"
     else
-        log_error "${#failed[@]} table(s) differ at scale ${SCALE_FACTOR}: ${failed[*]}"
+        log_error "${#failed[@]} file(s) differ at scale ${SCALE_FACTOR}: ${failed[*]}"
         exit 1
     fi
 }

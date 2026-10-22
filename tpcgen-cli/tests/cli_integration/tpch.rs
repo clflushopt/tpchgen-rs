@@ -1343,3 +1343,182 @@ fn test_tpcgen_cli_tpch_help_groups_format_specific_options() {
         }
     }
 }
+
+/// Test that `tpch updates` writes the update sets of `dbgen -U`
+#[test]
+fn test_tpcgen_cli_tpch_updates_match_dbgen() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "updates", "--scale-factor", "0.1", "--sets", "2"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success();
+
+    let mut files: Vec<_> = fs::read_dir(temp_dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    files.sort();
+    let expected = [
+        "delete.1",
+        "delete.2",
+        "lineitem.tbl.u1",
+        "lineitem.tbl.u2",
+        "orders.tbl.u1",
+        "orders.tbl.u2",
+    ];
+    assert_eq!(files, expected);
+
+    for file in expected {
+        let generated = fs::read_to_string(temp_dir.path().join(file)).unwrap();
+        let reference_file = format!("../tpchgen/data/updates/sf-0.1/{file}.gz");
+        let reference = read_gzipped_file_to_string(&reference_file)
+            .unwrap_or_else(|e| panic!("Failed to read reference file {reference_file}: {e}"));
+        assert_eq!(
+            generated, reference,
+            "Contents of {file} do not match dbgen"
+        );
+    }
+}
+
+/// Test that `tpch updates` writes only the empty delete files below scale
+/// factor 0.01, like `dbgen -U`
+#[test]
+fn test_tpcgen_cli_tpch_updates_empty() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "updates", "--scale-factor", "0.001", "--sets", "2"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success()
+        .stderr(predicates::str::contains(
+            "Update sets are empty below scale factor 0.01",
+        ));
+
+    let mut files: Vec<_> = fs::read_dir(temp_dir.path())
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    files.sort();
+    assert_eq!(files, ["delete.1", "delete.2"]);
+    for file in files {
+        assert_eq!(fs::read_to_string(temp_dir.path().join(file)).unwrap(), "");
+    }
+
+    // --quiet only logs errors
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "updates", "--scale-factor", "0.001", "--quiet"])
+        .arg("--output-dir")
+        .arg(temp_dir.path())
+        .assert()
+        .success()
+        .stderr("");
+}
+
+/// Test that `tpch updates` skips existing files unless `--overwrite` is set
+#[test]
+fn test_tpcgen_cli_tpch_updates_overwrite() {
+    let temp_dir = tempdir().expect("Failed to create temporary directory");
+    let path = temp_dir.path().join("orders.tbl.u1");
+    fs::write(&path, "existing output").unwrap();
+
+    let command = || {
+        let mut command = cargo_bin_cmd!("tpcgen-cli");
+        command
+            .args(["tpch", "updates", "--scale-factor", "0.01"])
+            .arg("--output-dir")
+            .arg(temp_dir.path());
+        command
+    };
+    command()
+        .assert()
+        .success()
+        .stderr(predicates::str::contains(
+            "already exists, skipping generation",
+        ));
+    assert_eq!(fs::read_to_string(&path).unwrap(), "existing output");
+    assert!(temp_dir.path().join("delete.1").exists());
+
+    command().arg("--overwrite").assert().success();
+    let orders = fs::read_to_string(&path).unwrap();
+    assert_eq!(orders.lines().count(), 10);
+}
+
+/// Test the query output of `tpch queries`
+#[test]
+fn test_tpcgen_cli_tpch_queries() {
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "queries"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let output = String::from_utf8(output).unwrap();
+    assert!(output.starts_with("-- using default substitutions\n\n-- TPC-H Q1\nselect\n"));
+    assert_eq!(output.matches("-- TPC-H Q").count(), 22);
+    assert!(output.contains("\tand p_type like '%BRASS'\n"));
+
+    // a query stream: the queries in stream order with random parameters
+    let generator = tpchgen::q_and_a::qgen::QueryGenerator::new(
+        10.0,
+        tpchgen::q_and_a::qgen::Substitution::Seeded(1234),
+    );
+    let mut expected = String::from("-- using 1234 as a seed to the RNG\n");
+    for (query, sql) in generator.stream(3) {
+        if [11, 15].contains(&query) {
+            expected.push_str(&format!("\n-- TPC-H Q{query}\n{sql}"));
+        }
+    }
+    cargo_bin_cmd!("tpcgen-cli")
+        .args([
+            "tpch", "queries", "-s", "10", "--seed", "1234", "--stream", "3",
+        ])
+        .args(["--queries", "15,11"])
+        .assert()
+        .success()
+        .stdout(expected);
+
+    // without a stream, the queries are in the given order, like qgen
+    let output = cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "queries", "--queries", "15,11,15"])
+        .assert()
+        .success()
+        .get_output()
+        .stdout
+        .clone();
+    let headers: Vec<_> = String::from_utf8(output)
+        .unwrap()
+        .lines()
+        .filter(|line| line.starts_with("-- TPC-H Q"))
+        .map(str::to_string)
+        .collect();
+    assert_eq!(headers, ["-- TPC-H Q15", "-- TPC-H Q11", "-- TPC-H Q15"]);
+
+    // -q is --quiet, like in the other subcommands
+    cargo_bin_cmd!("tpcgen-cli")
+        .args(["tpch", "queries", "-s", "200000", "-q", "--queries", "1"])
+        .assert()
+        .success()
+        .stderr("");
+}
+
+#[test]
+fn test_tpcgen_cli_tpch_queries_rejects_invalid_arguments() {
+    for args in [
+        &["--seed", "0"][..],
+        &["--queries", "23"],
+        &["--stream", "-1"],
+    ] {
+        cargo_bin_cmd!("tpcgen-cli")
+            .args(["tpch", "queries"])
+            .args(args)
+            .assert()
+            .code(2);
+    }
+}

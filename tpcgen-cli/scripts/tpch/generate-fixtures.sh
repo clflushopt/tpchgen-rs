@@ -13,11 +13,12 @@ generate-fixtures.sh — Generate TPC-H reference fixtures using C dbgen.
 
 Runs the official C `dbgen` (via the ghcr.io/scalytics/tpch-docker image,
 using docker or podman) at the requested scale factor and writes the
-resulting *.tbl files into tests/fixtures/tpch/scale-N/ together with an
-MD5SUMS file.
+resulting *.tbl files and the first two refresh function update sets
+(dbgen -U 2: orders.tbl.uN, lineitem.tbl.uN and delete.N) into
+tests/fixtures/tpch/scale-N/ together with an MD5SUMS file.
 
 The MD5SUMS file is checked into git and is what CI compares the Rust
-generator's output against (see compare-all-tables.sh). The *.tbl files
+generator's output against (see compare-all-tables.sh). The data files
 themselves are gitignored; they are only needed for byte-for-byte
 comparisons with compare-all-tables.sh --full.
 
@@ -48,6 +49,7 @@ FORCE=0
 DBGEN_IMAGE=${TPCH_DBGEN_IMAGE:-ghcr.io/scalytics/tpch-docker:main}
 
 TABLES=(nation region part supplier partsupp customer orders lineitem)
+UPDATE_SETS=2
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -120,9 +122,11 @@ main() {
     trap 'rm -rf "$work_dir"' EXIT
 
     "$runtime" run --rm -v "$work_dir:/data:z" "$DBGEN_IMAGE" -vf -s "$SCALE_FACTOR"
+    log_info "Generating ${UPDATE_SETS} update sets with C dbgen..."
+    "$runtime" run --rm -v "$work_dir:/data:z" "$DBGEN_IMAGE" -vf -s "$SCALE_FACTOR" -U "$UPDATE_SETS"
 
     mkdir -p "$fixture_dir"
-    rm -f "$fixture_dir"/*.tbl "$fixture_dir/MD5SUMS"
+    rm -f "$fixture_dir"/*.tbl "$fixture_dir"/*.tbl.u* "$fixture_dir"/delete.* "$fixture_dir/MD5SUMS"
 
     for table in "${TABLES[@]}"; do
         if [[ ! -f "$work_dir/${table}.tbl" ]]; then
@@ -132,7 +136,19 @@ main() {
         cp "$work_dir/${table}.tbl" "$fixture_dir/${table}.tbl"
     done
 
-    (cd "$fixture_dir" && md5sum $(printf '%s.tbl ' "${TABLES[@]}") > MD5SUMS)
+    # Below scale factor 0.01 update sets are empty, and dbgen only writes
+    # the (empty) delete files.
+    local update_files=()
+    for set in $(seq 1 "$UPDATE_SETS"); do
+        for file in "orders.tbl.u${set}" "lineitem.tbl.u${set}" "delete.${set}"; do
+            if [[ -f "$work_dir/$file" ]]; then
+                cp "$work_dir/$file" "$fixture_dir/$file"
+                update_files+=("$file")
+            fi
+        done
+    done
+
+    (cd "$fixture_dir" && md5sum $(printf '%s.tbl ' "${TABLES[@]}") "${update_files[@]}" > MD5SUMS)
 
     log_success "Fixtures written to $fixture_dir"
     log_info "MD5SUMS:"

@@ -6,3 +6,9 @@ c6889c3ed0939ca02475f7fb410cbb50  partsupp.tbl
 a8aa97edad6d47b183a569759fbd3eec  customer.tbl
 c8d2008fb47f47f9e56543d4cb0f4e6a  orders.tbl
 4c6d44350a1f7974f56f5d3d7091c2be  lineitem.tbl
+3c31b94f1bd15a67d8101b0d63f9eb58  orders.tbl.u1
+3309ecc7e015d92ca35249f91f303a71  lineitem.tbl.u1
+079060433d8301aaa3783456ed18c7f0  delete.1
+bb402163444b211c9d4a24a8029d2907  orders.tbl.u2
+257dcf795b5959aad60bbdde88b743e0  lineitem.tbl.u2
+6861e53624044eb66a27c4d51eff4a83  delete.2

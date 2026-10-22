@@ -14,6 +14,8 @@ The folders follow the `sf-{scale-factor}` pattern.
 | -------- | --------------------------------------- |
 | sf-0.01  | TPC-H dataset of a scale factor of 0.01  |
 | sf-0.001 | TPC-H dataset of a scale factor of 0.001 |
+| updates  | Refresh function update sets (`dbgen -U`), see below |
+| qgen     | Query parameters (`qgen -l`), see below |
 
 The tbl files are all named after the tables they represent.
 
@@ -114,3 +116,15 @@ And then compare with `diff`
 ```shell
 diff -du /tmp/customer.c.tbl /tmp/customer.java.tbl
 ```
+
+# Update sets and query parameters
+
+`updates/sf-<scale-factor>/` contains refresh function update sets produced
+by C `dbgen -s <scale-factor> -U <n>`: the inserted orders and line items
+(`orders.tbl.u<n>`, `lineitem.tbl.u<n>`) and the deleted order keys
+(`delete.<n>`). `sf-0.1` has update sets 1 and 2, `sf-0.01` has update set
+1001, the first that uses the next order key slot.
+
+`qgen/parameters.tsv` contains the substitution parameters logged by `qgen
+-r <seed> -s <scale-factor> -l <file>` from TPC-H 2.17 for 25 seeds and
+scale factors, prefixed with the seed and the scale factor.

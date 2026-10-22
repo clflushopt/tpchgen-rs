@@ -54,6 +54,27 @@ TPC-H has a second, finer-grained check at the library level:
 compares each generator row by row against gzipped reference tables checked
 into `tpchgen/data/` at scale factors 0.001 and 0.01.
 
+### TPC-H update sets and queries
+
+The TPC-H refresh function update sets (`tpcgen-cli tpch updates`, `dbgen
+-U`) are checked like the tables: `compare-all-tables.sh` also compares the
+first two update sets against the MD5 sums of `dbgen -U 2` output, and
+[`integration_tests.rs`](tpchgen/tests/integration_tests.rs) compares them
+row by row against reference files in `tpchgen/data/updates/`.
+
+The queries with substituted parameters (`tpcgen-cli tpch queries`, `qgen`)
+are checked against `qgen` from TPC-H 2.17 (earlier versions choose
+different Q4 and Q22 parameters).
+[`qgen_tests.rs`](tpchgen/tests/qgen_tests.rs) compares the parameters for
+25 seeds and scale factors against `qgen -l` output in `tpchgen/data/qgen/`,
+and [`compare-queries.sh`](tpcgen-cli/scripts/tpch/compare-queries.sh)
+compares the complete SQL text of the validation queries and of random query
+streams against a locally built `qgen`:
+
+```sh
+./tpcgen-cli/scripts/tpch/compare-queries.sh --qgen-dir path/to/tpch-kit/dbgen
+```
+
 ### Validating Arrow output
 
 [`tpchgen-arrow/tests/reparse.rs`](tpchgen-arrow/tests/reparse.rs) and

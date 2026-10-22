@@ -6,3 +6,5 @@ bd0cfd8dcb384f75f27f2383da27fed6  partsupp.tbl
 4838fb47418882a3d617564c5a583641  customer.tbl
 2ebaccf1735e9b7641e4791fca0ad6de  orders.tbl
 c9aec6ed54586bfca91ab61af604c177  lineitem.tbl
+d41d8cd98f00b204e9800998ecf8427e  delete.1
+d41d8cd98f00b204e9800998ecf8427e  delete.2
