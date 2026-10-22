@@ -3,6 +3,7 @@
 //! This module exposes a bundled query and answer tuple that makes it
 //! easier to work with them in benchmark contexts.
 pub mod answers_sf1;
+pub mod qgen;
 pub mod queries;
 
 /// QueryAndAnswer is a struct that contains a TPC-H query and its expected answer.

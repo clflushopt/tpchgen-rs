@@ -149,7 +149,7 @@ pub(crate) fn parse_row_group_bytes(value: &str) -> Result<i64, String> {
 /// Subcommands that do not generate table data in some format, and so have
 /// neither the common options nor format-specific options
 #[cfg(test)]
-const NON_FORMAT_SUBCOMMANDS: &[&str] = &["updates"];
+const NON_FORMAT_SUBCOMMANDS: &[&str] = &["queries", "updates"];
 
 /// Asserts that each format subcommand of `cli` lists its format-specific
 /// options under the heading returned by `heading_for` (e.g. "Parquet Options"),

@@ -182,6 +182,7 @@ pub struct Distributions {
     category: Distribution,
     market_segments: Distribution,
     nations: Distribution,
+    nations2: Distribution,
     noun_phrase: Distribution,
     nouns: Distribution,
     order_priority: Distribution,
@@ -189,6 +190,8 @@ pub struct Distributions {
     part_containers: Distribution,
     part_types: Distribution,
     prepositions: Distribution,
+    q13a: Distribution,
+    q13b: Distribution,
     regions: Distribution,
     return_flags: Distribution,
     ship_instructions: Distribution,
@@ -214,6 +217,7 @@ impl Distributions {
                 "category" => new_self.category = distribution,
                 "msegmnt" => new_self.market_segments = distribution,
                 "nations" => new_self.nations = distribution,
+                "nations2" => new_self.nations2 = distribution,
                 "np" => new_self.noun_phrase = distribution,
                 "nouns" => new_self.nouns = distribution,
                 "o_oprio" => new_self.order_priority = distribution,
@@ -221,6 +225,8 @@ impl Distributions {
                 "p_cntr" => new_self.part_containers = distribution,
                 "p_types" => new_self.part_types = distribution,
                 "prepositions" => new_self.prepositions = distribution,
+                "Q13a" => new_self.q13a = distribution,
+                "Q13b" => new_self.q13b = distribution,
                 "regions" => new_self.regions = distribution,
                 "rflag" => new_self.return_flags = distribution,
                 "instruct" => new_self.ship_instructions = distribution,
@@ -229,8 +235,8 @@ impl Distributions {
                 "vp" => new_self.verb_phrase = distribution,
                 "verbs" => new_self.verbs = distribution,
 
-                // currently unused distributions
-                "nations2" | "Q13a" | "Q13b" | "p_names" => {}
+                // currently unused distribution
+                "p_names" => {}
                 _ => {
                     return Err(io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -337,6 +343,12 @@ impl Distributions {
         &self.nations
     }
 
+    /// Returns the `nations2` distribution: the nations with uniform weights,
+    /// used for query parameter substitution.
+    pub fn nations2(&self) -> &Distribution {
+        &self.nations2
+    }
+
     /// Returns the `noun_phrases` distribution.
     pub fn noun_phrase(&self) -> &Distribution {
         &self.noun_phrase
@@ -370,6 +382,18 @@ impl Distributions {
     /// Returns the `prepositions` distribution.
     pub fn prepositions(&self) -> &Distribution {
         &self.prepositions
+    }
+
+    /// Returns the `Q13a` distribution: the first word of the Q13 comment
+    /// pattern.
+    pub fn q13a(&self) -> &Distribution {
+        &self.q13a
+    }
+
+    /// Returns the `Q13b` distribution: the second word of the Q13 comment
+    /// pattern.
+    pub fn q13b(&self) -> &Distribution {
+        &self.q13b
     }
 
     /// Returns the `regions` distribution.

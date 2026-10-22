@@ -50,6 +50,12 @@ tpcgen-cli tpcds parquet -s 100 --tables store_sales --parts 10 --output-dir /tm
 # (overrides Parquet writer defaults for named columns)
 tpcgen-cli tpch parquet -s 1 --tables lineitem --column-encoding=l_comment=DELTA_LENGTH_BYTE_ARRAY --output-dir /tmp/tpch
 
+# TPC-H queries with the validation parameters (like `qgen -d`) to stdout
+tpcgen-cli tpch queries
+
+# TPC-H query stream 3 for Scale Factor 100 with random parameters (like `qgen -s 100 -r 1234 -p 3`)
+tpcgen-cli tpch queries -s 100 --seed 1234 --stream 3 > stream3.sql
+
 # TPC-H refresh function update sets 1 and 2 for Scale Factor 10 (like `dbgen -s 10 -U 2`)
 tpcgen-cli tpch updates -s 10 --sets 2 --output-dir /tmp/tpch
 

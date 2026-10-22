@@ -1,4 +1,8 @@
 //! TPC-H benchmark queries.
+//!
+//! These are the query templates with their substitution parameters (`:1`,
+//! `:2`, ...) unreplaced. Use [`QueryGenerator`](super::qgen::QueryGenerator)
+//! for executable queries.
 
 /// TPC-H Pricing Summary Report Query (Q1).
 pub const Q1: &str = r#"

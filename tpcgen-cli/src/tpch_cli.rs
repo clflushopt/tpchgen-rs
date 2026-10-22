@@ -2,6 +2,7 @@
 
 mod cli;
 mod generator;
+mod queries;
 mod updates;
 
 pub mod csv;

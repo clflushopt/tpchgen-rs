@@ -65,11 +65,12 @@
 //! [`LineItemGenerator::update_set`]: generators::LineItemGenerator::update_set
 //! [`DeleteGenerator`]: generators::DeleteGenerator
 //!
-//! # TPC-H Answers
+//! # TPC-H Queries and Answers
 //!
-//! The [`q_and_a`] module provides answers for queries 1 to 22 and for a scale
-//! factor of 1. The answers exposed were derived from the [TPC-H
-//! Tools](https://www.tpc.org/) official distribution.
+//! The [`q_and_a`] module generates the 22 queries with substituted
+//! parameters like `qgen` ([`q_and_a::qgen`]), and provides answers for
+//! queries 1 to 22 and for a scale factor of 1. The answers exposed were
+//! derived from the [TPC-H Tools](https://www.tpc.org/) official distribution.
 pub mod csv;
 pub mod dates;
 pub mod decimal;

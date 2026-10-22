@@ -14,7 +14,7 @@ impl RowRandomInt {
     /// The default multiplier value is a TPC-H constant.
     const MULTIPLIER: i64 = 16807;
     /// Modulus value is a TPC-H constant 2^31 - 1.
-    const MODULUS: i64 = 2147483647;
+    pub(crate) const MODULUS: i64 = 2147483647;
     /// Default seed value as specified in CMU's benchbase.
     const DEFAULT_SEED: i64 = 19620718;
 

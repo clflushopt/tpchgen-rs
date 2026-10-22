@@ -1,3 +1,4 @@
+use super::queries::QueriesArgs;
 use super::updates::UpdatesArgs;
 use super::{Compression, Encoding, OutputFormat, Table, TpchGenerator, TpchGeneratorBuilder};
 use crate::args::{
@@ -85,6 +86,21 @@ Examples:
   # Generate all tables in Apache Parquet format with ZSTD compression and 128 MB row groups:
   tpcgen-cli tpch parquet --compression='ZSTD(1)' --row-group-bytes=128MB --output-dir=/tmp/tpch"#)]
     Parquet(ParquetArgs),
+    /// Generate the 22 queries with substituted parameters (like qgen)
+    #[command(
+        long_about = r#"Generate the 22 queries with substituted parameters (like qgen)
+
+The queries are printed to stdout as standard SQL. Q15 creates, queries and
+drops a view.
+
+Examples:
+  # The queries with the validation parameters (qgen -d):
+  tpcgen-cli tpch queries
+
+  # Query stream 3 at scale factor 100 with random parameters (qgen -s 100 -r 1234 -p 3):
+  tpcgen-cli tpch queries -s 100 --seed 1234 --stream 3"#
+    )]
+    Queries(QueriesArgs),
     /// Generate refresh function update sets (like dbgen -U)
     #[command(long_about = r#"Generate refresh function update sets (like dbgen -U)
 
@@ -383,6 +399,7 @@ impl Cli {
             Some(Commands::Tbl(args)) => args.run().await,
             Some(Commands::Csv(args)) => args.run().await,
             Some(Commands::Parquet(args)) => args.run().await,
+            Some(Commands::Queries(args)) => args.run(),
             Some(Commands::Updates(args)) => args.run().await,
             None => self.run_default().await,
         }
